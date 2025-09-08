@@ -1,0 +1,117 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Account {
+  id             String   @id @default(cuid())
+  name           String
+  email          String?
+  address        String?
+  phone          String?
+  machineVoltage String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  orders         Order[]
+}
+
+model Order {
+  id              String              @id @default(cuid())
+  accountId       String
+  poNumber        String?
+  sku             String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  etaDate         DateTime?
+  currentStage    String              @default("MANUFACTURING")
+  trackingToken   String              @unique
+  trackingNumber  String?
+  shippingCarrier String?
+  isLocked        Boolean             @default(false)
+  lockedAt        DateTime?
+  lockedBy        String?
+  createdByUserId String?
+  account         Account             @relation(fields: [accountId], references: [id])
+  items           OrderItem[]
+  statusEvents    OrderStatusEvent[]
+  createdBy       User?               @relation(fields: [createdByUserId], references: [id])
+}
+
+model OrderItem {
+  id             String                  @id @default(cuid())
+  orderId        String
+  productCode    String
+  qty            Int                     @default(1)
+  serialNumber   String?
+  modelNumber    String?
+  voltage        String?
+  notes          String?
+  currentStage   String?
+  archivedAt     DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  order          Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  statusEvents   OrderItemStatusEvent[]
+}
+
+model OrderStatusEvent {
+  id               String   @id @default(cuid())
+  orderId          String
+  stage            String
+  note             String?
+  createdAt        DateTime @default(now())
+  changedByUserId  String?
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy        User?    @relation(fields: [changedByUserId], references: [id])
+}
+
+model OrderItemStatusEvent {
+  id               String    @id @default(cuid())
+  orderItemId      String
+  stage            String
+  note             String?
+  createdAt        DateTime  @default(now())
+  changedByUserId  String?
+  orderItem        OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  changedBy        User?     @relation(fields: [changedByUserId], references: [id])
+}
+
+// New flexible audit log table that can handle any entity type
+model AuditLog {
+  id                String   @id @default(cuid())
+  entityType        String   // "Order", "Account", "User", "OrderItem"
+  entityId          String   // ID of the entity being audited
+  parentEntityId    String?  // Optional: orderId for OrderItems, etc.
+  action            String   // "CREATED", "UPDATED", "DELETED", "LOCKED", etc.
+  changes           String?  // JSON string of field changes
+  metadata          String?  // JSON string of additional data (reason, notes, etc.)
+  performedByUserId String?
+  performedByName   String?
+  createdAt         DateTime @default(now())
+  performedBy       User?    @relation(fields: [performedByUserId], references: [id])
+  
+  @@index([entityType, entityId])
+  @@index([parentEntityId])
+  @@index([createdAt])
+}
+
+model User {
+  id                String                  @id @default(cuid())
+  email             String                  @unique
+  password          String
+  name              String
+  role              String                  @default("AGENT") // "ADMIN" or "AGENT"
+  isActive          Boolean                 @default(true)
+  lastLogin         DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  createdOrders     Order[]
+  statusEvents      OrderStatusEvent[]
+  itemStatusEvents  OrderItemStatusEvent[]
+  auditLogs         AuditLog[]
+}

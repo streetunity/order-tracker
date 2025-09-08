@@ -1,0 +1,131 @@
+.
+├── README.md
+├── api
+│   ├── .env
+│   ├── .env.example
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── prisma
+│   │   ├── dev.db
+│   │   ├── migrations
+│   │   │   ├── 20250821011019_init
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20250821045821_add_item_stage_and_item_timeline
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20250821141112_add_item_archive
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20250905003010_add_custome_fields
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20250906003753_add_serial_numbers
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20250906011300_add_lock_feature
+│   │   │   │   └── migration.sql
+│   │   │   ├── 20250906014802_add_item_fields
+│   │   │   │   └── migration.sql
+│   │   │   └── migration_lock.toml
+│   │   ├── schema.prisma
+│   │   ├── seed.js
+│   │   └── seedUsers.js
+│   └── src
+│       ├── index.js
+│       ├── middleware
+│       │   └── auth.js
+│       ├── rateLimit.js
+│       ├── state.js
+│       └── utils
+│           └── password.js
+├── cleanup.sh
+├── package-lock.json
+├── package.json
+├── project-structure.txt
+└── web
+    ├── .env.local
+    ├── .env.local.example
+    ├── app
+    │   ├── admin
+    │   │   ├── board
+    │   │   │   ├── board.css
+    │   │   │   └── page.jsx
+    │   │   ├── customers
+    │   │   │   ├── new
+    │   │   │   │   └── page.jsx
+    │   │   │   └── page.jsx
+    │   │   ├── kiosk
+    │   │   │   ├── kiosk.css
+    │   │   │   ├── old
+    │   │   │   │   ├── KioskAutoRefresh.jsx
+    │   │   │   │   ├── layout.jsx
+    │   │   │   │   ├── page.css
+    │   │   │   │   └── page.jsx
+    │   │   │   └── page.jsx
+    │   │   ├── orders
+    │   │   │   ├── [id]
+    │   │   │   │   ├── page.jsx
+    │   │   │   │   └── page.jsx.backup
+    │   │   │   ├── new
+    │   │   │   │   └── page.jsx
+    │   │   │   └── page.jsx
+    │   │   ├── page.jsx
+    │   │   └── users
+    │   │       └── page.jsx
+    │   ├── api
+    │   │   ├── accounts
+    │   │   │   ├── [id]
+    │   │   │   │   └── route.js
+    │   │   │   └── route.js
+    │   │   ├── auth
+    │   │   │   ├── check
+    │   │   │   ├── login
+    │   │   │   │   └── route.js
+    │   │   │   ├── logout
+    │   │   │   └── me
+    │   │   │       └── route.js
+    │   │   ├── orders
+    │   │   │   ├── [id]
+    │   │   │   │   ├── audit-log
+    │   │   │   │   │   └── route.js
+    │   │   │   │   ├── items
+    │   │   │   │   │   ├── [itemId]
+    │   │   │   │   │   │   ├── events
+    │   │   │   │   │   │   │   └── route.js
+    │   │   │   │   │   │   ├── route.js
+    │   │   │   │   │   │   └── stage
+    │   │   │   │   │   │       └── route.js
+    │   │   │   │   │   └── route.js
+    │   │   │   │   ├── lock
+    │   │   │   │   │   └── route.js
+    │   │   │   │   ├── route.js
+    │   │   │   │   └── unlock
+    │   │   │   │       └── route.js
+    │   │   │   └── route.js
+    │   │   ├── public
+    │   │   │   └── orders
+    │   │   │       └── [token]
+    │   │   │           └── route.js
+    │   │   └── users
+    │   │       ├── [id]
+    │   │       │   └── route.js
+    │   │       └── route.js
+    │   ├── globals.css
+    │   ├── history
+    │   │   └── page.jsx
+    │   ├── layout.jsx
+    │   ├── login
+    │   │   └── page.jsx
+    │   └── t
+    │       └── [token]
+    │           └── page.jsx
+    ├── contexts
+    │   └── AuthContext.jsx
+    ├── jsconfig.json
+    ├── lib
+    │   └── state.js
+    ├── next.config.js
+    ├── package-lock.json
+    ├── package.json
+    ├── postcss.config.js
+    └── public
+        ├── SMT-logo-Final-01-e1674149233144-1024x891.png:Zone.Identifier
+        └── smt-logo.png
+
+55 directories, 74 files

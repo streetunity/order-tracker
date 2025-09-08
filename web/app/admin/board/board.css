@@ -1,0 +1,277 @@
+/* app/admin/board/board.css - Dark Theme */
+
+/* ---- Layout variables ---- */
+:root {
+  --header-h: 44px;        /* compact page header */
+  --toolbar-h: 28px;       /* compact toolbar */
+  --stage-head-h: 48px;    /* header row height */
+  --stage-gap: 24px;       /* space below header row */
+  --board-lift: 60px;      /* LIFT the whole board upward */
+  --sticky-top: calc(var(--header-h) + var(--toolbar-h));
+}
+
+/* Main board grid */
+.stageBoard {
+  display: grid;
+  grid-template-columns: 280px repeat(9, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: start;
+  padding: 12px 16px;
+  overflow-x: auto;
+  max-width: 1920px;
+  margin: 0 auto;
+  margin-top: calc(-1 * var(--board-lift));
+  background: var(--bg);
+}
+
+/* Spacer so first customer row starts BELOW sticky headers */
+.stageBoard::before {
+  content: "";
+  display: block;
+  grid-column: 1 / -1;
+  height: calc(var(--stage-head-h) + var(--stage-gap));
+}
+
+/* ---- Top header (app title + manage links) ---- */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  min-height: var(--header-h);
+}
+.headerNav { display: flex; gap: 8px; }
+.h1 { 
+  font-size: 18px; 
+  font-weight: 600; 
+  color: var(--text);
+}
+
+/* ---- Toolbar (sticky under header) ---- */
+.toolbar {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 9;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px dashed var(--border);
+  font-size: 12px;
+  background: var(--panel);
+  min-height: var(--toolbar-h);
+}
+.tool { display: flex; gap: 6px; align-items: center; }
+.tool label { color: var(--text); }
+
+/* ---- Sticky header row for stage columns ---- */
+.stickyHeader {
+  position: sticky;
+  top: var(--sticky-top);
+  height: var(--stage-head-h);
+  display: flex;
+  align-items: center;
+  background: var(--accent);
+  z-index: 8;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 4px rgba(0,0,0,.3);
+}
+
+/* ---- Sticky left column (customer names) ---- */
+.stickyCol {
+  position: sticky;
+  left: 0;
+  background: var(--panel);
+  z-index: 4;
+  border-right: 1px solid var(--border);
+}
+
+/* When element is both sticky header AND sticky col */
+.stickyHeader.stickyCol {
+  z-index: 11;
+  background: var(--accent);
+}
+
+/* Stage columns & titles */
+.stageCol { 
+  min-height: 100px;
+  background: transparent;
+}
+.stageTitle {
+  display: flex;
+  gap: 8px;
+  color: #fff;
+  font-weight: 500;
+  text-transform: capitalize;
+  padding: 8px 6px;
+  width: 100%;
+}
+.stageTitle .count { 
+  font-size: 11px; 
+  opacity: .9; 
+}
+
+/* Customer row spans all stage columns (grid: contents) */
+.customerRow { display: contents; }
+.customerHeader { 
+  padding: 8px; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 6px;
+  background: var(--panel);
+}
+.customerName { 
+  font-weight: 600; 
+  color: var(--text); 
+}
+.publicLinks { 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 6px; 
+  font-size: 11px; 
+  opacity: .8; 
+}
+
+/* Item cards */
+.itemCard {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px;
+  margin: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.2);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.itemCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,.3);
+}
+.itemCard.archived { 
+  opacity: .5; 
+  background: var(--muted); 
+}
+
+.itemTitle { 
+  font-weight: 600; 
+  margin-bottom: 6px; 
+  word-break: break-word; 
+  color: var(--text);
+}
+.itemActions { 
+  display: flex; 
+  gap: 6px; 
+  flex-wrap: wrap; 
+}
+
+/* Mini buttons */
+.miniBtn {
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  transition: all 0.2s;
+}
+.miniBtn:hover:not(:disabled) { 
+  background: var(--accent); 
+  color: #fff;
+  border-color: var(--accent);
+}
+.miniBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.miniBtn.danger { 
+  border-color: #991b1b; 
+  color: #fca5a5; 
+  background: #450a0a;
+}
+.miniBtn.danger:hover:not(:disabled) { 
+  background: #dc2626; 
+  color: #fff;
+  border-color: #dc2626;
+}
+
+/* Regular buttons */
+.btn {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: inline-block;
+}
+.btn:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+  border-color: var(--accent);
+}
+.btn.primary { 
+  background: var(--accent); 
+  color: #fff; 
+  border-color: var(--accent);
+}
+.btn.primary:hover { 
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+/* Links */
+.link { 
+  text-decoration: underline; 
+  color: var(--accent);
+}
+.link:hover {
+  color: var(--accent-strong);
+}
+.link.tiny { 
+  font-size: 11px; 
+  color: #f87171;
+}
+
+/* Utility classes */
+.emptyCell { 
+  padding: 10px; 
+  color: var(--text-dim); 
+  text-align: center; 
+}
+.errorBox { 
+  color: #fecaca; 
+  background: #7f1d1d; 
+  border: 1px solid #991b1b; 
+  border-radius: 6px; 
+  padding: 8px 10px; 
+  margin: 12px 16px; 
+}
+.loading { 
+  padding: 12px 16px; 
+  color: var(--text-dim); 
+}
+
+/* Input styling for toolbar */
+.toolbar input[type="text"],
+.toolbar input[type="search"],
+.toolbar select {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.toolbar input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .stageBoard { grid-template-columns: 240px repeat(9, 180px); }
+}

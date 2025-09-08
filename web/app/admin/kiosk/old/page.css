@@ -1,0 +1,52 @@
+/* Dark kiosk theme: black bg, white text, red highlights */
+
+body {
+  background: black;
+  color: white;
+}
+
+/* Board grid layout is inherited from board.css, only override theme */
+.board {
+  background: black;
+  color: white;
+}
+
+/* Headers */
+.board .sticky-header {
+  background: #111;
+  color: white;
+  font-weight: bold;
+  border-bottom: 1px solid #333;
+}
+
+/* Sticky product column */
+.sticky-col {
+  background: #111;
+  color: white;
+  font-weight: bold;
+}
+
+/* Normal cells */
+.cell {
+  border: 1px solid #333;
+  background: black;
+  color: white;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Active stage cell: solid red fill, no checkmark text needed */
+.cell--active {
+  background: red !important;
+  color: black !important; /* keep text hidden */
+}
+
+/* Group row (customer separator) */
+.groupRow {
+  background: #222;
+  color: white;
+  font-size: 1.1em;
+  padding: 4px 8px;
+  border-top: 2px solid #444;
+  border-bottom: 2px solid #444;
+}

@@ -1,0 +1,187 @@
+# Manufacturing Tracker .gitignore
+# Note: .env files are intentionally NOT ignored as they're needed for the app to run
+
+# Dependencies (downloaded via npm install)
+node_modules/
+*/node_modules/
+api/node_modules/
+web/node_modules/
+
+# Build outputs
+web/.next/
+web/out/
+web/build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Database files (generated/created by app)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+api/prisma/dev.db
+api/prisma/dev.db-journal
+api/prisma/*.db
+api/prisma/*.db-journal
+
+# Prisma
+api/prisma/migrations/migration_lock.toml
+# Keep migrations folder but not the lock file
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+api/logs/
+web/logs/
+
+# PM2
+.pm2/
+pm2.log
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Testing
+coverage/
+*.lcov
+.nyc_output/
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.history/
+
+# IDE - IntelliJ/WebStorm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE - Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# OS Files - macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# OS Files - Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# OS Files - Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Package manager locks (these can be regenerated)
+# Uncomment if you want to ignore lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*.swn
+*.bak
+*.backup
+*.old
+
+# SSL Certificates (if added later)
+*.pem
+*.key
+*.crt
+*.cer
+*.pfx
+*.p12
+
+# Backup files
+backups/
+*.backup
+*.back
+*.old
+backup_*.db
+api/backups/
+web/backups/
+
+# Cache
+.cache/
+.parcel-cache/
+.vercel/
+.turbo/
+
+# Environment validation
+.env.local.example
+.env.production.example
+
+# Documentation build
+docs/_build/
+docs/.vuepress/dist/
+
+# Static file serving
+public/uploads/
+uploads/
+
+# Session store
+sessions/
+.sessions/
+
+# Health check files
+healthcheck.txt
+liveness.txt
+readiness.txt
+
+# Note: We're intentionally INCLUDING these files that would normally be ignored:
+# .env
+# .env.local  
+# .env.production
+# .env.development
+# api/.env
+# web/.env
+# web/.env.production
+# These are kept because they're needed for the app to run
