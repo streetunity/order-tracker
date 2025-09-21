@@ -125,7 +125,7 @@ export default function PublicTrackingPage() {
         </h1>
         
         {/* Order Details */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap", marginBottom: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
           {order.poNumber && (
             <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
               <strong>Order Date:</strong> {order.poNumber}
@@ -139,38 +139,39 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* Complete Customer Information - Moved outside header for consistent width */}
-      <div style={{ marginBottom: "40px" }}>
-        <div style={{ 
-          backgroundColor: "#2d2d2d", 
-          border: "1px solid #404040", 
-          borderRadius: "8px", 
-          padding: "20px"
-        }}>
-          <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#e4e4e4", marginBottom: "16px" }}>
-            Customer Information
-          </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", textAlign: "left" }}>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Name:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.accountName || "N/A"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Email:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.email || "Not provided"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Phone:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.phone || "Not provided"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Address:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.address || "Not provided"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
-            </div>
+      {/* Complete Customer Information - Full width matching order items */}
+      <div style={{ 
+        backgroundColor: "#2d2d2d", 
+        border: "1px solid #404040", 
+        borderRadius: "8px", 
+        padding: "20px",
+        marginBottom: "40px",
+        display: "grid",
+        gap: "24px"
+      }}>
+        <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#e4e4e4", marginBottom: "16px" }}>
+          Customer Information
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", textAlign: "left" }}>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Name:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.accountName || "N/A"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Email:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.email || "Not provided"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Phone:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.phone || "Not provided"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Address:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.address || "Not provided"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
           </div>
         </div>
       </div>
@@ -405,7 +406,9 @@ export default function PublicTrackingPage() {
           backgroundColor: "#2d2d2d",
           borderRadius: "8px",
           border: "1px solid #404040",
-          marginBottom: "40px"
+          marginBottom: "40px",
+          display: "grid",
+          gap: "24px"
         }}>
           <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "12px" }}>
             Shipping Information
@@ -435,7 +438,9 @@ export default function PublicTrackingPage() {
           backgroundColor: "#2d2d2d",
           borderRadius: "8px",
           border: "1px solid #404040",
-          marginBottom: "40px"
+          marginBottom: "40px",
+          display: "grid",
+          gap: "24px"
         }}>
           <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "12px" }}>
             Order Timeline
