@@ -63,7 +63,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
       }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Measurements</h2>
         <span style={{ 
-          backgroundColor: '#10b981', 
+          backgroundColor: '#6b7280', 
           color: '#fff', 
           padding: '4px 8px', 
           borderRadius: '4px',
@@ -77,11 +77,11 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
       {order.isLocked && (
         <div style={{ 
           fontSize: "12px", 
-          color: "#10b981", 
+          color: "#6b7280", 
           marginBottom: "12px",
           fontStyle: "italic"
         }}>
-          ✓ Measurements can be updated even when the order is locked
+          ℹ️ Measurements can be updated even when the order is locked
         </div>
       )}
       
@@ -267,10 +267,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                           onClick={() => startEdit(item)}
                           style={{ 
                             fontSize: '11px', 
-                            padding: '2px 8px',
-                            backgroundColor: '#10b981',
-                            color: 'white',
-                            border: 'none'
+                            padding: '2px 8px'
                           }}
                           title="Edit measurements (always allowed)"
                         >
