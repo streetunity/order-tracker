@@ -19,13 +19,13 @@ const STAGES = [
 // Display labels for column headers - SHORTENED for kiosk
 const STAGE_LABELS = {
   MANUFACTURING: "Manufacturing",
-  TESTING: "Debugging & Testing",
-  SHIPPING: "Preparing Container",
+  TESTING: "Testing",
+  SHIPPING: "Preparing To Ship",
   AT_SEA: "Container At Sea",
   SMT: "Arrived At SMT",
   QC: "Quality Control",
-  DELIVERED: "Delivered To Customer",
-  ONSITE: "On Site Setup & Training",
+  DELIVERED: "Delivered",
+  ONSITE: "On Site Setup",
   COMPLETED: "Training Complete",
   FOLLOW_UP: "Follow Up",
 };
