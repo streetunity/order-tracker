@@ -1,0 +1,306 @@
+/* Measurement Feature Styles */
+
+/* Measurement badges on item cards */
+.measurementBadges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #10b981;
+}
+
+.measurementBadge {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* Measurement button */
+.measurementBtn {
+  background-color: #10b981;
+  color: white;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.measurementBtn:hover {
+  background-color: #059669;
+}
+
+.measurementBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Measurement modal */
+.measurementModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.measurementModalContent {
+  background-color: #1a1a1a;
+  border: 1px solid #383838;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.measurementModalTitle {
+  color: #e5e5e5;
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.measurementGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.measurementField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.measurementLabel {
+  font-size: 11px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.measurementInput {
+  background-color: #2d2d2d;
+  border: 1px solid #383838;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: #e5e5e5;
+  font-size: 14px;
+  width: 100%;
+}
+
+.measurementInput:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
+}
+
+.measurementSelect {
+  background-color: #2d2d2d;
+  border: 1px solid #383838;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: #e5e5e5;
+  font-size: 14px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.measurementSelect:focus {
+  outline: none;
+  border-color: #10b981;
+}
+
+/* Measurement section in order details */
+.measurementSection {
+  margin-top: 32px;
+  padding: 16px;
+  background-color: #1a1a1a;
+  border: 1px solid #383838;
+  border-radius: 6px;
+}
+
+.measurementSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.measurementSectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e5e5e5;
+  margin: 0;
+}
+
+.alwaysEditableBadge {
+  background-color: #10b981;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.measurementTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.measurementTable th {
+  background-color: #2d2d2d;
+  color: #9ca3af;
+  font-weight: 500;
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #383838;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.measurementTable td {
+  padding: 8px;
+  border-bottom: 1px solid #383838;
+  color: #e5e5e5;
+  font-size: 14px;
+}
+
+.measurementTable tr:hover {
+  background-color: rgba(45, 45, 45, 0.5);
+}
+
+.measurementEditBtn {
+  background-color: #10b981;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.measurementEditBtn:hover {
+  background-color: #059669;
+}
+
+.measurementSaveBtn {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  margin-right: 4px;
+  transition: background-color 0.2s;
+}
+
+.measurementSaveBtn:hover {
+  background-color: #dc2626;
+}
+
+.measurementCancelBtn {
+  background-color: #383838;
+  color: #e5e5e5;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.measurementCancelBtn:hover {
+  background-color: #525252;
+}
+
+/* Success indicator */
+.measurementSuccess {
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
+  color: #10b981;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.measurementSuccess::before {
+  content: '✓';
+  font-weight: bold;
+}
+
+/* Last updated info */
+.measurementLastUpdated {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+/* Empty state */
+.measurementEmpty {
+  text-align: center;
+  padding: 24px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Loading state */
+.measurementLoading {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #383838;
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: measurementSpin 0.6s linear infinite;
+}
+
+@keyframes measurementSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .measurementGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .measurementModalContent {
+    max-width: 95%;
+    padding: 16px;
+  }
+  
+  .measurementTable {
+    font-size: 12px;
+  }
+  
+  .measurementTable th,
+  .measurementTable td {
+    padding: 6px;
+  }
+}
