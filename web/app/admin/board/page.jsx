@@ -17,6 +17,7 @@ const STAGES = [
   "DELIVERED",
   "ONSITE",
   "COMPLETED",
+  "FOLLOW_UP",
 ];
 
 // Display labels for column headers (safe to edit)
@@ -30,6 +31,7 @@ const STAGE_LABELS = {
   DELIVERED: "Delivered to Customer",
   ONSITE: "On Site Setup",
   COMPLETED: "Training Completed",
+  FOLLOW_UP: "Follow Up",
 };
 
 export default function AdminBoardPage() {
