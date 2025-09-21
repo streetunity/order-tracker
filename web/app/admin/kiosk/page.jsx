@@ -13,6 +13,7 @@ const STAGES = [
   "DELIVERED",
   "ONSITE",
   "COMPLETED",
+  "FOLLOW_UP",
 ];
 
 // Display labels for column headers - SHORTENED for kiosk
@@ -26,6 +27,7 @@ const STAGE_LABELS = {
   DELIVERED: "Delivered",
   ONSITE: "On Site Training",
   COMPLETED: "Complete",
+  FOLLOW_UP: "Follow Up",
 };
 
 // Store API base URL as a constant to prevent 404 on auto-refresh
@@ -85,10 +87,10 @@ export default function KioskPage() {
     zIndex: 2,
   };
 
-  // Fixed header section
+  // Fixed header section - updated to 10 columns
   const headerSectionStyle = {
     display: 'grid',
-    gridTemplateColumns: '280px repeat(9, minmax(100px, 1fr))',
+    gridTemplateColumns: '280px repeat(10, minmax(100px, 1fr))',
     gap: '4px',
     padding: '4px 4px 0 4px',
     background: 'var(--bg)',
@@ -98,11 +100,11 @@ export default function KioskPage() {
     zIndex: 10,
   };
 
-  // Scrollable board content
+  // Scrollable board content - updated to 10 columns
   const boardStyle = {
     flex: 1,
     display: 'grid',
-    gridTemplateColumns: '280px repeat(9, minmax(100px, 1fr))',
+    gridTemplateColumns: '280px repeat(10, minmax(100px, 1fr))',
     gap: '4px',
     padding: '0 4px 4px 4px',
     alignContent: 'start', // This is key - aligns content to start
