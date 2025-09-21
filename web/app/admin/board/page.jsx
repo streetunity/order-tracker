@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import MeasurementModal from "@/components/MeasurementModal";
 import "./board.css";
 
 // Stage keys from API (do not change)
@@ -42,7 +41,6 @@ export default function AdminBoardPage() {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
-  const [measurementModal, setMeasurementModal] = useState(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -382,13 +380,6 @@ export default function AdminBoardPage() {
                         if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
                         if (it.voltage) tooltipText += `\nVoltage: ${it.voltage}`;
                         if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
-                        if (it.height || it.width || it.length || it.weight) {
-                          tooltipText += `\nMeasurements:`;
-                          if (it.height) tooltipText += ` H:${it.height}${it.measurementUnit || 'in'}`;
-                          if (it.width) tooltipText += ` W:${it.width}${it.measurementUnit || 'in'}`;
-                          if (it.length) tooltipText += ` L:${it.length}${it.measurementUnit || 'in'}`;
-                          if (it.weight) tooltipText += ` ⚖:${it.weight}${it.weightUnit || 'lbs'}`;
-                        }
                         if (isOrderLocked) tooltipText += "\n(Order Locked)";
                         
                         return (
@@ -405,24 +396,7 @@ export default function AdminBoardPage() {
                               {it.productCode || "Item"}
                             </div>
                             
-                            {/* Measurement badges */}
-                            {(it.height || it.width || it.length || it.weight) && (
-                              <div style={{ 
-                                fontSize: '10px', 
-                                color: '#10b981', 
-                                marginTop: '2px',
-                                display: 'flex',
-                                gap: '4px',
-                                flexWrap: 'wrap'
-                              }}>
-                                {it.height && <span>H:{it.height}{it.measurementUnit || 'in'}</span>}
-                                {it.width && <span>W:{it.width}{it.measurementUnit || 'in'}</span>}
-                                {it.length && <span>L:{it.length}{it.measurementUnit || 'in'}</span>}
-                                {it.weight && <span>⚖:{it.weight}{it.weightUnit || 'lbs'}</span>}
-                              </div>
-                            )}
-                            
-                            <div className="itemActions">
+                            <div className="itemActions" style={{ gap: "2px" }}>
                               {/* Back (icon) */}
                               <button
                                 className="miniBtn"
@@ -448,6 +422,7 @@ export default function AdminBoardPage() {
                                     ? `Move to ${STAGE_LABELS[prev] ?? prev}`
                                     : "No previous stage"
                                 }
+                                style={{ fontSize: "10px", padding: "2px 4px" }}
                               >
                                 ◀
                               </button>
@@ -477,22 +452,9 @@ export default function AdminBoardPage() {
                                     ? `Move to ${STAGE_LABELS[next] ?? next}`
                                     : "No next stage"
                                 }
+                                style={{ fontSize: "10px", padding: "2px 4px" }}
                               >
                                 ▶
-                              </button>
-
-                              {/* Measurements button - always enabled */}
-                              <button
-                                className="miniBtn"
-                                aria-label="Edit measurements"
-                                onClick={() => setMeasurementModal({ item: it, orderId: order.id })}
-                                title="Edit measurements (always editable)"
-                                style={{
-                                  backgroundColor: '#10b981',
-                                  color: '#fff'
-                                }}
-                              >
-                                📏
                               </button>
 
                               {/* Archive / Restore (icons) */}
@@ -513,6 +475,7 @@ export default function AdminBoardPage() {
                                     }
                                   }}
                                   title="Archive (hide from board)"
+                                  style={{ fontSize: "10px", padding: "2px 4px" }}
                                 >
                                   ✕
                                 </button>
@@ -533,6 +496,7 @@ export default function AdminBoardPage() {
                                     }
                                   }}
                                   title="Restore (show on board)"
+                                  style={{ fontSize: "10px", padding: "2px 4px" }}
                                 >
                                   ↺
                                 </button>
@@ -562,7 +526,9 @@ export default function AdminBoardPage() {
                                 title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"}
                                 style={{
                                   opacity: isOrderLocked ? 0.5 : 1,
-                                  cursor: isOrderLocked ? "not-allowed" : "pointer"
+                                  cursor: isOrderLocked ? "not-allowed" : "pointer",
+                                  fontSize: "10px", 
+                                  padding: "2px 4px"
                                 }}
                               >
                                 🗑
@@ -579,19 +545,6 @@ export default function AdminBoardPage() {
           );
         })}
       </div>
-      
-      {/* Measurement Modal */}
-      {measurementModal && (
-        <MeasurementModal
-          item={measurementModal.item}
-          orderId={measurementModal.orderId}
-          onClose={() => setMeasurementModal(null)}
-          onSave={() => {
-            setMeasurementModal(null);
-            load(); // Refresh the data
-          }}
-        />
-      )}
     </main>
   );
 }
