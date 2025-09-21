@@ -24,13 +24,13 @@ const STAGES = [
 const STAGE_LABELS = {
   MANUFACTURING: "Manufacturing",
   TESTING: "Debugging & Testing",
-  SHIPPING: "Preparing Shipping Container",
-  AT_SEA: "At Sea",
-  SMT: "Arrived at Stealth Machine Tools",
+  SHIPPING: "Preparing Container",
+  AT_SEA: "Container At Sea",
+  SMT: "Arrived At SMT",
   QC: "Quality Control",
-  DELIVERED: "Delivered to Customer",
-  ONSITE: "On Site Setup",
-  COMPLETED: "Training Completed",
+  DELIVERED: "Delivered To Customer",
+  ONSITE: "On Site Setup & Training",
+  COMPLETED: "Training Complete",
   FOLLOW_UP: "Follow Up",
 };
 
