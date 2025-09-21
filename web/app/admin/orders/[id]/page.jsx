@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import MeasurementSection from "@/components/MeasurementSection";
 
 export default function EditOrderPage({ params }) {
   const { id } = params;
@@ -427,6 +428,14 @@ export default function EditOrderPage({ params }) {
             )}
           </section>
 
+          {/* Measurements Section - Always Editable */}
+          <MeasurementSection 
+            order={order}
+            items={order.items}
+            onRefresh={load}
+            getAuthHeaders={getAuthHeaders}
+          />
+
           {/* Audit Log Section */}
           {order.auditLogs && order.auditLogs.length > 0 && (
             <section style={{ marginTop: 32 }}>
@@ -450,9 +459,9 @@ export default function EditOrderPage({ params }) {
                         <strong style={{ color: log.action === "LOCKED" ? "#059669" : "#dc2626" }}>
                           {log.action}
                         </strong>
-                        {log.reason && (
+                        {log.parsedReason?.message && (
                           <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
-                            Reason: {log.reason}
+                            Reason: {log.parsedReason.message}
                           </div>
                         )}
                         <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px" }}>
