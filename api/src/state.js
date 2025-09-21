@@ -12,7 +12,8 @@ export const STAGES = [
   'QC',
   'DELIVERED',
   'ONSITE',
-  'COMPLETED'
+  'COMPLETED',
+  'FOLLOW_UP'
 ];
 
 // Precompute indices & a Set for quick lookups
@@ -40,7 +41,7 @@ export function isValidStage(stage) {
 
 /** Is this a terminal/closed state? */
 export function isTerminalStage(stage) {
-  return stage === 'COMPLETED';
+  return stage === 'FOLLOW_UP';  // Updated to FOLLOW_UP as the new terminal stage
 }
 
 /** Get next stage in the linear pipeline (or null if at end/invalid). */
@@ -53,7 +54,7 @@ export function nextStageOf(stage) {
 
 /**
  * Core advancement rule:
- * - Same stage: allowed (idempotent writes from UI won’t error).
+ * - Same stage: allowed (idempotent writes from UI won't error).
  * - Normal: only allow moving exactly one step forward.
  * - Fast-forward: allow jumping ahead but never backward.
  * - Unknown current or invalid next: reject.
