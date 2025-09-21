@@ -124,13 +124,28 @@ export default function PublicTrackingPage() {
           Order Status
         </h1>
         
-        {/* Complete Customer Information */}
+        {/* Order Details */}
+        <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap", marginBottom: "20px" }}>
+          {order.poNumber && (
+            <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
+              <strong>Order Date:</strong> {order.poNumber}
+            </div>
+          )}
+          {order.sku && (
+            <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
+              <strong>Sales Person:</strong> {order.sku}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Complete Customer Information - Moved outside header for consistent width */}
+      <div style={{ marginBottom: "40px" }}>
         <div style={{ 
           backgroundColor: "#2d2d2d", 
           border: "1px solid #404040", 
           borderRadius: "8px", 
-          padding: "20px",
-          marginBottom: "20px"
+          padding: "20px"
         }}>
           <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#e4e4e4", marginBottom: "16px" }}>
             Customer Information
@@ -157,20 +172,6 @@ export default function PublicTrackingPage() {
               <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
             </div>
           </div>
-        </div>
-
-        {/* Order Details */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
-          {order.poNumber && (
-            <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
-              <strong>Order Date:</strong> {order.poNumber}
-            </div>
-          )}
-          {order.sku && (
-            <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
-              <strong>Sales Person:</strong> {order.sku}
-            </div>
-          )}
         </div>
       </div>
 
