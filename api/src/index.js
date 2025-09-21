@@ -13,11 +13,33 @@ const prisma = new PrismaClient();
 const app = express();
 
 const PORT = process.env.PORT || 4000;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const HOST = '0.0.0.0'; // Listen on all interfaces for AWS
+
+// AWS-compatible CORS configuration
+const allowedOrigins = process.env.CORS_ORIGIN ? 
+  process.env.CORS_ORIGIN.split(',') : 
+  [
+    'http://localhost:3000',
+    'http://localhost:4000',
+    // These will be replaced with actual AWS IP
+    `http://${process.env.SERVER_IP}:3000`,
+    `http://${process.env.SERVER_IP}`,
+    `https://${process.env.SERVER_IP}:3000`,
+    `https://${process.env.SERVER_IP}`
+  ].filter(Boolean);
 
 app.use(cors({ 
-  origin: CORS_ORIGIN, 
-  credentials: true 
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
 }));
 app.use(express.json());
 app.use(cookieParser());
@@ -2171,8 +2193,9 @@ app.get('/comprehensive-audit/:entityId', authGuard, async (req, res) => {
 // -----------------------------
 // Startup
 // -----------------------------
-app.listen(PORT, () => {
-  console.log(`API server running at http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`API server running at http://${HOST}:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`\nDefault credentials (change in production!):`);
   console.log(`Admin: admin@stealthmachinetools.com / admin123`);
   console.log(`Agent: john@stealthmachinetools.com / agent123`);
