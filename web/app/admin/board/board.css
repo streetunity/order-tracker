@@ -13,7 +13,7 @@
 /* Main board grid */
 .stageBoard {
   display: grid;
-  grid-template-columns: 280px repeat(10, minmax(160px, 1fr));
+  grid-template-columns: 200px repeat(10, minmax(140px, 1fr));
   gap: 12px;
   align-items: start;
   padding: 12px 16px;
@@ -273,5 +273,5 @@
 
 /* Responsive */
 @media (max-width: 1200px) {
-  .stageBoard { grid-template-columns: 240px repeat(10, 180px); }
+  .stageBoard { grid-template-columns: 180px repeat(10, 150px); }
 }
