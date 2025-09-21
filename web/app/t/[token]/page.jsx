@@ -13,6 +13,7 @@ const STAGES = [
   "DELIVERED",
   "ONSITE",
   "COMPLETED",
+  "FOLLOW_UP",
 ];
 
 const STAGE_LABELS = {
@@ -25,6 +26,7 @@ const STAGE_LABELS = {
   DELIVERED: "Delivered to Customer",
   ONSITE: "On Site Setup",
   COMPLETED: "Training Completed",
+  FOLLOW_UP: "Follow Up",
 };
 
 export default function PublicTrackingPage() {
@@ -180,7 +182,7 @@ export default function PublicTrackingPage() {
         <div style={{ display: "grid", gap: "24px" }}>
           {order.items?.map((item) => {
             const currentStageIndex = STAGES.indexOf(item.currentStage);
-            const isCompleted = item.currentStage === "COMPLETED";
+            const isCompleted = item.currentStage === "FOLLOW_UP";
             
             return (
               <div
