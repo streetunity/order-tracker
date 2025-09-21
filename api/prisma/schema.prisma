@@ -51,12 +51,24 @@ model OrderItem {
   modelNumber    String?
   voltage        String?
   notes          String?
+  
+  // NEW MEASUREMENT FIELDS - Always editable even when order is locked
+  height         Float?   // Height dimension
+  width          Float?   // Width dimension
+  length         Float?   // Length dimension
+  weight         Float?   // Weight
+  measurementUnit String? @default("in") // "in" or "cm" for dimensions
+  weightUnit     String?  @default("lbs") // "lbs" or "kg" for weight
+  measuredAt     DateTime? // When measurements were last updated
+  measuredBy     String?   // Who took the measurements
+  
   currentStage   String?
   archivedAt     DateTime?
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
   order          Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   statusEvents   OrderItemStatusEvent[]
+  measurementLogs MeasurementAuditLog[]
 }
 
 model OrderStatusEvent {
@@ -81,7 +93,7 @@ model OrderItemStatusEvent {
   changedBy        User?     @relation(fields: [changedByUserId], references: [id])
 }
 
-// New flexible audit log table that can handle any entity type
+// Flexible audit log table that can handle any entity type
 model AuditLog {
   id                String   @id @default(cuid())
   entityType        String   // "Order", "Account", "User", "OrderItem"
@@ -98,6 +110,32 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([parentEntityId])
   @@index([createdAt])
+}
+
+// NEW: Measurement-specific audit log for detailed tracking
+model MeasurementAuditLog {
+  id          String   @id @default(cuid())
+  
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  
+  // Track which measurement changed
+  field       String   // "height", "width", "length", "weight"
+  oldValue    Float?
+  newValue    Float?
+  unit        String?  // Unit at time of measurement
+  
+  // Who made the change
+  performedBy String?
+  performedAt DateTime @default(now())
+  
+  // Link to order for easy queries
+  orderId     String
+  
+  @@index([orderItemId])
+  @@index([orderId])
+  @@index([performedAt])
+  @@index([field])
 }
 
 model User {
