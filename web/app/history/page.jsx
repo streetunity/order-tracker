@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-// Store API base URL as a constant
-const API_BASE_URL = "http://localhost:4000";
-
-function getAdminKey() {
-  return "dev-admin-key";
-}
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AuditHistoryViewer() {
   const [orders, setOrders] = useState([]);
@@ -32,12 +26,24 @@ export default function AuditHistoryViewer() {
   const [uniqueUsers, setUniqueUsers] = useState([]);
   
   const router = useRouter();
+  const { user, getAuthHeaders, isAdmin } = useAuth();
+
+  // Redirect to login if not authenticated or not admin
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+    } else if (!isAdmin) {
+      router.push("/admin/board");
+    }
+  }, [user, isAdmin, router]);
 
   async function loadData() {
+    if (!user || !isAdmin) return;
+    
     try {
-      // Load orders
-      const ordersRes = await fetch(`${API_BASE_URL}/orders`, {
-        headers: { "x-admin-key": getAdminKey() },
+      // Load orders using proper API endpoints
+      const ordersRes = await fetch("/api/orders", {
+        headers: getAuthHeaders(),
         cache: "no-store",
       });
       
@@ -47,8 +53,8 @@ export default function AuditHistoryViewer() {
       }
 
       // Load accounts
-      const accountsRes = await fetch(`${API_BASE_URL}/accounts`, {
-        headers: { "x-admin-key": getAdminKey() },
+      const accountsRes = await fetch("/api/accounts", {
+        headers: getAuthHeaders(),
         cache: "no-store",
       });
       
@@ -64,11 +70,14 @@ export default function AuditHistoryViewer() {
   }
 
   async function loadAuditLogs(entityId) {
+    if (!user || !isAdmin) return;
+    
     setLogsLoading(true);
     setCurrentPage(1);
     try {
-      const res = await fetch(`${API_BASE_URL}/comprehensive-audit/${entityId}`, {
-        headers: { "x-admin-key": getAdminKey() },
+      // Use the API endpoint for audit logs
+      const res = await fetch(`/api/audit/${entityId}`, {
+        headers: getAuthHeaders(),
         cache: "no-store",
       });
       
@@ -92,14 +101,16 @@ export default function AuditHistoryViewer() {
   }
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user && isAdmin) {
+      loadData();
+    }
+  }, [user, isAdmin]);
 
   useEffect(() => {
-    if (selectedEntity) {
+    if (selectedEntity && user && isAdmin) {
       loadAuditLogs(selectedEntity.id);
     }
-  }, [selectedEntity]);
+  }, [selectedEntity, user, isAdmin]);
 
   const toggleLogExpanded = (logId) => {
     const newExpanded = new Set(expandedLogs);
@@ -249,6 +260,11 @@ export default function AuditHistoryViewer() {
     a.click();
     document.body.removeChild(a);
   };
+
+  // Don't render until authentication is checked
+  if (!user || !isAdmin) {
+    return null;
+  }
 
   if (loading) {
     return (
