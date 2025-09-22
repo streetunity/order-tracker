@@ -2,6 +2,7 @@
 
 # Manufacturing Tracker - AWS Deployment Script
 # This script automates the deployment process on AWS EC2
+# Updated with all fixes discovered during troubleshooting
 
 set -e  # Exit on any error
 
@@ -24,8 +25,10 @@ sudo apt update && sudo apt upgrade -y
 
 # Install Node.js 20.x
 echo "Installing Node.js 20.x..."
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
+if ! command -v node &> /dev/null || [ $(node -v | cut -d'.' -f1 | cut -d'v' -f2) -lt 20 ]; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt install -y nodejs
+fi
 
 # Install essential dependencies
 echo "Installing build essentials and SQLite3..."
@@ -39,7 +42,7 @@ sudo npm install -g pm2
 echo "Installing nginx..."
 sudo apt install -y nginx
 
-# Create application directory
+# Create application directory with proper ownership
 echo "Setting up application directory..."
 sudo mkdir -p $APP_DIR
 sudo chown -R ubuntu:ubuntu $APP_DIR
@@ -56,6 +59,9 @@ else
     git clone -b $BRANCH $REPO_URL $APP_DIR
     cd $APP_DIR
 fi
+
+# Ensure proper ownership after git operations
+sudo chown -R ubuntu:ubuntu $APP_DIR
 
 # Backend setup
 echo "Setting up backend..."
@@ -76,25 +82,34 @@ EOF
 
 # Setup Prisma and database
 echo "Setting up database..."
-# Remove old database to ensure clean migration
+
+# Remove old database to ensure clean state (backup first if exists)
 if [ -f "prisma/dev.db" ]; then
     echo "Backing up existing database..."
     mkdir -p $APP_DIR/backups
-    cp prisma/dev.db $APP_DIR/backups/dev.db.backup.$(date +%Y%m%d_%H%M%S)
-    rm -f prisma/dev.db
-    rm -f prisma/dev.db-journal
+    cp prisma/dev.db $APP_DIR/backups/dev.db.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
 fi
+
+# Remove database files
+rm -f prisma/dev.db prisma/dev.db-journal
 
 # Generate Prisma Client
 npx prisma generate
 
 # Create fresh database with all migrations including measurement fields
 echo "Creating fresh database with proper schema..."
-npx prisma db push --accept-data-loss
+npx prisma db push --force-reset
 
 # Seed the database with initial users
 echo "Seeding database with initial users..."
 node prisma/seed.js
+
+# Fix database permissions (CRITICAL)
+echo "Setting correct database permissions..."
+sudo chown ubuntu:ubuntu prisma/dev.db
+sudo chmod 664 prisma/dev.db
+sudo chown -R ubuntu:ubuntu prisma
+sudo chmod 755 prisma
 
 # Verify the database structure
 echo "Verifying database structure..."
@@ -105,6 +120,8 @@ else
     echo "Attempting to fix schema..."
     npx prisma db push --force-reset
     node prisma/seed.js
+    sudo chown ubuntu:ubuntu prisma/dev.db
+    sudo chmod 664 prisma/dev.db
 fi
 
 # Verify users were created
@@ -119,29 +136,38 @@ echo "✓ Found $USER_COUNT users in database"
 echo "Setting up frontend..."
 cd $APP_DIR/web
 
+# Clean any existing builds with wrong permissions
+sudo rm -rf .next
+sudo rm -rf node_modules/.cache
+
 # Install dependencies
 npm install
 
-# Create production environment file
+# Create production environment files with correct server IP
+echo "Creating environment files with server IP: $SERVER_IP"
 cat > .env.production << EOF
 NEXT_PUBLIC_API_BASE=http://$SERVER_IP:4000
 API_BASE=http://$SERVER_IP:4000
 NEXT_PUBLIC_API_URL=http://$SERVER_IP:4000
 EOF
 
-# Also create .env.local for Next.js
+# Also create .env.local for Next.js (same values for production)
 cat > .env.local << EOF
 NEXT_PUBLIC_API_BASE=http://$SERVER_IP:4000
 API_BASE=http://$SERVER_IP:4000
 NEXT_PUBLIC_API_URL=http://$SERVER_IP:4000
 EOF
 
-# Build frontend
+# Build frontend with proper permissions
 echo "Building frontend..."
 npm run build
 
+# Ensure proper ownership of build files
+sudo chown -R ubuntu:ubuntu .next
+
 # Create logs directory
 mkdir -p $APP_DIR/logs
+sudo chown -R ubuntu:ubuntu $APP_DIR/logs
 
 # Create PM2 ecosystem file
 cat > $APP_DIR/ecosystem.config.js << EOF
@@ -162,7 +188,9 @@ module.exports = {
       max_memory_restart: '1G',
       instances: 1,
       autorestart: true,
-      watch: false
+      watch: false,
+      max_restarts: 10,
+      min_uptime: '10s'
     },
     {
       name: 'order-tracker-frontend',
@@ -179,7 +207,9 @@ module.exports = {
       max_memory_restart: '1G',
       instances: 1,
       autorestart: true,
-      watch: false
+      watch: false,
+      max_restarts: 10,
+      min_uptime: '10s'
     }
   ]
 };
@@ -287,10 +317,35 @@ npm install
 npx prisma generate
 npx prisma db push
 
+# Fix permissions after database operations
+sudo chown ubuntu:ubuntu prisma/dev.db
+sudo chmod 664 prisma/dev.db
+
 echo "Updating frontend..."
 cd ../web
+
+# Remove old build with proper permissions
+sudo rm -rf .next
+
+# Update environment files with current server IP
+SERVER_IP=$(curl -s http://checkip.amazonaws.com)
+cat > .env.production << ENVEOF
+NEXT_PUBLIC_API_BASE=http://${SERVER_IP}:4000
+API_BASE=http://${SERVER_IP}:4000
+NEXT_PUBLIC_API_URL=http://${SERVER_IP}:4000
+ENVEOF
+
+cat > .env.local << ENVEOF
+NEXT_PUBLIC_API_BASE=http://${SERVER_IP}:4000
+API_BASE=http://${SERVER_IP}:4000
+NEXT_PUBLIC_API_URL=http://${SERVER_IP}:4000
+ENVEOF
+
 npm install
 npm run build
+
+# Fix permissions for build
+sudo chown -R ubuntu:ubuntu .next
 
 echo "Restarting services..."
 pm2 restart all
@@ -299,6 +354,12 @@ echo "Update complete!"
 pm2 status
 EOF
 chmod +x $APP_DIR/update.sh
+
+# Final permission check
+echo "Final permission check..."
+sudo chown -R ubuntu:ubuntu $APP_DIR
+sudo chmod -R 755 $APP_DIR
+sudo chmod 664 $APP_DIR/api/prisma/dev.db 2>/dev/null || true
 
 # Verify deployment
 echo "Verifying deployment..."
@@ -313,17 +374,19 @@ else
 fi
 
 # Test backend health
-if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:4000/api/health | grep -q "200\|404"; then
+if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:4000/auth/login | grep -q "200\|400\|401"; then
     echo "✓ Backend is responding"
 else
     echo "⚠ Backend might not be responding properly"
 fi
 
 # Test frontend health
-if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200"; then
+if curl -f -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200\|304"; then
     echo "✓ Frontend is responding"
 else
     echo "⚠ Frontend might not be responding properly"
+    echo "Checking frontend build..."
+    ls -la $APP_DIR/web/.next 2>/dev/null || echo "No .next directory found"
 fi
 
 echo "==========================================="
@@ -356,5 +419,7 @@ echo "IMPORTANT: Change the default passwords immediately!"
 echo ""
 echo "If you encounter any issues:"
 echo "  1. Check logs: pm2 logs"
-echo "  2. Verify database: sqlite3 $APP_DIR/api/prisma/dev.db '.tables'"
-echo "  3. Re-seed users: cd $APP_DIR/api && node prisma/seed.js"
+echo "  2. Check permissions: ls -la $APP_DIR/api/prisma/"
+echo "  3. Verify database: sqlite3 $APP_DIR/api/prisma/dev.db '.tables'"
+echo "  4. Re-seed users: cd $APP_DIR/api && node prisma/seed.js"
+echo "  5. Check environment: cat $APP_DIR/web/.env.local"
