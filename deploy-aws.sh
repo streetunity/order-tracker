@@ -1,29 +1,16 @@
 #!/bin/bash
 # AWS Deployment Script for Order Tracker
+# Pre-configured for your server
 
 # Configuration
-SERVER_IP="$1"
-
-if [ -z "$SERVER_IP" ]; then
-  echo "Usage: ./deploy-aws.sh YOUR_SERVER_IP"
-  exit 1
-fi
+SERVER_IP="50.19.66.100"
 
 echo "Deploying Order Tracker to AWS Server: $SERVER_IP"
 
-# Update all configuration files with actual IP
-echo "Updating configuration files..."
-
-# Update backend .env
-if [ -f "api/.env.production" ]; then
-  sed -i "s/YOUR_SERVER_IP/$SERVER_IP/g" api/.env.production
-  cp api/.env.production api/.env
-fi
-
-# Update frontend .env
-if [ -f "web/.env.production" ]; then
-  sed -i "s/YOUR_SERVER_IP/$SERVER_IP/g" web/.env.production
-fi
+# Copy production env files
+echo "Setting up environment files..."
+cp api/.env.production api/.env
+cp web/.env.production web/.env.local
 
 # Backend setup
 echo "Setting up backend..."
@@ -55,5 +42,6 @@ echo "Backend: http://$SERVER_IP:4000"
 echo "\nDefault credentials:"
 echo "Admin: admin@stealthmachinetools.com / admin123"
 echo "Agent: john@stealthmachinetools.com / agent123"
+echo "\nIMPORTANT: Change these default passwords immediately!"
 echo "\nUse 'pm2 status' to check service status"
 echo "Use 'pm2 logs' to view logs"
