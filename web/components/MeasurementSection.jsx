@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-export default function MeasurementSection({ order, items, onRefresh, getAuthHeaders }) {
+export default function MeasurementSection({ order, items, onRefresh }) {
   const [editingItem, setEditingItem] = useState(null);
   const [measurements, setMeasurements] = useState({});
   const [saving, setSaving] = useState(false);
@@ -27,8 +27,13 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     try {
       setSaving(true);
       
-      // Get the auth headers properly
-      const authHeaders = getAuthHeaders ? getAuthHeaders() : {};
+      // Get token directly from localStorage
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+      
+      console.log('Saving measurements with token:', token.substring(0, 20) + '...');
       
       const response = await fetch(
         `/api/orders/${order.id}/items/${itemId}/measurements`,
@@ -36,15 +41,17 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            ...authHeaders
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify(measurements)
         }
       );
       
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(data.error || 'Failed to update measurements');
+        throw new Error(data.error || `Failed to update measurements (${response.status})`);
       }
       
       setEditingItem(null);
@@ -52,6 +59,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
       if (onRefresh) {
         await onRefresh();
       }
+      alert('Measurements saved successfully!');
     } catch (error) {
       console.error('Failed to save measurements:', error);
       alert(`Failed to save measurements: ${error.message}`);
@@ -257,7 +265,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                             disabled={saving}
                             style={{ fontSize: '11px', padding: '2px 8px' }}
                           >
-                            Save
+                            {saving ? 'Saving...' : 'Save'}
                           </button>
                           <button
                             className="btn" 
