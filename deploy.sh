@@ -100,8 +100,8 @@ npx prisma generate
 echo "Creating fresh database with proper schema..."
 npx prisma db push --force-reset
 
-# Seed the database with initial users
-echo "Seeding database with initial users..."
+# Seed the database with admin user
+echo "Seeding database with admin user..."
 node prisma/seed.js
 
 # Fix database permissions (CRITICAL)
@@ -124,13 +124,13 @@ else
     sudo chmod 664 prisma/dev.db
 fi
 
-# Verify users were created
-USER_COUNT=$(sqlite3 prisma/dev.db "SELECT COUNT(*) FROM User;" 2>/dev/null || echo 0)
+# Verify admin user was created
+USER_COUNT=$(sqlite3 prisma/dev.db "SELECT COUNT(*) FROM User WHERE role='ADMIN';" 2>/dev/null || echo 0)
 if [ "$USER_COUNT" -eq 0 ]; then
-    echo "⚠ No users found, re-running seed..."
+    echo "⚠ No admin user found, re-running seed..."
     node prisma/seed.js
 fi
-echo "✓ Found $USER_COUNT users in database"
+echo "✓ Found $USER_COUNT admin user(s) in database"
 
 # Frontend setup
 echo "Setting up frontend..."
@@ -401,9 +401,7 @@ echo "Default Admin Credentials:"
 echo "  Email: admin@stealthmachinetools.com"
 echo "  Password: admin123"
 echo ""
-echo "Default Agent Credentials:"
-echo "  Email: john@stealthmachinetools.com"
-echo "  Password: agent123"
+echo "⚠ IMPORTANT: Change the default password immediately after first login!"
 echo ""
 echo "Useful Commands:"
 echo "  View logs: pm2 logs"
@@ -415,11 +413,9 @@ echo ""
 echo "Database Location: $APP_DIR/api/prisma/dev.db"
 echo "Logs Location: $APP_DIR/logs/"
 echo ""
-echo "IMPORTANT: Change the default passwords immediately!"
-echo ""
 echo "If you encounter any issues:"
 echo "  1. Check logs: pm2 logs"
 echo "  2. Check permissions: ls -la $APP_DIR/api/prisma/"
 echo "  3. Verify database: sqlite3 $APP_DIR/api/prisma/dev.db '.tables'"
-echo "  4. Re-seed users: cd $APP_DIR/api && node prisma/seed.js"
+echo "  4. Re-seed admin user: cd $APP_DIR/api && node prisma/seed.js"
 echo "  5. Check environment: cat $APP_DIR/web/.env.local"
