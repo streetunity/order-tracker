@@ -26,27 +26,34 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
   const saveMeasurements = async (itemId) => {
     try {
       setSaving(true);
+      
+      // Get the auth headers properly
+      const authHeaders = getAuthHeaders ? getAuthHeaders() : {};
+      
       const response = await fetch(
         `/api/orders/${order.id}/items/${itemId}/measurements`,
         {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders()
+            ...authHeaders
           },
           body: JSON.stringify(measurements)
         }
       );
       
       if (!response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(data.error || 'Failed to update measurements');
       }
       
       setEditingItem(null);
       setMeasurements({});
-      await onRefresh();
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (error) {
+      console.error('Failed to save measurements:', error);
       alert(`Failed to save measurements: ${error.message}`);
     } finally {
       setSaving(false);
@@ -74,7 +81,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
         </span>
       </div>
       
-      {order.isLocked && (
+      {order?.isLocked && (
         <div style={{ 
           fontSize: "12px", 
           color: "#6b7280", 
@@ -101,7 +108,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
             </tr>
           </thead>
           <tbody>
-            {(items || []).length === 0 ? (
+            {(!items || items.length === 0) ? (
               <tr><td colSpan={9} style={{ color: "#6b7280" }}>No items to measure.</td></tr>
             ) : (
               items.map((item) => {
