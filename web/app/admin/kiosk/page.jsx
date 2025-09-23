@@ -30,9 +30,6 @@ const STAGE_LABELS = {
   FOLLOW_UP: "Follow Up",
 };
 
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE_URL = "http://50.19.66.100:4000";
-
 function getAdminKey() {
   return (
     process.env.NEXT_PUBLIC_ADMIN_KEY ||
@@ -237,12 +234,12 @@ export default function KioskPage() {
 
   async function load() {
     try {
-      // Fixed to use correct API endpoint
-      const apiUrl = `${API_BASE_URL}/orders`;
+      // Use the Next.js API route instead of direct backend call to avoid CORS
+      const apiUrl = `/api/orders`;
       console.log("Fetching from:", apiUrl);
       
+      // For kiosk, we don't need authentication, just fetch public data
       const res = await fetch(apiUrl, {
-        headers: { "x-admin-key": getAdminKey() },
         cache: "no-store",
       });
       
