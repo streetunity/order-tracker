@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-// Use production IP if available, otherwise use the environment variable
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://50.19.66.100:4000';
+// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
+const API_BASE = 'http://50.19.66.100:4000';
 
 export async function GET(request, { params }) {
   try {
@@ -11,11 +11,9 @@ export async function GET(request, { params }) {
     console.log('[Public Order Route] Fetching from:', apiUrl);
     
     const res = await fetch(apiUrl, {
-      // No admin key needed for public endpoints
       headers: {
         'Content-Type': 'application/json',
       },
-      // Disable caching
       cache: 'no-store'
     });
 
