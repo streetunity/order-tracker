@@ -88,7 +88,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="admin@stealthmachinetools.com"
+              placeholder="Enter your email"
               autoComplete="username email"
               style={{
                 width: '100%',
@@ -168,24 +168,6 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        <div style={{
-          marginTop: '32px',
-          paddingTop: '24px',
-          borderTop: '1px solid #404040',
-          color: '#a0a0a0',
-          fontSize: '12px'
-        }}>
-          <p style={{ marginBottom: '8px' }}>
-            <strong>Default Credentials:</strong>
-          </p>
-          <p style={{ marginBottom: '4px' }}>
-            Admin: admin@stealthmachinetools.com / admin123
-          </p>
-          <p>
-            Agent: john@stealthmachinetools.com / agent123
-          </p>
-        </div>
       </div>
     </div>
   );
