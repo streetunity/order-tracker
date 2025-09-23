@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
+const API_BASE = 'http://50.19.66.100:4000';
 
 export async function GET(request) {
   try {
@@ -17,7 +18,10 @@ export async function GET(request) {
       headers['Authorization'] = authHeader;
     }
     
-    const res = await fetch(`${API_BASE}/orders${queryString ? `?${queryString}` : ''}`, {
+    const apiUrl = `${API_BASE}/orders${queryString ? `?${queryString}` : ''}`;
+    console.log('[Orders Route] Fetching from:', apiUrl);
+    
+    const res = await fetch(apiUrl, {
       headers,
     });
 
