@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Cookies from 'js-cookie';
 
 // Stage keys from API (do not change)
 const STAGES = [
@@ -29,14 +30,6 @@ const STAGE_LABELS = {
   COMPLETED: "Training Complete",
   FOLLOW_UP: "Follow Up",
 };
-
-function getAdminKey() {
-  return (
-    process.env.NEXT_PUBLIC_ADMIN_KEY ||
-    process.env.NEXT_ADMIN_KEY ||
-    "dev-admin-key"
-  );
-}
 
 export default function KioskPage() {
   const [orders, setOrders] = useState([]);
@@ -234,24 +227,42 @@ export default function KioskPage() {
 
   async function load() {
     try {
-      // Use the Next.js API route instead of direct backend call to avoid CORS
+      // Get the auth token from cookie
+      const token = Cookies.get('auth-token');
+      
+      // Use the Next.js API route with authentication
       const apiUrl = `/api/orders`;
       console.log("Fetching from:", apiUrl);
       
-      // For kiosk, we don't need authentication, just fetch public data
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const res = await fetch(apiUrl, {
+        headers,
         cache: "no-store",
       });
       
       if (!res.ok) {
+        console.error(`HTTP ${res.status} from API`);
+        // If unauthorized, just show empty board
+        if (res.status === 401 || res.status === 403) {
+          console.log("Kiosk running in public mode - no authentication");
+          setOrders([]);
+          setLoading(false);
+          return;
+        }
         throw new Error(`HTTP ${res.status}`);
       }
       
       const data = await res.json();
+      console.log("Loaded orders:", data.length);
       setOrders(Array.isArray(data) ? data : []);
       setLastUpdate(new Date());
     } catch (e) {
       console.error("Failed to load orders:", e);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -324,48 +335,62 @@ export default function KioskPage() {
 
         {/* Scrollable Content */}
         <div style={boardStyle}>
-          {grouped.map((group) => (
-            <div key={group.accountId || group.accountName} style={{ display: 'contents' }}>
-              <div style={customerColStyle}>
-                <div style={customerNameStyle}>
-                  {truncateText(group.accountName, 18)}
-                </div>
-              </div>
-
-              {STAGES.map((stageKey) => {
-                const itemsInStage = (group.orders || [])
-                  .flatMap((o) =>
-                    (o.items || [])
-                      .filter((it) => {
-                        const s = it.currentStage || o.currentStage || "MANUFACTURING";
-                        if (it.archivedAt) return false;
-                        return s === stageKey;
-                      })
-                      .map((it) => ({ it, order: o }))
-                  );
-
-                return (
-                  <div key={`${group.accountId}-${stageKey}`} style={{ minHeight: '30px', background: 'transparent', overflow: 'hidden' }}>
-                    {itemsInStage.length === 0 ? (
-                      <div style={{ padding: '4px', margin: 0, color: 'var(--text-dim)', textAlign: 'center', fontSize: '12px', lineHeight: '1' }}>—</div>
-                    ) : (
-                      itemsInStage.map(({ it, order }) => {
-                        const s = it.currentStage || order.currentStage || "MANUFACTURING";
-                        
-                        return (
-                          <div key={it.id} style={itemCardStyle} title={`${it.productCode} - ${STAGE_LABELS[s] || s}`}>
-                            <div style={itemTextStyle}>
-                              {truncateText(it.productCode || "Item", 15)}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                );
-              })}
+          {grouped.length === 0 ? (
+            <div style={{ 
+              gridColumn: 'span 11', 
+              textAlign: 'center', 
+              padding: '40px',
+              color: 'var(--text-dim)',
+              fontSize: '14px'
+            }}>
+              {orders.length === 0 
+                ? "No orders to display. Orders will appear here once created."
+                : "Processing orders..."}
             </div>
-          ))}
+          ) : (
+            grouped.map((group) => (
+              <div key={group.accountId || group.accountName} style={{ display: 'contents' }}>
+                <div style={customerColStyle}>
+                  <div style={customerNameStyle}>
+                    {truncateText(group.accountName, 18)}
+                  </div>
+                </div>
+
+                {STAGES.map((stageKey) => {
+                  const itemsInStage = (group.orders || [])
+                    .flatMap((o) =>
+                      (o.items || [])
+                        .filter((it) => {
+                          const s = it.currentStage || o.currentStage || "MANUFACTURING";
+                          if (it.archivedAt) return false;
+                          return s === stageKey;
+                        })
+                        .map((it) => ({ it, order: o }))
+                    );
+
+                  return (
+                    <div key={`${group.accountId}-${stageKey}`} style={{ minHeight: '30px', background: 'transparent', overflow: 'hidden' }}>
+                      {itemsInStage.length === 0 ? (
+                        <div style={{ padding: '4px', margin: 0, color: 'var(--text-dim)', textAlign: 'center', fontSize: '12px', lineHeight: '1' }}>—</div>
+                      ) : (
+                        itemsInStage.map(({ it, order }) => {
+                          const s = it.currentStage || order.currentStage || "MANUFACTURING";
+                          
+                          return (
+                            <div key={it.id} style={itemCardStyle} title={`${it.productCode} - ${STAGE_LABELS[s] || s}`}>
+                              <div style={itemTextStyle}>
+                                {truncateText(it.productCode || "Item", 15)}
+                              </div>
+                            </div>
+                          );
+                        })
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          )}
         </div>
       </div>
 
