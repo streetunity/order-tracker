@@ -384,7 +384,7 @@ export default function KioskPage() {
                             </div>
                           );
                         })
-                      })}
+                      )}
                     </div>
                   );
                 })}
