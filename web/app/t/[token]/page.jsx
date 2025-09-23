@@ -34,7 +34,6 @@ export default function PublicTrackingPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [debugInfo, setDebugInfo] = useState(null);
 
   useEffect(() => {
     async function loadOrder() {
@@ -52,15 +51,6 @@ export default function PublicTrackingPage() {
         console.log("Order data received:", data);
         console.log("Items array:", data.items);
         console.log("Number of items:", data.items?.length || 0);
-        
-        // Store debug info
-        setDebugInfo({
-          hasItems: !!data.items,
-          itemCount: data.items?.length || 0,
-          firstItem: data.items?.[0] || null,
-          rawData: JSON.stringify(data, null, 2)
-        });
-        
         setOrder(data);
       } catch (err) {
         console.error("Error loading order:", err);
@@ -110,8 +100,12 @@ export default function PublicTrackingPage() {
 
   // Helper function to format dates
   const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString() + " at " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString() + " at " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    } catch {
+      return dateStr;
+    }
   };
 
   return (
@@ -129,30 +123,6 @@ export default function PublicTrackingPage() {
         backgroundPosition: "center",
         zIndex: 10
       }}></div>
-
-      {/* Debug Panel - Only show in development */}
-      {debugInfo && (
-        <div style={{
-          backgroundColor: "#1a1a1a",
-          border: "2px solid #ff0000",
-          borderRadius: "8px",
-          padding: "20px",
-          marginBottom: "40px"
-        }}>
-          <h3 style={{ color: "#ff0000", marginBottom: "10px" }}>DEBUG INFO (Remove in production)</h3>
-          <div style={{ color: "#fff", fontSize: "14px", fontFamily: "monospace" }}>
-            <p>Has Items: {String(debugInfo.hasItems)}</p>
-            <p>Item Count: {debugInfo.itemCount}</p>
-            <p>First Item: {debugInfo.firstItem ? JSON.stringify(debugInfo.firstItem, null, 2) : 'None'}</p>
-            <details>
-              <summary style={{ cursor: "pointer", color: "#ff0000" }}>Full Order Data (click to expand)</summary>
-              <pre style={{ fontSize: "12px", overflow: "auto", maxHeight: "300px" }}>
-                {debugInfo.rawData}
-              </pre>
-            </details>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <div style={{ marginBottom: "40px", textAlign: "center" }}>
@@ -219,7 +189,7 @@ export default function PublicTrackingPage() {
         boxSizing: "border-box"
       }}>
         <h2 style={{ fontSize: "24px", fontWeight: "600", color: "#e4e4e4", marginBottom: "20px" }}>
-          Order Items & Progress ({order.items?.length || 0} items)
+          Order Items & Progress
         </h2>
         
         {/* Check if items exist and have length */}
@@ -235,14 +205,19 @@ export default function PublicTrackingPage() {
               No items found in this order
             </p>
             <p style={{ color: "#a0a0a0", fontSize: "14px" }}>
-              This could mean the order hasn't been properly configured yet, or there's a data issue.
+              Please contact support if you believe this is an error.
             </p>
           </div>
         ) : (
           <div style={{ display: "grid", gap: "24px" }}>
             {order.items.map((item) => {
-              const currentStageIndex = STAGES.indexOf(item.currentStage);
-              const isCompleted = item.currentStage === "FOLLOW_UP";
+              // FIX: Get the effective current stage, defaulting to MANUFACTURING if neither exists
+              const effectiveStage = item.currentStage || order.currentStage || "MANUFACTURING";
+              const currentStageIndex = STAGES.indexOf(effectiveStage);
+              const validStageIndex = currentStageIndex >= 0 ? currentStageIndex : 0; // Default to first stage if invalid
+              const isCompleted = effectiveStage === "FOLLOW_UP";
+              
+              console.log(`Item ${item.id}: effectiveStage=${effectiveStage}, index=${validStageIndex}`);
               
               return (
                 <div
@@ -260,10 +235,10 @@ export default function PublicTrackingPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                     <div>
                       <div style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "4px" }}>
-                        {item.productCode}
+                        {item.productCode || "Unknown Item"}
                       </div>
                       <div style={{ fontSize: "14px", color: "#a0a0a0" }}>
-                        Quantity: {item.qty}
+                        Quantity: {item.qty || 1}
                       </div>
                       {item.serialNumber && (
                         <div style={{ 
@@ -311,15 +286,15 @@ export default function PublicTrackingPage() {
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: "16px", fontWeight: "500", color: "#ef4444" }}>
-                        {STAGE_LABELS[item.currentStage]}
+                        {STAGE_LABELS[effectiveStage] || effectiveStage}
                       </div>
                       <div style={{ fontSize: "12px", color: "#a0a0a0", marginTop: "4px" }}>
-                        Stage {currentStageIndex + 1} of {STAGES.length}
+                        Stage {validStageIndex + 1} of {STAGES.length}
                       </div>
                     </div>
                   </div>
                   
-                  {/* Individual Stage Progress for This Item - REDUCED BY 10% */}
+                  {/* Individual Stage Progress for This Item */}
                   <div style={{ marginBottom: "16px" }}>
                     <h4 style={{ fontSize: "14px", fontWeight: "500", color: "#e4e4e4", marginBottom: "10px" }}>
                       Production Progress
@@ -336,16 +311,16 @@ export default function PublicTrackingPage() {
                         minWidth: "100%"
                       }}>
                         {STAGES.map((stage, index) => {
-                          const isCurrent = item.currentStage === stage;
-                          const isCompleted = index < currentStageIndex;
-                          const isPending = index > currentStageIndex;
+                          const isCurrent = effectiveStage === stage;
+                          const isStageCompleted = index < validStageIndex;
+                          const isPending = index > validStageIndex;
                           
                           let backgroundColor, borderColor, textColor;
                           if (isCurrent) {
                             backgroundColor = "#ef4444";
                             borderColor = "#ef4444";
                             textColor = "#fff";
-                          } else if (isCompleted) {
+                          } else if (isStageCompleted) {
                             backgroundColor = "#059669";
                             borderColor = "#059669";
                             textColor = "#fff";
@@ -382,7 +357,7 @@ export default function PublicTrackingPage() {
                                 {STAGE_LABELS[stage]}
                               </div>
                               {isCurrent && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>Current</div>}
-                              {isCompleted && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>✓</div>}
+                              {isStageCompleted && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>✓</div>}
                             </div>
                           );
                         })}
@@ -400,13 +375,13 @@ export default function PublicTrackingPage() {
                     }}>
                       <div style={{
                         height: "100%",
-                        width: `${((currentStageIndex + 1) / STAGES.length) * 100}%`,
+                        width: `${((validStageIndex + 1) / STAGES.length) * 100}%`,
                         backgroundColor: isCompleted ? "#059669" : "#ef4444",
                         transition: "width 0.3s"
                       }} />
                     </div>
                     <div style={{ fontSize: "12px", color: "#a0a0a0", marginTop: "4px" }}>
-                      {Math.round(((currentStageIndex + 1) / STAGES.length) * 100)}% Complete
+                      {Math.round(((validStageIndex + 1) / STAGES.length) * 100)}% Complete
                     </div>
                   </div>
 
