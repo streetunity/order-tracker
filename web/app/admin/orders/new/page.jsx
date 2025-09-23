@@ -10,6 +10,7 @@ export default function NewOrderPage() {
   const { user, getAuthHeaders, isAdmin, logout } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [users, setUsers] = useState([]); // Add users state
+  const [customSalesPerson, setCustomSalesPerson] = useState(""); // Add state for custom sales person
   const [formData, setFormData] = useState({
     accountId: "",
     poNumber: "", // Still poNumber in backend
@@ -102,13 +103,19 @@ export default function NewOrderPage() {
     setError("");
 
     try {
+      // If "Other" is selected, use the custom sales person value
+      const submitData = {
+        ...formData,
+        sku: formData.sku === "Other" ? customSalesPerson : formData.sku
+      };
+
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitData),
       });
 
       if (!res.ok) {
@@ -328,14 +335,20 @@ export default function NewOrderPage() {
           </div>
         </div>
 
-        {/* Sales Person (formerly SKU) - NOW A DROPDOWN */}
+        {/* Sales Person (formerly SKU) - FIXED DROPDOWN */}
         <div style={{ marginBottom: "24px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
             Sales Person
           </label>
           <select
             value={formData.sku}
-            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+            onChange={(e) => {
+              setFormData({ ...formData, sku: e.target.value });
+              // Clear custom sales person when changing selection
+              if (e.target.value !== "Other") {
+                setCustomSalesPerson("");
+              }
+            }}
             style={{
               width: "100%",
               padding: "12px",
@@ -358,11 +371,12 @@ export default function NewOrderPage() {
             <option value="Other">Other (Custom)</option>
           </select>
           
-          {/* If "Other" is selected, show text input */}
+          {/* If "Other" is selected, show text input - FIXED */}
           {formData.sku === "Other" && (
             <input
               type="text"
-              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+              value={customSalesPerson}
+              onChange={(e) => setCustomSalesPerson(e.target.value)}
               placeholder="Enter sales person name"
               style={{
                 width: "100%",
