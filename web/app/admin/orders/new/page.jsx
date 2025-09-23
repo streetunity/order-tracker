@@ -9,10 +9,11 @@ export default function NewOrderPage() {
   const router = useRouter();
   const { user, getAuthHeaders, isAdmin, logout } = useAuth();
   const [customers, setCustomers] = useState([]);
+  const [users, setUsers] = useState([]); // Add users state
   const [formData, setFormData] = useState({
     accountId: "",
     poNumber: "", // Still poNumber in backend
-    sku: "", // Still sku in backend
+    sku: "", // Still sku in backend - will store user name
     items: [{ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", notes: "" }],
   });
   const [loading, setLoading] = useState(false);
@@ -30,6 +31,7 @@ export default function NewOrderPage() {
   useEffect(() => {
     if (user) {
       loadCustomers();
+      loadUsers(); // Load users when component mounts
     }
   }, [user]);
 
@@ -46,6 +48,31 @@ export default function NewOrderPage() {
     } catch (e) {
       console.error("Failed to load customers:", e);
       setError("Failed to load customers");
+    }
+  }
+
+  // New function to load users
+  async function loadUsers() {
+    if (!user) return;
+    
+    try {
+      const res = await fetch("/api/users", {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        // If not admin, just use current user
+        setUsers([{ id: user.id, name: user.name, email: user.email }]);
+        return;
+      }
+      const data = await res.json();
+      const activeUsers = (Array.isArray(data) ? data : [])
+        .filter(u => u.isActive) // Only show active users
+        .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
+      setUsers(activeUsers);
+    } catch (e) {
+      // If error loading users, just use current user
+      console.error("Failed to load users:", e);
+      setUsers([{ id: user.id, name: user.name, email: user.email }]);
     }
   }
 
@@ -296,16 +323,14 @@ export default function NewOrderPage() {
           </div>
         </div>
 
-        {/* Sales Person (formerly SKU) */}
+        {/* Sales Person (formerly SKU) - NOW A DROPDOWN */}
         <div style={{ marginBottom: "24px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
             Sales Person
           </label>
-          <input
-            type="text"
+          <select
             value={formData.sku}
             onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-            placeholder="Enter sales person name or initials"
             style={{
               width: "100%",
               padding: "12px",
@@ -314,10 +339,42 @@ export default function NewOrderPage() {
               backgroundColor: "var(--input-bg)",
               color: "var(--text)",
               fontSize: "14px",
+              cursor: "pointer",
             }}
-          />
+          >
+            <option value="" style={{ color: "var(--text-dim)" }}>
+              Select sales person...
+            </option>
+            {users.map((u) => (
+              <option key={u.id} value={u.name}>
+                {u.name} {u.role === "ADMIN" ? "(Admin)" : u.role === "AGENT" ? "(Agent)" : ""}
+              </option>
+            ))}
+            <option value="Other">Other (Custom)</option>
+          </select>
+          
+          {/* If "Other" is selected, show text input */}
+          {formData.sku === "Other" && (
+            <input
+              type="text"
+              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+              placeholder="Enter sales person name"
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                backgroundColor: "var(--input-bg)",
+                color: "var(--text)",
+                fontSize: "14px",
+                marginTop: "8px",
+              }}
+              autoFocus
+            />
+          )}
+          
           <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "4px" }}>
-            Optional: Name or initials of the sales person handling this order
+            Optional: Select the sales person handling this order
           </div>
         </div>
 
