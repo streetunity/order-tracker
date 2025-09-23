@@ -30,8 +30,8 @@ const STAGE_LABELS = {
   FOLLOW_UP: "Follow Up",
 };
 
-// Store API base URL as a constant to prevent 404 on auto-refresh
-const API_BASE_URL = "http://localhost:4000";
+// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
+const API_BASE_URL = "http://50.19.66.100:4000";
 
 function getAdminKey() {
   return (
