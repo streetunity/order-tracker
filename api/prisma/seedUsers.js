@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding users...');
 
-  // Create admin user
+  // Create admin user only
   const adminPassword = await hashPassword('admin123');
   const admin = await prisma.user.upsert({
     where: { email: 'admin@stealthmachinetools.com' },
@@ -22,40 +22,13 @@ async function main() {
   });
   console.log('✅ Created admin user:', admin.email);
 
-  // Create agent users
-  const agentPassword = await hashPassword('agent123');
+  // NOTE: Agent users are no longer created by default
+  // Users should be created through the admin interface
   
-  const agent1 = await prisma.user.upsert({
-    where: { email: 'john@stealthmachinetools.com' },
-    update: {},
-    create: {
-      email: 'john@stealthmachinetools.com',
-      name: 'John Smith',
-      password: agentPassword,
-      role: 'AGENT',
-      isActive: true
-    }
-  });
-  console.log('✅ Created agent user:', agent1.email);
-
-  const agent2 = await prisma.user.upsert({
-    where: { email: 'jane@stealthmachinetools.com' },
-    update: {},
-    create: {
-      email: 'jane@stealthmachinetools.com',
-      name: 'Jane Doe',
-      password: agentPassword,
-      role: 'AGENT',
-      isActive: true
-    }
-  });
-  console.log('✅ Created agent user:', agent2.email);
-
   console.log('\n📝 Default credentials:');
   console.log('Admin: admin@stealthmachinetools.com / admin123');
-  console.log('Agent: john@stealthmachinetools.com / agent123');
-  console.log('Agent: jane@stealthmachinetools.com / agent123');
-  console.log('\n⚠️  IMPORTANT: Change these passwords in production!');
+  console.log('\n⚠️  IMPORTANT: Change this password in production!');
+  console.log('➡️  Create additional users through the admin interface at /admin/users');
 }
 
 main()
