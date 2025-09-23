@@ -1,0 +1,101 @@
+// UPDATED DELETE /accounts/:id ENDPOINT
+// Place this file in api/src/ and copy the content to replace the existing DELETE endpoint
+// This version checks for associated orders before allowing account deletion
+
+app.delete('/accounts/:id', authGuard, async (req, res) => {
+  try {
+    // First check if account exists and get order count
+    const account = await prisma.account.findUnique({
+      where: { id: req.params.id },
+      include: {
+        orders: {
+          select: {
+            id: true,
+            poNumber: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+    
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    // Check if there are any associated orders
+    if (account.orders && account.orders.length > 0) {
+      // Build a helpful error message with order details
+      const orderDetails = account.orders.slice(0, 3).map(o => 
+        `PO#${o.poNumber || 'N/A'} (${new Date(o.createdAt).toLocaleDateString()})`
+      ).join(', ');
+      
+      const moreOrders = account.orders.length > 3 
+        ? ` and ${account.orders.length - 3} more` 
+        : '';
+      
+      return res.status(400).json({
+        error: `Cannot delete customer "${account.name}" because they have ${account.orders.length} associated order(s): ${orderDetails}${moreOrders}. Please delete all orders first.`
+      });
+    }
+    
+    // Safe to delete - no orders associated
+    await prisma.$transaction(async (tx) => {
+      // Log deletion using new audit system
+      await tx.auditLog.create({
+        data: {
+          entityType: 'Account',
+          entityId: account.id,
+          action: 'ACCOUNT_DELETED',
+          metadata: JSON.stringify({ 
+            message: `Account "${account.name}" deleted (no associated orders)` 
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+      
+      // Delete the account
+      await tx.account.delete({ 
+        where: { id: req.params.id } 
+      });
+    });
+    
+    res.status(204).end();
+  } catch (e) {
+    // This will catch any foreign key constraint errors as a fallback
+    if (e.code === 'P2003') {
+      console.error('Foreign key constraint error:', e);
+      return res.status(400).json({ 
+        error: 'Cannot delete this customer because they have associated orders. Please delete all orders first.' 
+      });
+    }
+    console.error('Account deletion error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==============================================
+// INSTRUCTIONS TO APPLY THIS UPDATE:
+// ==============================================
+// 
+// 1. Open api/src/index.js
+// 2. Find the existing DELETE /accounts/:id endpoint (around line 1537)
+// 3. Replace the entire endpoint with the code above
+// 
+// The current unsafe version looks like:
+// app.delete('/accounts/:id', authGuard, async (req, res) => {
+//   try {
+//     const account = await prisma.account.findUnique({ 
+//       where: { id: req.params.id },
+//       select: { id: true, name: true } 
+//     });
+//     ...
+//   }
+// });
+//
+// KEY DIFFERENCES:
+// - Now fetches associated orders when checking the account
+// - Blocks deletion if orders exist, with helpful error message
+// - Shows which orders are preventing deletion (up to 3 examples)
+// - Adds better error handling for foreign key constraints
+// - Updates audit log message to indicate safe deletion
