@@ -28,10 +28,31 @@ async function main() {
     });
     console.log('✓ Admin user created/updated:', admin.email);
 
+    // Create agent user for testing
+    const agentPassword = await bcrypt.hash('agent123', 10);
+    const agent = await prisma.user.upsert({
+      where: { email: 'john@stealthmachinetools.com' },
+      update: {
+        password: agentPassword,
+        name: 'John Agent',
+        role: 'AGENT',
+        isActive: true
+      },
+      create: {
+        email: 'john@stealthmachinetools.com',
+        password: agentPassword,
+        name: 'John Agent',
+        role: 'AGENT',
+        isActive: true
+      }
+    });
+    console.log('✓ Agent user created/updated:', agent.email);
+
     console.log('\n✓ Database seed completed successfully!');
     console.log('\nYou can now login with:');
     console.log('Admin: admin@stealthmachinetools.com / admin123');
-    console.log('\n⚠ IMPORTANT: Change the default password immediately!');
+    console.log('Agent: john@stealthmachinetools.com / agent123');
+    console.log('\n⚠ IMPORTANT: Change these default passwords immediately!');
     
   } catch (error) {
     console.error('✗ Error seeding database:', error);
