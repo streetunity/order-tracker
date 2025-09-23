@@ -257,9 +257,9 @@ export default function PublicTrackingPage() {
                   </div>
                 </div>
                 
-                {/* Individual Stage Progress for This Item - FIXED TO STAY ON ONE LINE */}
+                {/* Individual Stage Progress for This Item - REDUCED BY 10% */}
                 <div style={{ marginBottom: "16px" }}>
-                  <h4 style={{ fontSize: "16px", fontWeight: "500", color: "#e4e4e4", marginBottom: "12px" }}>
+                  <h4 style={{ fontSize: "14px", fontWeight: "500", color: "#e4e4e4", marginBottom: "10px" }}>
                     Production Progress
                   </h4>
                   <div style={{ 
@@ -269,8 +269,8 @@ export default function PublicTrackingPage() {
                   }}>
                     <div style={{ 
                       display: "grid", 
-                      gridTemplateColumns: `repeat(${STAGES.length}, minmax(120px, 1fr))`,
-                      gap: "6px",
+                      gridTemplateColumns: `repeat(${STAGES.length}, minmax(108px, 1fr))`, // Reduced from 120px to 108px (10% reduction)
+                      gap: "5px", // Reduced from 6px to 5px
                       minWidth: "100%"
                     }}>
                       {STAGES.map((stage, index) => {
@@ -297,13 +297,13 @@ export default function PublicTrackingPage() {
                           <div
                             key={stage}
                             style={{
-                              padding: "6px 4px",
-                              borderRadius: "6px",
+                              padding: "5px 4px", // Reduced from 6px to 5px
+                              borderRadius: "5px", // Reduced from 6px to 5px
                               border: "1px solid",
                               borderColor,
                               backgroundColor,
                               textAlign: "center",
-                              fontSize: "10px",
+                              fontSize: "9px", // Reduced from 10px to 9px
                               fontWeight: "500",
                               color: textColor,
                               whiteSpace: "nowrap",
@@ -315,12 +315,12 @@ export default function PublicTrackingPage() {
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "normal",
-                              lineHeight: "1.2"
+                              lineHeight: "1.1" // Reduced from 1.2 to 1.1
                             }}>
                               {STAGE_LABELS[stage]}
                             </div>
-                            {isCurrent && <div style={{ fontSize: "9px", marginTop: "2px", opacity: 0.9 }}>Current</div>}
-                            {isCompleted && <div style={{ fontSize: "9px", marginTop: "2px", opacity: 0.9 }}>✓</div>}
+                            {isCurrent && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>Current</div>}
+                            {isCompleted && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>✓</div>}
                           </div>
                         );
                       })}
