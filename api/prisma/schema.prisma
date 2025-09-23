@@ -36,7 +36,7 @@ model Order {
   lockedAt        DateTime?
   lockedBy        String?
   createdByUserId String?
-  account         Account             @relation(fields: [accountId], references: [id])
+  account         Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   items           OrderItem[]
   statusEvents    OrderStatusEvent[]
   createdBy       User?               @relation(fields: [createdByUserId], references: [id])
