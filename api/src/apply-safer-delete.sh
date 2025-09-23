@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# Script to apply safer delete account implementation
+# This updates the DELETE /accounts/:id endpoint in api/src/index.js
+
+echo "Applying safer delete account implementation..."
+
+# The new safer delete endpoint code
+cat << 'EOF' > /tmp/safer-delete.js
+// Delete account with safer implementation that checks for associated orders
+app.delete('/accounts/:id', authGuard, async (req, res) => {
+  try {
+    // First check if account exists and get order count
+    const account = await prisma.account.findUnique({
+      where: { id: req.params.id },
+      include: {
+        orders: {
+          select: {
+            id: true,
+            poNumber: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+    
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    // Check if there are any associated orders
+    if (account.orders && account.orders.length > 0) {
+      // Build a helpful error message with order details
+      const orderDetails = account.orders.slice(0, 3).map(o => 
+        `PO#${o.poNumber || 'N/A'} (${new Date(o.createdAt).toLocaleDateString()})`
+      ).join(', ');
+      
+      const moreOrders = account.orders.length > 3 
+        ? ` and ${account.orders.length - 3} more` 
+        : '';
+      
+      return res.status(400).json({
+        error: `Cannot delete customer "${account.name}" because they have ${account.orders.length} associated order(s): ${orderDetails}${moreOrders}. Please delete all orders first.`
+      });
+    }
+    
+    // Safe to delete - no orders associated
+    await prisma.$transaction(async (tx) => {
+      // Log deletion using new audit system
+      await tx.auditLog.create({
+        data: {
+          entityType: 'Account',
+          entityId: account.id,
+          action: 'ACCOUNT_DELETED',
+          metadata: JSON.stringify({ 
+            message: `Account "${account.name}" deleted (no associated orders)` 
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+      
+      // Delete the account
+      await tx.account.delete({ 
+        where: { id: req.params.id } 
+      });
+    });
+    
+    res.status(204).end();
+  } catch (e) {
+    // This will catch any foreign key constraint errors as a fallback
+    if (e.code === 'P2003') {
+      console.error('Foreign key constraint error:', e);
+      return res.status(400).json({ 
+        error: 'Cannot delete this customer because they have associated orders. Please delete all orders first.' 
+      });
+    }
+    console.error('Account deletion error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+EOF
+
+echo "New safer delete endpoint code has been created."
+echo ""
+echo "To apply this fix:"
+echo "1. Open api/src/index.js"
+echo "2. Find the existing DELETE /accounts/:id endpoint (around line 1537)"
+echo "3. Replace it with the code in /tmp/safer-delete.js"
+echo ""
+echo "The safer implementation:"
+echo "- Checks for associated orders before deletion"
+echo "- Provides detailed error messages with order info"
+echo "- Only allows deletion when no orders exist"
+echo "- Has fallback error handling for foreign key constraints"
