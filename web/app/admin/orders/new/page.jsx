@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,8 @@ export default function NewOrderPage() {
   const [customers, setCustomers] = useState([]);
   const [users, setUsers] = useState([]); // Add users state
   const [customSalesPerson, setCustomSalesPerson] = useState(""); // Add state for custom sales person
+  const [showOtherInput, setShowOtherInput] = useState(false); // Track if "Other" is selected
+  const customerDropdownRef = useRef(null); // Add ref for customer dropdown
   const [formData, setFormData] = useState({
     accountId: "",
     poNumber: "", // Still poNumber in backend
@@ -35,6 +37,20 @@ export default function NewOrderPage() {
       loadUsers(); // Load users when component mounts
     }
   }, [user]);
+
+  // Close customer dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(event.target)) {
+        setShowCustomerDropdown(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   async function loadCustomers() {
     if (!user) return;
@@ -106,7 +122,7 @@ export default function NewOrderPage() {
       // If "Other" is selected, use the custom sales person value
       const submitData = {
         ...formData,
-        sku: formData.sku === "Other" ? customSalesPerson : formData.sku
+        sku: showOtherInput ? customSalesPerson : formData.sku
       };
 
       const res = await fetch("/api/orders", {
@@ -157,6 +173,19 @@ export default function NewOrderPage() {
     setFormData({ ...formData, accountId: customer.id });
     setCustomerSearch(customer.name);
     setShowCustomerDropdown(false);
+  }
+
+  // Handle sales person dropdown change
+  function handleSalesPersonChange(value) {
+    if (value === "Other") {
+      setShowOtherInput(true);
+      setFormData({ ...formData, sku: "" });
+      setCustomSalesPerson("");
+    } else {
+      setShowOtherInput(false);
+      setFormData({ ...formData, sku: value });
+      setCustomSalesPerson("");
+    }
   }
 
   // Don't render content until authentication is checked
@@ -214,7 +243,7 @@ export default function NewOrderPage() {
 
       <form onSubmit={handleSubmit}>
         {/* Customer Selection */}
-        <div style={{ marginBottom: "24px" }}>
+        <div style={{ marginBottom: "24px" }} ref={customerDropdownRef}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
             Customer *
           </label>
@@ -341,14 +370,8 @@ export default function NewOrderPage() {
             Sales Person
           </label>
           <select
-            value={formData.sku}
-            onChange={(e) => {
-              setFormData({ ...formData, sku: e.target.value });
-              // Clear custom sales person when changing selection
-              if (e.target.value !== "Other") {
-                setCustomSalesPerson("");
-              }
-            }}
+            value={showOtherInput ? "Other" : formData.sku}
+            onChange={(e) => handleSalesPersonChange(e.target.value)}
             style={{
               width: "100%",
               padding: "12px",
@@ -372,11 +395,15 @@ export default function NewOrderPage() {
           </select>
           
           {/* If "Other" is selected, show text input - FIXED */}
-          {formData.sku === "Other" && (
+          {showOtherInput && (
             <input
               type="text"
               value={customSalesPerson}
               onChange={(e) => setCustomSalesPerson(e.target.value)}
+              onBlur={(e) => {
+                // Prevent input from disappearing on blur
+                e.stopPropagation();
+              }}
               placeholder="Enter sales person name"
               style={{
                 width: "100%",
