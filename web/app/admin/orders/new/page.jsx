@@ -67,12 +67,17 @@ export default function NewOrderPage() {
       const data = await res.json();
       const activeUsers = (Array.isArray(data) ? data : [])
         .filter(u => u.isActive) // Only show active users
+        .filter(u => u.name !== "Admin User") // Exclude the default "Admin User"
         .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
       setUsers(activeUsers);
     } catch (e) {
-      // If error loading users, just use current user
+      // If error loading users, just use current user (unless it's Admin User)
       console.error("Failed to load users:", e);
-      setUsers([{ id: user.id, name: user.name, email: user.email }]);
+      if (user.name !== "Admin User") {
+        setUsers([{ id: user.id, name: user.name, email: user.email }]);
+      } else {
+        setUsers([]); // If current user is Admin User, show empty list
+      }
     }
   }
 
