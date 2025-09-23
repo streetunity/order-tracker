@@ -145,7 +145,9 @@ export default function PublicTrackingPage() {
         border: "1px solid #404040", 
         borderRadius: "8px", 
         padding: "20px",
-        marginBottom: "40px"
+        marginBottom: "40px",
+        width: "100%",
+        boxSizing: "border-box"
       }}>
         <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#e4e4e4", marginBottom: "16px" }}>
           Customer Information
@@ -174,8 +176,12 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* Items List with Individual Progress */}
-      <div style={{ marginBottom: "40px" }}>
+      {/* Items List with Individual Progress - FIXED WIDTH */}
+      <div style={{ 
+        marginBottom: "40px",
+        width: "100%",
+        boxSizing: "border-box"
+      }}>
         <h2 style={{ fontSize: "24px", fontWeight: "600", color: "#e4e4e4", marginBottom: "20px" }}>
           Order Items & Progress
         </h2>
@@ -191,7 +197,9 @@ export default function PublicTrackingPage() {
                   padding: "20px",
                   borderRadius: "8px",
                   border: "1px solid #404040",
-                  backgroundColor: "#2d2d2d"
+                  backgroundColor: "#2d2d2d",
+                  width: "100%",
+                  boxSizing: "border-box"
                 }}
               >
                 {/* Item Header */}
@@ -269,8 +277,8 @@ export default function PublicTrackingPage() {
                   }}>
                     <div style={{ 
                       display: "grid", 
-                      gridTemplateColumns: `repeat(${STAGES.length}, minmax(108px, 1fr))`, // Reduced from 120px to 108px (10% reduction)
-                      gap: "5px", // Reduced from 6px to 5px
+                      gridTemplateColumns: `repeat(${STAGES.length}, minmax(108px, 1fr))`,
+                      gap: "5px",
                       minWidth: "100%"
                     }}>
                       {STAGES.map((stage, index) => {
@@ -297,13 +305,13 @@ export default function PublicTrackingPage() {
                           <div
                             key={stage}
                             style={{
-                              padding: "5px 4px", // Reduced from 6px to 5px
-                              borderRadius: "5px", // Reduced from 6px to 5px
+                              padding: "5px 4px",
+                              borderRadius: "5px",
                               border: "1px solid",
                               borderColor,
                               backgroundColor,
                               textAlign: "center",
-                              fontSize: "9px", // Reduced from 10px to 9px
+                              fontSize: "9px",
                               fontWeight: "500",
                               color: textColor,
                               whiteSpace: "nowrap",
@@ -315,7 +323,7 @@ export default function PublicTrackingPage() {
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "normal",
-                              lineHeight: "1.1" // Reduced from 1.2 to 1.1
+                              lineHeight: "1.1"
                             }}>
                               {STAGE_LABELS[stage]}
                             </div>
@@ -397,14 +405,16 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* Additional Shipping Info */}
+      {/* Additional Shipping Info - FIXED WIDTH */}
       {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
         <div style={{ 
           padding: "20px",
           backgroundColor: "#2d2d2d",
           borderRadius: "8px",
           border: "1px solid #404040",
-          marginBottom: "40px"
+          marginBottom: "40px",
+          width: "100%",
+          boxSizing: "border-box"
         }}>
           <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "12px" }}>
             Shipping Information
@@ -427,14 +437,16 @@ export default function PublicTrackingPage() {
         </div>
       )}
 
-      {/* Order-Level Timeline */}
+      {/* Order-Level Timeline - FIXED WIDTH */}
       {order.statusEvents && order.statusEvents.length > 0 && (
         <div style={{ 
           padding: "20px",
           backgroundColor: "#2d2d2d",
           borderRadius: "8px",
           border: "1px solid #404040",
-          marginBottom: "40px"
+          marginBottom: "40px",
+          width: "100%",
+          boxSizing: "border-box"
         }}>
           <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "12px" }}>
             Order Timeline
