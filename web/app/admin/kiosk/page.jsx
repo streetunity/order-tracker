@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Cookies from 'js-cookie';
 
 // Stage keys from API (do not change)
 const STAGES = [
@@ -227,41 +226,27 @@ export default function KioskPage() {
 
   async function load() {
     try {
-      // Get the auth token from cookie
-      const token = Cookies.get('auth-token');
-      
-      // Use the Next.js API route with authentication
-      const apiUrl = `/api/orders`;
-      console.log("Fetching from:", apiUrl);
-      
-      const headers = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      // Use the dedicated kiosk API route that doesn't require authentication
+      const apiUrl = `/api/kiosk/orders`;
+      console.log("Kiosk fetching from:", apiUrl);
       
       const res = await fetch(apiUrl, {
-        headers,
         cache: "no-store",
       });
       
       if (!res.ok) {
-        console.error(`HTTP ${res.status} from API`);
-        // If unauthorized, just show empty board
-        if (res.status === 401 || res.status === 403) {
-          console.log("Kiosk running in public mode - no authentication");
-          setOrders([]);
-          setLoading(false);
-          return;
-        }
-        throw new Error(`HTTP ${res.status}`);
+        console.error(`HTTP ${res.status} from kiosk API`);
+        setOrders([]);
+        setLoading(false);
+        return;
       }
       
       const data = await res.json();
-      console.log("Loaded orders:", data.length);
+      console.log("Kiosk loaded orders:", Array.isArray(data) ? data.length : 0);
       setOrders(Array.isArray(data) ? data : []);
       setLastUpdate(new Date());
     } catch (e) {
-      console.error("Failed to load orders:", e);
+      console.error("Kiosk failed to load orders:", e);
       setOrders([]);
     } finally {
       setLoading(false);
