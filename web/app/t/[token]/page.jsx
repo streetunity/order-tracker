@@ -13,18 +13,20 @@ const STAGES = [
   "DELIVERED",
   "ONSITE",
   "COMPLETED",
+  "FOLLOW_UP",
 ];
 
 const STAGE_LABELS = {
   MANUFACTURING: "Manufacturing",
   TESTING: "Debugging & Testing",
-  SHIPPING: "Preparing Shipping Container",
-  AT_SEA: "At Sea",
-  SMT: "Arrived at Stealth Machine Tools",
+  SHIPPING: "Preparing Container",
+  AT_SEA: "Container At Sea",
+  SMT: "Arrived At SMT",
   QC: "Quality Control",
-  DELIVERED: "Delivered to Customer",
-  ONSITE: "On Site Setup",
-  COMPLETED: "Training Completed",
+  DELIVERED: "Delivered To Customer",
+  ONSITE: "On Site Setup & Training",
+  COMPLETED: "Training Complete",
+  FOLLOW_UP: "Systems Operational",
 };
 
 export default function PublicTrackingPage() {
@@ -122,41 +124,6 @@ export default function PublicTrackingPage() {
           Order Status
         </h1>
         
-        {/* Complete Customer Information */}
-        <div style={{ 
-          backgroundColor: "#2d2d2d", 
-          border: "1px solid #404040", 
-          borderRadius: "8px", 
-          padding: "20px",
-          marginBottom: "20px"
-        }}>
-          <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#e4e4e4", marginBottom: "16px" }}>
-            Customer Information
-          </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", textAlign: "left" }}>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Name:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.accountName || "N/A"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Email:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.email || "Not provided"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Phone:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.phone || "Not provided"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Address:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.address || "Not provided"}</div>
-            </div>
-            <div>
-              <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
-              <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
-            </div>
-          </div>
-        </div>
-
         {/* Order Details */}
         <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
           {order.poNumber && (
@@ -172,6 +139,41 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
+      {/* Complete Customer Information - Full width matching order items */}
+      <div style={{ 
+        backgroundColor: "#2d2d2d", 
+        border: "1px solid #404040", 
+        borderRadius: "8px", 
+        padding: "20px",
+        marginBottom: "40px"
+      }}>
+        <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#e4e4e4", marginBottom: "16px" }}>
+          Customer Information
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", textAlign: "left" }}>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Name:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.accountName || "N/A"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Email:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.email || "Not provided"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Phone:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.phone || "Not provided"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Address:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.address || "Not provided"}</div>
+          </div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
+          </div>
+        </div>
+      </div>
+
       {/* Items List with Individual Progress */}
       <div style={{ marginBottom: "40px" }}>
         <h2 style={{ fontSize: "24px", fontWeight: "600", color: "#e4e4e4", marginBottom: "20px" }}>
@@ -180,7 +182,7 @@ export default function PublicTrackingPage() {
         <div style={{ display: "grid", gap: "24px" }}>
           {order.items?.map((item) => {
             const currentStageIndex = STAGES.indexOf(item.currentStage);
-            const isCompleted = item.currentStage === "COMPLETED";
+            const isCompleted = item.currentStage === "FOLLOW_UP";
             
             return (
               <div

@@ -17,19 +17,21 @@ const STAGES = [
   "DELIVERED",
   "ONSITE",
   "COMPLETED",
+  "FOLLOW_UP",
 ];
 
 // Display labels for column headers (safe to edit)
 const STAGE_LABELS = {
   MANUFACTURING: "Manufacturing",
   TESTING: "Debugging & Testing",
-  SHIPPING: "Preparing Shipping Container",
-  AT_SEA: "At Sea",
-  SMT: "Arrived at Stealth Machine Tools",
+  SHIPPING: "Preparing Container",
+  AT_SEA: "Container At Sea",
+  SMT: "Arrived At SMT",
   QC: "Quality Control",
-  DELIVERED: "Delivered to Customer",
-  ONSITE: "On Site Setup",
-  COMPLETED: "Training Completed",
+  DELIVERED: "Delivered To Customer",
+  ONSITE: "On Site Setup & Training",
+  COMPLETED: "Training Complete",
+  FOLLOW_UP: "Follow Up",
 };
 
 export default function AdminBoardPage() {
@@ -395,7 +397,8 @@ export default function AdminBoardPage() {
                             <div className="itemTitle">
                               {it.productCode || "Item"}
                             </div>
-                            <div className="itemActions">
+                            
+                            <div className="itemActions" style={{ gap: "2px" }}>
                               {/* Back (icon) */}
                               <button
                                 className="miniBtn"
@@ -421,6 +424,7 @@ export default function AdminBoardPage() {
                                     ? `Move to ${STAGE_LABELS[prev] ?? prev}`
                                     : "No previous stage"
                                 }
+                                style={{ fontSize: "10px", padding: "2px 4px" }}
                               >
                                 ◀
                               </button>
@@ -450,6 +454,7 @@ export default function AdminBoardPage() {
                                     ? `Move to ${STAGE_LABELS[next] ?? next}`
                                     : "No next stage"
                                 }
+                                style={{ fontSize: "10px", padding: "2px 4px" }}
                               >
                                 ▶
                               </button>
@@ -472,6 +477,7 @@ export default function AdminBoardPage() {
                                     }
                                   }}
                                   title="Archive (hide from board)"
+                                  style={{ fontSize: "10px", padding: "2px 4px" }}
                                 >
                                   ✕
                                 </button>
@@ -492,6 +498,7 @@ export default function AdminBoardPage() {
                                     }
                                   }}
                                   title="Restore (show on board)"
+                                  style={{ fontSize: "10px", padding: "2px 4px" }}
                                 >
                                   ↺
                                 </button>
@@ -521,7 +528,9 @@ export default function AdminBoardPage() {
                                 title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"}
                                 style={{
                                   opacity: isOrderLocked ? 0.5 : 1,
-                                  cursor: isOrderLocked ? "not-allowed" : "pointer"
+                                  cursor: isOrderLocked ? "not-allowed" : "pointer",
+                                  fontSize: "10px", 
+                                  padding: "2px 4px"
                                 }}
                               >
                                 🗑
