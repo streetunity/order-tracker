@@ -222,6 +222,7 @@ export default function EditOrderPage({ params }) {
               </Link>
             )}
             <Link href="/admin/orders" className="btn">Back to Orders</Link>
+            <Link href="/admin/board" className="btn">Back to Board</Link>
             <button 
               onClick={logout} 
               className="btn"
