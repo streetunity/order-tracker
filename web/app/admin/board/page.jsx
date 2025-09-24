@@ -59,7 +59,8 @@ export default function AdminBoardPage() {
       setErr("");
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-      if (stageFilter) params.set("stage", stageFilter);
+      // REMOVED: Don't send stage filter to backend - filter on frontend instead
+      // if (stageFilter) params.set("stage", stageFilter);
 
       const res = await fetch(`/api/orders?${params.toString()}`, {
         headers: getAuthHeaders(),
@@ -85,8 +86,23 @@ export default function AdminBoardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Filter orders on the frontend based on stage filter
+  const filteredOrders = useMemo(() => {
+    if (!stageFilter) return orders;
+    
+    // Filter orders that have at least one item in the selected stage
+    return orders.filter(order => {
+      const hasItemInStage = (order.items || []).some(item => {
+        const itemStage = item.currentStage || order.currentStage || "MANUFACTURING";
+        return itemStage === stageFilter && (!item.archivedAt || showArchived);
+      });
+      return hasItemInStage;
+    });
+  }, [orders, stageFilter, showArchived]);
+
   const counts = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
+    // Use ALL orders for counts, not filtered ones
     for (const o of orders) {
       for (const it of o.items || []) {
         if (!showArchived && it.archivedAt) continue;
@@ -147,9 +163,11 @@ export default function AdminBoardPage() {
     return i > 0 ? STAGES[i - 1] : null;
   }
 
+  // Use filteredOrders instead of orders for grouping
   const grouped = useMemo(() => {
     const by = new Map();
-    for (const o of orders) {
+    // Use filteredOrders to only show customers with items matching the filter
+    for (const o of filteredOrders) {
       const key = o.account?.id || o.accountId || o.id;
       if (!by.has(key))
         by.set(key, {
@@ -162,7 +180,7 @@ export default function AdminBoardPage() {
     return Array.from(by.values()).sort((a, b) =>
       a.accountName.localeCompare(b.accountName)
     );
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Don't render content until authentication is checked
   if (!user) {
@@ -241,9 +259,16 @@ export default function AdminBoardPage() {
               </option>
             ))}
           </select>
-          <button className="btn" onClick={load}>
-            Filter
-          </button>
+          {/* Show Clear button when filter is active */}
+          {stageFilter && (
+            <button 
+              className="btn" 
+              onClick={() => setStageFilter("")}
+              style={{ marginLeft: "4px" }}
+            >
+              Clear
+            </button>
+          )}
         </div>
         <div className="tool">
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -265,13 +290,50 @@ export default function AdminBoardPage() {
         )}
         {!!err && <div className="errorBox">Failed to load: {err}</div>}
         {loading && <div className="loading">Loading…</div>}
+        {/* Show message when filter results in no matches */}
+        {!loading && stageFilter && grouped.length === 0 && (
+          <div style={{ 
+            padding: "8px 12px", 
+            backgroundColor: "#fef3c7", 
+            border: "1px solid #f59e0b",
+            borderRadius: "6px",
+            color: "#92400e"
+          }}>
+            No items found in "{STAGE_LABELS[stageFilter] ?? stageFilter}". 
+            <button 
+              onClick={() => setStageFilter("")}
+              style={{
+                marginLeft: "8px",
+                textDecoration: "underline",
+                background: "none",
+                border: "none",
+                color: "#92400e",
+                cursor: "pointer"
+              }}
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stage grid */}
       <div className="stageBoard">
         {/* First column header cell */}
         <div className="stageCol stickyHeader stickyCol">
-          <div className="stageTitle">Customer</div>
+          <div className="stageTitle">
+            Customer
+            {stageFilter && (
+              <span style={{ 
+                fontSize: "11px", 
+                fontWeight: "normal",
+                display: "block",
+                color: "#f59e0b"
+              }}>
+                (filtered)
+              </span>
+            )}
+          </div>
         </div>
         {/* Stage headers with display labels */}
         {STAGES.map((s) => (
@@ -279,6 +341,16 @@ export default function AdminBoardPage() {
             <div className="stageTitle">
               {STAGE_LABELS[s] ?? s.replace(/_/g, " ")}
               <span className="count">({counts[s] ?? 0})</span>
+              {stageFilter === s && (
+                <span style={{ 
+                  fontSize: "11px", 
+                  fontWeight: "normal",
+                  display: "block",
+                  color: "#f59e0b"
+                }}>
+                  (active filter)
+                </span>
+              )}
             </div>
           </div>
         ))}
@@ -358,7 +430,8 @@ export default function AdminBoardPage() {
                       .filter((it) => {
                         const s = it.currentStage || o.currentStage || "MANUFACTURING";
                         if (!showArchived && it.archivedAt) return false;
-                        if (stageFilter && s !== stageFilter) return false;
+                        // Don't filter individual items by stageFilter here
+                        // The customer row already only appears if they have items in the filter
                         return s === stageKey;
                       })
                       .map((it) => ({ it, order: o }))
