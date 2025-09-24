@@ -1,7 +1,8 @@
 // web/app/api/orders/[id]/items/[itemId]/measurements/route.js
 import { NextResponse } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
+const API_BASE = 'http://50.19.66.100:4000';
 
 export async function PATCH(request, { params }) {
   try {
@@ -9,13 +10,19 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const token = request.headers.get('authorization');
 
+    if (!token) {
+      return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
+    }
+
+    console.log(`[Measurements PATCH] Updating measurements for item ${itemId} in order ${id}`);
+    
     const response = await fetch(
       `${API_BASE}/orders/${id}/items/${itemId}/measurements`,
       {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { 'Authorization': token })
+          'Authorization': token
         },
         body: JSON.stringify(body)
       }
@@ -40,7 +47,7 @@ export async function PATCH(request, { params }) {
   } catch (error) {
     console.error('PATCH measurements error:', error);
     return NextResponse.json(
-      { error: 'Failed to update measurements' },
+      { error: 'Failed to update measurements: ' + error.message },
       { status: 500 }
     );
   }
@@ -52,13 +59,17 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const token = request.headers.get('authorization');
 
+    if (!token) {
+      return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
+    }
+
     const response = await fetch(
       `${API_BASE}/orders/${id}/items/${itemId}/measurements`,
       {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { 'Authorization': token })
+          'Authorization': token
         },
         body: JSON.stringify(body)
       }
@@ -83,7 +94,7 @@ export async function PUT(request, { params }) {
   } catch (error) {
     console.error('PUT measurements error:', error);
     return NextResponse.json(
-      { error: 'Failed to update measurements' },
+      { error: 'Failed to update measurements: ' + error.message },
       { status: 500 }
     );
   }
@@ -94,12 +105,16 @@ export async function GET(request, { params }) {
     const { id, itemId } = params;
     const token = request.headers.get('authorization');
 
+    if (!token) {
+      return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
+    }
+
     const response = await fetch(
       `${API_BASE}/orders/${id}/items/${itemId}/measurement-history`,
       {
         method: 'GET',
         headers: {
-          ...(token && { 'Authorization': token })
+          'Authorization': token
         }
       }
     );
@@ -121,7 +136,7 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error('GET measurement history error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch measurement history' },
+      { error: 'Failed to fetch measurement history: ' + error.message },
       { status: 500 }
     );
   }
