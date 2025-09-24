@@ -1,0 +1,99 @@
+--- a/api/src/index.js
++++ b/api/src/index.js
+@@ -190,6 +190,9 @@
+ // -----------------------------
+ // These endpoints specifically handle measurements and bypass order lock checking
+ 
++// Helper function to safely convert to float
++const toFloat = (val) => (val === null || val === undefined || val === '') ? null : parseFloat(val);
++
+ // Update individual item measurements - BYPASSES LOCK
+ app.patch('/orders/:orderId/items/:itemId/measurements', authGuard, async (req, res) => {
+   try {
+@@ -303,10 +306,10 @@
+     const updatedItem = await prisma.$transaction(async (tx) => {
+       const updated = await tx.orderItem.update({
+         where: { id: itemId },
+         data: {
+-          height: height !== undefined ? height : item.height,
+-          width: width !== undefined ? width : item.width,
+-          length: length !== undefined ? length : item.length,
+-          weight: weight !== undefined ? weight : item.weight,
++          height: height !== undefined ? toFloat(height) : item.height,
++          width: width !== undefined ? toFloat(width) : item.width,
++          length: length !== undefined ? toFloat(length) : item.length,
++          weight: weight !== undefined ? toFloat(weight) : item.weight,
+           measurementUnit: measurementUnit !== undefined ? measurementUnit : item.measurementUnit,
+           weightUnit: weightUnit !== undefined ? weightUnit : item.weightUnit,
+           measuredAt: new Date(),
+@@ -470,7 +473,7 @@
+         }
+         
+         if (updateData.height !== undefined && updateData.height !== existing.height) {
+-          data.height = updateData.height;
++          data.height = toFloat(updateData.height);
+           itemChanges.push({
+             field: 'height',
+             oldValue: existing.height ? String(existing.height) : 'null',
+@@ -479,7 +482,7 @@
+         }
+         
+         if (updateData.width !== undefined && updateData.width !== existing.width) {
+-          data.width = updateData.width;
++          data.width = toFloat(updateData.width);
+           itemChanges.push({
+             field: 'width',
+             oldValue: existing.width ? String(existing.width) : 'null',
+@@ -488,7 +491,7 @@
+         }
+         
+         if (updateData.length !== undefined && updateData.length !== existing.length) {
+-          data.length = updateData.length;
++          data.length = toFloat(updateData.length);
+           itemChanges.push({
+             field: 'length',
+             oldValue: existing.length ? String(existing.length) : 'null',
+@@ -497,7 +500,7 @@
+         }
+         
+         if (updateData.weight !== undefined && updateData.weight !== existing.weight) {
+-          data.weight = updateData.weight;
++          data.weight = toFloat(updateData.weight);
+           itemChanges.push({
+             field: 'weight',
+             oldValue: existing.weight ? String(existing.weight) : 'null',
+@@ -2040,7 +2043,7 @@
+       // Process measurement fields
+       if (req.body.hasOwnProperty('height') && req.body.height !== item.height) {
+-        data.height = req.body.height;
++        data.height = toFloat(req.body.height);
+         changes.push({
+           field: 'height',
+           oldValue: item.height ? String(item.height) : 'null',
+@@ -2049,7 +2052,7 @@
+       }
+       
+       if (req.body.hasOwnProperty('width') && req.body.width !== item.width) {
+-        data.width = req.body.width;
++        data.width = toFloat(req.body.width);
+         changes.push({
+           field: 'width',
+           oldValue: item.width ? String(item.width) : 'null',
+@@ -2058,7 +2061,7 @@
+       }
+       
+       if (req.body.hasOwnProperty('length') && req.body.length !== item.length) {
+-        data.length = req.body.length;
++        data.length = toFloat(req.body.length);
+         changes.push({
+           field: 'length',
+           oldValue: item.length ? String(item.length) : 'null',
+@@ -2067,7 +2070,7 @@
+       }
+       
+       if (req.body.hasOwnProperty('weight') && req.body.weight !== item.weight) {
+-        data.weight = req.body.weight;
++        data.weight = toFloat(req.body.weight);
+         changes.push({
+           field: 'weight',
+           oldValue: item.weight ? String(item.weight) : 'null',
