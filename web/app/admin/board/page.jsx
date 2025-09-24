@@ -88,11 +88,25 @@ export default function AdminBoardPage() {
 
   // Filter orders on the frontend based on stage filter - ITEM-LEVEL FILTERING
   const filteredOrders = useMemo(() => {
-    if (!stageFilter) return orders;
+    if (!stageFilter) {
+      // Even without a stage filter, we need to exclude orders with no active items
+      return orders.map(order => {
+        // Filter out archived items if showArchived is false
+        const activeItems = (order.items || []).filter(item => showArchived || !item.archivedAt);
+        
+        // Only include the order if it has active items
+        if (activeItems.length === 0) return null;
+        
+        return {
+          ...order,
+          items: activeItems
+        };
+      }).filter(Boolean);
+    }
     
     // Filter orders and their items to only show items in the selected stage
     return orders.map(order => {
-      // Filter items to only those in the selected stage
+      // Filter items to only those in the selected stage and not archived (unless showing archived)
       const filteredItems = (order.items || []).filter(item => {
         const itemStage = item.currentStage || order.currentStage || "MANUFACTURING";
         return itemStage === stageFilter && (!item.archivedAt || showArchived);
@@ -173,10 +187,14 @@ export default function AdminBoardPage() {
   }
 
   // Use filteredOrders instead of orders for grouping
+  // This ensures customers with no active items don't appear on the board
   const grouped = useMemo(() => {
     const by = new Map();
-    // Use filteredOrders to only show customers with items matching the filter
+    // Use filteredOrders which already excludes orders without active items
     for (const o of filteredOrders) {
+      // Double-check that the order has items (should already be filtered but being safe)
+      if (!o.items || o.items.length === 0) continue;
+      
       const key = o.account?.id || o.accountId || o.id;
       if (!by.has(key))
         by.set(key, {
