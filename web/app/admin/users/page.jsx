@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
@@ -53,6 +54,14 @@ export default function UsersPage() {
       setLoading(false);
     }
   }
+
+  // Filter users based on showInactive toggle
+  const filteredUsers = useMemo(() => {
+    if (showInactive) {
+      return users; // Show all users including inactive
+    }
+    return users.filter(user => user.isActive); // Only show active users
+  }, [users, showInactive]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -202,22 +211,64 @@ export default function UsersPage() {
     );
   }
 
+  // Count inactive users
+  const inactiveCount = users.filter(u => !u.isActive).length;
+
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: 16 }}>
       {/* Header matching customers page */}
       <h1 className="h1" style={{ margin: 0, marginBottom: 12 }}>User Management</h1>
       
-      {/* Navigation buttons matching customers page */}
-      <div style={{ marginBottom: 12 }}>
-        <button
-          onClick={openAddModal}
-          className="btn primary"
-        >
-          Add New User
-        </button>
-        <Link href="/admin/board" className="btn" style={{ marginLeft: 8 }}>
-          Back to Board
-        </Link>
+      {/* Navigation buttons and toggle */}
+      <div style={{ 
+        marginBottom: 12,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div>
+          <button
+            onClick={openAddModal}
+            className="btn primary"
+          >
+            Add New User
+          </button>
+          <Link href="/admin/board" className="btn" style={{ marginLeft: 8 }}>
+            Back to Board
+          </Link>
+        </div>
+        
+        {/* Show Inactive Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 6,
+            fontSize: '14px',
+            color: '#e4e4e4',
+            cursor: 'pointer'
+          }}>
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              style={{
+                width: '16px',
+                height: '16px',
+                cursor: 'pointer'
+              }}
+            />
+            Show inactive users
+            {inactiveCount > 0 && (
+              <span style={{ 
+                color: '#a0a0a0',
+                fontSize: '12px'
+              }}>
+                ({inactiveCount} hidden)
+              </span>
+            )}
+          </label>
+        </div>
       </div>
 
       {error && (
@@ -330,107 +381,133 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user, index) => (
-              <tr key={user.id} style={{
-                borderBottom: index < users.length - 1 ? "1px solid #404040" : "none"
-              }}>
-                <td style={{
-                  padding: "16px",
-                  color: "#e4e4e4",
-                  fontSize: "14px",
-                  fontWeight: "500"
-                }}>
-                  {user.name}
-                </td>
-                <td style={{
-                  padding: "16px",
+            {filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan="7" style={{
+                  padding: "32px",
+                  textAlign: "center",
                   color: "#a0a0a0",
                   fontSize: "14px"
                 }}>
-                  {user.email}
+                  {showInactive ? 'No users found' : 'No active users found. Check "Show inactive users" to see all users.'}
                 </td>
-                <td style={{
-                  padding: "16px",
-                  fontSize: "14px"
+              </tr>
+            ) : (
+              filteredUsers.map((user, index) => (
+                <tr key={user.id} style={{
+                  borderBottom: index < filteredUsers.length - 1 ? "1px solid #404040" : "none",
+                  opacity: !user.isActive ? 0.6 : 1
                 }}>
-                  <span style={{
-                    padding: "4px 8px",
-                    borderRadius: "9999px",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    backgroundColor: user.role === 'ADMIN' ? "#581c87" : "#404040",
-                    color: user.role === 'ADMIN' ? "#e9d5ff" : "#e4e4e4"
+                  <td style={{
+                    padding: "16px",
+                    color: "#e4e4e4",
+                    fontSize: "14px",
+                    fontWeight: "500"
                   }}>
-                    {user.role}
-                  </span>
-                </td>
-                <td style={{
-                  padding: "16px",
-                  fontSize: "14px"
-                }}>
-                  <button
-                    onClick={() => toggleUserStatus(user)}
-                    style={{
+                    {user.name}
+                    {!user.isActive && (
+                      <span style={{
+                        marginLeft: "8px",
+                        fontSize: "11px",
+                        color: "#f87171",
+                        fontWeight: "normal"
+                      }}>
+                        (Inactive)
+                      </span>
+                    )}
+                  </td>
+                  <td style={{
+                    padding: "16px",
+                    color: "#a0a0a0",
+                    fontSize: "14px"
+                  }}>
+                    {user.email}
+                  </td>
+                  <td style={{
+                    padding: "16px",
+                    fontSize: "14px"
+                  }}>
+                    <span style={{
                       padding: "4px 8px",
                       borderRadius: "9999px",
                       fontSize: "12px",
                       fontWeight: "600",
-                      backgroundColor: user.isActive ? "#14532d" : "#7f1d1d",
-                      color: user.isActive ? "#86efac" : "#fecaca",
-                      border: "none",
-                      cursor: "pointer"
-                    }}
-                  >
-                    {user.isActive ? 'Active' : 'Inactive'}
-                  </button>
-                </td>
-                <td style={{
-                  padding: "16px",
-                  color: "#a0a0a0",
-                  fontSize: "14px"
-                }}>
-                  {formatDate(user.lastLogin)}
-                </td>
-                <td style={{
-                  padding: "16px",
-                  color: "#a0a0a0",
-                  fontSize: "14px"
-                }}>
-                  {formatDate(user.createdAt)}
-                </td>
-                <td style={{
-                  padding: "16px",
-                  textAlign: "right",
-                  fontSize: "14px"
-                }}>
-                  <button
-                    onClick={() => openEditModal(user)}
-                    style={{
-                      color: "#60a5fa",
-                      marginRight: "12px",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      textDecoration: "underline"
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => deleteUser(user.id)}
-                    style={{
-                      color: "#f87171",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      textDecoration: "underline"
-                    }}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
+                      backgroundColor: user.role === 'ADMIN' ? "#581c87" : "#404040",
+                      color: user.role === 'ADMIN' ? "#e9d5ff" : "#e4e4e4"
+                    }}>
+                      {user.role}
+                    </span>
+                  </td>
+                  <td style={{
+                    padding: "16px",
+                    fontSize: "14px"
+                  }}>
+                    <button
+                      onClick={() => toggleUserStatus(user)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: "9999px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        backgroundColor: user.isActive ? "#14532d" : "#7f1d1d",
+                        color: user.isActive ? "#86efac" : "#fecaca",
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                      title={user.isActive ? 'Click to deactivate' : 'Click to reactivate'}
+                    >
+                      {user.isActive ? 'Active' : 'Inactive'}
+                    </button>
+                  </td>
+                  <td style={{
+                    padding: "16px",
+                    color: "#a0a0a0",
+                    fontSize: "14px"
+                  }}>
+                    {formatDate(user.lastLogin)}
+                  </td>
+                  <td style={{
+                    padding: "16px",
+                    color: "#a0a0a0",
+                    fontSize: "14px"
+                  }}>
+                    {formatDate(user.createdAt)}
+                  </td>
+                  <td style={{
+                    padding: "16px",
+                    textAlign: "right",
+                    fontSize: "14px"
+                  }}>
+                    <button
+                      onClick={() => openEditModal(user)}
+                      style={{
+                        color: "#60a5fa",
+                        marginRight: "12px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        textDecoration: "underline"
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteUser(user.id)}
+                      style={{
+                        color: "#f87171",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        textDecoration: "underline"
+                      }}
+                      title={user.isActive ? 'Deactivate user' : 'User already inactive'}
+                    >
+                      {user.isActive ? 'Deactivate' : 'Inactive'}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
