@@ -86,18 +86,27 @@ export default function AdminBoardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Filter orders on the frontend based on stage filter
+  // Filter orders on the frontend based on stage filter - ITEM-LEVEL FILTERING
   const filteredOrders = useMemo(() => {
     if (!stageFilter) return orders;
     
-    // Filter orders that have at least one item in the selected stage
-    return orders.filter(order => {
-      const hasItemInStage = (order.items || []).some(item => {
+    // Filter orders and their items to only show items in the selected stage
+    return orders.map(order => {
+      // Filter items to only those in the selected stage
+      const filteredItems = (order.items || []).filter(item => {
         const itemStage = item.currentStage || order.currentStage || "MANUFACTURING";
         return itemStage === stageFilter && (!item.archivedAt || showArchived);
       });
-      return hasItemInStage;
-    });
+      
+      // Only include the order if it has filtered items
+      if (filteredItems.length === 0) return null;
+      
+      // Return order with only the filtered items
+      return {
+        ...order,
+        items: filteredItems
+      };
+    }).filter(Boolean); // Remove null entries
   }, [orders, stageFilter, showArchived]);
 
   const counts = useMemo(() => {
@@ -430,8 +439,8 @@ export default function AdminBoardPage() {
                       .filter((it) => {
                         const s = it.currentStage || o.currentStage || "MANUFACTURING";
                         if (!showArchived && it.archivedAt) return false;
-                        // Don't filter individual items by stageFilter here
-                        // The customer row already only appears if they have items in the filter
+                        // When filter is active, items are already pre-filtered
+                        // Just match the current stage column
                         return s === stageKey;
                       })
                       .map((it) => ({ it, order: o }))
