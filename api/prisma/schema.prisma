@@ -25,6 +25,7 @@ model Order {
   accountId       String
   poNumber        String?
   sku             String?
+  customerDocsLink String?            // NEW FIELD: Customer Documents Link (Dropbox URL)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   etaDate         DateTime?
