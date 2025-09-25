@@ -17,6 +17,7 @@ export default function NewOrderPage() {
     accountId: "",
     poNumber: "", // Still poNumber in backend
     sku: "", // Still sku in backend - will store user name
+    customerDocsLink: "", // NEW FIELD: Customer Documents Link
     items: [{ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" }],
   });
   const [loading, setLoading] = useState(false);
@@ -108,6 +109,17 @@ export default function NewOrderPage() {
     e.preventDefault();
     if (!formData.accountId) {
       setError("Please select a customer");
+      return;
+    }
+    if (!formData.customerDocsLink || !formData.customerDocsLink.trim()) {
+      setError("Please provide the Customer Documents Link");
+      return;
+    }
+    // Basic URL validation
+    try {
+      new URL(formData.customerDocsLink);
+    } catch {
+      setError("Please provide a valid URL for Customer Documents Link");
       return;
     }
     if (formData.items.length === 0 || !formData.items[0].productCode.trim()) {
@@ -337,6 +349,32 @@ export default function NewOrderPage() {
               {selectedCustomer.email && ` (${selectedCustomer.email})`}
             </div>
           )}
+        </div>
+
+        {/* Customer Documents Link - NEW FIELD */}
+        <div style={{ marginBottom: "24px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
+            Customer Documents Link *
+          </label>
+          <input
+            type="url"
+            value={formData.customerDocsLink}
+            onChange={(e) => setFormData({ ...formData, customerDocsLink: e.target.value })}
+            placeholder="https://www.dropbox.com/..."
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text)",
+              fontSize: "14px",
+            }}
+            required
+          />
+          <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "4px" }}>
+            Required: Dropbox or document link for customer files
+          </div>
         </div>
 
         {/* Order Date (formerly PO Number) */}
