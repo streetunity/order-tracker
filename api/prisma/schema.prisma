@@ -50,6 +50,7 @@ model OrderItem {
   serialNumber   String?
   modelNumber    String?
   voltage        String?
+  laserWattage   String?  // NEW FIELD: Laser Source Wattage
   notes          String?
   
   // NEW MEASUREMENT FIELDS - Always editable even when order is locked
