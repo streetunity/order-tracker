@@ -222,8 +222,10 @@ export default function AuditHistoryViewer() {
         String(change.oldValue).toLowerCase().includes(searchLower) ||
         String(change.newValue).toLowerCase().includes(searchLower)
       );
+      const messageMatch = log.message?.toLowerCase().includes(searchLower);
+      const dataMatch = log.data?.unlockReason?.toLowerCase().includes(searchLower);
       
-      if (!actionMatch && !userMatch && !changesMatch) return false;
+      if (!actionMatch && !userMatch && !changesMatch && !messageMatch && !dataMatch) return false;
     }
 
     return true;
@@ -238,13 +240,14 @@ export default function AuditHistoryViewer() {
 
   // Export function
   const exportToCSV = () => {
-    const headers = ['Date', 'Action', 'Entity', 'User', 'Changes'];
+    const headers = ['Date', 'Action', 'Entity', 'User', 'Changes', 'Unlock Reason'];
     const rows = filteredLogs.map(log => [
       formatDate(log.createdAt),
       log.action,
       log.entity || '',
       log.performedByName || log.performedBy?.name || 'System',
-      log.changes?.map(c => `${c.field}: ${c.oldValue} → ${c.newValue}`).join('; ') || ''
+      log.changes?.map(c => `${c.field}: ${c.oldValue} → ${c.newValue}`).join('; ') || '',
+      log.data?.unlockReason || ''
     ]);
     
     const csvContent = [headers, ...rows]
@@ -629,11 +632,31 @@ export default function AuditHistoryViewer() {
                             <div style={{ fontSize: '12px', color: '#a0a0a0' }}>
                               {formatDate(log.createdAt)}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#666' }}>
+                            <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>
                               by {log.performedByName || log.performedBy?.name || 'System'}
                             </div>
                           </div>
                         </div>
+
+                        {/* Display unlock reason prominently if present */}
+                        {log.action.includes('UNLOCKED') && log.data?.unlockReason && (
+                          <div style={{
+                            backgroundColor: '#06b6d4',
+                            color: '#ffffff',
+                            padding: '12px',
+                            borderRadius: '6px',
+                            marginBottom: '10px',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}>
+                            <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
+                              🔓 UNLOCK REASON:
+                            </div>
+                            <div style={{ fontSize: '15px' }}>
+                              "{log.data.unlockReason}"
+                            </div>
+                          </div>
+                        )}
 
                         {/* Field Changes */}
                         {log.changes && log.changes.length > 0 && (
