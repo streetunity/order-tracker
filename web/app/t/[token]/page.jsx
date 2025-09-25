@@ -145,7 +145,7 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* Complete Customer Information - Full width matching order items */}
+      {/* Complete Customer Information - Reorganized Layout */}
       <div style={{ 
         backgroundColor: "#2d2d2d", 
         border: "1px solid #404040", 
@@ -158,7 +158,9 @@ export default function PublicTrackingPage() {
         <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#e4e4e4", marginBottom: "16px" }}>
           Customer Information
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", textAlign: "left" }}>
+        
+        {/* First Row: Name and Email */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", marginBottom: "16px" }}>
           <div>
             <strong style={{ color: "#ef4444" }}>Name:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.accountName || "N/A"}</div>
@@ -167,6 +169,10 @@ export default function PublicTrackingPage() {
             <strong style={{ color: "#ef4444" }}>Email:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.email || "Not provided"}</div>
           </div>
+        </div>
+        
+        {/* Second Row: Phone, Address, and Machine Voltage */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px" }}>
           <div>
             <strong style={{ color: "#ef4444" }}>Phone:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.phone || "Not provided"}</div>
