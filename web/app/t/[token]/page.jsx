@@ -145,7 +145,7 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* Complete Customer Information - Reorganized Layout */}
+      {/* Complete Customer Information - Three Row Layout */}
       <div style={{ 
         backgroundColor: "#2d2d2d", 
         border: "1px solid #404040", 
@@ -160,7 +160,7 @@ export default function PublicTrackingPage() {
         </h2>
         
         {/* First Row: Name and Email */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px", marginBottom: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "16px" }}>
           <div>
             <strong style={{ color: "#ef4444" }}>Name:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.accountName || "N/A"}</div>
@@ -171,8 +171,8 @@ export default function PublicTrackingPage() {
           </div>
         </div>
         
-        {/* Second Row: Phone, Address, and Machine Voltage */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "20px" }}>
+        {/* Second Row: Phone and Address */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "16px" }}>
           <div>
             <strong style={{ color: "#ef4444" }}>Phone:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.phone || "Not provided"}</div>
@@ -181,10 +181,12 @@ export default function PublicTrackingPage() {
             <strong style={{ color: "#ef4444" }}>Address:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.address || "Not provided"}</div>
           </div>
-          <div>
-            <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
-            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
-          </div>
+        </div>
+        
+        {/* Third Row: Machine Voltage */}
+        <div>
+          <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
+          <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
         </div>
       </div>
 
