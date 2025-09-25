@@ -145,7 +145,7 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* Complete Customer Information - Three Row Layout */}
+      {/* Complete Customer Information - Four Row Layout */}
       <div style={{ 
         backgroundColor: "#2d2d2d", 
         border: "1px solid #404040", 
@@ -184,10 +184,31 @@ export default function PublicTrackingPage() {
         </div>
         
         {/* Third Row: Machine Voltage */}
-        <div>
+        <div style={{ marginBottom: "16px" }}>
           <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
           <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
         </div>
+        
+        {/* Fourth Row: Customer Files Link - NEW */}
+        {order.customerDocsLink && (
+          <div>
+            <strong style={{ color: "#ef4444" }}>Customer Files Link:</strong>
+            <div style={{ marginTop: "4px" }}>
+              <a 
+                href={order.customerDocsLink} 
+                target="_blank" 
+                rel="noreferrer"
+                style={{ 
+                  color: "#60a5fa", 
+                  textDecoration: "underline",
+                  fontSize: "14px"
+                }}
+              >
+                View Customer Documents ↗
+              </a>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Items List with Individual Progress - FIXED WIDTH */}
