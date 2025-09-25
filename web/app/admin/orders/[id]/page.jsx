@@ -12,7 +12,7 @@ export default function EditOrderPage({ params }) {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [newItem, setNewItem] = useState({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", notes: "" });
+  const [newItem, setNewItem] = useState({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
@@ -118,7 +118,7 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  async function saveItem(itemId, productCode, qty, serialNumber, modelNumber, voltage, notes) {
+  async function saveItem(itemId, productCode, qty, serialNumber, modelNumber, voltage, laserWattage, notes) {
     try {
       setSaving(true);
       const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
@@ -127,7 +127,7 @@ export default function EditOrderPage({ params }) {
           "content-type": "application/json",
           ...getAuthHeaders()
         },
-        body: JSON.stringify({ productCode, qty, serialNumber, modelNumber, voltage, notes }),
+        body: JSON.stringify({ productCode, qty, serialNumber, modelNumber, voltage, laserWattage, notes }),
       });
       
       if (!res.ok) {
@@ -172,6 +172,7 @@ export default function EditOrderPage({ params }) {
     const serialNumber = newItem.serialNumber.trim();
     const modelNumber = newItem.modelNumber.trim();
     const voltage = newItem.voltage.trim();
+    const laserWattage = newItem.laserWattage.trim();
     const notes = newItem.notes.trim();
     
     if (!productCode) return alert("Item name is required");
@@ -185,7 +186,7 @@ export default function EditOrderPage({ params }) {
           "content-type": "application/json",
           ...getAuthHeaders()
         },
-        body: JSON.stringify({ productCode, qty, serialNumber, modelNumber, voltage, notes }),
+        body: JSON.stringify({ productCode, qty, serialNumber, modelNumber, voltage, laserWattage, notes }),
       });
       
       if (!res.ok) {
@@ -193,7 +194,7 @@ export default function EditOrderPage({ params }) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       
-      setNewItem({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", notes: "" });
+      setNewItem({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" });
       await load();
     } catch (e) {
       alert(`Failed to add item: ${e.message}`);
@@ -326,28 +327,29 @@ export default function EditOrderPage({ params }) {
               </div>
             )}
             <div style={{ overflowX: "auto" }}>
-              <table className="table" style={{ minWidth: "900px", tableLayout: "fixed" }}>
+              <table className="table" style={{ minWidth: "1000px", tableLayout: "fixed" }}>
                 <thead>
                   <tr>
-                    <th style={{ width: "180px" }}>Item name</th>
-                    <th style={{ width: "80px" }}>Qty</th>
-                    <th style={{ width: "120px" }}>Serial #</th>
-                    <th style={{ width: "120px" }}>Model #</th>
-                    <th style={{ width: "80px" }}>Voltage</th>
-                    <th style={{ width: "250px" }}>Notes</th>
+                    <th style={{ width: "170px" }}>Item name</th>
+                    <th style={{ width: "60px" }}>Qty</th>
+                    <th style={{ width: "110px" }}>Serial #</th>
+                    <th style={{ width: "110px" }}>Model #</th>
+                    <th style={{ width: "70px" }}>Voltage</th>
+                    <th style={{ width: "100px" }}>Laser Wattage</th>
+                    <th style={{ width: "210px" }}>Notes</th>
                     <th style={{ width: "120px" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(order.items || []).length === 0 ? (
-                    <tr><td colSpan={7} style={{ color: "#6b7280" }}>No items yet.</td></tr>
+                    <tr><td colSpan={8} style={{ color: "#6b7280" }}>No items yet.</td></tr>
                   ) : (
                     order.items.map((it) => (
                       <EditableRow
                         key={it.id}
                         item={it}
-                        onSave={(name, qty, serial, model, voltage, notes) => 
-                          saveItem(it.id, name, qty, serial, model, voltage, notes)}
+                        onSave={(name, qty, serial, model, voltage, laserWattage, notes) => 
+                          saveItem(it.id, name, qty, serial, model, voltage, laserWattage, notes)}
                         onDelete={() => deleteItem(it.id)}
                         disabled={saving || order.isLocked}
                         isLocked={order.isLocked}
@@ -380,7 +382,7 @@ export default function EditOrderPage({ params }) {
                       min={1}
                       value={newItem.qty}
                       onChange={e => setNewItem(v => ({ ...v, qty: e.target.value }))}
-                      style={{ width: "100px" }}
+                      style={{ width: "80px" }}
                     />
                   </div>
                   <div>
@@ -390,7 +392,7 @@ export default function EditOrderPage({ params }) {
                       placeholder="Optional"
                       value={newItem.serialNumber}
                       onChange={e => setNewItem(v => ({ ...v, serialNumber: e.target.value }))}
-                      style={{ width: "150px" }}
+                      style={{ width: "130px" }}
                     />
                   </div>
                   <div>
@@ -400,7 +402,7 @@ export default function EditOrderPage({ params }) {
                       placeholder="Optional"
                       value={newItem.modelNumber}
                       onChange={e => setNewItem(v => ({ ...v, modelNumber: e.target.value }))}
-                      style={{ width: "150px" }}
+                      style={{ width: "130px" }}
                     />
                   </div>
                   <div>
@@ -410,7 +412,17 @@ export default function EditOrderPage({ params }) {
                       placeholder="Optional"
                       value={newItem.voltage}
                       onChange={e => setNewItem(v => ({ ...v, voltage: e.target.value }))}
-                      style={{ width: "100px" }}
+                      style={{ width: "90px" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Laser Wattage</label>
+                    <input
+                      className="input"
+                      placeholder="Optional"
+                      value={newItem.laserWattage}
+                      onChange={e => setNewItem(v => ({ ...v, laserWattage: e.target.value }))}
+                      style={{ width: "120px" }}
                     />
                   </div>
                   <div>
@@ -420,7 +432,7 @@ export default function EditOrderPage({ params }) {
                       placeholder="Optional notes"
                       value={newItem.notes}
                       onChange={e => setNewItem(v => ({ ...v, notes: e.target.value }))}
-                      style={{ width: "200px" }}
+                      style={{ width: "180px" }}
                     />
                   </div>
                   <button className="btn primary" type="submit" disabled={saving}>Add Item</button>
@@ -556,6 +568,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
   const [serialNumber, setSerialNumber] = useState(item.serialNumber || "");
   const [modelNumber, setModelNumber] = useState(item.modelNumber || "");
   const [voltage, setVoltage] = useState(item.voltage || "");
+  const [laserWattage, setLaserWattage] = useState(item.laserWattage || "");
   const [notes, setNotes] = useState(item.notes || "");
   
   const changed = name.trim() !== (item.productCode || "") || 
@@ -563,6 +576,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
                   serialNumber.trim() !== (item.serialNumber || "") ||
                   modelNumber.trim() !== (item.modelNumber || "") ||
                   voltage.trim() !== (item.voltage || "") ||
+                  laserWattage.trim() !== (item.laserWattage || "") ||
                   notes.trim() !== (item.notes || "");
 
   return (
@@ -573,7 +587,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           value={name} 
           onChange={e => setName(e.target.value)} 
           disabled={isLocked}
-          style={{ width: "200px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "165px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
@@ -583,7 +597,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           min={1} 
           value={qty} 
           onChange={e => setQty(e.target.value)} 
-          style={{ width: "60px", opacity: isLocked ? 0.6 : 1 }} 
+          style={{ width: "50px", opacity: isLocked ? 0.6 : 1 }} 
           disabled={isLocked}
         />
       </td>
@@ -594,7 +608,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setSerialNumber(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "120px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "105px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
@@ -604,7 +618,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setModelNumber(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "120px",opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "105px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
@@ -614,7 +628,17 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setVoltage(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "80px",opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "65px", opacity: isLocked ? 0.6 : 1 }}
+        />
+      </td>
+      <td>
+        <input 
+          className="input" 
+          value={laserWattage} 
+          onChange={e => setLaserWattage(e.target.value)} 
+          placeholder="Optional"
+          disabled={isLocked}
+          style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
@@ -624,15 +648,15 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setNotes(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "290px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "205px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 4 }}>
           <button 
             className="btn" 
             disabled={!changed || disabled} 
-            onClick={() => onSave(name.trim(), Number(qty || 1), serialNumber.trim(), modelNumber.trim(), voltage.trim(), notes.trim())}
+            onClick={() => onSave(name.trim(), Number(qty || 1), serialNumber.trim(), modelNumber.trim(), voltage.trim(), laserWattage.trim(), notes.trim())}
             title={isLocked ? "Order is locked" : "Save changes"}
             style={{ fontSize: "12px", padding: "4px 8px" }}
           >
