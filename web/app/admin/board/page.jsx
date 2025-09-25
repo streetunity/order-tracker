@@ -223,7 +223,7 @@ export default function AdminBoardPage() {
           <Link href="/admin/customers/new" className="btn">
             Add Customer
           </Link>
-          <Link href="/admin/orders/new" className="btn primary">
+          <Link href="/admin/orders/new" className="btn">
             Add Order
           </Link>
           <Link href="/admin/customers" className="btn">
