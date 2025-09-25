@@ -17,7 +17,7 @@ export default function NewOrderPage() {
     accountId: "",
     poNumber: "", // Still poNumber in backend
     sku: "", // Still sku in backend - will store user name
-    items: [{ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", notes: "" }],
+    items: [{ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" }],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -150,7 +150,7 @@ export default function NewOrderPage() {
   function addItem() {
     setFormData({
       ...formData,
-      items: [...formData.items, { productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", notes: "" }],
+      items: [...formData.items, { productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" }],
     });
   }
 
@@ -541,26 +541,53 @@ export default function NewOrderPage() {
                 </div>
               </div>
               
-              {/* Third row: Voltage */}
-              <div style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                  Item Voltage
-                </label>
-                <input
-                  type="text"
-                  value={item.voltage}
-                  onChange={(e) => updateItem(index, "voltage", e.target.value)}
-                  placeholder="Optional - specific voltage for this item (e.g., 220V, 110V)"
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    border: "1px solid var(--border)",
-                    borderRadius: "6px",
-                    backgroundColor: "var(--input-bg)",
-                    color: "var(--text)",
-                    fontSize: "14px",
-                  }}
-                />
+              {/* Third row: Voltage and Laser Wattage */}
+              <div style={{
+                display: "flex",
+                gap: "12px",
+                marginBottom: "12px",
+              }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
+                    Item Voltage
+                  </label>
+                  <input
+                    type="text"
+                    value={item.voltage}
+                    onChange={(e) => updateItem(index, "voltage", e.target.value)}
+                    placeholder="Optional voltage (e.g., 220V, 110V)"
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "6px",
+                      backgroundColor: "var(--input-bg)",
+                      color: "var(--text)",
+                      fontSize: "14px",
+                    }}
+                  />
+                </div>
+                
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
+                    Laser Source Wattage
+                  </label>
+                  <input
+                    type="text"
+                    value={item.laserWattage}
+                    onChange={(e) => updateItem(index, "laserWattage", e.target.value)}
+                    placeholder="Optional wattage (e.g., 1500W, 3000W)"
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "6px",
+                      backgroundColor: "var(--input-bg)",
+                      color: "var(--text)",
+                      fontSize: "14px",
+                    }}
+                  />
+                </div>
               </div>
               
               {/* Fourth row: Notes */}
