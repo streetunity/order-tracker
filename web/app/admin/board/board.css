@@ -82,6 +82,12 @@
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
 
+/* Ensure all sticky headers have solid backgrounds */
+.stageCol.stickyHeader {
+  background: #dc2626; /* Solid red background for stage headers */
+  background-image: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
 /* Only apply sticky behavior on larger screens */
 @media (max-width: 768px) {
   .stickyHeader {
@@ -107,7 +113,8 @@
 /* When element is both sticky header AND sticky col (top-left corner) */
 .stickyHeader.stickyCol {
   z-index: 25;
-  background: var(--accent);
+  background: #dc2626; /* Solid background for Customer header */
+  background-image: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
 }
 
 /* Stage columns & titles */
@@ -133,6 +140,7 @@
   padding: 8px 6px;
   width: 100%;
   font-size: 13px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* Add text shadow for better readability */
 }
 .stageTitle .count { 
   font-size: 11px; 
@@ -158,6 +166,12 @@
   min-height: 100px;
   border-bottom: 1px solid var(--border);
 }
+
+/* Ensure sticky customer column has solid background */
+.stickyCol .customerHeader {
+  background: #1a1a1a; /* Solid dark background */
+}
+
 .customerName { 
   font-weight: 600; 
   color: var(--text); 
