@@ -16,20 +16,21 @@
   width: 100%;
   overflow-x: auto;
   overflow-y: visible;
-  max-width: 1920px;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 0;
 }
 
-/* Main board grid */
+/* Main board grid - adjusted to fit screen width */
 .stageBoard {
   display: grid;
-  grid-template-columns: 200px repeat(10, minmax(140px, 1fr));
+  grid-template-columns: 200px repeat(10, 1fr);
   gap: 0;
   align-items: start;
   padding: 0;
   background: var(--bg);
-  min-width: max-content;
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
 }
 
 /* ---- Top header (app title + manage links) ---- */
@@ -123,6 +124,7 @@
   background: transparent;
   padding: 0;
   border-right: 1px solid rgba(255,255,255,0.1);
+  overflow: hidden; /* Prevent content overflow */
 }
 
 /* Remove border from last column */
@@ -139,8 +141,10 @@
   text-transform: capitalize;
   padding: 8px 6px;
   width: 100%;
-  font-size: 13px;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* Add text shadow for better readability */
+  font-size: 12px; /* Slightly smaller for space */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 .stageTitle .count { 
   font-size: 11px; 
@@ -184,15 +188,16 @@
   opacity: .8; 
 }
 
-/* Item cards */
+/* Item cards - adjusted for smaller columns */
 .itemCard {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--panel);
-  padding: 8px;
-  margin: 6px;
+  padding: 6px;
+  margin: 4px;
   box-shadow: 0 2px 4px rgba(0,0,0,.2);
   transition: transform 0.2s, box-shadow 0.2s;
+  font-size: 11px; /* Smaller text for space */
 }
 .itemCard:hover {
   transform: translateY(-1px);
@@ -211,24 +216,25 @@
 
 .itemTitle { 
   font-weight: 600; 
-  margin-bottom: 6px; 
+  margin-bottom: 4px; 
   word-break: break-word; 
   color: var(--text);
+  font-size: 11px;
 }
 .itemActions { 
   display: flex; 
-  gap: 6px; 
+  gap: 2px; 
   flex-wrap: wrap; 
 }
 
-/* Mini buttons */
+/* Mini buttons - made even smaller */
 .miniBtn {
   border: 1px solid var(--border);
   background: var(--input-bg);
-  border-radius: 6px;
-  padding: 4px 8px;
+  border-radius: 4px;
+  padding: 2px 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text);
   transition: all 0.2s;
 }
@@ -335,12 +341,60 @@
   min-height: 100px;
 }
 
-/* Responsive */
-@media (max-width: 1200px) {
+/* Responsive adjustments */
+@media (max-width: 1400px) {
   .stageBoard { 
-    grid-template-columns: 180px repeat(10, 150px); 
+    grid-template-columns: 180px repeat(10, 1fr); 
   }
   .stickyCol {
     min-width: 180px;
+  }
+  .stageTitle {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .stageBoard { 
+    grid-template-columns: 160px repeat(10, 1fr); 
+  }
+  .stickyCol {
+    min-width: 160px;
+  }
+  .stageTitle {
+    font-size: 10px;
+  }
+  .itemCard {
+    font-size: 10px;
+    padding: 4px;
+  }
+  .itemTitle {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .stageBoard { 
+    grid-template-columns: 140px repeat(10, 1fr); 
+  }
+  .stickyCol {
+    min-width: 140px;
+  }
+  .customerHeader {
+    padding: 8px 6px;
+  }
+  .customerName {
+    font-size: 12px;
+  }
+}
+
+/* For very small screens, allow horizontal scroll */
+@media (max-width: 768px) {
+  .boardWrapper {
+    overflow-x: auto;
+  }
+  .stageBoard {
+    grid-template-columns: 140px repeat(10, 120px);
+    min-width: 1340px; /* Force minimum width for mobile */
   }
 }
