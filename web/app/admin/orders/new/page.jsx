@@ -351,7 +351,7 @@ export default function NewOrderPage() {
           )}
         </div>
 
-        {/* Customer Documents Link - NEW FIELD */}
+        {/* Customer Documents Link - FIXED HELPER TEXT */}
         <div style={{ marginBottom: "24px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
             Customer Documents Link *
@@ -373,7 +373,7 @@ export default function NewOrderPage() {
             required
           />
           <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "4px" }}>
-            Required: Dropbox or document link for customer files
+            Enter the full URL including http:// or https:// (e.g., https://www.dropbox.com/your-folder)
           </div>
         </div>
 
