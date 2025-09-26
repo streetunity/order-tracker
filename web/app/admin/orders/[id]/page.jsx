@@ -18,6 +18,11 @@ export default function EditOrderPage({ params }) {
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
   const [lockLoading, setLockLoading] = useState(false);
   
+  // State for unordering items
+  const [showUnorderDialog, setShowUnorderDialog] = useState(false);
+  const [unorderReason, setUnorderReason] = useState("");
+  const [unorderingItemId, setUnorderingItemId] = useState(null);
+  
   // Local state for customer documents link
   const [customerDocsLink, setCustomerDocsLink] = useState("");
   const [isSavingDocsLink, setIsSavingDocsLink] = useState(false);
@@ -56,6 +61,75 @@ export default function EditOrderPage({ params }) {
       load(); 
     }
   }, [id, user]);
+
+  // Mark item as ordered
+  async function markItemOrdered(itemId) {
+    if (!isAdmin) {
+      alert("Only administrators can mark items as ordered.");
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/ordered`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        }
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      await load();
+    } catch (e) {
+      alert(`Failed to mark item as ordered: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Unmark item as ordered
+  async function unmarkItemOrdered() {
+    if (!isAdmin) {
+      alert("Only administrators can unmark items as ordered.");
+      return;
+    }
+    
+    if (!unorderReason || unorderReason.trim().length < 10) {
+      alert("Please provide a reason with at least 10 characters");
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(unorderingItemId)}/unordered`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ reason: unorderReason.trim() })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      setShowUnorderDialog(false);
+      setUnorderReason("");
+      setUnorderingItemId(null);
+      await load();
+    } catch (e) {
+      alert(`Failed to unmark item as ordered: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // Save customer documents link
   async function saveCustomerDocsLink() {
@@ -405,22 +479,23 @@ export default function EditOrderPage({ params }) {
               </div>
             )}
             <div style={{ overflowX: "auto" }}>
-              <table className="table" style={{ minWidth: "1000px", tableLayout: "fixed" }}>
+              <table className="table" style={{ minWidth: "1100px", tableLayout: "fixed" }}>
                 <thead>
                   <tr>
-                    <th style={{ width: "170px" }}>Item name</th>
-                    <th style={{ width: "60px" }}>Qty</th>
-                    <th style={{ width: "110px" }}>Serial #</th>
-                    <th style={{ width: "110px" }}>Model #</th>
+                    <th style={{ width: "150px" }}>Item name</th>
+                    <th style={{ width: "50px" }}>Qty</th>
+                    <th style={{ width: "100px" }}>Serial #</th>
+                    <th style={{ width: "100px" }}>Model #</th>
                     <th style={{ width: "70px" }}>Voltage</th>
-                    <th style={{ width: "100px" }}>Laser Wattage</th>
-                    <th style={{ width: "210px" }}>Notes</th>
-                    <th style={{ width: "120px" }}>Actions</th>
+                    <th style={{ width: "90px" }}>Laser Wattage</th>
+                    <th style={{ width: "65px" }}>Ordered</th>
+                    <th style={{ width: "180px" }}>Notes</th>
+                    <th style={{ width: "180px" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(order.items || []).length === 0 ? (
-                    <tr><td colSpan={8} style={{ color: "#6b7280" }}>No items yet.</td></tr>
+                    <tr><td colSpan={9} style={{ color: "#6b7280" }}>No items yet.</td></tr>
                   ) : (
                     order.items.map((it) => (
                       <EditableRow
@@ -429,8 +504,14 @@ export default function EditOrderPage({ params }) {
                         onSave={(name, qty, serial, model, voltage, laserWattage, notes) => 
                           saveItem(it.id, name, qty, serial, model, voltage, laserWattage, notes)}
                         onDelete={() => deleteItem(it.id)}
+                        onMarkOrdered={() => markItemOrdered(it.id)}
+                        onUnmarkOrdered={() => {
+                          setUnorderingItemId(it.id);
+                          setShowUnorderDialog(true);
+                        }}
                         disabled={saving || order.isLocked}
                         isLocked={order.isLocked}
+                        isAdmin={isAdmin}
                       />
                     ))
                   )}
@@ -652,11 +733,78 @@ export default function EditOrderPage({ params }) {
           </div>
         </div>
       )}
+
+      {/* Unorder Dialog - Only for Admins */}
+      {showUnorderDialog && isAdmin && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "8px",
+            padding: "24px",
+            maxWidth: "500px",
+            width: "90%"
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: "16px" }}>Unmark Item as Ordered</h3>
+            <p style={{ marginBottom: "16px", color: "#6b7280" }}>
+              Please provide a reason for unmarking this item as ordered. This will be logged in the audit trail.
+            </p>
+            <textarea
+              value={unorderReason}
+              onChange={(e) => setUnorderReason(e.target.value)}
+              placeholder="Enter reason for unmarking as ordered (minimum 10 characters)"
+              style={{
+                width: "100%",
+                minHeight: "100px",
+                padding: "8px",
+                border: "1px solid #e5e7eb",
+                borderRadius: "4px",
+                marginBottom: "16px"
+              }}
+            />
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                className="btn"
+                onClick={() => {
+                  setShowUnorderDialog(false);
+                  setUnorderReason("");
+                  setUnorderingItemId(null);
+                }}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn"
+                onClick={unmarkItemOrdered}
+                disabled={saving || unorderReason.trim().length < 10}
+                style={{
+                  backgroundColor: "#f59e0b",
+                  color: "#fff",
+                  border: "none"
+                }}
+              >
+                {saving ? "Processing..." : "Unmark as Ordered"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
+function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, disabled, isLocked, isAdmin }) {
   const [name, setName] = useState(item.productCode || "");
   const [qty, setQty] = useState(item.qty || 1);
   const [serialNumber, setSerialNumber] = useState(item.serialNumber || "");
@@ -673,6 +821,9 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
                   laserWattage.trim() !== (item.laserWattage || "") ||
                   notes.trim() !== (item.notes || "");
 
+  const isOrdered = item.isOrdered;
+  const orderedDate = item.orderedAt ? new Date(item.orderedAt).toLocaleDateString() : null;
+
   return (
     <tr>
       <td>
@@ -681,7 +832,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           value={name} 
           onChange={e => setName(e.target.value)} 
           disabled={isLocked}
-          style={{ width: "165px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "145px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
@@ -691,7 +842,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           min={1} 
           value={qty} 
           onChange={e => setQty(e.target.value)} 
-          style={{ width: "50px", opacity: isLocked ? 0.6 : 1 }} 
+          style={{ width: "45px", opacity: isLocked ? 0.6 : 1 }} 
           disabled={isLocked}
         />
       </td>
@@ -702,7 +853,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setSerialNumber(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "105px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
@@ -712,7 +863,7 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setModelNumber(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "105px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
@@ -732,8 +883,28 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setLaserWattage(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "85px", opacity: isLocked ? 0.6 : 1 }}
         />
+      </td>
+      <td>
+        {isOrdered ? (
+          <div style={{ 
+            color: "#059669", 
+            fontSize: "12px",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px"
+          }}>
+            <span>✓</span>
+            {orderedDate && (
+              <span title={`Ordered on ${orderedDate}`} style={{ cursor: "help" }}>
+                {orderedDate}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span style={{ color: "#6b7280", fontSize: "12px" }}>—</span>
+        )}
       </td>
       <td>
         <input 
@@ -742,17 +913,17 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
           onChange={e => setNotes(e.target.value)} 
           placeholder="Optional"
           disabled={isLocked}
-          style={{ width: "205px", opacity: isLocked ? 0.6 : 1 }}
+          style={{ width: "175px", opacity: isLocked ? 0.6 : 1 }}
         />
       </td>
       <td>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           <button 
             className="btn" 
             disabled={!changed || disabled} 
             onClick={() => onSave(name.trim(), Number(qty || 1), serialNumber.trim(), modelNumber.trim(), voltage.trim(), laserWattage.trim(), notes.trim())}
             title={isLocked ? "Order is locked" : "Save changes"}
-            style={{ fontSize: "12px", padding: "4px 8px" }}
+            style={{ fontSize: "11px", padding: "3px 6px" }}
           >
             Save
           </button>
@@ -760,11 +931,46 @@ function EditableRow({ item, onSave, onDelete, disabled, isLocked }) {
             className="btn danger" 
             onClick={onDelete} 
             disabled={disabled} 
-            style={{ borderColor: "#ef4444", color: "#b91c1c", fontSize: "12px", padding: "4px 8px" }}
+            style={{ borderColor: "#ef4444", color: "#b91c1c", fontSize: "11px", padding: "3px 6px" }}
             title={isLocked ? "Order is locked" : "Delete item"}
           >
             Delete
           </button>
+          {isAdmin && (
+            isOrdered ? (
+              <button
+                className="btn"
+                onClick={onUnmarkOrdered}
+                disabled={disabled}
+                style={{ 
+                  backgroundColor: "#f59e0b", 
+                  color: "#fff", 
+                  border: "none",
+                  fontSize: "11px", 
+                  padding: "3px 6px"
+                }}
+                title="Unmark as ordered"
+              >
+                Unmark
+              </button>
+            ) : (
+              <button
+                className="btn"
+                onClick={onMarkOrdered}
+                disabled={disabled}
+                style={{ 
+                  backgroundColor: "#059669", 
+                  color: "#fff", 
+                  border: "none",
+                  fontSize: "11px", 
+                  padding: "3px 6px"
+                }}
+                title="Mark as ordered"
+              >
+                Ordered
+              </button>
+            )
+          )}
         </div>
       </td>
     </tr>
