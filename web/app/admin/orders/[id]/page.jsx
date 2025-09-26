@@ -296,6 +296,13 @@ export default function EditOrderPage({ params }) {
                     <strong>Created by:</strong> {order.createdBy.name}
                   </>
                 )}
+                {order.customerDocsLink && (
+                  <>
+                    {" · "}
+                    <strong>Documents:</strong>{" "}
+                    <a className="link" href={order.customerDocsLink} target="_blank" rel="noreferrer">View Files ↗</a>
+                  </>
+                )}
               </div>
               {!order.isLocked && (
                 <button
@@ -311,6 +318,44 @@ export default function EditOrderPage({ params }) {
                   🔒 Lock Order
                 </button>
               )}
+            </div>
+          </section>
+
+          {/* Customer Documents Link Section */}
+          <section style={{ marginTop: 16, marginBottom: 16 }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                className="input"
+                type="url"
+                value={order.customerDocsLink || ""}
+                onChange={async (e) => {
+                  try {
+                    const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+                      method: "PATCH",
+                      headers: {
+                        "content-type": "application/json",
+                        ...getAuthHeaders()
+                      },
+                      body: JSON.stringify({ customerDocsLink: e.target.value })
+                    });
+                    if (!res.ok) throw new Error("Failed to update");
+                    await load();
+                  } catch (err) {
+                    alert("Failed to update documents link");
+                  }
+                }}
+                placeholder="https://www.dropbox.com/..."
+                style={{ width: "400px" }}
+              />
+              {order.customerDocsLink && (
+                <a className="btn" href={order.customerDocsLink} target="_blank" rel="noreferrer">
+                  Open Link ↗
+                </a>
+              )}
+            </div>
+            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+              Dropbox or other document link for customer files
             </div>
           </section>
 
@@ -449,7 +494,7 @@ export default function EditOrderPage({ params }) {
             getAuthHeaders={getAuthHeaders}
           />
 
-          {/* Audit Log Section */}
+          {/* Audit Log Section - Fixed to show unlock reasons */}
           {order.auditLogs && order.auditLogs.length > 0 && (
             <section style={{ marginTop: 32 }}>
               <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Lock/Unlock History</h2>
@@ -461,7 +506,9 @@ export default function EditOrderPage({ params }) {
                 maxHeight: "200px",
                 overflowY: "auto"
               }}>
-                {order.auditLogs.map((log) => (
+                {order.auditLogs
+                  .filter(log => log.action === "LOCKED" || log.action === "UNLOCKED")
+                  .map((log) => (
                   <div key={log.id} style={{
                     paddingBottom: "8px",
                     marginBottom: "8px",
@@ -472,6 +519,20 @@ export default function EditOrderPage({ params }) {
                         <strong style={{ color: log.action === "LOCKED" ? "#059669" : "#dc2626" }}>
                           {log.action}
                         </strong>
+                        {/* Parse and display reason from metadata */}
+                        {log.metadata && (() => {
+                          try {
+                            const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
+                            return metadata.message ? (
+                              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
+                                Reason: {metadata.message}
+                              </div>
+                            ) : null;
+                          } catch {
+                            return null;
+                          }
+                        })()}
+                        {/* Also check parsedReason for backward compatibility */}
                         {log.parsedReason?.message && (
                           <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
                             Reason: {log.parsedReason.message}
