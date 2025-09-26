@@ -684,6 +684,26 @@ export default function AuditHistoryViewer() {
                           </div>
                         )}
 
+                        {/* Display unorder reason prominently if present */}
+                        {log.action === 'ITEM_UNORDERED' && log.message && (
+                          <div style={{
+                            backgroundColor: '#ef4444',
+                            color: '#ffffff',
+                            padding: '12px',
+                            borderRadius: '6px',
+                            marginBottom: '10px',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}>
+                            <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
+                              ⛔ UNORDER REASON:
+                            </div>
+                            <div style={{ fontSize: '15px' }}>
+                              "{log.message}"
+                            </div>
+                          </div>
+                        )}
+
                         {/* Field Changes */}
                         {log.changes && log.changes.length > 0 && (
                           <div 
@@ -732,7 +752,7 @@ export default function AuditHistoryViewer() {
                         )}
 
                         {/* Other messages */}
-                        {log.message && !log.changes && log.action !== 'UNLOCKED' && log.action !== 'LOCKED' && (
+                        {log.message && !log.changes && log.action !== 'UNLOCKED' && log.action !== 'LOCKED' && log.action !== 'ITEM_UNORDERED' && (
                           <div style={{ 
                             fontSize: '13px',
                             color: '#e4e4e4',
