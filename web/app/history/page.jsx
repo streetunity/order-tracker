@@ -644,10 +644,10 @@ export default function AuditHistoryViewer() {
                           </div>
                         </div>
 
-                        {/* Display unlock reason prominently if present */}
+                        {/* Display unlock reason prominently if present - CHANGED TO RED */}
                         {log.action === 'UNLOCKED' && log.message && log.message !== 'Order locked for data integrity' && (
                           <div style={{
-                            backgroundColor: '#06b6d4',
+                            backgroundColor: '#dc2626',
                             color: '#ffffff',
                             padding: '12px',
                             borderRadius: '6px',
