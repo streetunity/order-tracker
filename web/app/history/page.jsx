@@ -223,20 +223,8 @@ export default function AuditHistoryViewer() {
         String(change.newValue).toLowerCase().includes(searchLower)
       );
       const messageMatch = log.message?.toLowerCase().includes(searchLower);
-      const dataMatch = log.data?.unlockReason?.toLowerCase().includes(searchLower);
-      const metadataMatch = (() => {
-        if (log.metadata) {
-          try {
-            const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
-            return metadata.message?.toLowerCase().includes(searchLower);
-          } catch {
-            return false;
-          }
-        }
-        return false;
-      })();
       
-      if (!actionMatch && !userMatch && !changesMatch && !messageMatch && !dataMatch && !metadataMatch) return false;
+      if (!actionMatch && !userMatch && !changesMatch && !messageMatch) return false;
     }
 
     return true;
@@ -254,14 +242,8 @@ export default function AuditHistoryViewer() {
     const headers = ['Date', 'Action', 'Entity', 'User', 'Changes', 'Unlock Reason'];
     const rows = filteredLogs.map(log => {
       let unlockReason = '';
-      if (log.metadata) {
-        try {
-          const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
-          unlockReason = metadata.message || '';
-        } catch {}
-      }
-      if (!unlockReason && log.data?.unlockReason) {
-        unlockReason = log.data.unlockReason;
+      if (log.action === 'UNLOCKED' && log.message && log.message !== 'Order locked for data integrity') {
+        unlockReason = log.message;
       }
       
       return [
@@ -663,77 +645,44 @@ export default function AuditHistoryViewer() {
                         </div>
 
                         {/* Display unlock reason prominently if present */}
-                        {log.action.includes('UNLOCKED') && (() => {
-                          let unlockReason = null;
-                          if (log.metadata) {
-                            try {
-                              const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
-                              unlockReason = metadata.message;
-                            } catch (e) {
-                              console.error('Failed to parse metadata:', e);
-                            }
-                          }
-                          if (!unlockReason && log.data?.unlockReason) {
-                            unlockReason = log.data.unlockReason;
-                          }
-                          
-                          if (unlockReason) {
-                            return (
-                              <div style={{
-                                backgroundColor: '#06b6d4',
-                                color: '#ffffff',
-                                padding: '12px',
-                                borderRadius: '6px',
-                                marginBottom: '10px',
-                                fontSize: '14px',
-                                fontWeight: '500'
-                              }}>
-                                <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
-                                  🔓 UNLOCK REASON:
-                                </div>
-                                <div style={{ fontSize: '15px' }}>
-                                  "{unlockReason}"
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
+                        {log.action === 'UNLOCKED' && log.message && log.message !== 'Order locked for data integrity' && (
+                          <div style={{
+                            backgroundColor: '#06b6d4',
+                            color: '#ffffff',
+                            padding: '12px',
+                            borderRadius: '6px',
+                            marginBottom: '10px',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}>
+                            <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
+                              🔓 UNLOCK REASON:
+                            </div>
+                            <div style={{ fontSize: '15px' }}>
+                              "{log.message}"
+                            </div>
+                          </div>
+                        )}
 
-                        {/* Display lock reason if present */}
-                        {log.action.includes('LOCKED') && (() => {
-                          let lockReason = null;
-                          if (log.metadata) {
-                            try {
-                              const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
-                              lockReason = metadata.message;
-                            } catch (e) {
-                              console.error('Failed to parse metadata:', e);
-                            }
-                          }
-                          
-                          if (lockReason && lockReason !== 'Order locked for data integrity') {
-                            return (
-                              <div style={{
-                                backgroundColor: '#f59e0b',
-                                color: '#ffffff',
-                                padding: '12px',
-                                borderRadius: '6px',
-                                marginBottom: '10px',
-                                fontSize: '14px',
-                                fontWeight: '500'
-                              }}>
-                                <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
-                                  🔒 LOCK REASON:
-                                </div>
-                                <div style={{ fontSize: '15px' }}>
-                                  "{lockReason}"
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
+                        {/* Display custom lock reason if present */}
+                        {log.action === 'LOCKED' && log.message && log.message !== 'Order locked for data integrity' && (
+                          <div style={{
+                            backgroundColor: '#f59e0b',
+                            color: '#ffffff',
+                            padding: '12px',
+                            borderRadius: '6px',
+                            marginBottom: '10px',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}>
+                            <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
+                              🔒 LOCK REASON:
+                            </div>
+                            <div style={{ fontSize: '15px' }}>
+                              "{log.message}"
+                            </div>
+                          </div>
+                        )}
 
                         {/* Field Changes */}
                         {log.changes && log.changes.length > 0 && (
@@ -782,8 +731,8 @@ export default function AuditHistoryViewer() {
                           </div>
                         )}
 
-                        {/* Message */}
-                        {log.message && !log.changes && !log.data && (
+                        {/* Other messages */}
+                        {log.message && !log.changes && log.action !== 'UNLOCKED' && log.action !== 'LOCKED' && (
                           <div style={{ 
                             fontSize: '13px',
                             color: '#e4e4e4',
