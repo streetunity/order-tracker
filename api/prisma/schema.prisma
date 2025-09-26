@@ -54,6 +54,11 @@ model OrderItem {
   laserWattage   String?  // NEW FIELD: Laser Source Wattage
   notes          String?
   
+  // NEW ORDERED STATUS FIELDS
+  isOrdered      Boolean  @default(false)  // Whether this item has been ordered
+  orderedAt      DateTime?                 // When it was marked as ordered
+  orderedBy      String?                   // Who marked it as ordered (user name)
+  
   // NEW MEASUREMENT FIELDS - Always editable even when order is locked
   height         Float?   // Height dimension
   width          Float?   // Width dimension
@@ -101,7 +106,7 @@ model AuditLog {
   entityType        String   // "Order", "Account", "User", "OrderItem"
   entityId          String   // ID of the entity being audited
   parentEntityId    String?  // Optional: orderId for OrderItems, etc.
-  action            String   // "CREATED", "UPDATED", "DELETED", "LOCKED", etc.
+  action            String   // "CREATED", "UPDATED", "DELETED", "LOCKED", "ITEM_ORDERED", "ITEM_UNORDERED", etc.
   changes           String?  // JSON string of field changes
   metadata          String?  // JSON string of additional data (reason, notes, etc.)
   performedByUserId String?
