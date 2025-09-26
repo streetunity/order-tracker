@@ -1,11 +1,8 @@
 // ordered-endpoints.js
 // Handles marking items as ordered/unordered with admin-only access
 
-const express = require('express');
-const router = express.Router();
-
 // Mark item as ordered (Admin only)
-async function markItemAsOrdered(req, res, prisma, authenticatedUser) {
+export async function markItemAsOrdered(req, res, prisma, authenticatedUser) {
   const { id, itemId } = req.params;
   
   try {
@@ -67,7 +64,7 @@ async function markItemAsOrdered(req, res, prisma, authenticatedUser) {
 }
 
 // Unmark item as ordered (Admin only, requires reason)
-async function unmarkItemAsOrdered(req, res, prisma, authenticatedUser) {
+export async function unmarkItemAsOrdered(req, res, prisma, authenticatedUser) {
   const { id, itemId } = req.params;
   const { reason } = req.body;
   
@@ -135,8 +132,3 @@ async function unmarkItemAsOrdered(req, res, prisma, authenticatedUser) {
     res.status(500).json({ error: "Failed to unmark item as ordered" });
   }
 }
-
-module.exports = {
-  markItemAsOrdered,
-  unmarkItemAsOrdered
-};
