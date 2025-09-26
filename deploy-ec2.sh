@@ -2,13 +2,14 @@
 # EC2 Deployment Script for Order Tracker
 # Project: order-tracker on branch aws-deployment
 # Server: ubuntu@50.19.66.100
+# Location: /var/www/order-tracker
 
 set -e
 
-# Configuration - We know these from our weeks of work
+# Configuration - CORRECT paths from our weeks of work
 EC2_HOST="50.19.66.100"
 EC2_USER="ubuntu"
-PROJECT_DIR="/home/ubuntu/order-tracker"
+PROJECT_DIR="/var/www/order-tracker"
 BRANCH="aws-deployment"
 
 echo "================================================"
@@ -16,6 +17,7 @@ echo "ORDER TRACKER DEPLOYMENT - aws-deployment branch"
 echo "================================================"
 echo ""
 echo "Deploying to: $EC2_HOST"
+echo "Project path: $PROJECT_DIR"
 echo "Branch: $BRANCH"
 echo ""
 
@@ -43,7 +45,7 @@ echo_error() {
     echo -e "${RED}[$(date '+%H:%M:%S')] ✗${NC} $1"
 }
 
-cd /home/ubuntu/order-tracker
+cd /var/www/order-tracker
 
 # Step 1: Stop all services
 echo_step "Stopping all services..."
@@ -76,7 +78,7 @@ echo ""
 
 # Step 5: CRITICAL - Clear ALL Next.js caches
 echo_step "Clearing ALL Next.js build caches..."
-cd web
+cd /var/www/order-tracker/web
 rm -rf .next
 rm -rf node_modules/.cache
 rm -rf .next-*
@@ -105,13 +107,13 @@ PAGES_COUNT=$(find .next -name "*.html" 2>/dev/null | wc -l)
 echo_success "Frontend built successfully with $PAGES_COUNT pages"
 
 # Step 8: Update backend
-cd ../api
+cd /var/www/order-tracker/api
 echo_step "Installing backend dependencies..."
 npm ci --prefer-offline --no-audit
 echo_success "Backend dependencies installed"
 
 # Step 9: Verify critical features are present in the code
-cd ..
+cd /var/www/order-tracker
 echo ""
 echo_step "Verifying deployment integrity..."
 
@@ -192,10 +194,10 @@ if command -v nginx &> /dev/null; then
 fi
 
 # Create deployment record
-echo "Deployment completed at $(date)" > deployment.log
-echo "From commit: $CURRENT_COMMIT" >> deployment.log
-echo "To commit: $NEW_COMMIT" >> deployment.log
-echo "Branch: aws-deployment" >> deployment.log
+echo "Deployment completed at $(date)" > /var/www/order-tracker/deployment.log
+echo "From commit: $CURRENT_COMMIT" >> /var/www/order-tracker/deployment.log
+echo "To commit: $NEW_COMMIT" >> /var/www/order-tracker/deployment.log
+echo "Branch: aws-deployment" >> /var/www/order-tracker/deployment.log
 
 echo ""
 echo "================================================"
