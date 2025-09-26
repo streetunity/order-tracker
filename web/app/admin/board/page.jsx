@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import "./board.css";
+import { OrderedIndicator } from './OrderedIndicator';
 
 // Stage keys from API (do not change)
 const STAGES = [
@@ -604,37 +605,64 @@ export default function AdminBoardPage() {
                                 </button>
                               )}
 
-                              {/* Delete item (icon) */}
-                              <button
-                                className="miniBtn danger"
-                                aria-label="Delete item"
-                                onClick={async () => {
-                                  if (isOrderLocked) {
-                                    alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
-                                    return;
-                                  }
-                                  if (!confirm("Delete this item permanently?")) return;
-                                  try {
-                                    await deleteItem(order.id, it.id);
-                                    await load();
-                                  } catch (e) {
-                                    alert(
-                                      `Failed to delete: ${
-                                        e instanceof Error ? e.message : e
-                                      }`
-                                    );
-                                  }
-                                }}
-                                title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"}
-                                style={{
-                                  opacity: isOrderLocked ? 0.5 : 1,
-                                  cursor: isOrderLocked ? "not-allowed" : "pointer",
-                                  fontSize: "10px", 
-                                  padding: "2px 4px"
-                                }}
-                              >
-                                🗑
-                              </button>
+                           {/* Delete item (icon) */}
+<button
+  className="miniBtn danger"
+  aria-label="Delete item"
+  onClick={async () => {
+    if (isOrderLocked) {
+      alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
+      return;
+    }
+    if (!confirm("Delete this item permanently?")) return;
+    try {
+      await deleteItem(order.id, it.id);
+      await load();
+    } catch (e) {
+      alert(
+        `Failed to delete: ${
+          e instanceof Error ? e.message : e
+        }`
+      );
+    }
+  }}
+  title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"}
+  style={{
+    opacity: isOrderLocked ? 0.5 : 1,
+    cursor: isOrderLocked ? "not-allowed" : "pointer",
+    fontSize: "10px", 
+    padding: "2px 4px"
+  }}
+>
+  🗑
+</button>
+
+{/* Spacer between delete and ordered indicator */}
+{it.isOrdered && (
+  <span style={{ width: '8px', display: 'inline-block' }}></span>
+)}
+
+{/* Ordered indicator - shows $ for ordered items */}
+{it.isOrdered && (
+  <span
+    title="Item ordered"
+    style={{
+      display: 'inline-block',
+      backgroundColor: '#16a34a',
+      color: 'white',
+      fontWeight: 'bold',
+      fontSize: '10px',
+      width: '16px',
+      height: '16px',
+      lineHeight: '16px',
+      textAlign: 'center',
+      borderRadius: '50%',
+      cursor: 'help'
+    }}
+  >
+    $
+  </span>
+)}
                             </div>
                           </div>
                         );
