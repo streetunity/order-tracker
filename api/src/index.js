@@ -929,7 +929,8 @@ app.get('/public/orders/:token', async (req, res) => {
         measurementUnit: it.measurementUnit,
         weightUnit: it.weightUnit
       })),
-      statusEvents
+      statusEvents,
+      customerDocsLink
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
