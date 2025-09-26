@@ -16,27 +16,43 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const HOST = '0.0.0.0'; // Listen on all interfaces for AWS
 
-// AWS-compatible CORS configuration
-const allowedOrigins = process.env.CORS_ORIGIN ? 
-  process.env.CORS_ORIGIN.split(',') : 
-  [
-    'http://localhost:3000',
-    'http://localhost:4000',
-    // These will be replaced with actual AWS IP
+// AWS-compatible CORS configuration - FIXED VERSION
+const allowedOrigins = [];
+
+// Add CORS_ORIGIN if specified
+if (process.env.CORS_ORIGIN) {
+  allowedOrigins.push(...process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()));
+}
+
+// Add SERVER_IP origins if specified
+if (process.env.SERVER_IP && process.env.SERVER_IP !== 'undefined') {
+  allowedOrigins.push(
     `http://${process.env.SERVER_IP}:3000`,
-    `http://${process.env.SERVER_IP}`,
-    `https://${process.env.SERVER_IP}:3000`,
-    `https://${process.env.SERVER_IP}`
-  ].filter(Boolean);
+    `http://${process.env.SERVER_IP}:4000`,
+    `http://${process.env.SERVER_IP}`
+  );
+}
+
+// Always add localhost for development
+allowedOrigins.push('http://localhost:3000', 'http://localhost:4000');
+
+// Add the known AWS IP as a fallback
+allowedOrigins.push('http://50.19.66.100:3000', 'http://50.19.66.100:4000');
+
+// Remove duplicates
+const uniqueOrigins = [...new Set(allowedOrigins)];
+
+console.log('CORS Allowed Origins:', uniqueOrigins);
 
 app.use(cors({ 
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (uniqueOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.log('CORS blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
