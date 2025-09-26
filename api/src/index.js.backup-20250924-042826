@@ -47,15 +47,6 @@ app.use(cookieParser());
 // -----------------------------
 // Helpers
 // -----------------------------
-
-// Helper function to safely convert strings to floats for measurements
-function toFloat(value) {
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-  const num = parseFloat(value);
-  return isNaN(num) ? null : num;
-}
 async function checkOrderLock(orderId) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -315,10 +306,10 @@ app.patch('/orders/:orderId/items/:itemId/measurements', authGuard, async (req, 
       const updated = await tx.orderItem.update({
         where: { id: itemId },
         data: {
-          height: height !== undefined ? toFloat(height) : item.height,
-          width: width !== undefined ? toFloat(width) : item.width,
-          length: length !== undefined ? toFloat(length) : item.length,
-          weight: weight !== undefined ? toFloat(weight) : item.weight,
+          height: height !== undefined ? height : item.height,
+          width: width !== undefined ? width : item.width,
+          length: length !== undefined ? length : item.length,
+          weight: weight !== undefined ? weight : item.weight,
           measurementUnit: measurementUnit !== undefined ? measurementUnit : item.measurementUnit,
           weightUnit: weightUnit !== undefined ? weightUnit : item.weightUnit,
           measuredAt: new Date(),
@@ -890,7 +881,7 @@ app.get('/public/orders/:token', async (req, res) => {
 
     const {
       id, poNumber, sku, createdAt, etaDate, currentStage,
-      shippingCarrier, trackingNumber, items, statusEvents, account, customerDocsLink
+      shippingCarrier, trackingNumber, items, statusEvents, account
     } = order;
 
     res.json({
@@ -1173,30 +1164,6 @@ app.patch('/orders/:id', authGuard, async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
     
-    // Handle customerDocsLink update (allowed even when locked)
-    const { customerDocsLink } = req.body || {};
-    if (customerDocsLink !== undefined && customerDocsLink !== original.customerDocsLink) {
-      const updatedOrder = await prisma.order.update({
-        where: { id: req.params.id },
-        data: { customerDocsLink },
-        include: { account: true, items: true }
-      });
-      await createAuditLog({
-        entityType: 'Order',
-        entityId: req.params.id,
-        parentEntityId: req.params.id,
-        action: 'ORDER_UPDATED',
-        changes: [{
-          field: 'customerDocsLink',
-          oldValue: original.customerDocsLink || 'null',
-          newValue: customerDocsLink || 'null'
-        }],
-        userId: req.user.id,
-        userName: req.user.name
-      });
-      return res.json(updatedOrder);
-    }
-    
     if (original.isLocked) {
       await logAuditEvent(
         req.params.id,
@@ -1343,7 +1310,7 @@ app.delete('/orders/:id', authGuard, async (req, res) => {
 // Create order with logging
 app.post('/orders', authGuard, async (req, res) => {
   try {
-    const { accountId, poNumber, sku, items = [], customerDocsLink } = req.body || {};
+    const { accountId, poNumber, sku, items = [] } = req.body || {};
     if (!accountId) return res.status(400).json({ error: 'accountId required' });
 
     const normalizedItems = normalizeIncomingItems(items);
@@ -1356,7 +1323,6 @@ app.post('/orders', authGuard, async (req, res) => {
           poNumber: poNumber ?? null,
           sku: sku ?? null,
           trackingToken,
-          customerDocsLink: customerDocsLink ?? null,
           createdByUserId: req.user.id,
           items: { create: normalizedItems }
         },

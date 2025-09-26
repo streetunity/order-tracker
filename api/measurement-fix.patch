@@ -1,0 +1,17 @@
+--- a/src/index.js
++++ b/src/index.js
+@@ -303,10 +303,10 @@
+       const updated = await tx.orderItem.update({
+         where: { id: itemId },
+         data: {
+-          height: height !== undefined ? height : item.height,
+-          width: width !== undefined ? width : item.width,
+-          length: length !== undefined ? length : item.length,
+-          weight: weight !== undefined ? weight : item.weight,
++          height: height !== undefined ? (height === null || height === "" ? null : Number(height)) : item.height,
++          width: width !== undefined ? (width === null || width === "" ? null : Number(width)) : item.width,
++          length: length !== undefined ? (length === null || length === "" ? null : Number(length)) : item.length,
++          weight: weight !== undefined ? (weight === null || weight === "" ? null : Number(weight)) : item.weight,
+           measurementUnit: measurementUnit !== undefined ? measurementUnit : item.measurementUnit,
+           weightUnit: weightUnit !== undefined ? weightUnit : item.weightUnit,
+           measuredAt: new Date(),

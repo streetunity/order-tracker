@@ -1,0 +1,182 @@
+[1mdiff --git a/web/app/admin/orders/[id]/page.jsx b/web/app/admin/orders/[id]/page.jsx[m
+[1mindex c47174a..7c4e50d 100644[m
+[1m--- a/web/app/admin/orders/[id]/page.jsx[m
+[1m+++ b/web/app/admin/orders/[id]/page.jsx[m
+[36m@@ -294,6 +294,13 @@[m [mexport default function EditOrderPage({ params }) {[m
+                   <>[m
+                     {" · "}[m
+                     <strong>Created by:</strong> {order.createdBy.name}[m
+[32m+[m[32m                {order.customerDocsLink && ([m
+[32m+[m[32m                  <>[m
+[32m+[m[32m                    {" · "}[m
+[32m+[m[32m                    <strong>Documents:</strong>{" "}[m
+[32m+[m[32m                    <a className="link" href={order.customerDocsLink} target="_blank" rel="noreferrer">View Files ↗</a>[m
+[32m+[m[32m                  </>[m
+[32m+[m[32m                )}[m
+                   </>[m
+                 )}[m
+               </div>[m
+[36m@@ -314,6 +321,44 @@[m [mexport default function EditOrderPage({ params }) {[m
+             </div>[m
+           </section>[m
+ [m
+[32m+[m[32m          {/* Customer Documents Link Section */}[m
+[32m+[m[32m          <section style={{ marginTop: 16, marginBottom: 16 }}>[m
+[32m+[m[32m            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>[m
+[32m+[m[32m            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>[m
+[32m+[m[32m              <input[m
+[32m+[m[32m                className="input"[m
+[32m+[m[32m                type="url"[m
+[32m+[m[32m                value={order.customerDocsLink || ""}[m
+[32m+[m[32m                onChange={async (e) => {[m
+[32m+[m[32m                  try {[m
+[32m+[m[32m                    const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {[m
+[32m+[m[32m                      method: "PATCH",[m
+[32m+[m[32m                      headers: {[m
+[32m+[m[32m                        "content-type": "application/json",[m
+[32m+[m[32m                        ...getAuthHeaders()[m
+[32m+[m[32m                      },[m
+[32m+[m[32m                      body: JSON.stringify({ customerDocsLink: e.target.value })[m
+[32m+[m[32m                    });[m
+[32m+[m[32m                    if (!res.ok) throw new Error("Failed to update");[m
+[32m+[m[32m                    await load();[m
+[32m+[m[32m                  } catch (err) {[m
+[32m+[m[32m                    alert("Failed to update documents link");[m
+[32m+[m[32m                  }[m
+[32m+[m[32m                }}[m
+[32m+[m[32m                placeholder="https://www.dropbox.com/..."[m
+[32m+[m[32m                style={{ width: "400px" }}[m
+[32m+[m[32m              />[m
+[32m+[m[32m              {order.customerDocsLink && ([m
+[32m+[m[32m                <a className="btn" href={order.customerDocsLink} target="_blank" rel="noreferrer">[m
+[32m+[m[32m                  Open Link ↗[m
+[32m+[m[32m                </a>[m
+[32m+[m[32m              )}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>[m
+[32m+[m[32m              Dropbox or other document link for customer files[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </section>[m
+[32m+[m
+           <section style={{ marginTop: 8 }}>[m
+             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Items</h2>[m
+             {order.isLocked && ([m
+[36m@@ -441,6 +486,44 @@[m [mexport default function EditOrderPage({ params }) {[m
+             )}[m
+           </section>[m
+ [m
+[32m+[m[32m          {/* Customer Documents Link Section */}[m
+[32m+[m[32m          <section style={{ marginTop: 16, marginBottom: 16 }}>[m
+[32m+[m[32m            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>[m
+[32m+[m[32m            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>[m
+[32m+[m[32m              <input[m
+[32m+[m[32m                className="input"[m
+[32m+[m[32m                type="url"[m
+[32m+[m[32m                value={order.customerDocsLink || ""}[m
+[32m+[m[32m                onChange={async (e) => {[m
+[32m+[m[32m                  try {[m
+[32m+[m[32m                    const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {[m
+[32m+[m[32m                      method: "PATCH",[m
+[32m+[m[32m                      headers: {[m
+[32m+[m[32m                        "content-type": "application/json",[m
+[32m+[m[32m                        ...getAuthHeaders()[m
+[32m+[m[32m                      },[m
+[32m+[m[32m                      body: JSON.stringify({ customerDocsLink: e.target.value })[m
+[32m+[m[32m                    });[m
+[32m+[m[32m                    if (!res.ok) throw new Error("Failed to update");[m
+[32m+[m[32m                    await load();[m
+[32m+[m[32m                  } catch (err) {[m
+[32m+[m[32m                    alert("Failed to update documents link");[m
+[32m+[m[32m                  }[m
+[32m+[m[32m                }}[m
+[32m+[m[32m                placeholder="https://www.dropbox.com/..."[m
+[32m+[m[32m                style={{ width: "400px" }}[m
+[32m+[m[32m              />[m
+[32m+[m[32m              {order.customerDocsLink && ([m
+[32m+[m[32m                <a className="btn" href={order.customerDocsLink} target="_blank" rel="noreferrer">[m
+[32m+[m[32m                  Open Link ↗[m
+[32m+[m[32m                </a>[m
+[32m+[m[32m              )}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>[m
+[32m+[m[32m              Dropbox or other document link for customer files[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </section>[m
+[32m+[m
+           {/* Measurements Section - Always Editable */}[m
+           <MeasurementSection [m
+             order={order}[m
+[36m@@ -470,14 +553,21 @@[m [mexport default function EditOrderPage({ params }) {[m
+                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>[m
+                       <div>[m
+                         <strong style={{ color: log.action === "LOCKED" ? "#059669" : "#dc2626" }}>[m
+[31m-                          {log.action}[m
+[32m+[m[32m                        {/* Show reason from metadata */}[m
+[32m+[m[32m                        {log.metadata && (() => {[m
+[32m+[m[32m                          try {[m
+[32m+[m[32m                            const metadata = typeof log.metadata === "string" ? JSON.parse(log.metadata) : log.metadata;[m
+[32m+[m[32m                            return metadata.message ? ([m
+[32m+[m[32m                              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>[m
+[32m+[m[32m                                Reason: {metadata.message}[m
+[32m+[m[32m                              </div>[m
+[32m+[m[32m                            ) : null;[m
+[32m+[m[32m                          } catch {[m
+[32m+[m[32m                            return null;[m
+[32m+[m[32m                          }[m
+[32m+[m[32m                        })()}[m
+[32m+[m[32m                        {/* Also check parsedReason for backward compatibility */}[m
+                         </strong>[m
+[31m-                        {log.parsedReason?.message && ([m
+[31m-                          <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>[m
+[31m-                            Reason: {log.parsedReason.message}[m
+[31m-                          </div>[m
+[31m-                        )}[m
+[31m-                        <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px" }}>[m
+                           By: {log.performedByName || log.performedBy?.name || "System"}[m
+                         </div>[m
+                       </div>[m
+[36m@@ -489,6 +579,44 @@[m [mexport default function EditOrderPage({ params }) {[m
+                 ))}[m
+               </div>[m
+             </section>[m
+[32m+[m
+[32m+[m[32m          {/* Customer Documents Link Section */}[m
+[32m+[m[32m          <section style={{ marginTop: 16, marginBottom: 16 }}>[m
+[32m+[m[32m            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>[m
+[32m+[m[32m            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>[m
+[32m+[m[32m              <input[m
+[32m+[m[32m                className="input"[m
+[32m+[m[32m                type="url"[m
+[32m+[m[32m                value={order.customerDocsLink || ""}[m
+[32m+[m[32m                onChange={async (e) => {[m
+[32m+[m[32m                  try {[m
+[32m+[m[32m                    const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {[m
+[32m+[m[32m                      method: "PATCH",[m
+[32m+[m[32m                      headers: {[m
+[32m+[m[32m                        "content-type": "application/json",[m
+[32m+[m[32m                        ...getAuthHeaders()[m
+[32m+[m[32m                      },[m
+[32m+[m[32m                      body: JSON.stringify({ customerDocsLink: e.target.value })[m
+[32m+[m[32m                    });[m
+[32m+[m[32m                    if (!res.ok) throw new Error("Failed to update");[m
+[32m+[m[32m                    await load();[m
+[32m+[m[32m                  } catch (err) {[m
+[32m+[m[32m                    alert("Failed to update documents link");[m
+[32m+[m[32m                  }[m
+[32m+[m[32m                }}[m
+[32m+[m[32m                placeholder="https://www.dropbox.com/..."[m
+[32m+[m[32m                style={{ width: "400px" }}[m
+[32m+[m[32m              />[m
+[32m+[m[32m              {order.customerDocsLink && ([m
+[32m+[m[32m                <a className="btn" href={order.customerDocsLink} target="_blank" rel="noreferrer">[m
+[32m+[m[32m                  Open Link ↗[m
+[32m+[m[32m                </a>[m
+[32m+[m[32m              )}[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>[m
+[32m+[m[32m              Dropbox or other document link for customer files[m
+[32m+[m[32m            </div>[m
+[32m+[m[32m          </section>[m
+           )}[m
+         </>[m
+       )}[m
