@@ -17,6 +17,10 @@ export default function EditOrderPage({ params }) {
   const [unlockReason, setUnlockReason] = useState("");
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
   const [lockLoading, setLockLoading] = useState(false);
+  
+  // Local state for customer documents link
+  const [customerDocsLink, setCustomerDocsLink] = useState("");
+  const [isSavingDocsLink, setIsSavingDocsLink] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -35,7 +39,10 @@ export default function EditOrderPage({ params }) {
         headers: getAuthHeaders()
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setOrder(await res.json());
+      const orderData = await res.json();
+      setOrder(orderData);
+      // Update local state with fetched value
+      setCustomerDocsLink(orderData.customerDocsLink || "");
       setErr("");
     } catch (e) {
       setErr(String(e?.message || e));
@@ -49,6 +56,37 @@ export default function EditOrderPage({ params }) {
       load(); 
     }
   }, [id, user]);
+
+  // Save customer documents link
+  async function saveCustomerDocsLink() {
+    // Only save if the value has changed
+    if (customerDocsLink === (order?.customerDocsLink || "")) {
+      return;
+    }
+    
+    try {
+      setIsSavingDocsLink(true);
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ customerDocsLink: customerDocsLink })
+      });
+      
+      if (!res.ok) throw new Error("Failed to update");
+      
+      // Update the order state with the new link
+      setOrder(prev => ({ ...prev, customerDocsLink: customerDocsLink }));
+    } catch (err) {
+      alert("Failed to update documents link");
+      // Revert to original value on error
+      setCustomerDocsLink(order?.customerDocsLink || "");
+    } finally {
+      setIsSavingDocsLink(false);
+    }
+  }
 
   async function lockOrder() {
     try {
@@ -321,33 +359,28 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Customer Documents Link Section */}
+          {/* Customer Documents Link Section - Fixed with local state */}
           <section style={{ marginTop: 16, marginBottom: 16 }}>
             <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
                 className="input"
                 type="url"
-                value={order.customerDocsLink || ""}
-                onChange={async (e) => {
-                  try {
-                    const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
-                      method: "PATCH",
-                      headers: {
-                        "content-type": "application/json",
-                        ...getAuthHeaders()
-                      },
-                      body: JSON.stringify({ customerDocsLink: e.target.value })
-                    });
-                    if (!res.ok) throw new Error("Failed to update");
-                    await load();
-                  } catch (err) {
-                    alert("Failed to update documents link");
+                value={customerDocsLink}
+                onChange={(e) => setCustomerDocsLink(e.target.value)}
+                onBlur={saveCustomerDocsLink}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur(); // Trigger save on Enter
                   }
                 }}
                 placeholder="https://www.dropbox.com/..."
                 style={{ width: "400px" }}
+                disabled={isSavingDocsLink}
               />
+              {isSavingDocsLink && (
+                <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
+              )}
               {order.customerDocsLink && (
                 <a className="btn" href={order.customerDocsLink} target="_blank" rel="noreferrer">
                   Open Link ↗
@@ -355,7 +388,7 @@ export default function EditOrderPage({ params }) {
               )}
             </div>
             <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
-              Dropbox or other document link for customer files
+              Dropbox or other document link for customer files. Press Enter or click outside to save.
             </div>
           </section>
 
