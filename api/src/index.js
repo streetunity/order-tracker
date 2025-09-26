@@ -9,6 +9,8 @@ import { rateLimit } from './rateLimit.js';
 import { authGuard, adminGuard, unlockGuard, optionalAuth, generateToken, verifyToken } from './middleware/auth.js';
 import { hashPassword, comparePassword, validatePassword } from './utils/password.js';
 import { markItemAsOrdered, unmarkItemAsOrdered } from './ordered-endpoints.js';
+import { addAuditEndpoint } from './audit-endpoint-fix.js';
+
 
 const prisma = new PrismaClient();
 const app = express();
@@ -2293,6 +2295,67 @@ app.get('/comprehensive-audit/:entityId', authGuard, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// Add /audit/:entityId endpoint for history page (duplicate of comprehensive-audit)
+app.get('/audit/:entityId', authGuard, async (req, res) => {
+  try {
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { entityId: req.params.entityId },
+          { parentEntityId: req.params.entityId }
+        ]
+      },
+      include: {
+        performedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    // Parse and format the logs
+    const formattedLogs = logs.map(log => {
+      let changes = [];
+      let metadata = {};
+      
+      try {
+        if (log.changes) {
+          changes = JSON.parse(log.changes);
+        }
+        if (log.metadata) {
+          metadata = JSON.parse(log.metadata);
+        }
+      } catch (e) {
+        console.error('Error parsing log data:', e);
+      }
+      
+      return {
+        id: log.id,
+        action: log.action,
+        entity: log.entityType,
+        entityId: log.entityId,
+        changes: changes,
+        data: metadata.data || null,
+        message: metadata.message || null,
+        performedBy: log.performedBy,
+        performedByName: log.performedByName,
+        createdAt: log.createdAt
+      };
+    });
+    
+    res.json(formattedLogs);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// -----------------------------
 
 // -----------------------------
 // Startup
