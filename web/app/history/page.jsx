@@ -224,8 +224,19 @@ export default function AuditHistoryViewer() {
       );
       const messageMatch = log.message?.toLowerCase().includes(searchLower);
       const dataMatch = log.data?.unlockReason?.toLowerCase().includes(searchLower);
+      const metadataMatch = (() => {
+        if (log.metadata) {
+          try {
+            const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
+            return metadata.message?.toLowerCase().includes(searchLower);
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      })();
       
-      if (!actionMatch && !userMatch && !changesMatch && !messageMatch && !dataMatch) return false;
+      if (!actionMatch && !userMatch && !changesMatch && !messageMatch && !dataMatch && !metadataMatch) return false;
     }
 
     return true;
@@ -241,14 +252,27 @@ export default function AuditHistoryViewer() {
   // Export function
   const exportToCSV = () => {
     const headers = ['Date', 'Action', 'Entity', 'User', 'Changes', 'Unlock Reason'];
-    const rows = filteredLogs.map(log => [
-      formatDate(log.createdAt),
-      log.action,
-      log.entity || '',
-      log.performedByName || log.performedBy?.name || 'System',
-      log.changes?.map(c => `${c.field}: ${c.oldValue} → ${c.newValue}`).join('; ') || '',
-      log.data?.unlockReason || ''
-    ]);
+    const rows = filteredLogs.map(log => {
+      let unlockReason = '';
+      if (log.metadata) {
+        try {
+          const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
+          unlockReason = metadata.message || '';
+        } catch {}
+      }
+      if (!unlockReason && log.data?.unlockReason) {
+        unlockReason = log.data.unlockReason;
+      }
+      
+      return [
+        formatDate(log.createdAt),
+        log.action,
+        log.entity || '',
+        log.performedByName || log.performedBy?.name || 'System',
+        log.changes?.map(c => `${c.field}: ${c.oldValue} → ${c.newValue}`).join('; ') || '',
+        unlockReason
+      ];
+    });
     
     const csvContent = [headers, ...rows]
       .map(row => row.map(cell => `"${cell}"`).join(','))
@@ -639,24 +663,77 @@ export default function AuditHistoryViewer() {
                         </div>
 
                         {/* Display unlock reason prominently if present */}
-                        {log.action.includes('UNLOCKED') && log.data?.unlockReason && (
-                          <div style={{
-                            backgroundColor: '#06b6d4',
-                            color: '#ffffff',
-                            padding: '12px',
-                            borderRadius: '6px',
-                            marginBottom: '10px',
-                            fontSize: '14px',
-                            fontWeight: '500'
-                          }}>
-                            <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
-                              🔓 UNLOCK REASON:
-                            </div>
-                            <div style={{ fontSize: '15px' }}>
-                              "{log.data.unlockReason}"
-                            </div>
-                          </div>
-                        )}
+                        {log.action.includes('UNLOCKED') && (() => {
+                          let unlockReason = null;
+                          if (log.metadata) {
+                            try {
+                              const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
+                              unlockReason = metadata.message;
+                            } catch (e) {
+                              console.error('Failed to parse metadata:', e);
+                            }
+                          }
+                          if (!unlockReason && log.data?.unlockReason) {
+                            unlockReason = log.data.unlockReason;
+                          }
+                          
+                          if (unlockReason) {
+                            return (
+                              <div style={{
+                                backgroundColor: '#06b6d4',
+                                color: '#ffffff',
+                                padding: '12px',
+                                borderRadius: '6px',
+                                marginBottom: '10px',
+                                fontSize: '14px',
+                                fontWeight: '500'
+                              }}>
+                                <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
+                                  🔓 UNLOCK REASON:
+                                </div>
+                                <div style={{ fontSize: '15px' }}>
+                                  "{unlockReason}"
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+
+                        {/* Display lock reason if present */}
+                        {log.action.includes('LOCKED') && (() => {
+                          let lockReason = null;
+                          if (log.metadata) {
+                            try {
+                              const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
+                              lockReason = metadata.message;
+                            } catch (e) {
+                              console.error('Failed to parse metadata:', e);
+                            }
+                          }
+                          
+                          if (lockReason && lockReason !== 'Order locked for data integrity') {
+                            return (
+                              <div style={{
+                                backgroundColor: '#f59e0b',
+                                color: '#ffffff',
+                                padding: '12px',
+                                borderRadius: '6px',
+                                marginBottom: '10px',
+                                fontSize: '14px',
+                                fontWeight: '500'
+                              }}>
+                                <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
+                                  🔒 LOCK REASON:
+                                </div>
+                                <div style={{ fontSize: '15px' }}>
+                                  "{lockReason}"
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
 
                         {/* Field Changes */}
                         {log.changes && log.changes.length > 0 && (
