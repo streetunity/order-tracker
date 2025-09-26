@@ -27,9 +27,6 @@ export default function EditOrderPage({ params }) {
   const [customerDocsLink, setCustomerDocsLink] = useState("");
   const [isSavingDocsLink, setIsSavingDocsLink] = useState(false);
 
-  // Get the correct API URL (port 4000 for backend)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://50.19.66.100:4000';
-
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!user) {
@@ -42,7 +39,7 @@ export default function EditOrderPage({ params }) {
     
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}`, { 
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, { 
         cache: "no-store",
         headers: getAuthHeaders()
       });
@@ -74,7 +71,7 @@ export default function EditOrderPage({ params }) {
     
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/ordered`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/ordered`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -109,7 +106,7 @@ export default function EditOrderPage({ params }) {
     
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(unorderingItemId)}/unordered`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(unorderingItemId)}/unordered`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -143,7 +140,7 @@ export default function EditOrderPage({ params }) {
     
     try {
       setIsSavingDocsLink(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
@@ -168,7 +165,7 @@ export default function EditOrderPage({ params }) {
   async function lockOrder() {
     try {
       setLockLoading(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}/lock`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/lock`, {
         method: "POST",
         headers: { 
           "content-type": "application/json",
@@ -206,7 +203,7 @@ export default function EditOrderPage({ params }) {
     
     try {
       setLockLoading(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}/unlock`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/unlock`, {
         method: "POST",
         headers: { 
           "content-type": "application/json",
@@ -236,7 +233,7 @@ export default function EditOrderPage({ params }) {
   async function saveItem(itemId, productCode, qty, serialNumber, modelNumber, voltage, laserWattage, notes) {
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
         method: "PATCH",
         headers: { 
           "content-type": "application/json",
@@ -262,7 +259,7 @@ export default function EditOrderPage({ params }) {
     if (!confirm("Permanently delete this item? This cannot be undone.")) return;
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -295,7 +292,7 @@ export default function EditOrderPage({ params }) {
     
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/orders/${encodeURIComponent(id)}/items`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items`, {
         method: "POST",
         headers: { 
           "content-type": "application/json",
