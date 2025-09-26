@@ -8,6 +8,7 @@ import { STAGES, canAdvance, newTrackingToken } from './state.js';
 import { rateLimit } from './rateLimit.js';
 import { authGuard, adminGuard, unlockGuard, optionalAuth, generateToken, verifyToken } from './middleware/auth.js';
 import { hashPassword, comparePassword, validatePassword } from './utils/password.js';
+import { markItemAsOrdered, unmarkItemAsOrdered } from './ordered-endpoints.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -1339,6 +1340,16 @@ app.delete('/orders/:id', authGuard, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Mark item as ordered (Admin only)
+app.post('/orders/:id/items/:itemId/ordered', authGuard, async (req, res) => {
+  await markItemAsOrdered(req, res, prisma, req.user);
+});
+
+// Unmark item as ordered (Admin only, requires reason)
+app.post('/orders/:id/items/:itemId/unordered', authGuard, async (req, res) => {
+  await unmarkItemAsOrdered(req, res, prisma, req.user);
 });
 
 // Create order with logging
