@@ -1,6 +1,7 @@
 #!/bin/bash
 # Direct EC2 verification and emergency fix script
 # Run this ON the EC2 instance if deployment isn't working
+# Project location: /var/www/order-tracker
 
 set -e
 
@@ -15,7 +16,7 @@ echo -e "${BLUE}ORDER TRACKER - VERIFICATION & EMERGENCY FIX${NC}"
 echo -e "${BLUE}================================================${NC}"
 echo ""
 
-cd /home/ubuntu/order-tracker
+cd /var/www/order-tracker
 
 # Function to check a feature
 check_feature() {
@@ -68,7 +69,7 @@ if [ $ISSUES -gt 0 ]; then
         
         # NUCLEAR OPTION: Complete cache clear
         echo -e "${YELLOW}Performing complete cache clear...${NC}"
-        cd web
+        cd /var/www/order-tracker/web
         rm -rf .next
         rm -rf node_modules/.cache
         rm -rf .next-*
@@ -86,7 +87,7 @@ if [ $ISSUES -gt 0 ]; then
         NODE_ENV=production npm run build
         
         # Start services
-        cd ..
+        cd /var/www/order-tracker
         sudo systemctl start order-tracker-api
         sleep 2
         sudo systemctl start order-tracker-web
@@ -102,6 +103,8 @@ echo ""
 echo -e "${YELLOW}Service Status:${NC}"
 if systemctl is-active --quiet order-tracker-api; then
     echo -e "${GREEN}✓${NC} API service is running"
+    API_PID=$(systemctl show -p MainPID --value order-tracker-api)
+    echo "  PID: $API_PID"
 else
     echo -e "${RED}✗${NC} API service is NOT running"
     echo "  Last error:"
@@ -110,6 +113,8 @@ fi
 
 if systemctl is-active --quiet order-tracker-web; then
     echo -e "${GREEN}✓${NC} Web service is running"
+    WEB_PID=$(systemctl show -p MainPID --value order-tracker-web)
+    echo "  PID: $WEB_PID"
 else
     echo -e "${RED}✗${NC} Web service is NOT running"
     echo "  Last error:"
@@ -119,21 +124,21 @@ fi
 # 5. Check if build exists and is recent
 echo ""
 echo -e "${YELLOW}Build Status:${NC}"
-if [ -d "web/.next" ]; then
-    BUILD_TIME=$(stat -c %y web/.next | cut -d' ' -f1,2)
+if [ -d "/var/www/order-tracker/web/.next" ]; then
+    BUILD_TIME=$(stat -c %y /var/www/order-tracker/web/.next | cut -d' ' -f1,2)
     echo -e "${GREEN}✓${NC} Build exists (created: $BUILD_TIME)"
     
     # Check if build is older than git pull
-    GIT_PULL_TIME=$(stat -c %y .git/FETCH_HEAD 2>/dev/null | cut -d' ' -f1,2)
+    GIT_PULL_TIME=$(stat -c %y /var/www/order-tracker/.git/FETCH_HEAD 2>/dev/null | cut -d' ' -f1,2)
     if [ ! -z "$GIT_PULL_TIME" ]; then
         if [[ "$BUILD_TIME" < "$GIT_PULL_TIME" ]]; then
             echo -e "${RED}✗${NC} Build is older than last git pull!"
-            echo "  Consider rebuilding with: cd web && rm -rf .next && npm run build"
+            echo "  Consider rebuilding with: cd /var/www/order-tracker/web && rm -rf .next && npm run build"
         fi
     fi
 else
     echo -e "${RED}✗${NC} No build found!"
-    echo "  Run: cd web && npm run build"
+    echo "  Run: cd /var/www/order-tracker/web && npm run build"
 fi
 
 # 6. Test endpoints
@@ -159,14 +164,14 @@ echo -e "${YELLOW}Quick Content Check:${NC}"
 echo "Checking what's actually in the built files..."
 
 # Check if the built files contain our expected strings
-if [ -d "web/.next/server/app/admin/orders" ]; then
-    if grep -r "Enter the full URL including http://" web/.next/server/app/admin/orders 2>/dev/null | head -1 > /dev/null; then
+if [ -d "/var/www/order-tracker/web/.next/server/app/admin/orders" ]; then
+    if grep -r "Enter the full URL including http://" /var/www/order-tracker/web/.next/server/app/admin/orders 2>/dev/null | head -1 > /dev/null; then
         echo -e "${GREEN}✓${NC} New Order helper text found in build"
     else
         echo -e "${RED}✗${NC} New Order helper text NOT in build - rebuild needed!"
     fi
     
-    if grep -r "JSON.parse(log.metadata)" web/.next/server/app/admin/orders 2>/dev/null | head -1 > /dev/null; then
+    if grep -r "JSON.parse(log.metadata)" /var/www/order-tracker/web/.next/server/app/admin/orders 2>/dev/null | head -1 > /dev/null; then
         echo -e "${GREEN}✓${NC} Unlock reason parsing found in build"
     else
         echo -e "${RED}✗${NC} Unlock reason parsing NOT in build - rebuild needed!"
@@ -175,7 +180,26 @@ else
     echo -e "${RED}✗${NC} Build directory structure not found"
 fi
 
-# 8. Final recommendations
+# 8. Check systemd service files
+echo ""
+echo -e "${YELLOW}Service Configuration:${NC}"
+if [ -f "/etc/systemd/system/order-tracker-web.service" ]; then
+    WORKING_DIR=$(grep "WorkingDirectory" /etc/systemd/system/order-tracker-web.service | cut -d'=' -f2)
+    echo -e "${GREEN}✓${NC} Web service config exists"
+    echo "  Working directory: $WORKING_DIR"
+else
+    echo -e "${RED}✗${NC} Web service config not found"
+fi
+
+if [ -f "/etc/systemd/system/order-tracker-api.service" ]; then
+    WORKING_DIR=$(grep "WorkingDirectory" /etc/systemd/system/order-tracker-api.service | cut -d'=' -f2)
+    echo -e "${GREEN}✓${NC} API service config exists"
+    echo "  Working directory: $WORKING_DIR"
+else
+    echo -e "${RED}✗${NC} API service config not found"
+fi
+
+# 9. Final recommendations
 echo ""
 echo -e "${BLUE}================================================${NC}"
 echo -e "${BLUE}RECOMMENDATIONS:${NC}"
@@ -193,7 +217,7 @@ else
     echo "Issues detected. Try these commands:"
     echo ""
     echo "1. Full rebuild:"
-    echo "   cd /home/ubuntu/order-tracker/web"
+    echo "   cd /var/www/order-tracker/web"
     echo "   sudo systemctl stop order-tracker-web"
     echo "   rm -rf .next node_modules/.cache"
     echo "   npm run build"
@@ -204,6 +228,7 @@ else
     echo "   sudo journalctl -u order-tracker-api -f"
     echo ""
     echo "3. Force latest code:"
+    echo "   cd /var/www/order-tracker"
     echo "   git fetch origin aws-deployment"
     echo "   git reset --hard origin/aws-deployment"
 fi
@@ -211,3 +236,6 @@ fi
 echo ""
 echo "Test URL: http://50.19.66.100:3000"
 echo "Login: admin@stealthmachinetools.com / admin123"
+echo ""
+echo "Project location: /var/www/order-tracker"
+echo "Branch: aws-deployment"
