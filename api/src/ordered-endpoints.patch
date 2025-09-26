@@ -1,0 +1,30 @@
+--- index.js.orig	2024-09-26 00:00:00.000000000 +0000
++++ index.js	2024-09-26 00:00:01.000000000 +0000
+@@ -23,6 +23,7 @@
+ const jwt = require('jsonwebtoken');
+ const { authenticateToken } = require('./middleware/auth');
+ const state = require('./state'); 
++const { markItemAsOrdered, unmarkItemAsOrdered } = require('./ordered-endpoints');
+ 
+ const prisma = new PrismaClient({
+   datasources: {
+@@ -1650,6 +1651,20 @@
+   }
+ });
+ 
++// Mark item as ordered (Admin only)
++router.post('/orders/:id/items/:itemId/ordered', authenticateToken, async (req, res) => {
++  const authenticatedUser = req.user;
++  await markItemAsOrdered(req, res, prisma, authenticatedUser);
++});
++
++// Unmark item as ordered (Admin only, requires reason)
++router.post('/orders/:id/items/:itemId/unordered', authenticateToken, async (req, res) => {
++  const authenticatedUser = req.user;
++  await unmarkItemAsOrdered(req, res, prisma, authenticatedUser);
++});
++
+ // Apply the router to the app
+ app.use(router);
+ 
+ // Test route
