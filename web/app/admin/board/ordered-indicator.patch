@@ -1,0 +1,37 @@
+--- page.jsx.orig	2024-09-26 00:00:00.000000000 +0000
++++ page.jsx	2024-09-26 00:00:01.000000000 +0000
+@@ -500,6 +500,11 @@
+                       </div>
+                     )}
+                     <div className="item-actions">
++                      {/* Show $ icon if item is ordered */}
++                      {item.isOrdered && (
++                        <span className="ordered-indicator" title={`Ordered on ${new Date(item.orderedAt).toLocaleDateString()} by ${item.orderedBy}`}>
++                          $
++                        </span>
++                      )}
+                       <button 
+                         className="btn btn-small delete" 
+                         onClick={() => handleDeleteItem(item.orderId, item.id)}
+--- board.css.orig	2024-09-26 00:00:00.000000000 +0000
++++ board.css	2024-09-26 00:00:01.000000000 +0000
+@@ -300,3 +300,15 @@
+   font-size: 11px;
+   margin-top: 2px;
+ }
++
++/* Ordered item indicator */
++.ordered-indicator {
++  display: inline-block;
++  background-color: #16a34a;
++  color: white;
++  font-weight: bold;
++  font-size: 14px;
++  width: 20px;
++  height: 20px;
++  line-height: 20px;
++  text-align: center;
++  border-radius: 50%;
++  margin-right: 4px;
++  cursor: help;
++}
