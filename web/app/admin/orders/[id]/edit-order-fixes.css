@@ -1,0 +1,87 @@
+/* Edit Orders Page Style Fixes */
+
+/* Remove up/down arrows from number inputs for quantity fields */
+/* Chrome, Safari, Edge, Opera */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+  display: none;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Alternative method for all browsers */
+input.qty-input,
+input[name="qty"],
+.item-qty input {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input.qty-input::-webkit-inner-spin-button,
+input.qty-input::-webkit-outer-spin-button,
+input[name="qty"]::-webkit-inner-spin-button,
+input[name="qty"]::-webkit-outer-spin-button,
+.item-qty input::-webkit-inner-spin-button,
+.item-qty input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+  display: none;
+}
+
+/* Adjust Actions column positioning */
+/* Move the Actions header and column content more to the right */
+th:last-child,
+td:last-child {
+  padding-right: 20px !important;
+  text-align: right !important;
+}
+
+/* If there's a specific actions class */
+.actions-column,
+.item-actions {
+  padding-right: 20px !important;
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+/* Adjust table layout to give more space to actions */
+table {
+  table-layout: auto !important;
+}
+
+/* Make sure the Actions heading doesn't overlap */
+th:contains("Actions"),
+th:last-of-type {
+  width: auto !important;
+  min-width: 200px !important;
+  padding-left: 20px !important;
+}
+
+/* Ensure buttons in actions column have proper spacing */
+.actions-column button,
+.item-actions button,
+td:last-child button {
+  margin-left: 8px;
+}
+
+/* For the specific edit orders table */
+.items-table th:last-child,
+.items-table td:last-child {
+  padding-right: 30px !important;
+  padding-left: 20px !important;
+}
+
+/* Prevent "Ordered" text from running over */
+.ordered-status,
+td:nth-last-child(3) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
