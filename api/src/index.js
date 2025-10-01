@@ -144,6 +144,8 @@ function normalizeIncomingItems(items) {
       serialNumber: i?.serialNumber ? String(i.serialNumber).trim() : null,
       modelNumber: i?.modelNumber ? String(i.modelNumber).trim() : null,
       voltage: i?.voltage ? String(i.voltage).trim() : null,
+      
+      laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
       notes: i?.notes ? String(i.notes).trim() : null
     }))
     .filter((i) => i.productCode.length > 0);
@@ -1853,6 +1855,8 @@ app.post('/orders/:orderId/items', authGuard, async (req, res) => {
             serialNumber: i.serialNumber,
             modelNumber: i.modelNumber,
             voltage: i.voltage,
+            
+            laserWattage: i.laserWattage || null,
             notes: i.notes
           }
         });
@@ -1903,6 +1907,7 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
         serialNumber: true,
         modelNumber: true,
         voltage: true,
+        laserWattage: true,
         notes: true,
         archivedAt: true,
         currentStage: true,
@@ -2100,7 +2105,23 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
           newValue: newVoltage || 'null'
         });
       }
+	}
+    
+    if (req.body.hasOwnProperty('laserWattage')) {
+      const newLaserWattage = (req.body.laserWattage === '' || req.body.laserWattage === null)
+        ? null
+        : String(req.body.laserWattage).trim();
+      
+      if (newLaserWattage !== item.laserWattage) {
+        data.laserWattage = newLaserWattage;
+        changes.push({
+          field: 'laserWattage',
+          oldValue: item.laserWattage || 'null',
+          newValue: newLaserWattage || 'null'
+        });
+      }
     }
+}
     
     if (req.body.hasOwnProperty('notes')) {
       const newNotes = (req.body.notes === '' || req.body.notes === null)
