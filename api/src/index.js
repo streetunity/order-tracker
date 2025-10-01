@@ -2121,7 +2121,6 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
         });
       }
     }
-}
     
     if (req.body.hasOwnProperty('notes')) {
       const newNotes = (req.body.notes === '' || req.body.notes === null)
