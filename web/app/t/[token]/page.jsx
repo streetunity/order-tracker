@@ -269,58 +269,58 @@ export default function PublicTrackingPage() {
                       <div style={{ fontSize: "14px", color: "#a0a0a0" }}>
                         Quantity: {item.qty || 1}
                       </div>
-                      {item.serialNumber && (
-                        <div style={{ 
-                          fontSize: "14px", 
-                          color: "#ef4444", 
-                          marginTop: "4px",
-                          fontWeight: "500"
-                        }}>
-                          Serial Number: {item.serialNumber}
-                        </div>
-                      )}
-                      {item.modelNumber && (
-                        <div style={{ 
-                          fontSize: "14px", 
-                          color: "#ef4444", 
-                          marginTop: "4px",
-                          fontWeight: "500"
-                        }}>
-                          Model Number: {item.modelNumber}
-                        </div>
-                      )}
-                      {item.voltage && (
-                        <div style={{ 
-                          fontSize: "14px", 
-                          color: "#a0a0a0", 
-                          marginTop: "4px"
-                        }}>
-                          Voltage: {item.voltage}
-                        </div>
-                      )}
-                      {item.laserWattage && (
-                        <div style={{ 
-                          fontSize: "14px", 
-                          color: "#a0a0a0", 
-                          marginTop: "4px"
-                        }}>
-                          Power: {item.laserWattage}
-                        </div>
-                      )}
-                      {item.notes && (
-                        <div style={{ 
-                          fontSize: "13px", 
-                          color: "#a0a0a0", 
-                          marginTop: "6px",
-                          fontStyle: "italic",
-                          backgroundColor: "#1a1a1a",
-                          padding: "8px",
-                          borderRadius: "4px",
-                          border: "1px solid #404040"
-                        }}>
-                          Notes: {item.notes}
-                        </div>
-                      )}
+                      
+                      {/* Always show Serial Number */}
+                      <div style={{ 
+                        fontSize: "14px", 
+                        color: item.serialNumber ? "#ef4444" : "#6b7280", 
+                        marginTop: "4px",
+                        fontWeight: item.serialNumber ? "500" : "normal"
+                      }}>
+                        Serial Number: {item.serialNumber || "Not specified"}
+                      </div>
+                      
+                      {/* Always show Model Number */}
+                      <div style={{ 
+                        fontSize: "14px", 
+                        color: item.modelNumber ? "#ef4444" : "#6b7280", 
+                        marginTop: "4px",
+                        fontWeight: item.modelNumber ? "500" : "normal"
+                      }}>
+                        Model Number: {item.modelNumber || "Not specified"}
+                      </div>
+                      
+                      {/* Always show Voltage */}
+                      <div style={{ 
+                        fontSize: "14px", 
+                        color: "#a0a0a0", 
+                        marginTop: "4px"
+                      }}>
+                        Voltage: {item.voltage || "Not specified"}
+                      </div>
+                      
+                      {/* Always show Power */}
+                      <div style={{ 
+                        fontSize: "14px", 
+                        color: "#a0a0a0", 
+                        marginTop: "4px"
+                      }}>
+                        Power: {item.laserWattage || "Not specified"}
+                      </div>
+                      
+                      {/* Always show Notes */}
+                      <div style={{ 
+                        fontSize: "13px", 
+                        color: "#a0a0a0", 
+                        marginTop: "6px",
+                        fontStyle: item.notes ? "italic" : "normal",
+                        backgroundColor: "#1a1a1a",
+                        padding: "8px",
+                        borderRadius: "4px",
+                        border: "1px solid #404040"
+                      }}>
+                        Notes: {item.notes || "No notes"}
+                      </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: "16px", fontWeight: "500", color: "#ef4444" }}>
