@@ -1135,7 +1135,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
     </>
   );
 }
-) {
+
+function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, disabled, isLocked, isAdmin }) {
   const [name, setName] = useState(item.productCode || "");
   const [qty, setQty] = useState(item.qty || 1);
   const [serialNumber, setSerialNumber] = useState(item.serialNumber || "");
@@ -1143,6 +1144,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
   const [voltage, setVoltage] = useState(item.voltage || "");
   const [laserWattage, setLaserWattage] = useState(item.laserWattage || "");
   const [notes, setNotes] = useState(item.notes || "");
+  const [itemPrice, setItemPrice] = useState(item.itemPrice || "");
+  const [privateItemNote, setPrivateItemNote] = useState(item.privateItemNote || "");
   
   const changed = name.trim() !== (item.productCode || "") || 
                   Number(qty) !== Number(item.qty || 1) ||
