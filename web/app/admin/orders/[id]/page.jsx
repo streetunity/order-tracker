@@ -1013,7 +1013,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
             }}>
               <span>✓</span>
               {orderedDate && (
-                <span title={\`Ordered on \${orderedDate}\`} style={{ cursor: "help" }}>
+                <span title={`Ordered on ${orderedDate}`} style={{ cursor: "help" }}>
                   {orderedDate}
                 </span>
               )}
