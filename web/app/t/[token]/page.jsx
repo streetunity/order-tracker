@@ -298,6 +298,15 @@ export default function PublicTrackingPage() {
                           Voltage: {item.voltage}
                         </div>
                       )}
+                      {item.laserWattage && (
+                        <div style={{ 
+                          fontSize: "14px", 
+                          color: "#a0a0a0", 
+                          marginTop: "4px"
+                        }}>
+                          Power: {item.laserWattage}
+                        </div>
+                      )}
                       {item.notes && (
                         <div style={{ 
                           fontSize: "13px", 
