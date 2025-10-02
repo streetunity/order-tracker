@@ -190,20 +190,27 @@ export default function AdminBoardPage() {
 
   function copyToClipboard(token, orderId) {
     const url = `${window.location.origin}/t/${token}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopiedLink(orderId);
-      setTimeout(() => setCopiedLink(null), 2000);
-    }).catch(() => {
-      // Fallback for older browsers
-      const textArea = document.createElement("textarea");
-      textArea.value = url;
-      document.body.appendChild(textArea);
-      textArea.select();
+    
+    // Use the fallback method that works on HTTP
+    const textArea = document.createElement("textarea");
+    textArea.value = url;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
       document.execCommand('copy');
-      document.body.removeChild(textArea);
       setCopiedLink(orderId);
       setTimeout(() => setCopiedLink(null), 2000);
-    });
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      alert('Failed to copy link. Please copy manually: ' + url);
+    } finally {
+      document.body.removeChild(textArea);
+    }
   }
 
   // Use filteredOrders instead of orders for grouping
