@@ -579,7 +579,7 @@ export default function NewOrderPage() {
                 </div>
               </div>
               
-              {/* Third row: Voltage and Laser Wattage */}
+              {/* Third row: Voltage and Power */}
               <div style={{
                 display: "flex",
                 gap: "12px",
@@ -608,13 +608,13 @@ export default function NewOrderPage() {
                 
                 <div style={{ flex: 1 }}>
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                    Laser Source Wattage
+                    Power
                   </label>
                   <input
                     type="text"
                     value={item.laserWattage}
                     onChange={(e) => updateItem(index, "laserWattage", e.target.value)}
-                    placeholder="Optional wattage (e.g., 1500W, 3000W)"
+                    placeholder="Power: HP / Wattage ..."
                     style={{
                       width: "100%",
                       padding: "12px",
