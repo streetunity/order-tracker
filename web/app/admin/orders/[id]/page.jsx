@@ -346,9 +346,7 @@ export default function EditOrderPage({ params }) {
           voltage, 
           laserWattage: laserWattage || null,
           notes,
-          itemPrice: itemPrice || null,
-          privateItemNote: privateItemNote || null
-        }),
+}),
       });
       
       if (!res.ok) {
