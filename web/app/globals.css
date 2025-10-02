@@ -16,7 +16,7 @@
   --accent: #ef4444;       /* Red accent */
   --accent-strong: #dc2626; /* Stronger red */
   --focus: #ef4444;        /* Focus color */
-  --input-bg: #383838;     /* Input background */
+  --input-bg: #2a2a2a;     /* Changed from #383838 to darker gray */
   --hover-bg: #3a3a3a;     /* Hover state background */
 }
 
@@ -56,26 +56,6 @@ input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-color: var(--focus);
-}
-
-/* Admin-only input fields (price and private notes) */
-.input-admin {
-  background-color: #374151 !important;
-  border: 1px solid #4b5563 !important;
-  color: #e5e7eb !important;
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.input-admin:focus {
-  background-color: #404040 !important;
-  border-color: #6b7280 !important;
-  outline: none !important;
-}
-
-.input-admin::placeholder {
-  color: #9ca3af !important;
 }
 
 /* Remove number input spinners */
