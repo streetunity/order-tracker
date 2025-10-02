@@ -623,7 +623,7 @@ export default function EditOrderPage({ params }) {
                     <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Power</label>
                     <input
                       className="input"
-                      placeholder="Optional"
+                      placeholder="HP / Wattage"
                       value={newItem.laserWattage}
                       onChange={e => setNewItem(v => ({ ...v, laserWattage: e.target.value }))}
                       style={{ width: "120px" }}
@@ -649,8 +649,8 @@ export default function EditOrderPage({ params }) {
           <section style={{ marginTop: 32 }}>
             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Internal Notes</h2>
             <div style={{
-              backgroundColor: "#f9fafb",
-              border: "1px solid #e5e7eb",
+              backgroundColor: "#374151",
+              border: "1px solid #4b5563",
               borderRadius: "6px",
               padding: "12px"
             }}>
@@ -665,14 +665,16 @@ export default function EditOrderPage({ params }) {
                   width: "100%",
                   minHeight: "120px",
                   padding: "8px",
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #4b5563",
                   borderRadius: "4px",
                   fontSize: "14px",
-                  fontFamily: "inherit"
+                  fontFamily: "inherit",
+                  backgroundColor: "#1f2937",
+                  color: "#e5e7eb"
                 }}
               />
               <div style={{ marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: "12px", color: "#6b7280", fontStyle: "italic" }}>
+                <div style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>
                   These notes are private and will not be visible to customers.
                 </div>
                 <button
@@ -969,7 +971,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           className="input" 
           value={laserWattage} 
           onChange={e => setLaserWattage(e.target.value)} 
-          placeholder="Optional"
+          placeholder="HP / Wattage"
           disabled={isLocked}
           style={{ width: "85px", opacity: isLocked ? 0.6 : 1 }}
         />
