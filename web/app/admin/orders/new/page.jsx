@@ -127,6 +127,23 @@ export default function NewOrderPage() {
       return;
     }
 
+    // Validate that all required item fields are filled
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i];
+      if (!item.modelNumber.trim()) {
+        setError(`Please provide Model Number for item ${i + 1}`);
+        return;
+      }
+      if (!item.voltage.trim()) {
+        setError(`Please provide Voltage for item ${i + 1}`);
+        return;
+      }
+      if (!item.laserWattage.trim()) {
+        setError(`Please provide Power for item ${i + 1}`);
+        return;
+      }
+    }
+
     setLoading(true);
     setError("");
 
@@ -559,13 +576,13 @@ export default function NewOrderPage() {
                 
                 <div style={{ flex: 1 }}>
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                    Model Number
+                    Model Number *
                   </label>
                   <input
                     type="text"
                     value={item.modelNumber}
                     onChange={(e) => updateItem(index, "modelNumber", e.target.value)}
-                    placeholder="Optional model number"
+                    placeholder="Required model number"
                     style={{
                       width: "100%",
                       padding: "12px",
@@ -575,6 +592,7 @@ export default function NewOrderPage() {
                       color: "var(--text)",
                       fontSize: "14px",
                     }}
+                    required
                   />
                 </div>
               </div>
@@ -587,13 +605,13 @@ export default function NewOrderPage() {
               }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                    Item Voltage
+                    Item Voltage *
                   </label>
                   <input
                     type="text"
                     value={item.voltage}
                     onChange={(e) => updateItem(index, "voltage", e.target.value)}
-                    placeholder="Optional voltage (e.g., 220V, 110V)"
+                    placeholder="Required voltage (e.g., 220V, 110V)"
                     style={{
                       width: "100%",
                       padding: "12px",
@@ -603,18 +621,19 @@ export default function NewOrderPage() {
                       color: "var(--text)",
                       fontSize: "14px",
                     }}
+                    required
                   />
                 </div>
                 
                 <div style={{ flex: 1 }}>
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                    Power
+                    Power *
                   </label>
                   <input
                     type="text"
                     value={item.laserWattage}
                     onChange={(e) => updateItem(index, "laserWattage", e.target.value)}
-                    placeholder="Power: HP / Wattage ..."
+                    placeholder="Required: HP / Wattage ..."
                     style={{
                       width: "100%",
                       padding: "12px",
@@ -624,6 +643,7 @@ export default function NewOrderPage() {
                       color: "var(--text)",
                       fontSize: "14px",
                     }}
+                    required
                   />
                 </div>
               </div>
