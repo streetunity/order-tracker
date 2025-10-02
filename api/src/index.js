@@ -1819,12 +1819,21 @@ app.post('/orders/:orderId/items/:itemId/stage', authGuard, async (req, res) => 
 
 
 // Update internal notes (separate endpoint for convenience)
+// Update internal notes (separate endpoint for convenience)
 app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
   try {
+    const orderId = req.params.id;
     const { internalNotes } = req.body || {};
+    
+    console.log('Internal notes update - Order ID:', orderId);
+    console.log('Internal notes content:', internalNotes);
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required' });
+    }
 
     const order = await prisma.order.findUnique({
-      where: { id: req.params.id },
+      where: { id: String(orderId) },  // Ensure it's a string
       select: { id: true, internalNotes: true }
     });
 
@@ -1834,32 +1843,33 @@ app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
       const up = await tx.order.update({
-        where: { id: req.params.id },
-        data: { internalNotes }
+        where: { id: String(orderId) },  // Ensure it's a string here too
+        data: { internalNotes: internalNotes || null }
       });
 
       await tx.auditLog.create({
         data: {
           entityType: 'Order',
-          entityId: req.params.id,
-          parentEntityId: req.params.id,
+          entityId: String(orderId),
+          parentEntityId: String(orderId),
           action: 'INTERNAL_NOTES_UPDATED',
           changes: JSON.stringify([{
             field: 'internalNotes',
             oldValue: order.internalNotes || 'null',
             newValue: internalNotes || 'null'
           }]),
-          performedByUserId: req.user.id,
-          performedByName: req.user.name
+          performedByUserId: req.user?.id || 'Unknown',
+          performedByName: req.user?.name || 'Unknown'
         }
       });
 
       return up;
     });
 
-    res.json(updatedOrder);
+    res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('Internal notes update error:', e);
+    res.status(500).json({ error: e.message || 'Failed to update internal notes' });
   }
 });
 
