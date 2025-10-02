@@ -25,6 +25,7 @@ model Order {
   accountId       String
   poNumber        String?
   sku             String?
+  internalNotes   String?             // New field for internal notes
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   etaDate         DateTime?
