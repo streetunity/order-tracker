@@ -41,6 +41,7 @@ export default function AdminBoardPage() {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -143,6 +144,24 @@ export default function AdminBoardPage() {
   function prevStageOf(s) {
     const i = STAGES.indexOf(s);
     return i > 0 ? STAGES[i - 1] : null;
+  }
+
+  function copyToClipboard(token, orderId) {
+    const url = `${window.location.origin}/t/${token}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedLink(orderId);
+      setTimeout(() => setCopiedLink(null), 2000);
+    }).catch(() => {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = url;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedLink(orderId);
+      setTimeout(() => setCopiedLink(null), 2000);
+    });
   }
 
   const grouped = useMemo(() => {
@@ -342,6 +361,21 @@ export default function AdminBoardPage() {
                         >
                           Public link
                         </a>
+                        <button
+                          onClick={() => copyToClipboard(o.trackingToken, o.id)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "2px",
+                            fontSize: "12px",
+                            color: copiedLink === o.id ? "#059669" : "#3b82f6",
+                            transition: "color 0.2s"
+                          }}
+                          title={copiedLink === o.id ? "Copied!" : "Copy link to clipboard"}
+                        >
+                          {copiedLink === o.id ? "✓" : "📋"}
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -378,7 +412,7 @@ export default function AdminBoardPage() {
                         let tooltipText = `${it.productCode || "Item"} - ${s}`;
                         if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
                         if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
-                        if (it.voltage) tooltipText += `\nVoltage: ${it.voltage}`;
+                        if (it.voltage) tooltipText += `\nPower: ${it.voltage}`;
                         if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
                         if (isOrderLocked) tooltipText += "\n(Order Locked)";
                         
