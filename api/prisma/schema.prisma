@@ -26,6 +26,7 @@ model Order {
   poNumber        String?
   sku             String?
   customerDocsLink String?            // NEW FIELD: Customer Documents Link (Dropbox URL)
+  internalNotes   String?             // Internal notes for the order
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   etaDate         DateTime?
@@ -53,6 +54,10 @@ model OrderItem {
   voltage        String?
   laserWattage   String?  // NEW FIELD: Laser Source Wattage
   notes          String?
+  
+  // NEW PRICE AND PRIVATE NOTE FIELDS
+  itemPrice      Float?   // Price for this item (total, not per unit)
+  privateItemNote String? // Private internal notes for this item (purchasing notes)
   
   // NEW ORDERED STATUS FIELDS
   isOrdered      Boolean  @default(false)  // Whether this item has been ordered
