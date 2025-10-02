@@ -1036,7 +1036,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", justifyContent: "flex-start" }}>
             <button 
               className="btn" 
-              disabled={!changed || disabled} 
+              disabled={!changed || (disabled && !isAdmin)} 
               onClick={handleSave}
               title={isLocked ? "Order is locked" : "Save changes"}
               style={{ fontSize: "11px", padding: "2px 5px" }}
@@ -1096,7 +1096,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
                 <input
-                  className="input"
+                  className="input-admin"
                   value={privateItemNote}
                   onChange={e => setPrivateItemNote(e.target.value)}
                   placeholder="Purchasing notes (private, admin only)"
@@ -1112,7 +1112,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
                   <input
-                    className="input"
+                    className="input-admin"
                     type="text"
                     value={itemPrice}
                     onChange={handlePriceChange}
