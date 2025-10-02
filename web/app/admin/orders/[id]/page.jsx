@@ -1099,10 +1099,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                   onChange={e => setPrivateItemNote(e.target.value)}
                   placeholder="Purchasing notes (private, admin only)"
                   style={{ 
-                    width: "100%",
-                    backgroundColor: "#374151",
-                    border: "1px solid #4b5563",
-                    color: "#e5e7eb"
+                    width: "100%"                    
                   }}
                 />
               </div>
@@ -1117,10 +1114,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                     placeholder="0.00"
                     style={{ 
                       width: "90px", 
-                      textAlign: "right",
-                      backgroundColor: "#374151",
-                      border: "1px solid #4b5563",
-                      color: "#e5e7eb"
+                      textAlign: "right"                      
                     }}
                   />
                 </div>
