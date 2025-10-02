@@ -16,7 +16,7 @@
   --accent: #ef4444;       /* Red accent */
   --accent-strong: #dc2626; /* Stronger red */
   --focus: #ef4444;        /* Focus color */
-  --input-bg: #2a2a2a;     /* Changed from #383838 to darker gray */
+  --input-bg: #2a2a2a;     /* Dark gray - NO BLUE */
   --hover-bg: #3a3a3a;     /* Hover state background */
 }
 
@@ -37,15 +37,22 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Form elements */
+/* Form elements - FORCE DARK GRAY BACKGROUND */
 input, select, textarea {
-  background: var(--input-bg);
+  background: #2a2a2a !important;  /* Force dark gray with !important */
+  background-color: #2a2a2a !important;  /* Double ensure */
   color: var(--text);
   border: 1px solid var(--border);
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 14px;
   font-family: inherit;
+}
+
+/* Specifically target input with class */
+input.input {
+  background: #2a2a2a !important;
+  background-color: #2a2a2a !important;
 }
 
 input::placeholder, textarea::placeholder {
@@ -56,6 +63,8 @@ input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-color: var(--focus);
+  background: #2a2a2a !important;  /* Keep gray on focus */
+  background-color: #2a2a2a !important;
 }
 
 /* Remove number input spinners */
