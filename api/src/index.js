@@ -1178,7 +1178,7 @@ app.get('/orders/:id', authGuard, async (req, res) => {
       take: 10
     });
     
-    res.json({ ...order, auditLogs });
+    res.json({ ...order, internalNotes: order.internalNotes ?? null, auditLogs });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1196,7 +1196,7 @@ app.patch('/orders/:id', authGuard, async (req, res) => {
     }
     
     // Handle customerDocsLink update (allowed even when locked)
-    const { customerDocsLink } = req.body || {};
+    const { customerDocsLink, internalNotes } = req.body || {};
     if (customerDocsLink !== undefined && customerDocsLink !== original.customerDocsLink) {
       const updatedOrder = await prisma.order.update({
         where: { id: req.params.id },
@@ -1294,7 +1294,17 @@ app.patch('/orders/:id', authGuard, async (req, res) => {
       });
     }
     
-    if (Object.keys(data).length === 0) {
+    
+
+if (internalNotes !== undefined && internalNotes !== original.internalNotes) {
+  data.internalNotes = internalNotes;
+  changes.push({
+    field: 'internalNotes',
+    oldValue: original.internalNotes || 'null',
+    newValue: internalNotes || 'null'
+  });
+}
+if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -1801,6 +1811,53 @@ app.post('/orders/:orderId/items/:itemId/stage', authGuard, async (req, res) => 
     });
 
     res.json({ ok: true, event });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+
+// Update internal notes (separate endpoint for convenience)
+app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
+  try {
+    const { internalNotes } = req.body || {};
+
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, internalNotes: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      const up = await tx.order.update({
+        where: { id: req.params.id },
+        data: { internalNotes }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          entityType: 'Order',
+          entityId: req.params.id,
+          parentEntityId: req.params.id,
+          action: 'INTERNAL_NOTES_UPDATED',
+          changes: JSON.stringify([{
+            field: 'internalNotes',
+            oldValue: order.internalNotes || 'null',
+            newValue: internalNotes || 'null'
+          }]),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+
+      return up;
+    });
+
+    res.json(updatedOrder);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
