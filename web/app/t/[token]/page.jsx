@@ -323,7 +323,7 @@ export default function PublicTrackingPage() {
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "16px", fontWeight: "500", color: "#ef4444" }}>
+                      <div style={{ fontSize: "16px", fontWeight: "500", color: isCompleted ? "#059669" : "#ef4444" }}>
                         {STAGE_LABELS[effectiveStage] || effectiveStage}
                       </div>
                       <div style={{ fontSize: "12px", color: "#a0a0a0", marginTop: "4px" }}>
@@ -355,9 +355,16 @@ export default function PublicTrackingPage() {
                           
                           let backgroundColor, borderColor, textColor;
                           if (isCurrent) {
-                            backgroundColor = "#ef4444";
-                            borderColor = "#ef4444";
-                            textColor = "#fff";
+                            // Special case: if this is the final stage (FOLLOW_UP), show green instead of red
+                            if (stage === "FOLLOW_UP") {
+                              backgroundColor = "#059669";
+                              borderColor = "#059669";
+                              textColor = "#fff";
+                            } else {
+                              backgroundColor = "#ef4444";
+                              borderColor = "#ef4444";
+                              textColor = "#fff";
+                            }
                           } else if (isStageCompleted) {
                             backgroundColor = "#059669";
                             borderColor = "#059669";
@@ -394,8 +401,8 @@ export default function PublicTrackingPage() {
                               }}>
                                 {STAGE_LABELS[stage]}
                               </div>
-                              {isCurrent && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>Current</div>}
-                              {isStageCompleted && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>✓</div>}
+                              {isCurrent && stage !== "FOLLOW_UP" && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>Current</div>}
+                              {(isStageCompleted || (isCurrent && stage === "FOLLOW_UP")) && <div style={{ fontSize: "8px", marginTop: "2px", opacity: 0.9 }}>✓</div>}
                             </div>
                           );
                         })}
