@@ -227,7 +227,7 @@ export default function PublicTrackingPage() {
                         color: "#a0a0a0", 
                         marginTop: "4px"
                       }}>
-                        Voltage: {item.voltage}
+                        Power: {item.voltage}
                       </div>
                     )}
                     {item.notes && (
