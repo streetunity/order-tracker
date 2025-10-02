@@ -40,6 +40,7 @@ export default function AdminBoardPage() {
   const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [yearlyTotal, setYearlyTotal] = useState(null);
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
@@ -53,7 +54,24 @@ export default function AdminBoardPage() {
     }
   }, [user, router]);
 
-  async function load() {
+  
+async function loadYearlyTotal() {
+  if (!user || !isAdmin) return;
+
+  try {
+    const res = await fetch("/api/orders/yearly-total", {
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setYearlyTotal(data);
+    }
+  } catch (e) {
+    console.error("Failed to load yearly total:", e);
+  }
+}
+
+async function load() {
     if (!user) return; // Don't try to load if not authenticated
     
     try {
@@ -84,6 +102,7 @@ export default function AdminBoardPage() {
   useEffect(() => {
     if (user) {
       load();
+      if (isAdmin) { loadYearlyTotal(); }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -246,6 +265,19 @@ export default function AdminBoardPage() {
       {/* Top header with user navigation */}
       <div className="header">
         <h1 className="h1">Orders Board</h1>
+        {isAdmin && yearlyTotal && (
+          <div style={{
+            marginLeft: "20px",
+            padding: "8px 16px",
+            backgroundColor: "#059669",
+            color: "white",
+            borderRadius: "6px",
+            fontSize: "14px",
+            fontWeight: "500"
+          }}>
+            {new Date().getFullYear()} Total: {yearlyTotal.formatted}
+          </div>
+        )}
         <nav className="headerNav">
           <Link href="/admin/customers/new" className="btn">
             Add Customer
