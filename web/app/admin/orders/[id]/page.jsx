@@ -16,6 +16,9 @@ export default function EditOrderPage({ params }) {
   const [unlockReason, setUnlockReason] = useState("");
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
   const [lockLoading, setLockLoading] = useState(false);
+  const [internalNotes, setInternalNotes] = useState("");
+  const [internalNotesSaving, setInternalNotesSaving] = useState(false);
+  const [internalNotesChanged, setInternalNotesChanged] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -25,7 +28,7 @@ export default function EditOrderPage({ params }) {
   }, [user, router]);
 
   async function load() {
-    if (!user) return; // Don't try to load if not authenticated
+    if (!user) return;
     
     try {
       setLoading(true);
@@ -34,7 +37,10 @@ export default function EditOrderPage({ params }) {
         headers: getAuthHeaders()
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setOrder(await res.json());
+      const data = await res.json();
+      setOrder(data);
+      setInternalNotes(data.internalNotes || "");
+      setInternalNotesChanged(false);
       setErr("");
     } catch (e) {
       setErr(String(e?.message || e));
@@ -48,6 +54,32 @@ export default function EditOrderPage({ params }) {
       load(); 
     }
   }, [id, user]);
+
+  async function saveInternalNotes() {
+    try {
+      setInternalNotesSaving(true);
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/internal-notes`, {
+        method: "PATCH",
+        headers: { 
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ internalNotes }),
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      setInternalNotesChanged(false);
+      alert("Internal notes saved successfully");
+    } catch (e) {
+      alert(`Failed to save internal notes: ${e.message}`);
+    } finally {
+      setInternalNotesSaving(false);
+    }
+  }
 
   async function lockOrder() {
     try {
@@ -331,7 +363,7 @@ export default function EditOrderPage({ params }) {
                     <th style={{ width: "80px" }}>Qty</th>
                     <th style={{ width: "120px" }}>Serial #</th>
                     <th style={{ width: "120px" }}>Model #</th>
-                    <th style={{ width: "80px" }}>Voltage</th>
+                    <th style={{ width: "80px" }}>Power</th>
                     <th style={{ width: "250px" }}>Notes</th>
                     <th style={{ width: "120px" }}>Actions</th>
                   </tr>
@@ -402,7 +434,7 @@ export default function EditOrderPage({ params }) {
                     />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Voltage</label>
+                    <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Power</label>
                     <input
                       className="input"
                       placeholder="Optional"
@@ -425,6 +457,51 @@ export default function EditOrderPage({ params }) {
                 </div>
               </form>
             )}
+          </section>
+
+          {/* Internal Notes Section - NEW */}
+          <section style={{ marginTop: 32 }}>
+            <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Internal Notes</h2>
+            <div style={{
+              backgroundColor: "#f9fafb",
+              border: "1px solid #e5e7eb",
+              borderRadius: "6px",
+              padding: "12px"
+            }}>
+              <textarea
+                value={internalNotes}
+                onChange={(e) => {
+                  setInternalNotes(e.target.value);
+                  setInternalNotesChanged(true);
+                }}
+                placeholder="Internal notes only, payment / ordering information."
+                style={{
+                  width: "100%",
+                  minHeight: "120px",
+                  padding: "8px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  fontFamily: "inherit"
+                }}
+              />
+              <div style={{ marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: "12px", color: "#6b7280", fontStyle: "italic" }}>
+                  These notes are private and will not be visible to customers.
+                </div>
+                <button
+                  className="btn primary"
+                  onClick={saveInternalNotes}
+                  disabled={!internalNotesChanged || internalNotesSaving}
+                  style={{
+                    opacity: !internalNotesChanged ? 0.5 : 1,
+                    cursor: !internalNotesChanged ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {internalNotesSaving ? "Saving..." : "Save Internal Notes"}
+                </button>
+              </div>
+            </div>
           </section>
 
           {/* Audit Log Section */}
