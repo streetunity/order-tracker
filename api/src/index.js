@@ -1294,17 +1294,16 @@ app.patch('/orders/:id', authGuard, async (req, res) => {
       });
     }
     
-    
+    if (internalNotes !== undefined && internalNotes !== original.internalNotes) {
+      data.internalNotes = internalNotes;
+      changes.push({
+        field: 'internalNotes',
+        oldValue: original.internalNotes || 'null',
+        newValue: internalNotes || 'null'
+      });
+    }
 
-if (internalNotes !== undefined && internalNotes !== original.internalNotes) {
-  data.internalNotes = internalNotes;
-  changes.push({
-    field: 'internalNotes',
-    oldValue: original.internalNotes || 'null',
-    newValue: internalNotes || 'null'
-  });
-}
-if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -1816,9 +1815,6 @@ app.post('/orders/:orderId/items/:itemId/stage', authGuard, async (req, res) => 
   }
 });
 
-
-
-// Update internal notes (separate endpoint for convenience)
 // Update internal notes (separate endpoint for convenience)
 app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
   try {
@@ -1869,7 +1865,7 @@ app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error('Internal notes update error:', e);
-    res.status(500).json({ error: e.message || 'Failed to update internal notes' });
+	  res.status(500).json({ error: e.message || 'Failed to update internal notes' });
   }
 });
 
@@ -1922,7 +1918,6 @@ app.post('/orders/:orderId/items', authGuard, async (req, res) => {
             serialNumber: i.serialNumber,
             modelNumber: i.modelNumber,
             voltage: i.voltage,
-            
             laserWattage: i.laserWattage || null,
             notes: i.notes
           }
@@ -2174,7 +2169,7 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
           newValue: newVoltage || 'null'
         });
       }
-	}
+    }
     
     if (req.body.hasOwnProperty('laserWattage')) {
       const newLaserWattage = (req.body.laserWattage === '' || req.body.laserWattage === null)
@@ -2187,40 +2182,39 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
           field: 'laserWattage',
           oldValue: item.laserWattage || 'null',
           newValue: newLaserWattage || 'null'
-        }
+        });
+      }
+    }
 
-// Handle itemPrice (admin-only field allowed even on locked orders)
-if (req.body.hasOwnProperty('itemPrice')) {
-  const newPrice = (req.body.itemPrice === '' || req.body.itemPrice === null)
-    ? null
-    : parseFloat(req.body.itemPrice);
+    // Handle itemPrice (admin-only field allowed even on locked orders)
+    if (req.body.hasOwnProperty('itemPrice')) {
+      const newPrice = (req.body.itemPrice === '' || req.body.itemPrice === null)
+        ? null
+        : parseFloat(req.body.itemPrice);
 
-  if (newPrice !== item.itemPrice) {
-    data.itemPrice = newPrice;
-    changes.push({
-      field: 'itemPrice',
-      oldValue: item.itemPrice ? String(item.itemPrice) : 'null',
-      newValue: newPrice ? String(newPrice) : 'null'
-    });
-  }
-}
+      if (newPrice !== item.itemPrice) {
+        data.itemPrice = newPrice;
+        changes.push({
+          field: 'itemPrice',
+          oldValue: item.itemPrice ? String(item.itemPrice) : 'null',
+          newValue: newPrice ? String(newPrice) : 'null'
+        });
+      }
+    }
 
-// Handle privateItemNote (admin-only field allowed even on locked orders)
-if (req.body.hasOwnProperty('privateItemNote')) {
-  const newPrivateNote = (req.body.privateItemNote === '' || req.body.privateItemNote === null)
-    ? null
-    : String(req.body.privateItemNote).trim();
+    // Handle privateItemNote (admin-only field allowed even on locked orders)
+    if (req.body.hasOwnProperty('privateItemNote')) {
+      const newPrivateNote = (req.body.privateItemNote === '' || req.body.privateItemNote === null)
+        ? null
+        : String(req.body.privateItemNote).trim();
 
-  if (newPrivateNote !== item.privateItemNote) {
-    data.privateItemNote = newPrivateNote;
-    changes.push({
-      field: 'privateItemNote',
-      oldValue: item.privateItemNote || 'null',
-      newValue: newPrivateNote || 'null'
-    });
-  }
-}
-);
+      if (newPrivateNote !== item.privateItemNote) {
+        data.privateItemNote = newPrivateNote;
+        changes.push({
+          field: 'privateItemNote',
+          oldValue: item.privateItemNote || 'null',
+          newValue: newPrivateNote || 'null'
+        });
       }
     }
     
@@ -2476,8 +2470,6 @@ app.get('/audit/:entityId', authGuard, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
-
-// -----------------------------
 
 // -----------------------------
 // Startup
