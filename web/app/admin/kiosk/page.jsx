@@ -149,7 +149,7 @@ export default function KioskPage() {
     border: '1px solid var(--border)',
     margin: 0,
     padding: 0,
-    overflow: 'hidden',
+    overflow: 'visible', // Changed from 'hidden' to allow items to show
   };
 
   const customerNameStyle = {
@@ -480,7 +480,7 @@ export default function KioskPage() {
                     );
 
                   return (
-                    <div key={`${group.accountId}-${stageKey}`} style={{ minHeight: '30px', background: 'transparent', overflow: 'hidden' }}>
+                    <div key={`${group.accountId}-${stageKey}`} style={{ minHeight: '30px', background: 'transparent', overflow: 'visible' }}>
                       {itemsInStage.length === 0 ? (
                         <div style={{ padding: '4px', margin: 0, color: 'var(--text-dim)', textAlign: 'center', fontSize: '12px', lineHeight: '1' }}>—</div>
                       ) : (
@@ -498,8 +498,7 @@ export default function KioskPage() {
                       )}
                     </div>
                   );
-                })}
-              </div>
+                })}\n              </div>
             ))
           )}
         </div>
