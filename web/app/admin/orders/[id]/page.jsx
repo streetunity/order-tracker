@@ -651,7 +651,7 @@ export default function EditOrderPage({ params }) {
           <section style={{ marginTop: 32 }}>
             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Internal Notes</h2>
             <div style={{
-              backgroundColor: "#374151",
+              backgroundColor: "#2d2d2d",
               border: "1px solid #4b5563",
               borderRadius: "6px",
               padding: "12px"
