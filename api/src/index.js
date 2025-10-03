@@ -1354,7 +1354,78 @@ app.patch('/orders/:id', authGuard, async (req, res) => {
       changes.push({
         field: 'internalNotes',
         oldValue: original.internalNotes || 'null',
-        newValue: inter
+        newValue: internalNotes || 'null'
+      });
+    }
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    const order = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id: req.params.id },
+        data,
+        include: { account: true, items: true }
+      });
+      
+      // Log field changes using new audit system
+      if (changes.length > 0) {
+        await logFieldChanges('Order', req.params.id, changes, req.user.id, req.user.name, req.params.id);
+      }
+      
+      return updated;
+    });
+    
+    res.json(order);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete order
+app.delete('/orders/:id', authGuard, async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({ 
+      where: { id: req.params.id },
+      select: { id: true, isLocked: true } 
+    });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    
+    if (order.isLocked) {
+      await logAuditEvent(
+        req.params.id, 
+        'DELETE_ATTEMPTED_WHILE_LOCKED', 
+        null, 
+        req.user.id,
+        req.user.name
+      );
+      return res.status(403).json({ error: 'Cannot delete a locked order. Please unlock it first.' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Log deletion before deleting using new audit system
+      await tx.auditLog.create({
+        data: {
+          entityType: 'Order',
+          entityId: req.params.id,
+          parentEntityId: req.params.id,
+          action: 'ORDER_DELETED',
+          metadata: JSON.stringify({ message: 'Order and all items deleted' }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+      
+      await tx.order.delete({ where: { id: req.params.id } });
+    });
+    
+    res.status(204).end();
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Mark item as ordered (Admin only)
 app.post('/orders/:id/items/:itemId/ordered', authGuard, async (req, res) => {
   await markItemAsOrdered(req, res, prisma, req.user);
