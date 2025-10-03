@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
 // Stage keys from API (do not change)
 const STAGES = [
@@ -42,6 +42,11 @@ export default function KioskPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [needsPagination, setNeedsPagination] = useState(false);
+  
+  // Refs for measuring content
+  const contentRef = useRef(null);
+  const boardRef = useRef(null);
 
   // Define all styles at the top before any early returns
   const containerStyle = {
@@ -105,7 +110,7 @@ export default function KioskPage() {
     gap: '4px',
     padding: '0 4px 4px 4px',
     alignContent: 'start',
-    overflow: 'auto',
+    overflow: needsPagination ? 'hidden' : 'auto', // Hide scrollbar when paginating
     position: 'relative',
     zIndex: 2,
   };
@@ -266,6 +271,31 @@ export default function KioskPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Check if content overflows and needs pagination
+  useEffect(() => {
+    if (!boardRef.current || loading) return;
+    
+    const checkOverflow = () => {
+      const boardElement = boardRef.current;
+      if (!boardElement) return;
+      
+      const hasOverflow = boardElement.scrollHeight > boardElement.clientHeight;
+      console.log(`Overflow check: scrollHeight=${boardElement.scrollHeight}, clientHeight=${boardElement.clientHeight}, hasOverflow=${hasOverflow}`);
+      setNeedsPagination(hasOverflow);
+    };
+    
+    // Check after a short delay to ensure content is rendered
+    const timeoutId = setTimeout(checkOverflow, 100);
+    
+    // Also check on window resize
+    window.addEventListener('resize', checkOverflow);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', checkOverflow);
+    };
+  }, [orders, loading]);
+
   const counts = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
     for (const o of orders) {
@@ -297,6 +327,12 @@ export default function KioskPage() {
     const allGroups = Array.from(by.values()).sort((a, b) =>
       a.accountName.localeCompare(b.accountName)
     );
+    
+    // If pagination is not needed, show all customers
+    if (!needsPagination) {
+      setTotalPages(0);
+      return { grouped: allGroups, currentCustomers: allGroups };
+    }
     
     // Count total non-archived items across all customers
     let totalItems = 0;
@@ -346,18 +382,18 @@ export default function KioskPage() {
     }
     
     return { grouped: allGroups, currentCustomers: customersForPage };
-  }, [orders, currentPage]);
+  }, [orders, currentPage, needsPagination]);
 
-  // Auto-cycle through pages
+  // Auto-cycle through pages only if pagination is needed
   useEffect(() => {
-    if (totalPages <= 1) return; // Don't cycle if only one page
+    if (!needsPagination || totalPages <= 1) return;
     
     const interval = setInterval(() => {
       setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
     }, AUTO_CYCLE_INTERVAL);
     
     return () => clearInterval(interval);
-  }, [totalPages]);
+  }, [totalPages, needsPagination]);
 
   if (loading) {
     return (
@@ -374,13 +410,13 @@ export default function KioskPage() {
     <main style={containerStyle}>
       <div style={backgroundOverlayStyle}></div>
       
-      <div style={contentWrapperStyle}>
+      <div style={contentWrapperStyle} ref={contentRef}>
         {/* Fixed Header Row */}
         <div style={headerSectionStyle}>
           <div style={{ ...headerCellStyle, ...customerColStyle, position: 'relative' }}>
             <div style={headerTextStyle}>Customer</div>
-            {/* Page Indicator in Customer Header */}
-            {totalPages > 1 && (
+            {/* Page Indicator in Customer Header - only show if paginating */}
+            {needsPagination && totalPages > 1 && (
               <div style={{
                 position: 'absolute',
                 top: '2px',
@@ -407,7 +443,7 @@ export default function KioskPage() {
         </div>
 
         {/* Scrollable Content */}
-        <div style={boardStyle}>
+        <div style={boardStyle} ref={boardRef}>
           {currentCustomers.length === 0 ? (
             <div style={{ 
               gridColumn: 'span 11', 
@@ -472,6 +508,7 @@ export default function KioskPage() {
       <div style={footerStyle}>
         <div style={footerTextStyle}>
           Manufacturing Tracker • Auto-refreshes every 30 seconds • Last updated: {lastUpdate.toLocaleTimeString()}
+          {needsPagination && ` • Auto-pagination active`}
         </div>
       </div>
     </main>
