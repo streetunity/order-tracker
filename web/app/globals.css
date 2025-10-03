@@ -55,26 +55,6 @@ input.input {
   background-color: #2a2a2a !important;
 }
 
-/* Admin-only input fields - ensure dark gray styling */
-input.input-admin {
-  background: #374151 !important;  /* Slightly lighter dark gray for admin fields */
-  background-color: #374151 !important;
-  color: #e5e7eb !important;
-  border: 1px solid #4b5563 !important;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-family: inherit;
-}
-
-input.input-admin:focus {
-  background: #374151 !important;
-  background-color: #374151 !important;
-  outline: 2px solid #6b7280;
-  outline-offset: 2px;
-  border-color: #6b7280;
-}
-
 input::placeholder, textarea::placeholder {
   color: var(--text-dim);
 }
