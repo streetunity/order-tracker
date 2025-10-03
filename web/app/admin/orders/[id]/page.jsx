@@ -1096,7 +1096,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
         </td>
       </tr>
       {isAdmin && (
-        <tr style={{ backgroundColor: "#1f2937" }}>
+        <tr>
           <td colSpan="8" style={{ padding: "8px" }}>
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
@@ -1106,8 +1106,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                   onChange={e => setPrivateItemNote(e.target.value)}
                   placeholder="Purchasing notes (private, admin only)"
                   style={{ 
-                    width: "100%",
-                    backgroundColor: "#2a2a2a !important"
+                    width: "100%"
                   }}
                 />
               </div>
@@ -1122,8 +1121,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                     placeholder="0.00"
                     style={{ 
                       width: "90px", 
-                      textAlign: "right",
-                      backgroundColor: "#2a2a2a !important"
+                      textAlign: "right"
                     }}
                   />
                 </div>
