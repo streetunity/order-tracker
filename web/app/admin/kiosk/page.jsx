@@ -102,15 +102,14 @@ export default function KioskPage() {
     zIndex: 10,
   };
 
-  // Scrollable board content - updated to 10 columns
+  // Scrollable board content - NOT using grid anymore, using flexbox
   const boardStyle = {
     flex: 1,
-    display: 'grid',
-    gridTemplateColumns: '280px repeat(10, minmax(100px, 1fr))',
+    display: 'flex',
+    flexDirection: 'column',
     gap: '4px',
     padding: '0 4px 4px 4px',
-    alignContent: 'start',
-    overflow: needsPagination ? 'hidden' : 'auto', // Hide scrollbar when paginating
+    overflow: needsPagination ? 'hidden' : 'auto',
     position: 'relative',
     zIndex: 2,
   };
@@ -144,29 +143,33 @@ export default function KioskPage() {
     textOverflow: 'ellipsis',
   };
 
+  // Customer row - uses grid for columns
+  const customerRowStyle = {
+    display: 'grid',
+    gridTemplateColumns: '280px repeat(10, minmax(100px, 1fr))',
+    gap: '4px',
+    alignItems: 'stretch', // Makes all cells same height
+  };
+
   const customerColStyle = {
     background: 'var(--panel)',
     border: '1px solid var(--border)',
     margin: 0,
-    padding: 0,
-    overflow: 'hidden', // Keep hidden for customer name column
+    padding: '2px',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   };
 
   const customerNameStyle = {
     fontWeight: 500,
     fontSize: '16px',
     color: 'var(--text)',
-    padding: '2px',
     margin: 0,
     textAlign: 'center',
-    lineHeight: '1',
-    height: '22px',
-    minHeight: '22px',
-    maxHeight: '22px',
+    lineHeight: '1.2',
     overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
   };
@@ -177,6 +180,7 @@ export default function KioskPage() {
     display: 'flex',
     flexDirection: 'column',
     gap: '2px',
+    padding: '2px',
   };
 
   const itemCardStyle = {
@@ -467,7 +471,6 @@ export default function KioskPage() {
         <div style={boardStyle} ref={boardRef}>
           {currentCustomers.length === 0 ? (
             <div style={{ 
-              gridColumn: 'span 11', 
               textAlign: 'center', 
               padding: '40px',
               color: 'var(--text-dim)',
@@ -481,13 +484,15 @@ export default function KioskPage() {
             </div>
           ) : (
             currentCustomers.map((group) => (
-              <div key={group.accountId || group.accountName} style={{ display: 'contents' }}>
+              <div key={group.accountId || group.accountName} style={customerRowStyle}>
+                {/* Customer Name Cell */}
                 <div style={customerColStyle}>
                   <div style={customerNameStyle}>
                     {truncateText(group.accountName, 18)}
                   </div>
                 </div>
 
+                {/* Stage Cells */}
                 {STAGES.map((stageKey) => {
                   const itemsInStage = (group.orders || [])
                     .flatMap((o) =>
