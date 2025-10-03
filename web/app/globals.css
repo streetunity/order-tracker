@@ -103,16 +103,29 @@ input:focus, select:focus, textarea:focus {
   appearance: none !important;
 }
 
-/* Remove number input spinners */
+/* Remove number input spinners - WebKit browsers (Chrome, Safari, Edge) */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
+  -webkit-appearance: none !important;
+  appearance: none !important;
   margin: 0;
+  display: none;
 }
 
+/* Remove number input spinners - Firefox */
 input[type="number"] {
-  -moz-appearance: textfield; /* Firefox */
-  appearance: textfield; /* Standard */
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
+/* Additional Firefox-specific fixes */
+@-moz-document url-prefix() {
+  input[type="number"] {
+    -moz-appearance: textfield !important;
+  }
+  input[type="number"]::-moz-number-spin-box {
+    display: none !important;
+  }
 }
 
 /* Button reset */
