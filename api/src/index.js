@@ -2116,8 +2116,6 @@ if (hasEditFieldChanges && order.isLocked) {
     error: 'Cannot edit item details in a locked order. Please unlock it first. Use /measurements endpoint for dimension updates.' 
   });
 }
-);
-}
     
     // Process all other fields (only if not locked)
     if (req.body.hasOwnProperty('productCode') && typeof req.body.productCode === 'string') {
