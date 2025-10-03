@@ -171,6 +171,14 @@ export default function KioskPage() {
     textOverflow: 'ellipsis',
   };
 
+  const stageCellStyle = {
+    minHeight: '30px',
+    background: 'transparent',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  };
+
   const itemCardStyle = {
     background: 'var(--panel)',
     border: '1px solid #dc2626',
@@ -222,12 +230,25 @@ export default function KioskPage() {
     lineHeight: '1',
   };
 
-  // Function to truncate text
+  const emptyStageStyle = {
+    padding: '4px',
+    margin: 0,
+    color: 'var(--text-dim)',
+    textAlign: 'center',
+    fontSize: '12px',
+    lineHeight: '1',
+  };
+
+  // Function to truncate text and remove any unwanted characters
   const truncateText = (text, maxLength = 20) => {
     if (!text) return "";
-    if (text.length <= maxLength) return text;
     
-    const truncated = text.substring(0, maxLength);
+    // Remove any newlines, tabs, or other whitespace characters
+    const cleaned = text.replace(/[\n\r\t]+/g, ' ').trim();
+    
+    if (cleaned.length <= maxLength) return cleaned;
+    
+    const truncated = cleaned.substring(0, maxLength);
     const lastSpace = truncated.lastIndexOf(' ');
     
     if (lastSpace > maxLength * 0.6) {
@@ -480,9 +501,9 @@ export default function KioskPage() {
                     );
 
                   return (
-                    <div key={`${group.accountId}-${stageKey}`} style={{ minHeight: '30px', background: 'transparent' }}>
+                    <div key={`${group.accountId}-${stageKey}`} style={stageCellStyle}>
                       {itemsInStage.length === 0 ? (
-                        <div style={{ padding: '4px', margin: 0, color: 'var(--text-dim)', textAlign: 'center', fontSize: '12px', lineHeight: '1' }}>—</div>
+                        <div style={emptyStageStyle}>—</div>
                       ) : (
                         itemsInStage.map(({ it, order }) => {
                           const s = it.currentStage || order.currentStage || "MANUFACTURING";
