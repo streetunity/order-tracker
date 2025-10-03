@@ -30,10 +30,18 @@ const STAGE_LABELS = {
   FOLLOW_UP: "Follow Up",
 };
 
+// Kiosk pagination settings
+const ITEMS_PER_PAGE = 40; // Number of items (red boxes) to show per page
+const AUTO_CYCLE_INTERVAL = 10000; // Auto-cycle every 10 seconds (10000ms)
+
 export default function KioskPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Define all styles at the top before any early returns
   const containerStyle = {
@@ -76,7 +84,7 @@ export default function KioskPage() {
     zIndex: 2,
   };
 
-  // Fixed header section - updated to 10 columns
+  // Fixed header section - updated to 10 columns + page indicator
   const headerSectionStyle = {
     display: 'grid',
     gridTemplateColumns: '280px repeat(10, minmax(100px, 1fr))',
@@ -96,7 +104,7 @@ export default function KioskPage() {
     gridTemplateColumns: '280px repeat(10, minmax(100px, 1fr))',
     gap: '4px',
     padding: '0 4px 4px 4px',
-    alignContent: 'start', // This is key - aligns content to start
+    alignContent: 'start',
     overflow: 'auto',
     position: 'relative',
     zIndex: 2,
@@ -160,7 +168,7 @@ export default function KioskPage() {
 
   const itemCardStyle = {
     background: 'var(--panel)',
-    border: '1px solid #dc2626',  // Changed to red border
+    border: '1px solid #dc2626',
     borderRadius: '1px',
     padding: '1px',
     margin: '1px',
@@ -226,7 +234,6 @@ export default function KioskPage() {
 
   async function load() {
     try {
-      // Use the dedicated kiosk API route that doesn't require authentication
       const apiUrl = `/api/kiosk/orders`;
       console.log("Kiosk fetching from:", apiUrl);
       
@@ -271,8 +278,11 @@ export default function KioskPage() {
     return c;
   }, [orders]);
 
-  const grouped = useMemo(() => {
+  // Group customers and calculate pagination based on ITEMS
+  const { grouped, currentCustomers } = useMemo(() => {
     const by = new Map();
+    
+    // First, group orders by customer
     for (const o of orders) {
       const key = o.account?.id || o.accountId || o.id;
       if (!by.has(key))
@@ -283,10 +293,71 @@ export default function KioskPage() {
         });
       by.get(key).orders.push(o);
     }
-    return Array.from(by.values()).sort((a, b) =>
+    
+    const allGroups = Array.from(by.values()).sort((a, b) =>
       a.accountName.localeCompare(b.accountName)
     );
-  }, [orders]);
+    
+    // Count total non-archived items across all customers
+    let totalItems = 0;
+    const itemsPerCustomer = new Map();
+    
+    for (const group of allGroups) {
+      let customerItemCount = 0;
+      for (const order of group.orders) {
+        for (const item of order.items || []) {
+          if (!item.archivedAt) {
+            customerItemCount++;
+            totalItems++;
+          }
+        }
+      }
+      itemsPerCustomer.set(group.accountId || group.accountName, customerItemCount);
+    }
+    
+    // Calculate total pages based on items
+    const pages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    setTotalPages(pages);
+    
+    // Determine which customers to show on current page based on item pagination
+    const startItemIndex = currentPage * ITEMS_PER_PAGE;
+    const endItemIndex = startItemIndex + ITEMS_PER_PAGE;
+    
+    let currentItemCount = 0;
+    const customersForPage = [];
+    
+    for (const group of allGroups) {
+      const groupItemCount = itemsPerCustomer.get(group.accountId || group.accountName) || 0;
+      
+      // Check if any of this customer's items fall within the current page range
+      const groupStartIndex = currentItemCount;
+      const groupEndIndex = currentItemCount + groupItemCount;
+      
+      if (groupEndIndex > startItemIndex && groupStartIndex < endItemIndex) {
+        customersForPage.push(group);
+      }
+      
+      currentItemCount += groupItemCount;
+      
+      // Stop if we've passed the end of the current page
+      if (currentItemCount >= endItemIndex) {
+        break;
+      }
+    }
+    
+    return { grouped: allGroups, currentCustomers: customersForPage };
+  }, [orders, currentPage]);
+
+  // Auto-cycle through pages
+  useEffect(() => {
+    if (totalPages <= 1) return; // Don't cycle if only one page
+    
+    const interval = setInterval(() => {
+      setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
+    }, AUTO_CYCLE_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, [totalPages]);
 
   if (loading) {
     return (
@@ -306,8 +377,25 @@ export default function KioskPage() {
       <div style={contentWrapperStyle}>
         {/* Fixed Header Row */}
         <div style={headerSectionStyle}>
-          <div style={{ ...headerCellStyle, ...customerColStyle }}>
+          <div style={{ ...headerCellStyle, ...customerColStyle, position: 'relative' }}>
             <div style={headerTextStyle}>Customer</div>
+            {/* Page Indicator in Customer Header */}
+            {totalPages > 1 && (
+              <div style={{
+                position: 'absolute',
+                top: '2px',
+                right: '4px',
+                backgroundColor: '#dc2626',
+                color: '#fff',
+                fontSize: '10px',
+                padding: '2px 4px',
+                borderRadius: '3px',
+                fontWeight: 'bold',
+                lineHeight: '1'
+              }}>
+                {currentPage + 1}/{totalPages}
+              </div>
+            )}
           </div>
           {STAGES.map((s) => (
             <div key={s} style={headerCellStyle}>
@@ -320,7 +408,7 @@ export default function KioskPage() {
 
         {/* Scrollable Content */}
         <div style={boardStyle}>
-          {grouped.length === 0 ? (
+          {currentCustomers.length === 0 ? (
             <div style={{ 
               gridColumn: 'span 11', 
               textAlign: 'center', 
@@ -328,12 +416,14 @@ export default function KioskPage() {
               color: 'var(--text-dim)',
               fontSize: '14px'
             }}>
-              {orders.length === 0 
-                ? "No orders to display. Orders will appear here once created."
-                : "Processing orders..."}
+              {grouped.length === 0 
+                ? (orders.length === 0 
+                    ? "No orders to display. Orders will appear here once created."
+                    : "Processing orders...")
+                : "No items on this page"}
             </div>
           ) : (
-            grouped.map((group) => (
+            currentCustomers.map((group) => (
               <div key={group.accountId || group.accountName} style={{ display: 'contents' }}>
                 <div style={customerColStyle}>
                   <div style={customerNameStyle}>
