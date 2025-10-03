@@ -1983,7 +1983,9 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
         length: true,
         weight: true,
         measurementUnit: true,
-        weightUnit: true
+        weightUnit: true,
+        itemPrice: true,
+        privateItemNote: true
       } 
     });
     
@@ -2185,7 +2187,40 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
           field: 'laserWattage',
           oldValue: item.laserWattage || 'null',
           newValue: newLaserWattage || 'null'
-        });
+        }
+
+// Handle itemPrice (admin-only field allowed even on locked orders)
+if (req.body.hasOwnProperty('itemPrice')) {
+  const newPrice = (req.body.itemPrice === '' || req.body.itemPrice === null)
+    ? null
+    : parseFloat(req.body.itemPrice);
+
+  if (newPrice !== item.itemPrice) {
+    data.itemPrice = newPrice;
+    changes.push({
+      field: 'itemPrice',
+      oldValue: item.itemPrice ? String(item.itemPrice) : 'null',
+      newValue: newPrice ? String(newPrice) : 'null'
+    });
+  }
+}
+
+// Handle privateItemNote (admin-only field allowed even on locked orders)
+if (req.body.hasOwnProperty('privateItemNote')) {
+  const newPrivateNote = (req.body.privateItemNote === '' || req.body.privateItemNote === null)
+    ? null
+    : String(req.body.privateItemNote).trim();
+
+  if (newPrivateNote !== item.privateItemNote) {
+    data.privateItemNote = newPrivateNote;
+    changes.push({
+      field: 'privateItemNote',
+      oldValue: item.privateItemNote || 'null',
+      newValue: newPrivateNote || 'null'
+    });
+  }
+}
+);
       }
     }
     
