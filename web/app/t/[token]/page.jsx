@@ -29,11 +29,19 @@ const STAGE_LABELS = {
   FOLLOW_UP: "Systems Operational",
 };
 
+// Kiosk pagination settings
+const ITEMS_PER_PAGE = 3; // Number of items to show per page
+const AUTO_CYCLE_INTERVAL = 10000; // Auto-cycle every 10 seconds (10000ms)
+
 export default function PublicTrackingPage() {
   const params = useParams();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   useEffect(() => {
     async function loadOrder() {
@@ -52,6 +60,11 @@ export default function PublicTrackingPage() {
         console.log("Items array:", data.items);
         console.log("Number of items:", data.items?.length || 0);
         setOrder(data);
+        
+        // Calculate total pages
+        const itemCount = data.items?.length || 0;
+        const pages = Math.ceil(itemCount / ITEMS_PER_PAGE);
+        setTotalPages(pages);
       } catch (err) {
         console.error("Error loading order:", err);
         setError(err instanceof Error ? err.message : "Failed to load order");
@@ -64,6 +77,17 @@ export default function PublicTrackingPage() {
       loadOrder();
     }
   }, [params.token]);
+
+  // Auto-cycle through pages
+  useEffect(() => {
+    if (totalPages <= 1) return; // Don't cycle if only one page
+    
+    const interval = setInterval(() => {
+      setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
+    }, AUTO_CYCLE_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, [totalPages]);
 
   if (loading) {
     return (
@@ -107,6 +131,11 @@ export default function PublicTrackingPage() {
       return dateStr;
     }
   };
+
+  // Get current page items
+  const startIndex = currentPage * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentItems = order.items?.slice(startIndex, endIndex) || [];
 
   return (
     <main style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto", position: "relative" }}>
@@ -211,15 +240,31 @@ export default function PublicTrackingPage() {
         )}
       </div>
 
-      {/* Items List with Individual Progress - FIXED WIDTH */}
+      {/* Items List with Individual Progress - WITH PAGINATION */}
       <div style={{ 
         marginBottom: "40px",
         width: "100%",
         boxSizing: "border-box"
       }}>
-        <h2 style={{ fontSize: "24px", fontWeight: "600", color: "#e4e4e4", marginBottom: "20px" }}>
-          Order Items & Progress
-        </h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "24px", fontWeight: "600", color: "#e4e4e4", margin: 0 }}>
+            Order Items & Progress
+          </h2>
+          
+          {/* Page Indicator */}
+          {totalPages > 1 && (
+            <div style={{
+              padding: "8px 16px",
+              backgroundColor: "#ef4444",
+              color: "#fff",
+              borderRadius: "6px",
+              fontSize: "16px",
+              fontWeight: "600"
+            }}>
+              Page {currentPage + 1} of {totalPages}
+            </div>
+          )}
+        </div>
         
         {/* Check if items exist and have length */}
         {(!order.items || order.items.length === 0) ? (
@@ -239,7 +284,7 @@ export default function PublicTrackingPage() {
           </div>
         ) : (
           <div style={{ display: "grid", gap: "24px" }}>
-            {order.items.map((item) => {
+            {currentItems.map((item) => {
               // FIX: Get the effective current stage, defaulting to MANUFACTURING if neither exists
               const effectiveStage = item.currentStage || order.currentStage || "MANUFACTURING";
               const currentStageIndex = STAGES.indexOf(effectiveStage);
@@ -257,7 +302,8 @@ export default function PublicTrackingPage() {
                     border: "1px solid #404040",
                     backgroundColor: "#2d2d2d",
                     width: "100%",
-                    boxSizing: "border-box"
+                    boxSizing: "border-box",
+                    animation: "fadeIn 0.5s ease-in"
                   }}
                 >
                   {/* Item Header */}
@@ -573,6 +619,20 @@ export default function PublicTrackingPage() {
           This is a secure tracking link. Do not share with unauthorized parties.
         </p>
       </div>
+
+      {/* CSS Animation for fade-in effect */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </main>
   );
 }
