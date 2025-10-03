@@ -2083,15 +2083,28 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
     
     // Admin-only fields that bypass lock (itemPrice and privateItemNote can be edited even when locked)
 const adminBypassFields = ['itemPrice', 'privateItemNote'];
-const hasAdminBypassFields = adminBypassFields.some(field => req.body.hasOwnProperty(field));
 
-// Check if trying to edit regular fields on a locked order (excluding admin-bypass fields)
+// Check if trying to edit regular fields on a locked order
 const editFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 'laserWattage', 'notes'];
-const hasEditFields = editFields.some(field => req.body.hasOwnProperty(field));
 
-// Only block if trying to edit regular fields on a locked order
-// Allow admin-bypass fields (itemPrice, privateItemNote) to proceed even when locked
-if (hasEditFields && order.isLocked) {
+// Determine if ANY regular fields have actually CHANGED (not just present in request)
+const hasEditFieldChanges = editFields.some(field => {
+  if (!req.body.hasOwnProperty(field)) return false;
+  
+  // Check if the value is actually different from current
+  if (field === 'qty') {
+    const newQty = Number(req.body[field]);
+    return newQty !== item.qty;
+  }
+  
+  // For string fields, normalize and compare
+  const currentVal = item[field] || null;
+  const newVal = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
+  return newVal !== currentVal;
+});
+
+// Only block if trying to edit regular fields that have CHANGED on a locked order
+if (hasEditFieldChanges && order.isLocked) {
   await logAuditEvent(
     orderId, 
     'EDIT_ATTEMPTED_WHILE_LOCKED', 
@@ -2102,6 +2115,8 @@ if (hasEditFields && order.isLocked) {
   return res.status(403).json({ 
     error: 'Cannot edit item details in a locked order. Please unlock it first. Use /measurements endpoint for dimension updates.' 
   });
+}
+);
 }
     
     // Process all other fields (only if not locked)
