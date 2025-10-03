@@ -269,13 +269,13 @@ async function load() {
           <div style={{
             marginLeft: "20px",
             padding: "8px 16px",
-            backgroundColor: "#059669",
+            backgroundColor: "#dc2626",
             color: "white",
             borderRadius: "6px",
             fontSize: "14px",
             fontWeight: "500"
           }}>
-            {new Date().getFullYear()} Total: {yearlyTotal.formatted}
+            {new Date().getFullYear()} Total: {yearlyTotal.formatted} Sales
           </div>
         )}
         <nav className="headerNav">
