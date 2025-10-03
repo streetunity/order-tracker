@@ -415,7 +415,7 @@ export default function EditOrderPage({ params }) {
               <div>
                 <strong style={{ color: "#fecaca" }}>🔒 This order is locked</strong>
                 <div style={{ color: "#fca5a5", fontSize: "12px", marginTop: "4px" }}>
-                  Item details cannot be edited while the order is locked.
+                  Item details cannot be edited while the order is locked. Admin fields (price/purchasing notes) remain editable.
                   {order.lockedAt && (
                     <span> Locked on {new Date(order.lockedAt).toLocaleDateString()} by {order.lockedBy || "Admin"}</span>
                   )}
@@ -905,20 +905,27 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
   const [voltage, setVoltage] = useState(item.voltage || "");
   const [laserWattage, setLaserWattage] = useState(item.laserWattage || "");
   const [notes, setNotes] = useState(item.notes || "");
-  const [itemPrice, setItemPrice] = useState(item.itemPrice || "");
+  const [itemPrice, setItemPrice] = useState(item.itemPrice === null || item.itemPrice === undefined ? "" : item.itemPrice.toString());
   const [privateItemNote, setPrivateItemNote] = useState(item.privateItemNote || "");
 
-  const changed = name.trim() !== (item.productCode || "") || 
-                  Number(qty) !== Number(item.qty || 1) ||
-                  serialNumber.trim() !== (item.serialNumber || "") ||
-                  modelNumber.trim() !== (item.modelNumber || "") ||
-                  voltage.trim() !== (item.voltage || "") ||
-                  laserWattage.trim() !== (item.laserWattage || "") ||
-                  notes.trim() !== (item.notes || "") ||
-                  (isAdmin && (
-                    (itemPrice !== "" ? parseFloat(itemPrice) : null) !== (item.itemPrice || null) ||
-                    privateItemNote.trim() !== (item.privateItemNote || "")
-                  ));
+  // Split change detection into regular fields and admin fields
+  const regularFieldsChanged = 
+    name.trim() !== (item.productCode || "") || 
+    Number(qty) !== Number(item.qty || 1) ||
+    serialNumber.trim() !== (item.serialNumber || "") ||
+    modelNumber.trim() !== (item.modelNumber || "") ||
+    voltage.trim() !== (item.voltage || "") ||
+    laserWattage.trim() !== (item.laserWattage || "") ||
+    notes.trim() !== (item.notes || "");
+
+  const adminFieldsChanged = isAdmin && (
+    (itemPrice === "" ? null : parseFloat(itemPrice)) !== (item.itemPrice || null) ||
+    privateItemNote.trim() !== (item.privateItemNote || "")
+  );
+
+  // When locked, only admin fields can be changed (for admins)
+  // When unlocked, all fields can be changed
+  const changed = isLocked ? adminFieldsChanged : (regularFieldsChanged || adminFieldsChanged);
 
   const isOrdered = item.isOrdered;
   const orderedDate = item.orderedAt ? new Date(item.orderedAt).toLocaleDateString() : null;
@@ -1036,7 +1043,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
               className="btn" 
               disabled={!changed || (disabled && !isAdmin)} 
               onClick={handleSave}
-              title={isLocked ? "Order is locked" : "Save changes"}
+              title={isLocked && !isAdmin ? "Order is locked" : "Save changes"}
               style={{ fontSize: "11px", padding: "2px 5px" }}
             >
               Save
@@ -1099,7 +1106,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                   onChange={e => setPrivateItemNote(e.target.value)}
                   placeholder="Purchasing notes (private, admin only)"
                   style={{ 
-                    width: "100%"                    
+                    width: "100%",
+                    backgroundColor: "#2a2a2a !important"
                   }}
                 />
               </div>
@@ -1114,7 +1122,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                     placeholder="0.00"
                     style={{ 
                       width: "90px", 
-                      textAlign: "right"                      
+                      textAlign: "right",
+                      backgroundColor: "#2a2a2a !important"
                     }}
                   />
                 </div>
