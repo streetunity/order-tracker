@@ -30,7 +30,7 @@ const STAGE_LABELS = {
 };
 
 // Kiosk pagination settings
-const ITEMS_PER_PAGE = 3; // Number of items to show per page
+const ITEMS_PER_PAGE = 10; // Number of items to show per page (increased from 3 to 10)
 const AUTO_CYCLE_INTERVAL = 10000; // Auto-cycle every 10 seconds (10000ms)
 
 export default function PublicTrackingPage() {
