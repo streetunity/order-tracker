@@ -41,18 +41,51 @@ a:hover {
 input, select, textarea {
   background: #2a2a2a !important;  /* Force dark gray with !important */
   background-color: #2a2a2a !important;  /* Double ensure */
-  color: var(--text);
-  border: 1px solid var(--border);
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 14px;
   font-family: inherit;
+  -webkit-appearance: none !important;  /* Remove browser styling */
+  -moz-appearance: none !important;     /* Remove Firefox styling */
+  appearance: none !important;          /* Remove all browser styling */
+}
+
+/* Override any browser autofill colors */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #2a2a2a inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  box-shadow: 0 0 0 30px #2a2a2a inset !important;
+  background-color: #2a2a2a !important;
+  background: #2a2a2a !important;
 }
 
 /* Specifically target input with class */
 input.input {
   background: #2a2a2a !important;
   background-color: #2a2a2a !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Ensure all input types get the same treatment */
+input[type="text"],
+input[type="number"],
+input[type="url"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"] {
+  background: #2a2a2a !important;
+  background-color: #2a2a2a !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
 }
 
 input::placeholder, textarea::placeholder {
@@ -62,9 +95,12 @@ input::placeholder, textarea::placeholder {
 input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-  border-color: var(--focus);
+  border-color: var(--focus) !important;
   background: #2a2a2a !important;  /* Keep gray on focus */
   background-color: #2a2a2a !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
 }
 
 /* Remove number input spinners */
