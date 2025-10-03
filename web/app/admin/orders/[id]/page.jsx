@@ -671,7 +671,7 @@ export default function EditOrderPage({ params }) {
                   borderRadius: "4px",
                   fontSize: "14px",
                   fontFamily: "inherit",
-                  backgroundColor: "#1f2937",
+                  backgroundColor: "#2d2d2d",
                   color: "#e5e7eb"
                 }}
               />
