@@ -2081,22 +2081,28 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
       }
     }
     
-    // Check if trying to edit non-archive/non-measurement fields on a locked order
-    const editFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 'notes'];
-    const hasEditFields = editFields.some(field => req.body.hasOwnProperty(field));
-    
-    if (hasEditFields && order.isLocked) {
-      await logAuditEvent(
-        orderId, 
-        'EDIT_ATTEMPTED_WHILE_LOCKED', 
-        'Tried to edit item details', 
-        req.user.id,
-        req.user.name
-      );
-      return res.status(403).json({ 
-        error: 'Cannot edit item details in a locked order. Please unlock it first. Use /measurements endpoint for dimension updates.' 
-      });
-    }
+    // Admin-only fields that bypass lock (itemPrice and privateItemNote can be edited even when locked)
+const adminBypassFields = ['itemPrice', 'privateItemNote'];
+const hasAdminBypassFields = adminBypassFields.some(field => req.body.hasOwnProperty(field));
+
+// Check if trying to edit regular fields on a locked order (excluding admin-bypass fields)
+const editFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 'laserWattage', 'notes'];
+const hasEditFields = editFields.some(field => req.body.hasOwnProperty(field));
+
+// Only block if trying to edit regular fields on a locked order
+// Allow admin-bypass fields (itemPrice, privateItemNote) to proceed even when locked
+if (hasEditFields && order.isLocked) {
+  await logAuditEvent(
+    orderId, 
+    'EDIT_ATTEMPTED_WHILE_LOCKED', 
+    'Tried to edit item details', 
+    req.user.id,
+    req.user.name
+  );
+  return res.status(403).json({ 
+    error: 'Cannot edit item details in a locked order. Please unlock it first. Use /measurements endpoint for dimension updates.' 
+  });
+}
     
     // Process all other fields (only if not locked)
     if (req.body.hasOwnProperty('productCode') && typeof req.body.productCode === 'string') {
