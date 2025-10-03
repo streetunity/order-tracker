@@ -1094,7 +1094,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
                 <input
-                  className="input-admin"
+                  className="input"
                   value={privateItemNote}
                   onChange={e => setPrivateItemNote(e.target.value)}
                   placeholder="Purchasing notes (private, admin only)"
@@ -1107,7 +1107,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
                   <input
-                    className="input-admin"
+                    className="input"
                     type="text"
                     value={itemPrice}
                     onChange={handlePriceChange}
@@ -1127,4 +1127,3 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
     </>
   );
 }
-
