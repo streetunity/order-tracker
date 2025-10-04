@@ -149,7 +149,7 @@ export default function OVARPage() {
           </div>
 
           <div className="report-section">
-            <h2>Aging Orders (>{agingThreshold} days in stage)</h2>
+            <h2>Aging Orders ({agingThreshold}+ days in stage)</h2>
             <div className="data-table">
               <table>
                 <thead>
