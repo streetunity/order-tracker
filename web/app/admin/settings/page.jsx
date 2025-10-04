@@ -136,6 +136,28 @@ export default function SettingsPage() {
   const saveHolidaySettings = async () => {
     try {
       setSaving(true);
+      console.log('Saving holiday settings:', { localStartDate, localEndDate, localBufferDays });
+      
+      // Validate date format before sending
+      const dateRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
+      if (!dateRegex.test(localStartDate)) {
+        setMessage('Error: Start date must be in MM-DD format (e.g., 10-01)');
+        setSaving(false);
+        return;
+      }
+      if (!dateRegex.test(localEndDate)) {
+        setMessage('Error: End date must be in MM-DD format (e.g., 12-31)');
+        setSaving(false);
+        return;
+      }
+      
+      // Validate buffer days
+      const bufferNum = parseInt(localBufferDays, 10);
+      if (isNaN(bufferNum) || bufferNum < 0 || bufferNum > 100) {
+        setMessage('Error: Buffer days must be between 0 and 100');
+        setSaving(false);
+        return;
+      }
       
       // Save all three settings
       const promises = [
@@ -157,27 +179,34 @@ export default function SettingsPage() {
       ];
 
       const results = await Promise.all(promises);
-      const allSuccess = results.every(r => r.ok);
-
-      if (allSuccess) {
-        const updates = await Promise.all(results.map(r => r.json()));
-        setSystemSettings(prev => ({
-          ...prev,
-          HOLIDAY_SEASON_START: { ...prev.HOLIDAY_SEASON_START, value: updates[0].value },
-          HOLIDAY_SEASON_END: { ...prev.HOLIDAY_SEASON_END, value: updates[1].value },
-          HOLIDAY_BUFFER_DAYS: { ...prev.HOLIDAY_BUFFER_DAYS, value: updates[2].value }
-        }));
-        setMessage('✓ Holiday settings saved successfully');
-        setHasUnsavedHolidayChanges(false);
-        setTimeout(() => setMessage(''), 3000);
-      } else {
-        const failedResult = results.find(r => !r.ok);
-        const error = await failedResult.json();
-        setMessage(`Error: ${error.error}`);
+      
+      // Check each result
+      for (let i = 0; i < results.length; i++) {
+        if (!results[i].ok) {
+          const errorData = await results[i].json();
+          console.error(`Failed to save setting ${i}:`, errorData);
+          setMessage(`Error: ${errorData.error || 'Failed to save settings'}`);
+          setSaving(false);
+          return;
+        }
       }
+
+      // All successful
+      const updates = await Promise.all(results.map(r => r.json()));
+      console.log('All settings saved successfully:', updates);
+      
+      setSystemSettings(prev => ({
+        ...prev,
+        HOLIDAY_SEASON_START: { ...prev.HOLIDAY_SEASON_START, value: updates[0].value },
+        HOLIDAY_SEASON_END: { ...prev.HOLIDAY_SEASON_END, value: updates[1].value },
+        HOLIDAY_BUFFER_DAYS: { ...prev.HOLIDAY_BUFFER_DAYS, value: updates[2].value }
+      }));
+      setMessage('✓ Holiday settings saved successfully');
+      setHasUnsavedHolidayChanges(false);
+      setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Save error:', error);
-      setMessage('Error saving holiday settings');
+      setMessage(`Error saving holiday settings: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -238,7 +267,7 @@ export default function SettingsPage() {
                   placeholder="10-01"
                   pattern="\d{2}-\d{2}"
                 />
-                <small>Default: October 1st</small>
+                <small>Format: MM-DD (e.g., 10-01 for October 1st)</small>
               </div>
 
               <div className="setting-item">
@@ -250,7 +279,7 @@ export default function SettingsPage() {
                   placeholder="12-31"
                   pattern="\d{2}-\d{2}"
                 />
-                <small>Default: December 31st</small>
+                <small>Format: MM-DD (e.g., 12-31 for December 31st)</small>
               </div>
 
               <div className="setting-item">
@@ -262,7 +291,7 @@ export default function SettingsPage() {
                   min="0"
                   max="100"
                 />
-                <small>Extra days for MANUFACTURING stage only</small>
+                <small>Extra days for MANUFACTURING stage only (0-100)</small>
               </div>
             </div>
 
