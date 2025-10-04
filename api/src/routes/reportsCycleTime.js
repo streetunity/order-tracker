@@ -97,20 +97,28 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/stage-durations
-   * Average time spent in each stage
+   * GET /reports/stage-durations/leaderboard
+   * Average time spent in each stage with leaderboard
    */
-  router.get('/stage-durations', authGuard, async (req, res) => {
+  router.get('/stage-durations/leaderboard', authGuard, async (req, res) => {
     try {
-      const filters = parseReportFilters(req.query);
+      const { lookbackDays = 90 } = req.query;
+      const lookback = parseInt(lookbackDays, 10);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - lookback);
       
-      // Get all items with their status events
+      // Get all items with their status events in the lookback period
       const items = await prisma.orderItem.findMany({
-        where: buildWhereClause(filters, 'item'),
+        where: {
+          createdAt: { gte: cutoffDate }
+        },
         include: {
           order: {
-            where: buildWhereClause(filters, 'order'),
-            select: { createdAt: true, currentStage: true }
+            select: { 
+              poNumber: true, 
+              account: { select: { name: true } },
+              createdAt: true
+            }
           },
           statusEvents: {
             orderBy: { createdAt: 'asc' }
@@ -120,6 +128,8 @@ export function createCycleTimeReportsRouter(prisma) {
 
       // Calculate stage durations for each item
       const stageDurations = new Map();
+      const slowestItems = [];
+      
       for (const stage of STAGES) {
         stageDurations.set(stage, []);
       }
@@ -128,6 +138,16 @@ export function createCycleTimeReportsRouter(prisma) {
         const durations = calculateStageDurations(item.statusEvents);
         for (const d of durations) {
           stageDurations.get(d.stage)?.push(d.durationSec);
+          
+          // Track slowest items
+          slowestItems.push({
+            productCode: item.productCode,
+            poNumber: item.order.poNumber,
+            accountName: item.order.account?.name || 'Unknown',
+            stage: d.stage,
+            durationSec: d.durationSec,
+            durationFormatted: formatDuration(d.durationSec)
+          });
         }
       }
 
@@ -144,17 +164,27 @@ export function createCycleTimeReportsRouter(prisma) {
           medianFormatted: formatDuration(stats.median),
           p90Duration: stats.p90,
           p90Days: Math.floor((stats.p90 || 0) / 86400),
-          p90Formatted: formatDuration(stats.p90)
+          p90Formatted: formatDuration(stats.p90),
+          maxDuration: stats.max,
+          maxFormatted: formatDuration(stats.max)
         };
-      });
+      }).filter(s => s.count > 0);
+
+      // Sort slowest items
+      slowestItems.sort((a, b) => b.durationSec - a.durationSec);
 
       res.json({
         meta: {
-          date_from: filters.dateFrom,
-          date_to: filters.dateTo
+          lookbackDays: lookback
+        },
+        kpis: {
+          itemsAnalyzed: items.length,
+          stagesTracked: series.length
         },
         series,
-        rows: series
+        rows: {
+          slowest: slowestItems.slice(0, 20)
+        }
       });
     } catch (error) {
       console.error('Stage durations error:', error);
@@ -377,81 +407,75 @@ export function createCycleTimeReportsRouter(prisma) {
 
   /**
    * GET /reports/chokepoints
-   * Identify bottlenecks in the process
+   * Identify bottlenecks for a specific stage
    */
   router.get('/chokepoints', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
-      const { lookbackDays = 90 } = req.query;
-      const lookback = parseInt(lookbackDays, 10);
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - lookback);
+      const { targetStage = 'MANUFACTURING' } = req.query;
 
-      // Get orders still in progress
-      const orders = await prisma.order.findMany({
+      // Get items currently in the target stage
+      const items = await prisma.orderItem.findMany({
         where: {
-          currentStage: { not: STAGES[STAGES.length - 1] },
-          createdAt: { gte: cutoffDate },
-          ...buildWhereClause(filters, 'order')
+          currentStage: targetStage,
+          archivedAt: null
         },
         include: {
+          order: {
+            select: { 
+              poNumber: true, 
+              account: { select: { name: true } }
+            }
+          },
           statusEvents: {
-            orderBy: { createdAt: 'desc' },
+            where: { stage: targetStage },
+            orderBy: { createdAt: 'asc' },
             take: 1
           }
         }
       });
 
-      // Group by current stage and calculate time in stage
-      const stageData = new Map();
-      for (const stage of STAGES) {
-        stageData.set(stage, { stage, count: 0, totalDays: 0, orders: [] });
-      }
-
       const now = new Date();
-      for (const order of orders) {
-        const stage = order.currentStage;
-        const lastEvent = order.statusEvents[0];
-        const timeInStage = lastEvent 
-          ? (now - new Date(lastEvent.createdAt)) / (1000 * 60 * 60 * 24)
-          : (now - new Date(order.createdAt)) / (1000 * 60 * 60 * 24);
+      const itemsWithTime = items
+        .filter(item => item.statusEvents.length > 0)
+        .map(item => {
+          const enteredAt = item.statusEvents[0].createdAt;
+          const timeInStageSec = (now - new Date(enteredAt)) / 1000;
+          const timeInStageDays = (timeInStageSec / 86400).toFixed(1);
+          
+          return {
+            itemId: item.id,
+            productCode: item.productCode,
+            poNumber: item.order.poNumber,
+            accountName: item.order.account?.name || 'Unknown',
+            enteredAt,
+            timeInStageSec,
+            timeInStageDays
+          };
+        })
+        .sort((a, b) => b.timeInStageSec - a.timeInStageSec);
 
-        const data = stageData.get(stage);
-        if (data) {
-          data.count++;
-          data.totalDays += timeInStage;
-          data.orders.push({
-            orderId: order.id,
-            poNumber: order.poNumber,
-            daysInStage: Math.floor(timeInStage)
-          });
-        }
-      }
+      const times = itemsWithTime.map(i => i.timeInStageSec);
+      const stats = calculateStats(times);
 
-      // Calculate average and identify chokepoints
-      const series = Array.from(stageData.values())
-        .filter(d => d.count > 0)
-        .map(d => ({
-          stage: d.stage,
-          ordersInStage: d.count,
-          avgDaysInStage: (d.totalDays / d.count).toFixed(1),
-          topOrders: d.orders
-            .sort((a, b) => b.daysInStage - a.daysInStage)
-            .slice(0, 5)
-        }))
-        .sort((a, b) => b.ordersInStage - a.ordersInStage);
+      const paginated = paginateResults(itemsWithTime, filters.page, filters.pageSize);
 
       res.json({
         meta: {
-          lookbackDays: lookback
+          targetStage
         },
         kpis: {
-          ordersInProgress: orders.length,
-          worstStage: series[0]?.stage || 'N/A',
-          worstStageCount: series[0]?.ordersInStage || 0
+          itemsInStage: itemsWithTime.length,
+          medianTimeSec: stats.median,
+          medianTimeDays: Math.floor((stats.median || 0) / 86400),
+          medianFormatted: formatDuration(stats.median),
+          p90TimeSec: stats.p90,
+          p90TimeDays: Math.floor((stats.p90 || 0) / 86400),
+          p90Formatted: formatDuration(stats.p90),
+          maxTimeSec: stats.max,
+          maxFormatted: formatDuration(stats.max)
         },
-        series,
-        rows: series
+        rows: paginated
       });
     } catch (error) {
       console.error('Chokepoints error:', error);
