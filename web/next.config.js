@@ -8,7 +8,14 @@ const nextConfig = {
   publicRuntimeConfig: {
     API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
   },
-  // Rewrites removed - using Next.js API route handlers instead
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:4000/api/:path*'
+      }
+    ];
+  }
 };
 
 module.exports = nextConfig;
