@@ -10,7 +10,7 @@ import { authGuard, adminGuard, unlockGuard, optionalAuth, generateToken, verify
 import { hashPassword, comparePassword, validatePassword } from './utils/password.js';
 import { markItemAsOrdered, unmarkItemAsOrdered } from './ordered-endpoints.js';
 import { addAuditEndpoint } from './audit-endpoint-fix.js';
-
+import { createReportsRouter } from './routes/reports.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -62,6 +62,12 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+
+// Reports Module
+const reportsRouter = createReportsRouter(prisma);
+app.use('/reports', authGuard, reportsRouter);
+console.log('✅ Reports module loaded');
+
 
 // -----------------------------
 // Helpers
