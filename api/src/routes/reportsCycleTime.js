@@ -14,6 +14,7 @@ import {
   calculateSlippage,
   paginateResults
 } from '../utils/reportHelpers.js';
+import { getStageThreshold, assessRiskLevel, getThresholdDays } from '../config/stageThresholds.js';
 
 export function createCycleTimeReportsRouter(prisma) {
   const router = Router();
@@ -407,7 +408,7 @@ export function createCycleTimeReportsRouter(prisma) {
 
   /**
    * GET /reports/chokepoints
-   * Identify bottlenecks for a specific stage
+   * Identify bottlenecks for a specific stage with risk assessment based on SMT timeline
    */
   router.get('/chokepoints', authGuard, async (req, res) => {
     try {
@@ -436,12 +437,25 @@ export function createCycleTimeReportsRouter(prisma) {
       });
 
       const now = new Date();
+      const thresholds = getThresholdDays(targetStage);
+      
+      // Categorize items by risk level
+      let normalCount = 0;
+      let warningCount = 0;
+      let criticalCount = 0;
+      
       const itemsWithTime = items
         .filter(item => item.statusEvents.length > 0)
         .map(item => {
           const enteredAt = item.statusEvents[0].createdAt;
           const timeInStageSec = (now - new Date(enteredAt)) / 1000;
           const timeInStageDays = (timeInStageSec / 86400).toFixed(1);
+          const riskLevel = assessRiskLevel(targetStage, timeInStageSec);
+          
+          // Count by risk level
+          if (riskLevel === 'critical') criticalCount++;
+          else if (riskLevel === 'warning') warningCount++;
+          else normalCount++;
           
           return {
             itemId: item.id,
@@ -450,7 +464,8 @@ export function createCycleTimeReportsRouter(prisma) {
             accountName: item.order.account?.name || 'Unknown',
             enteredAt,
             timeInStageSec,
-            timeInStageDays
+            timeInStageDays,
+            riskLevel
           };
         })
         .sort((a, b) => b.timeInStageSec - a.timeInStageSec);
@@ -462,10 +477,18 @@ export function createCycleTimeReportsRouter(prisma) {
 
       res.json({
         meta: {
-          targetStage
+          targetStage,
+          thresholds: {
+            warningDays: thresholds.warning,
+            criticalDays: thresholds.critical,
+            note: 'Based on SMT manufacturing timeline document'
+          }
         },
         kpis: {
           itemsInStage: itemsWithTime.length,
+          normalCount,
+          warningCount,
+          criticalCount,
           medianTimeSec: stats.median,
           medianTimeDays: Math.floor((stats.median || 0) / 86400),
           medianFormatted: formatDuration(stats.median),
