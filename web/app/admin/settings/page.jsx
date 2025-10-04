@@ -146,8 +146,8 @@ export default function SettingsPage() {
           <section className="settings-section">
             <h2>Holiday Season Configuration</h2>
             <p className="section-desc">
-              Orders created during the holiday season will automatically have {systemSettings.HOLIDAY_BUFFER_DAYS?.value || '25'} days 
-              added to MANUFACTURING, SHIPPING, and AT_SEA thresholds
+              During the holiday season (Oct 1 - Dec 31), the MANUFACTURING stage gets {systemSettings.HOLIDAY_BUFFER_DAYS?.value || '25'} extra days 
+              added to its thresholds. Other stages remain unchanged but are naturally delayed by the extended manufacturing time.
             </p>
 
             <div className="settings-grid">
@@ -176,7 +176,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="setting-item">
-                <label>Holiday Buffer Days</label>
+                <label>Holiday Buffer Days (Manufacturing Only)</label>
                 <input
                   type="number"
                   value={systemSettings.HOLIDAY_BUFFER_DAYS?.value || '25'}
@@ -184,7 +184,7 @@ export default function SettingsPage() {
                   min="0"
                   max="100"
                 />
-                <small>Additional days added during holiday season</small>
+                <small>Extra days for MANUFACTURING stage only</small>
               </div>
             </div>
           </section>
@@ -261,7 +261,7 @@ export default function SettingsPage() {
             <ul>
               <li><strong>Warning</strong>: Items exceeding this time are flagged yellow (attention needed)</li>
               <li><strong>Critical</strong>: Items exceeding this time are flagged red (urgent action required)</li>
-              <li><strong>Holiday Adjustment</strong>: Buffer days are automatically added to certain stages for orders created Oct-Dec</li>
+              <li><strong>Holiday Adjustment</strong>: Buffer days are ONLY added to MANUFACTURING stage (Oct-Dec). Other stages are automatically pushed back by the extended manufacturing time.</li>
               <li>Changes take effect immediately in all reports</li>
             </ul>
           </div>
