@@ -18,6 +18,11 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  
+  // Local state for date inputs to prevent validation errors on every keystroke
+  const [localStartDate, setLocalStartDate] = useState('');
+  const [localEndDate, setLocalEndDate] = useState('');
+  const [localBufferDays, setLocalBufferDays] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -44,6 +49,11 @@ export default function SettingsPage() {
         const systemData = await systemRes.json();
         setThresholds(thresholdsData);
         setSystemSettings(systemData);
+        
+        // Initialize local state
+        setLocalStartDate(systemData.HOLIDAY_SEASON_START?.value || '10-01');
+        setLocalEndDate(systemData.HOLIDAY_SEASON_END?.value || '12-31');
+        setLocalBufferDays(systemData.HOLIDAY_BUFFER_DAYS?.value || '25');
       }
     } catch (error) {
       console.error('Load settings error:', error);
@@ -117,6 +127,7 @@ export default function SettingsPage() {
         setMessage(`Error: ${error.error}`);
       }
     } catch (error) {
+      console.error('Update error:', error);
       setMessage('Error updating setting');
     }
   };
@@ -155,32 +166,35 @@ export default function SettingsPage() {
                 <label>Holiday Season Start (MM-DD)</label>
                 <input
                   type="text"
-                  value={systemSettings.HOLIDAY_SEASON_START?.value || '10-01'}
-                  onChange={(e) => updateSystemSetting('HOLIDAY_SEASON_START', e.target.value)}
+                  value={localStartDate}
+                  onChange={(e) => setLocalStartDate(e.target.value)}
+                  onBlur={(e) => updateSystemSetting('HOLIDAY_SEASON_START', e.target.value)}
                   placeholder="10-01"
                   pattern="\d{2}-\d{2}"
                 />
-                <small>Default: October 1st</small>
+                <small>Default: October 1st (saves when you click away)</small>
               </div>
 
               <div className="setting-item">
                 <label>Holiday Season End (MM-DD)</label>
                 <input
                   type="text"
-                  value={systemSettings.HOLIDAY_SEASON_END?.value || '12-31'}
-                  onChange={(e) => updateSystemSetting('HOLIDAY_SEASON_END', e.target.value)}
+                  value={localEndDate}
+                  onChange={(e) => setLocalEndDate(e.target.value)}
+                  onBlur={(e) => updateSystemSetting('HOLIDAY_SEASON_END', e.target.value)}
                   placeholder="12-31"
                   pattern="\d{2}-\d{2}"
                 />
-                <small>Default: December 31st</small>
+                <small>Default: December 31st (saves when you click away)</small>
               </div>
 
               <div className="setting-item">
                 <label>Holiday Buffer Days (Manufacturing Only)</label>
                 <input
                   type="number"
-                  value={systemSettings.HOLIDAY_BUFFER_DAYS?.value || '25'}
-                  onChange={(e) => updateSystemSetting('HOLIDAY_BUFFER_DAYS', e.target.value)}
+                  value={localBufferDays}
+                  onChange={(e) => setLocalBufferDays(e.target.value)}
+                  onBlur={(e) => updateSystemSetting('HOLIDAY_BUFFER_DAYS', e.target.value)}
                   min="0"
                   max="100"
                 />
