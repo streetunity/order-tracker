@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 // HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
 const API_BASE = 'http://50.19.66.100:4000';
 
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
@@ -18,7 +18,8 @@ export async function GET(request, { params }) {
       headers['Authorization'] = authHeader;
     }
     
-    // Build the path from slug array (e.g., ['cycle-times'] or ['summary'])
+    // Next.js 14 requires awaiting params
+    const params = await context.params;
     const slug = params.slug ? params.slug.join('/') : '';
     const apiUrl = `${API_BASE}/reports/${slug}${queryString ? `?${queryString}` : ''}`;
     
@@ -36,7 +37,7 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function POST(request, { params }) {
+export async function POST(request, context) {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -50,7 +51,8 @@ export async function POST(request, { params }) {
       );
     }
     
-    // Build the path from slug array
+    // Next.js 14 requires awaiting params
+    const params = await context.params;
     const slug = params.slug ? params.slug.join('/') : '';
     const apiUrl = `${API_BASE}/reports/${slug}`;
     
