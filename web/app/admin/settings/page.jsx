@@ -19,10 +19,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   
-  // Local state for date inputs to prevent validation errors on every keystroke
+  // Local state for holiday settings
   const [localStartDate, setLocalStartDate] = useState('');
   const [localEndDate, setLocalEndDate] = useState('');
   const [localBufferDays, setLocalBufferDays] = useState('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -54,6 +55,7 @@ export default function SettingsPage() {
         setLocalStartDate(systemData.HOLIDAY_SEASON_START?.value || '10-01');
         setLocalEndDate(systemData.HOLIDAY_SEASON_END?.value || '12-31');
         setLocalBufferDays(systemData.HOLIDAY_BUFFER_DAYS?.value || '25');
+        setHasUnsavedChanges(false);
       }
     } catch (error) {
       console.error('Load settings error:', error);
@@ -106,30 +108,61 @@ export default function SettingsPage() {
     }
   };
 
-  const updateSystemSetting = async (key, value) => {
+  const saveHolidaySettings = async () => {
     try {
-      const res = await fetch(`/api/settings/system/${key}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value })
-      });
+      setSaving(true);
+      
+      // Save all three settings
+      const promises = [
+        fetch(`/api/settings/system/HOLIDAY_SEASON_START`, {
+          method: 'PATCH',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: localStartDate })
+        }),
+        fetch(`/api/settings/system/HOLIDAY_SEASON_END`, {
+          method: 'PATCH',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: localEndDate })
+        }),
+        fetch(`/api/settings/system/HOLIDAY_BUFFER_DAYS`, {
+          method: 'PATCH',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: localBufferDays })
+        })
+      ];
 
-      if (res.ok) {
-        const updated = await res.json();
+      const results = await Promise.all(promises);
+      const allSuccess = results.every(r => r.ok);
+
+      if (allSuccess) {
+        // Update system settings state
+        const updates = await Promise.all(results.map(r => r.json()));
         setSystemSettings(prev => ({
           ...prev,
-          [key]: { ...prev[key], value: updated.value }
+          HOLIDAY_SEASON_START: { ...prev.HOLIDAY_SEASON_START, value: updates[0].value },
+          HOLIDAY_SEASON_END: { ...prev.HOLIDAY_SEASON_END, value: updates[1].value },
+          HOLIDAY_BUFFER_DAYS: { ...prev.HOLIDAY_BUFFER_DAYS, value: updates[2].value }
         }));
-        setMessage(`✓ Updated ${key}`);
+        setMessage('✓ Holiday settings saved successfully');
+        setHasUnsavedChanges(false);
         setTimeout(() => setMessage(''), 3000);
       } else {
-        const error = await res.json();
+        // Get error from first failed request
+        const failedResult = results.find(r => !r.ok);
+        const error = await failedResult.json();
         setMessage(`Error: ${error.error}`);
       }
     } catch (error) {
-      console.error('Update error:', error);
-      setMessage('Error updating setting');
+      console.error('Save error:', error);
+      setMessage('Error saving holiday settings');
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const handleHolidayChange = (setter) => (e) => {
+    setter(e.target.value);
+    setHasUnsavedChanges(true);
   };
 
   if (!user || user.role !== 'ADMIN') return null;
@@ -167,12 +200,11 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={localStartDate}
-                  onChange={(e) => setLocalStartDate(e.target.value)}
-                  onBlur={(e) => updateSystemSetting('HOLIDAY_SEASON_START', e.target.value)}
+                  onChange={handleHolidayChange(setLocalStartDate)}
                   placeholder="10-01"
                   pattern="\d{2}-\d{2}"
                 />
-                <small>Default: October 1st (saves when you click away)</small>
+                <small>Default: October 1st</small>
               </div>
 
               <div className="setting-item">
@@ -180,12 +212,11 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={localEndDate}
-                  onChange={(e) => setLocalEndDate(e.target.value)}
-                  onBlur={(e) => updateSystemSetting('HOLIDAY_SEASON_END', e.target.value)}
+                  onChange={handleHolidayChange(setLocalEndDate)}
                   placeholder="12-31"
                   pattern="\d{2}-\d{2}"
                 />
-                <small>Default: December 31st (saves when you click away)</small>
+                <small>Default: December 31st</small>
               </div>
 
               <div className="setting-item">
@@ -193,13 +224,28 @@ export default function SettingsPage() {
                 <input
                   type="number"
                   value={localBufferDays}
-                  onChange={(e) => setLocalBufferDays(e.target.value)}
-                  onBlur={(e) => updateSystemSetting('HOLIDAY_BUFFER_DAYS', e.target.value)}
+                  onChange={handleHolidayChange(setLocalBufferDays)}
                   min="0"
                   max="100"
                 />
                 <small>Extra days for MANUFACTURING stage only</small>
               </div>
+            </div>
+
+            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <button 
+                onClick={saveHolidaySettings} 
+                disabled={saving || !hasUnsavedChanges}
+                className="btn-init"
+                style={{ opacity: (!hasUnsavedChanges || saving) ? 0.5 : 1 }}
+              >
+                {saving ? 'Saving...' : 'Save Holiday Settings'}
+              </button>
+              {hasUnsavedChanges && !saving && (
+                <span style={{ color: 'var(--accent)', fontSize: '14px' }}>
+                  ⚠ Unsaved changes
+                </span>
+              )}
             </div>
           </section>
 
@@ -276,7 +322,7 @@ export default function SettingsPage() {
               <li><strong>Warning</strong>: Items exceeding this time are flagged yellow (attention needed)</li>
               <li><strong>Critical</strong>: Items exceeding this time are flagged red (urgent action required)</li>
               <li><strong>Holiday Adjustment</strong>: Buffer days are ONLY added to MANUFACTURING stage (Oct-Dec). Other stages are automatically pushed back by the extended manufacturing time.</li>
-              <li>Changes take effect immediately in all reports</li>
+              <li><strong>Stage Thresholds</strong>: Changes to stage thresholds save immediately when you modify them</li>
             </ul>
           </div>
         </>
