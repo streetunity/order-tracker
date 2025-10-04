@@ -175,7 +175,7 @@ export function createSettingsRouter(prisma) {
       if (!settingsObj.HOLIDAY_BUFFER_DAYS) {
         settingsObj.HOLIDAY_BUFFER_DAYS = {
           value: '25',
-          description: 'Additional days to add during holiday season',
+          description: 'Additional days to add to MANUFACTURING stage during holiday season',
           updatedAt: new Date(),
           updatedBy: null
         };
@@ -242,6 +242,9 @@ export function createSettingsRouter(prisma) {
   /**
    * GET /settings/thresholds/effective/:stage
    * Get effective threshold for a stage on a specific date (with holiday adjustment)
+   * 
+   * IMPORTANT: Holiday buffer ONLY applies to MANUFACTURING stage.
+   * Other stages will be automatically pushed back by the extended manufacturing time.
    */
   router.get('/thresholds/effective/:stage', adminGuard, async (req, res) => {
     try {
@@ -287,7 +290,9 @@ export function createSettingsRouter(prisma) {
       let effectiveWarningDays = threshold.warningDays;
       let effectiveCriticalDays = threshold.criticalDays;
 
-      if (isHolidaySeason && (stage === 'MANUFACTURING' || stage === 'SHIPPING' || stage === 'AT_SEA')) {
+      // CRITICAL: Holiday buffer ONLY applies to MANUFACTURING
+      // Other stages are automatically pushed back by the extended manufacturing time
+      if (isHolidaySeason && stage === 'MANUFACTURING') {
         const buffer = parseInt(bufferDays?.value || '25', 10);
         effectiveWarningDays += buffer;
         effectiveCriticalDays += buffer;
@@ -300,8 +305,9 @@ export function createSettingsRouter(prisma) {
         effectiveWarningDays,
         effectiveCriticalDays,
         isHolidaySeason,
-        holidayBufferApplied: isHolidaySeason ? parseInt(bufferDays?.value || '25', 10) : 0,
-        targetDate
+        holidayBufferApplied: (isHolidaySeason && stage === 'MANUFACTURING') ? parseInt(bufferDays?.value || '25', 10) : 0,
+        targetDate,
+        note: stage === 'MANUFACTURING' ? 'Holiday buffer applied to manufacturing only' : 'Other stages are pushed back by extended manufacturing time'
       });
     } catch (error) {
       console.error('Get effective threshold error:', error);
