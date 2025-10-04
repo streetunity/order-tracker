@@ -23,7 +23,7 @@
   margin: 0;
 }
 
-.btn-back {
+.btn-back, .btn-settings {
   padding: 10px 20px;
   background: var(--panel);
   color: var(--text);
@@ -33,10 +33,20 @@
   transition: all 0.2s;
 }
 
+.btn-settings {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
 .btn-back:hover {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
+}
+
+.btn-settings:hover {
+  background: var(--accent-strong);
 }
 
 /* KPI Cards */
