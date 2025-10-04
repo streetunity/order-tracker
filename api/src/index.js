@@ -13,6 +13,7 @@ import { addAuditEndpoint } from './audit-endpoint-fix.js';
 import { createReportsRouter } from './routes/reports.js';
 import createOperationalReportsRouter from './routes/reportsOperational.js';
 import createCycleTimeReportsRouter from './routes/reportsCycleTime.js';
+import createSettingsRouter from './routes/settings.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -74,6 +75,11 @@ console.log('✅ Reports module loaded');
 const operationalReportsRouter = createOperationalReportsRouter(prisma);
 app.use('/reports', authGuard, operationalReportsRouter);
 console.log('✅ Operational reports module loaded');
+
+// Settings API
+const settingsRouter = createSettingsRouter(prisma);
+app.use('/settings', adminGuard, settingsRouter);
+console.log('✅ Settings API loaded');
 
 // Cycle Time & Flow Reports
 const cycleTimeReportsRouter = createCycleTimeReportsRouter(prisma);
