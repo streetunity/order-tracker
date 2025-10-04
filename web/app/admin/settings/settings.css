@@ -191,8 +191,8 @@
 }
 
 .help-section {
-  background: #3b82f620;
-  border: 1px solid #3b82f6;
+  background: #3a3a3a20;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.5rem;
 }
@@ -200,7 +200,7 @@
 .help-section h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #3b82f6;
+  color: var(--text);
   margin-bottom: 1rem;
 }
 
