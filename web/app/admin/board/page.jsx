@@ -291,6 +291,9 @@ async function load() {
           <Link href="/admin/orders" className="btn">
             Manage Orders
           </Link>
+           <Link href="/admin/reports" className="btn">
+            Reports
+          </Link>
           {/* User menu */}
           <div style={{ 
             display: 'flex', 
