@@ -315,6 +315,70 @@ export function createSettingsRouter(prisma) {
     }
   });
 
+  /**
+   * POST /settings/recalculate-etas
+   * Recalculate ETA dates for all orders based on current threshold settings
+   * Admin-only endpoint that updates all customer tracking pages
+   */
+  router.post('/recalculate-etas', adminGuard, async (req, res) => {
+    try {
+      console.log('Starting ETA recalculation for all orders...');
+      
+      // Calculate ETA date based on average stage durations from current thresholds
+      const calculateETADate = (orderDate) => {
+        const stageDurations = {
+          MANUFACTURING: (STAGE_THRESHOLDS.MANUFACTURING.warningDays + STAGE_THRESHOLDS.MANUFACTURING.criticalDays) / 2,
+          TESTING: (STAGE_THRESHOLDS.TESTING.warningDays + STAGE_THRESHOLDS.TESTING.criticalDays) / 2,
+          SHIPPING: (STAGE_THRESHOLDS.SHIPPING.warningDays + STAGE_THRESHOLDS.SHIPPING.criticalDays) / 2,
+          SMT: (STAGE_THRESHOLDS.SMT.warningDays + STAGE_THRESHOLDS.SMT.criticalDays) / 2,
+          QC: (STAGE_THRESHOLDS.QC.warningDays + STAGE_THRESHOLDS.QC.criticalDays) / 2,
+          DELIVERED: (STAGE_THRESHOLDS.DELIVERED.warningDays + STAGE_THRESHOLDS.DELIVERED.criticalDays) / 2,
+          ONSITE: (STAGE_THRESHOLDS.ONSITE.warningDays + STAGE_THRESHOLDS.ONSITE.criticalDays) / 2
+        };
+        
+        const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
+        const eta = new Date(orderDate);
+        eta.setDate(eta.getDate() + Math.round(totalDays));
+        
+        return eta;
+      };
+      
+      // Get all orders
+      const orders = await prisma.order.findMany({
+        select: {
+          id: true,
+          createdAt: true,
+          etaDate: true
+        }
+      });
+      
+      // Recalculate ETAs for all orders
+      let updated = 0;
+      for (const order of orders) {
+        const newETA = calculateETADate(order.createdAt);
+        
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { etaDate: newETA }
+        });
+        
+        updated++;
+      }
+      
+      console.log(`✅ Successfully recalculated ${updated} order ETAs`);
+      
+      res.json({
+        success: true,
+        message: `Successfully recalculated ${updated} order ETAs`,
+        ordersUpdated: updated
+      });
+      
+    } catch (error) {
+      console.error('❌ Error recalculating ETAs:', error);
+      res.status(500).json({ error: 'Failed to recalculate ETAs' });
+    }
+  });
+
   return router;
 }
 
