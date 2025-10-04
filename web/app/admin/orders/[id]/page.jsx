@@ -513,6 +513,48 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
+          {/* Shipping Information Section */}
+          {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
+            <section style={{
+              marginTop: 16,
+              marginBottom: 16,
+              padding: "16px",
+              backgroundColor: "#2d2d2d",
+              border: "1px solid #404040",
+              borderRadius: "8px"
+            }}>
+              <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#e4e4e4" }}>
+                Shipping Information
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+                {order.etaDate && (
+                  <div>
+                    <strong style={{ color: "#ef4444", fontSize: "12px" }}>ETA:</strong>
+                    <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
+                      {new Date(order.etaDate).toLocaleDateString()}
+                    </div>
+                  </div>
+                )}
+                {order.shippingCarrier && (
+                  <div>
+                    <strong style={{ color: "#ef4444", fontSize: "12px" }}>Carrier:</strong>
+                    <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
+                      {order.shippingCarrier}
+                    </div>
+                  </div>
+                )}
+                {order.trackingNumber && (
+                  <div>
+                    <strong style={{ color: "#ef4444", fontSize: "12px" }}>Tracking Number:</strong>
+                    <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
+                      {order.trackingNumber}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           <section style={{ marginTop: 8 }}>
             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Items</h2>
             {order.isLocked && (
