@@ -151,7 +151,7 @@ export default function PublicTrackingPage() {
         border: "1px solid #404040", 
         borderRadius: "8px", 
         padding: "20px",
-        marginBottom: "40px",
+        marginBottom: "20px",
         width: "100%",
         boxSizing: "border-box"
       }}>
@@ -210,6 +210,38 @@ export default function PublicTrackingPage() {
           </div>
         )}
       </div>
+
+      {/* Shipping Information - MOVED HERE after customer info */}
+      {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
+        <div style={{ 
+          padding: "20px",
+          backgroundColor: "#2d2d2d",
+          borderRadius: "8px",
+          border: "1px solid #404040",
+          marginBottom: "40px",
+          width: "100%",
+          boxSizing: "border-box"
+        }}>
+          <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "12px" }}>
+            Shipping Information
+          </h3>
+          {order.etaDate && (
+            <div style={{ marginBottom: "8px", color: "#a0a0a0" }}>
+              <strong>ETA:</strong> {new Date(order.etaDate).toLocaleDateString()}
+            </div>
+          )}
+          {order.shippingCarrier && (
+            <div style={{ marginBottom: "8px", color: "#a0a0a0" }}>
+              <strong>Carrier:</strong> {order.shippingCarrier}
+            </div>
+          )}
+          {order.trackingNumber && (
+            <div style={{ color: "#a0a0a0" }}>
+              <strong>Tracking:</strong> {order.trackingNumber}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Items List with Individual Progress - FIXED WIDTH */}
       <div style={{ 
@@ -479,38 +511,6 @@ export default function PublicTrackingPage() {
           </div>
         )}
       </div>
-
-      {/* Additional Shipping Info - FIXED WIDTH */}
-      {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
-        <div style={{ 
-          padding: "20px",
-          backgroundColor: "#2d2d2d",
-          borderRadius: "8px",
-          border: "1px solid #404040",
-          marginBottom: "40px",
-          width: "100%",
-          boxSizing: "border-box"
-        }}>
-          <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "12px" }}>
-            Shipping Information
-          </h3>
-          {order.etaDate && (
-            <div style={{ marginBottom: "8px", color: "#a0a0a0" }}>
-              <strong>ETA:</strong> {new Date(order.etaDate).toLocaleDateString()}
-            </div>
-          )}
-          {order.shippingCarrier && (
-            <div style={{ marginBottom: "8px", color: "#a0a0a0" }}>
-              <strong>Carrier:</strong> {order.shippingCarrier}
-            </div>
-          )}
-          {order.trackingNumber && (
-            <div style={{ color: "#a0a0a0" }}>
-              <strong>Tracking:</strong> {order.trackingNumber}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Order-Level Timeline - FIXED WIDTH */}
       {order.statusEvents && order.statusEvents.length > 0 && (
