@@ -98,6 +98,27 @@ export default function ReportsPage() {
                   <p>Revenue breakdown by sales representative</p>
                 </div>
               </Link>
+              <Link href="/admin/reports/sales-by-month" className="report-link">
+                <div className="report-icon">📅</div>
+                <div>
+                  <h3>Sales by Month</h3>
+                  <p>Monthly sales trends with MoM changes</p>
+                </div>
+              </Link>
+              <Link href="/admin/reports/sales-by-item" className="report-link">
+                <div className="report-icon">📦</div>
+                <div>
+                  <h3>Sales by Product</h3>
+                  <p>Top products ranked by revenue</p>
+                </div>
+              </Link>
+              <Link href="/admin/reports/ovar" className="report-link">
+                <div className="report-icon">⚠️</div>
+                <div>
+                  <h3>Order Value at Risk</h3>
+                  <p>Money tied up in late or aging orders</p>
+                </div>
+              </Link>
             </div>
           </div>
         )}
@@ -110,6 +131,20 @@ export default function ReportsPage() {
               <div>
                 <h3>Cycle Times</h3>
                 <p>Order completion time metrics</p>
+              </div>
+            </Link>
+            <Link href="/admin/reports/throughput" className="report-link">
+              <div className="report-icon">📊</div>
+              <div>
+                <h3>Throughput</h3>
+                <p>Items entering each stage per week</p>
+              </div>
+            </Link>
+            <Link href="/admin/reports/stage-durations" className="report-link">
+              <div className="report-icon">📈</div>
+              <div>
+                <h3>Stage Durations</h3>
+                <p>Time spent in each stage</p>
               </div>
             </Link>
             <Link href="/admin/reports/on-time" className="report-link">
