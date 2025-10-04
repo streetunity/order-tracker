@@ -23,7 +23,14 @@ export default function SettingsPage() {
   const [localStartDate, setLocalStartDate] = useState('');
   const [localEndDate, setLocalEndDate] = useState('');
   const [localBufferDays, setLocalBufferDays] = useState('');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [hasUnsavedHolidayChanges, setHasUnsavedHolidayChanges] = useState(false);
+  
+  // Local state for stage thresholds
+  const [localThresholds, setLocalThresholds] = useState([]);
+  const [hasUnsavedThresholdChanges, setHasUnsavedThresholdChanges] = useState(false);
+  
+  // Confirmation dialog state
+  const [showInitConfirm, setShowInitConfirm] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -49,13 +56,15 @@ export default function SettingsPage() {
         const thresholdsData = await thresholdsRes.json();
         const systemData = await systemRes.json();
         setThresholds(thresholdsData);
+        setLocalThresholds(JSON.parse(JSON.stringify(thresholdsData))); // Deep copy
         setSystemSettings(systemData);
         
         // Initialize local state
         setLocalStartDate(systemData.HOLIDAY_SEASON_START?.value || '10-01');
         setLocalEndDate(systemData.HOLIDAY_SEASON_END?.value || '12-31');
         setLocalBufferDays(systemData.HOLIDAY_BUFFER_DAYS?.value || '25');
-        setHasUnsavedChanges(false);
+        setHasUnsavedHolidayChanges(false);
+        setHasUnsavedThresholdChanges(false);
       }
     } catch (error) {
       console.error('Load settings error:', error);
@@ -76,6 +85,7 @@ export default function SettingsPage() {
       if (res.ok) {
         setMessage('✓ Initialized default thresholds');
         await loadSettings();
+        setShowInitConfirm(false);
       }
     } catch (error) {
       setMessage('Error initializing thresholds');
@@ -84,27 +94,42 @@ export default function SettingsPage() {
     }
   };
 
-  const updateThreshold = async (stage, field, value) => {
+  const saveThresholds = async () => {
     try {
-      const res = await fetch(`/api/settings/thresholds/${stage}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: parseInt(value, 10) })
-      });
+      setSaving(true);
+      
+      // Save all modified thresholds
+      const promises = localThresholds.map(threshold => 
+        fetch(`/api/settings/thresholds/${threshold.stage}`, {
+          method: 'PATCH',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            warningDays: parseInt(threshold.warningDays, 10),
+            criticalDays: parseInt(threshold.criticalDays, 10)
+          })
+        })
+      );
 
-      if (res.ok) {
-        const updated = await res.json();
-        setThresholds(prev => 
-          prev.map(t => t.stage === stage ? updated : t)
-        );
-        setMessage(`✓ Updated ${stage} ${field}`);
+      const results = await Promise.all(promises);
+      const allSuccess = results.every(r => r.ok);
+
+      if (allSuccess) {
+        const updates = await Promise.all(results.map(r => r.json()));
+        setThresholds(updates);
+        setLocalThresholds(JSON.parse(JSON.stringify(updates))); // Deep copy
+        setMessage('✓ Stage thresholds saved successfully');
+        setHasUnsavedThresholdChanges(false);
         setTimeout(() => setMessage(''), 3000);
       } else {
-        const error = await res.json();
+        const failedResult = results.find(r => !r.ok);
+        const error = await failedResult.json();
         setMessage(`Error: ${error.error}`);
       }
     } catch (error) {
-      setMessage('Error updating threshold');
+      console.error('Save thresholds error:', error);
+      setMessage('Error saving thresholds');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -135,7 +160,6 @@ export default function SettingsPage() {
       const allSuccess = results.every(r => r.ok);
 
       if (allSuccess) {
-        // Update system settings state
         const updates = await Promise.all(results.map(r => r.json()));
         setSystemSettings(prev => ({
           ...prev,
@@ -144,10 +168,9 @@ export default function SettingsPage() {
           HOLIDAY_BUFFER_DAYS: { ...prev.HOLIDAY_BUFFER_DAYS, value: updates[2].value }
         }));
         setMessage('✓ Holiday settings saved successfully');
-        setHasUnsavedChanges(false);
+        setHasUnsavedHolidayChanges(false);
         setTimeout(() => setMessage(''), 3000);
       } else {
-        // Get error from first failed request
         const failedResult = results.find(r => !r.ok);
         const error = await failedResult.json();
         setMessage(`Error: ${error.error}`);
@@ -162,7 +185,18 @@ export default function SettingsPage() {
 
   const handleHolidayChange = (setter) => (e) => {
     setter(e.target.value);
-    setHasUnsavedChanges(true);
+    setHasUnsavedHolidayChanges(true);
+  };
+
+  const handleThresholdChange = (stage, field, value) => {
+    setLocalThresholds(prev => 
+      prev.map(t => 
+        t.stage === stage 
+          ? { ...t, [field]: parseInt(value, 10) || 0 }
+          : t
+      )
+    );
+    setHasUnsavedThresholdChanges(true);
   };
 
   if (!user || user.role !== 'ADMIN') return null;
@@ -235,13 +269,13 @@ export default function SettingsPage() {
             <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
               <button 
                 onClick={saveHolidaySettings} 
-                disabled={saving || !hasUnsavedChanges}
+                disabled={saving || !hasUnsavedHolidayChanges}
                 className="btn-init"
-                style={{ opacity: (!hasUnsavedChanges || saving) ? 0.5 : 1 }}
+                style={{ opacity: (!hasUnsavedHolidayChanges || saving) ? 0.5 : 1 }}
               >
                 {saving ? 'Saving...' : 'Save Holiday Settings'}
               </button>
-              {hasUnsavedChanges && !saving && (
+              {hasUnsavedHolidayChanges && !saving && (
                 <span style={{ color: 'var(--accent)', fontSize: '14px' }}>
                   ⚠ Unsaved changes
                 </span>
@@ -253,9 +287,13 @@ export default function SettingsPage() {
           <section className="settings-section">
             <div className="section-header">
               <h2>Stage Time Thresholds</h2>
-              {thresholds.length === 0 && (
-                <button onClick={initializeThresholds} disabled={saving} className="btn-init">
-                  {saving ? 'Initializing...' : 'Initialize Defaults'}
+              {localThresholds.length === 0 && (
+                <button 
+                  onClick={() => setShowInitConfirm(true)} 
+                  disabled={saving} 
+                  className="btn-init"
+                >
+                  Initialize Defaults
                 </button>
               )}
             </div>
@@ -277,7 +315,7 @@ export default function SettingsPage() {
                 </thead>
                 <tbody>
                   {STAGES.map(stage => {
-                    const threshold = thresholds.find(t => t.stage === stage) || {
+                    const threshold = localThresholds.find(t => t.stage === stage) || {
                       stage,
                       warningDays: 30,
                       criticalDays: 60,
@@ -291,7 +329,7 @@ export default function SettingsPage() {
                           <input
                             type="number"
                             value={threshold.warningDays}
-                            onChange={(e) => updateThreshold(stage, 'warningDays', e.target.value)}
+                            onChange={(e) => handleThresholdChange(stage, 'warningDays', e.target.value)}
                             min="1"
                             max="365"
                             className="threshold-input"
@@ -301,7 +339,7 @@ export default function SettingsPage() {
                           <input
                             type="number"
                             value={threshold.criticalDays}
-                            onChange={(e) => updateThreshold(stage, 'criticalDays', e.target.value)}
+                            onChange={(e) => handleThresholdChange(stage, 'criticalDays', e.target.value)}
                             min="1"
                             max="365"
                             className="threshold-input"
@@ -314,6 +352,22 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             </div>
+
+            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <button 
+                onClick={saveThresholds} 
+                disabled={saving || !hasUnsavedThresholdChanges}
+                className="btn-init"
+                style={{ opacity: (!hasUnsavedThresholdChanges || saving) ? 0.5 : 1 }}
+              >
+                {saving ? 'Saving...' : 'Save Stage Thresholds'}
+              </button>
+              {hasUnsavedThresholdChanges && !saving && (
+                <span style={{ color: 'var(--accent)', fontSize: '14px' }}>
+                  ⚠ Unsaved changes
+                </span>
+              )}
+            </div>
           </section>
 
           <div className="help-section">
@@ -322,10 +376,38 @@ export default function SettingsPage() {
               <li><strong>Warning</strong>: Items exceeding this time are flagged yellow (attention needed)</li>
               <li><strong>Critical</strong>: Items exceeding this time are flagged red (urgent action required)</li>
               <li><strong>Holiday Adjustment</strong>: Buffer days are ONLY added to MANUFACTURING stage (Oct-Dec). Other stages are automatically pushed back by the extended manufacturing time.</li>
-              <li><strong>Stage Thresholds</strong>: Changes to stage thresholds save immediately when you modify them</li>
+              <li><strong>Saving Changes</strong>: Make your changes, then click the Save button to apply them</li>
             </ul>
           </div>
         </>
+      )}
+
+      {/* Confirmation Dialog */}
+      {showInitConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowInitConfirm(false)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Initialize Default Thresholds?</h3>
+            <p>This will load the default threshold values for all stages. Any existing custom values will be overwritten.</p>
+            <p style={{ marginTop: '1rem', color: 'var(--text-dim)' }}>
+              <strong>Note:</strong> You can modify these values after initialization.
+            </p>
+            <div className="confirm-actions">
+              <button 
+                onClick={() => setShowInitConfirm(false)} 
+                className="btn-cancel"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={initializeThresholds} 
+                disabled={saving}
+                className="btn-confirm"
+              >
+                {saving ? 'Initializing...' : 'Initialize Defaults'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
