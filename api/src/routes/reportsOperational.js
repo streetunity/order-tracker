@@ -1,7 +1,7 @@
 // api/src/routes/reportsOperational.js
 import { Router } from 'express';
 
-export default function createOperationalReportsRouter(prisma) {
+export function createOperationalReportsRouter(prisma) {
   const router = Router();
 
   // Get orders requiring action
@@ -119,3 +119,5 @@ export default function createOperationalReportsRouter(prisma) {
 
   return router;
 }
+
+export default createOperationalReportsRouter;
