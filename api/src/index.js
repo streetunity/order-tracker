@@ -11,6 +11,7 @@ import { hashPassword, comparePassword, validatePassword } from './utils/passwor
 import { markItemAsOrdered, unmarkItemAsOrdered } from './ordered-endpoints.js';
 import { addAuditEndpoint } from './audit-endpoint-fix.js';
 import { createReportsRouter } from './routes/reports.js';
+import createOperationalReportsRouter from './routes/reportsOperational.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -67,6 +68,11 @@ app.use(cookieParser());
 const reportsRouter = createReportsRouter(prisma);
 app.use('/reports', authGuard, reportsRouter);
 console.log('✅ Reports module loaded');
+
+// Operational Reports
+const operationalReportsRouter = createOperationalReportsRouter(prisma);
+app.use('/reports', authGuard, operationalReportsRouter);
+console.log('✅ Operational reports module loaded');
 
 
 // -----------------------------
