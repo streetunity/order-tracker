@@ -226,18 +226,21 @@ export default function PublicTrackingPage() {
             Shipping Information
           </h3>
           {order.etaDate && (
-            <div style={{ marginBottom: "8px", color: "#a0a0a0" }}>
-              <strong>ETA:</strong> {new Date(order.etaDate).toLocaleDateString()}
+            <div style={{ marginBottom: "8px" }}>
+              <strong style={{ color: "#ef4444" }}>ETA:</strong>
+              <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{new Date(order.etaDate).toLocaleDateString()}</span>
             </div>
           )}
           {order.shippingCarrier && (
-            <div style={{ marginBottom: "8px", color: "#a0a0a0" }}>
-              <strong>Carrier:</strong> {order.shippingCarrier}
+            <div style={{ marginBottom: "8px" }}>
+              <strong style={{ color: "#ef4444" }}>Carrier:</strong>
+              <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{order.shippingCarrier}</span>
             </div>
           )}
           {order.trackingNumber && (
-            <div style={{ color: "#a0a0a0" }}>
-              <strong>Tracking:</strong> {order.trackingNumber}
+            <div>
+              <strong style={{ color: "#ef4444" }}>Tracking:</strong>
+              <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{order.trackingNumber}</span>
             </div>
           )}
         </div>
