@@ -31,6 +31,8 @@ export default function SettingsPage() {
   
   // Confirmation dialog state
   const [showInitConfirm, setShowInitConfirm] = useState(false);
+  const [showETAConfirm, setShowETAConfirm] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -91,6 +93,31 @@ export default function SettingsPage() {
       setMessage('Error initializing thresholds');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const recalculateETAs = async () => {
+    try {
+      setRecalculating(true);
+      const res = await fetch('/api/settings/recalculate-etas', {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessage(`✓ ${data.message}`);
+        setShowETAConfirm(false);
+        setTimeout(() => setMessage(''), 5000);
+      } else {
+        const error = await res.json();
+        setMessage(`Error: ${error.error || 'Failed to recalculate ETAs'}`);
+      }
+    } catch (error) {
+      console.error('Recalculate ETAs error:', error);
+      setMessage('Error recalculating ETAs');
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -399,6 +426,40 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          {/* ETA Recalculation Section */}
+          <section className="settings-section">
+            <h2>Customer ETA Management</h2>
+            <p className="section-desc">
+              Recalculate estimated delivery dates for all existing orders based on current threshold settings. 
+              This will update the ETA shown on all customer tracking pages.
+            </p>
+            
+            <div style={{ 
+              padding: '1rem', 
+              backgroundColor: 'rgba(255, 170, 0, 0.1)', 
+              border: '1px solid rgba(255, 170, 0, 0.3)',
+              borderRadius: '8px',
+              marginBottom: '1rem'
+            }}>
+              <p style={{ margin: 0, color: 'var(--accent)' }}>
+                ⚠️ <strong>Warning:</strong> This will overwrite ALL existing ETA dates on customer tracking pages. 
+                Use this after changing threshold values to ensure all customers see updated delivery estimates.
+              </p>
+            </div>
+
+            <button 
+              onClick={() => setShowETAConfirm(true)} 
+              disabled={recalculating}
+              className="btn-init"
+              style={{ 
+                backgroundColor: 'var(--accent)',
+                opacity: recalculating ? 0.5 : 1 
+              }}
+            >
+              {recalculating ? 'Recalculating...' : 'Recalculate All ETAs'}
+            </button>
+          </section>
+
           <div className="help-section">
             <h3>💡 How Thresholds Work</h3>
             <ul>
@@ -406,12 +467,13 @@ export default function SettingsPage() {
               <li><strong>Critical</strong>: Items exceeding this time are flagged red (urgent action required)</li>
               <li><strong>Holiday Adjustment</strong>: Buffer days are ONLY added to MANUFACTURING stage (Oct-Dec). Other stages are automatically pushed back by the extended manufacturing time.</li>
               <li><strong>Saving Changes</strong>: Make your changes, then click the Save button to apply them</li>
+              <li><strong>ETA Recalculation</strong>: After updating thresholds, use the "Recalculate All ETAs" button to update customer delivery estimates</li>
             </ul>
           </div>
         </>
       )}
 
-      {/* Confirmation Dialog */}
+      {/* Initialize Thresholds Confirmation Dialog */}
       {showInitConfirm && (
         <div className="confirm-overlay" onClick={() => setShowInitConfirm(false)}>
           <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
@@ -433,6 +495,53 @@ export default function SettingsPage() {
                 className="btn-confirm"
               >
                 {saving ? 'Initializing...' : 'Initialize Defaults'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ETA Recalculation Confirmation Dialog */}
+      {showETAConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowETAConfirm(false)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>⚠️ Recalculate All Customer ETAs?</h3>
+            <p style={{ fontSize: '16px', marginBottom: '1rem' }}>
+              This will recalculate and <strong>overwrite</strong> the estimated delivery dates for <strong>ALL existing orders</strong>.
+            </p>
+            <div style={{ 
+              padding: '1rem', 
+              backgroundColor: 'rgba(255, 170, 0, 0.1)', 
+              border: '1px solid rgba(255, 170, 0, 0.3)',
+              borderRadius: '6px',
+              marginBottom: '1rem'
+            }}>
+              <p style={{ margin: '0 0 0.5rem 0', fontSize: '14px' }}>
+                <strong>What will happen:</strong>
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '14px' }}>
+                <li>All customer tracking pages will show updated ETA dates</li>
+                <li>ETAs will be calculated based on your current threshold settings</li>
+                <li>This process cannot be undone</li>
+              </ul>
+            </div>
+            <p style={{ marginTop: '1rem', color: 'var(--text-dim)', fontSize: '14px' }}>
+              <strong>When to use this:</strong> After updating stage thresholds or holiday settings to ensure all customer estimates are accurate.
+            </p>
+            <div className="confirm-actions">
+              <button 
+                onClick={() => setShowETAConfirm(false)} 
+                className="btn-cancel"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={recalculateETAs} 
+                disabled={recalculating}
+                className="btn-confirm"
+                style={{ backgroundColor: 'var(--accent)' }}
+              >
+                {recalculating ? 'Recalculating...' : 'Yes, Recalculate All ETAs'}
               </button>
             </div>
           </div>
