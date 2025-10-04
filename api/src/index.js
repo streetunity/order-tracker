@@ -79,7 +79,7 @@ console.log('✅ Operational reports module loaded');
 
 // Settings API
 const settingsRouter = createSettingsRouter(prisma);
-app.use('/settings', adminGuard, settingsRouter);
+app.use('/api/settings', adminGuard, settingsRouter);
 console.log('✅ Settings API loaded');
 
 // Cycle Time & Flow Reports
