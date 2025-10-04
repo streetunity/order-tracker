@@ -165,3 +165,28 @@ model User {
   itemStatusEvents  OrderItemStatusEvent[]
   auditLogs         AuditLog[]
 }
+
+// NEW: Stage threshold settings for reports
+model StageThreshold {
+  id              String   @id @default(cuid())
+  stage           String   @unique  // "MANUFACTURING", "TESTING", "SHIPPING", etc.
+  warningDays     Int      // Days before warning flag
+  criticalDays    Int      // Days before critical flag
+  description     String?  // Human-readable description
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?  // User who last updated
+  
+  @@index([stage])
+}
+
+// NEW: System settings for global configurations
+model SystemSetting {
+  id              String   @id @default(cuid())
+  key             String   @unique  // "HOLIDAY_SEASON_START", "HOLIDAY_SEASON_END", etc.
+  value           String   // Stored as string, parsed as needed
+  description     String?
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?
+  
+  @@index([key])
+}
