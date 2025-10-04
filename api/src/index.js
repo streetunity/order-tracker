@@ -1497,6 +1497,9 @@ app.post('/orders', authGuard, async (req, res) => {
 
     const normalizedItems = normalizeIncomingItems(items);
     const trackingToken = newTrackingToken();
+    
+    // AUTO-CALCULATE ETA DATE
+    const etaDate = calculateETADate(new Date());
 
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
@@ -1506,6 +1509,7 @@ app.post('/orders', authGuard, async (req, res) => {
           sku: sku ?? null,
           trackingToken,
           customerDocsLink: customerDocsLink ?? null,
+          etaDate: etaDate,
           createdByUserId: req.user.id,
           items: { create: normalizedItems }
         },
