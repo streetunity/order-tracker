@@ -29,6 +29,7 @@ import {
   calculateSlippage,
   paginateResults
 } from '../utils/reportHelpers.js';
+import { getStageThreshold, assessRiskLevel } from '../config/stageThresholds.js';
 
 export function createReportsRouter(prisma) {
   const router = Router();
@@ -376,12 +377,11 @@ export function createReportsRouter(prisma) {
   /**
    * GET /reports/ovar
    * Order Value at Risk - money tied up in late or aging orders
+   * Uses stage-specific thresholds based on SMT's documented manufacturing timeline
    */
   router.get('/ovar', adminGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
-      const { agingThreshold = 604800 } = req.query; // Default 7 days in seconds
-      const threshold = parseInt(agingThreshold, 10);
       const startTime = Date.now();
       const now = new Date();
 
@@ -418,21 +418,25 @@ export function createReportsRouter(prisma) {
       });
 
       let lateTotal = 0;
-      let agingTotal = 0;
+      let criticalTotal = 0;
+      let warningTotal = 0;
       const lateOrders = [];
-      const agingOrders = [];
+      const criticalOrders = [];
+      const warningOrders = [];
 
       for (const order of orders) {
         const orderValue = order.items.reduce((sum, item) => sum + (item.itemPrice || 0), 0);
         if (orderValue === 0) continue;
 
+        const currentStage = order.currentStage;
+        
         // Check if late (past ETA)
         const isLate = order.etaDate && now > new Date(order.etaDate);
         
-        // Check if aging (stuck in current stage too long)
+        // Check aging based on stage-specific thresholds
         const lastEvent = order.statusEvents[0];
         const timeInStage = lastEvent ? (now - new Date(lastEvent.createdAt)) / 1000 : 0;
-        const isAging = timeInStage > threshold;
+        const riskLevel = assessRiskLevel(currentStage, timeInStage);
 
         if (isLate) {
           lateTotal += orderValue;
@@ -444,13 +448,12 @@ export function createReportsRouter(prisma) {
             valueFormatted: formatCurrency(orderValue),
             etaDate: order.etaDate,
             daysLate: Math.floor((now - new Date(order.etaDate)) / (1000 * 60 * 60 * 24)),
-            currentStage: order.currentStage
+            currentStage: order.currentStage,
+            timeInStageDays: Math.floor(timeInStage / 86400)
           });
-        }
-
-        if (isAging && !isLate) {
-          agingTotal += orderValue;
-          agingOrders.push({
+        } else if (riskLevel === 'critical') {
+          criticalTotal += orderValue;
+          criticalOrders.push({
             orderId: order.id,
             accountName: order.account.name,
             poNumber: order.poNumber,
@@ -458,20 +461,35 @@ export function createReportsRouter(prisma) {
             valueFormatted: formatCurrency(orderValue),
             currentStage: order.currentStage,
             timeInStageDays: Math.floor(timeInStage / 86400),
-            lastUpdate: lastEvent?.createdAt
+            lastUpdate: lastEvent?.createdAt,
+            riskLevel: 'critical'
+          });
+        } else if (riskLevel === 'warning') {
+          warningTotal += orderValue;
+          warningOrders.push({
+            orderId: order.id,
+            accountName: order.account.name,
+            poNumber: order.poNumber,
+            value: orderValue,
+            valueFormatted: formatCurrency(orderValue),
+            currentStage: order.currentStage,
+            timeInStageDays: Math.floor(timeInStage / 86400),
+            lastUpdate: lastEvent?.createdAt,
+            riskLevel: 'warning'
           });
         }
       }
 
       // Sort by value
       lateOrders.sort((a, b) => b.value - a.value);
-      agingOrders.sort((a, b) => b.value - a.value);
+      criticalOrders.sort((a, b) => b.value - a.value);
+      warningOrders.sort((a, b) => b.value - a.value);
 
-      const totalAtRisk = lateTotal + agingTotal;
+      const totalAtRisk = lateTotal + criticalTotal + warningTotal;
 
       res.json({
         meta: {
-          agingThresholdDays: Math.floor(threshold / 86400),
+          note: 'Thresholds based on SMT manufacturing timeline document',
           filtersApplied: {
             accountId: filters.accountId,
             repId: filters.repId,
@@ -484,17 +502,22 @@ export function createReportsRouter(prisma) {
           lateTotal,
           lateTotalFormatted: formatCurrency(lateTotal),
           lateCount: lateOrders.length,
-          agingTotal,
-          agingTotalFormatted: formatCurrency(agingTotal),
-          agingCount: agingOrders.length
+          criticalTotal,
+          criticalTotalFormatted: formatCurrency(criticalTotal),
+          criticalCount: criticalOrders.length,
+          warningTotal,
+          warningTotalFormatted: formatCurrency(warningTotal),
+          warningCount: warningOrders.length
         },
         series: [
-          { category: 'Late Orders', value: lateTotal, count: lateOrders.length },
-          { category: 'Aging Orders', value: agingTotal, count: agingOrders.length }
+          { category: 'Late (Past ETA)', value: lateTotal, count: lateOrders.length, severity: 'high' },
+          { category: 'Critical Aging', value: criticalTotal, count: criticalOrders.length, severity: 'high' },
+          { category: 'Warning Aging', value: warningTotal, count: warningOrders.length, severity: 'medium' }
         ],
         rows: {
           late: lateOrders.slice(0, 20),
-          aging: agingOrders.slice(0, 20)
+          critical: criticalOrders.slice(0, 20),
+          warning: warningOrders.slice(0, 20)
         },
         debug: req.query.debug === '1' ? {
           executionTimeMs: Date.now() - startTime
