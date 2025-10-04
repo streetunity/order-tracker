@@ -83,10 +83,15 @@ console.log('✅ Reports module loaded');
 
 ---
 
-## Step 4: Restart Services
+## Step 4: Clear Cache & Restart Services
 
 ```bash
+# IMPORTANT: Always clear .next cache first!
+cd /var/www/order-tracker/web
+rm -rf .next
+
 # Restart backend
+cd /var/www/order-tracker
 pm2 restart order-tracker-backend
 
 # Check logs for success message
@@ -94,7 +99,7 @@ pm2 logs order-tracker-backend --lines 20
 # Look for: "✅ Reports module loaded"
 
 # Rebuild and restart frontend
-cd /var/www/order-tracker/web
+cd web
 npm run build
 pm2 restart order-tracker-frontend
 ```
@@ -139,6 +144,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN_HERE" \
 
 After completing the steps above, verify:
 
+- [ ] Cleared .next cache before building
 - [ ] No errors when restarting backend
 - [ ] See "✅ Reports module loaded" in PM2 logs
 - [ ] "Reports" button appears in navigation
@@ -159,14 +165,21 @@ After completing the steps above, verify:
 3. Check PM2 logs: `pm2 logs order-tracker-backend`
 
 **If "Reports" button doesn't appear:**
-1. Did you rebuild frontend? `cd web && npm run build`
-2. Hard refresh browser (Ctrl+Shift+R)
-3. Check browser console for errors (F12)
+1. **ALWAYS clear .next cache first!** `rm -rf web/.next`
+2. Did you rebuild frontend? `cd web && npm run build`
+3. Hard refresh browser (Ctrl+Shift+R)
+4. Check browser console for errors (F12)
 
 **If endpoints return 404:**
 1. Verify "✅ Reports module loaded" in logs
 2. Check router is mounted AFTER cookieParser
 3. Verify authGuard is imported
+
+**If old styling shows or pages don't update:**
+1. **Clear .next cache:** `rm -rf web/.next`
+2. Rebuild: `npm run build`
+3. Restart: `pm2 restart order-tracker-frontend`
+4. Hard refresh browser (Ctrl+Shift+R or Cmd+Shift+R)
 
 ---
 
@@ -192,5 +205,14 @@ After completing the steps above, verify:
 
 **Total manual changes: 3 code additions**
 **Estimated time: 10-15 minutes**
+
+**IMPORTANT:** Always remember to clear .next cache before rebuilding!
+
+```bash
+# The golden rule:
+rm -rf web/.next
+npm run build
+pm2 restart order-tracker-frontend
+```
 
 Everything else is done and ready to use! 🚀
