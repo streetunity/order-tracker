@@ -12,6 +12,7 @@ import { markItemAsOrdered, unmarkItemAsOrdered } from './ordered-endpoints.js';
 import { addAuditEndpoint } from './audit-endpoint-fix.js';
 import { createReportsRouter } from './routes/reports.js';
 import createOperationalReportsRouter from './routes/reportsOperational.js';
+import createCycleTimeReportsRouter from './routes/reportsCycleTime.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -74,6 +75,10 @@ const operationalReportsRouter = createOperationalReportsRouter(prisma);
 app.use('/reports', authGuard, operationalReportsRouter);
 console.log('✅ Operational reports module loaded');
 
+// Cycle Time & Flow Reports
+const cycleTimeReportsRouter = createCycleTimeReportsRouter(prisma);
+app.use('/reports', authGuard, cycleTimeReportsRouter);
+console.log('✅ Cycle time reports module loaded');
 
 // -----------------------------
 // Helpers
