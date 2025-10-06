@@ -100,33 +100,32 @@ function toFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-/**
- * Calculate estimated ETA date based on average stage durations
- * Uses the average of warning + critical days for each key stage
- */
 function calculateETADate(orderDate = new Date()) {
-  // Key stages and their expected durations (average of warning + critical)
+  // Only include stages up to delivery (exclude post-delivery stages)
   const stageDurations = {
     MANUFACTURING: (STAGE_THRESHOLDS.MANUFACTURING.warningDays + STAGE_THRESHOLDS.MANUFACTURING.criticalDays) / 2,
     TESTING: (STAGE_THRESHOLDS.TESTING.warningDays + STAGE_THRESHOLDS.TESTING.criticalDays) / 2,
     SHIPPING: (STAGE_THRESHOLDS.SHIPPING.warningDays + STAGE_THRESHOLDS.SHIPPING.criticalDays) / 2,
+    AT_SEA: (STAGE_THRESHOLDS.AT_SEA.warningDays + STAGE_THRESHOLDS.AT_SEA.criticalDays) / 2,
     SMT: (STAGE_THRESHOLDS.SMT.warningDays + STAGE_THRESHOLDS.SMT.criticalDays) / 2,
     QC: (STAGE_THRESHOLDS.QC.warningDays + STAGE_THRESHOLDS.QC.criticalDays) / 2,
-    DELIVERED: (STAGE_THRESHOLDS.DELIVERED.warningDays + STAGE_THRESHOLDS.DELIVERED.criticalDays) / 2,
-    ONSITE: (STAGE_THRESHOLDS.ONSITE.warningDays + STAGE_THRESHOLDS.ONSITE.criticalDays) / 2
+    DELIVERED: (STAGE_THRESHOLDS.DELIVERED.warningDays + STAGE_THRESHOLDS.DELIVERED.criticalDays) / 2
   };
   
-  // Calculate total days
   const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
   
-  console.log(`📅 ETA Calculation: ${totalDays} days from order date`);
-  
-  // Add days to order date
   const eta = new Date(orderDate);
   eta.setDate(eta.getDate() + Math.round(totalDays));
   
   return eta;
 }
+
+
+
+/**
+ * Calculate estimated ETA date based on average stage durations
+ * Uses the average of warning + critical days for each key stage
+ */
 
 async function checkOrderLock(orderId) {
   const order = await prisma.order.findUnique({
