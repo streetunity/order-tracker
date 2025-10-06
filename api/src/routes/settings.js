@@ -320,30 +320,45 @@ export function createSettingsRouter(prisma) {
    * Recalculate ETA dates for all orders based on current threshold settings
    * Admin-only endpoint that updates all customer tracking pages
    * 
-   * FIXED: Only includes stages up to DELIVERED (excludes ONSITE, COMPLETED, FOLLOW_UP)
+   * FIXED: Uses actual database values and only includes stages up to DELIVERED
    */
   router.post('/recalculate-etas', adminGuard, async (req, res) => {
     try {
       console.log('Starting ETA recalculation for all orders...');
       
-      // Calculate ETA date based on average stage durations from current thresholds
-      // FIXED: Only include stages up to delivery (exclude post-delivery stages)
+      // Get actual thresholds from database
+      const thresholds = await prisma.stageThreshold.findMany({
+        where: {
+          stage: {
+            in: ['MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA', 'SMT', 'QC', 'DELIVERED']
+          }
+        }
+      });
+      
+      // Build stage durations map from database values
+      const stageDurationsMap = {};
+      for (const threshold of thresholds) {
+        stageDurationsMap[threshold.stage] = (threshold.warningDays + threshold.criticalDays) / 2;
+      }
+      
+      // Use defaults for any missing stages
+      const stagesNeeded = ['MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA', 'SMT', 'QC', 'DELIVERED'];
+      for (const stage of stagesNeeded) {
+        if (!stageDurationsMap[stage]) {
+          // Use config defaults if not in database
+          stageDurationsMap[stage] = (STAGE_THRESHOLDS[stage]?.warningDays || 30 + STAGE_THRESHOLDS[stage]?.criticalDays || 60) / 2;
+        }
+      }
+      
+      console.log('Using stage durations from database:', stageDurationsMap);
+      
+      // Calculate ETA date using actual database values
       const calculateETADate = (orderDate) => {
-        const stageDurations = {
-          MANUFACTURING: (STAGE_THRESHOLDS.MANUFACTURING.warningDays + STAGE_THRESHOLDS.MANUFACTURING.criticalDays) / 2,
-          TESTING: (STAGE_THRESHOLDS.TESTING.warningDays + STAGE_THRESHOLDS.TESTING.criticalDays) / 2,
-          SHIPPING: (STAGE_THRESHOLDS.SHIPPING.warningDays + STAGE_THRESHOLDS.SHIPPING.criticalDays) / 2,
-          AT_SEA: (STAGE_THRESHOLDS.AT_SEA.warningDays + STAGE_THRESHOLDS.AT_SEA.criticalDays) / 2,
-          SMT: (STAGE_THRESHOLDS.SMT.warningDays + STAGE_THRESHOLDS.SMT.criticalDays) / 2,
-          QC: (STAGE_THRESHOLDS.QC.warningDays + STAGE_THRESHOLDS.QC.criticalDays) / 2,
-          DELIVERED: (STAGE_THRESHOLDS.DELIVERED.warningDays + STAGE_THRESHOLDS.DELIVERED.criticalDays) / 2
-          // Explicitly excluding: ONSITE, COMPLETED, FOLLOW_UP
-        };
-        
-        const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
+        const totalDays = Object.values(stageDurationsMap).reduce((sum, days) => sum + days, 0);
         const eta = new Date(orderDate);
         eta.setDate(eta.getDate() + Math.round(totalDays));
         
+        console.log(`Order date: ${orderDate}, Total days: ${totalDays}, New ETA: ${eta}`);
         return eta;
       };
       
@@ -374,7 +389,8 @@ export function createSettingsRouter(prisma) {
       res.json({
         success: true,
         message: `Successfully recalculated ${updated} order ETAs`,
-        ordersUpdated: updated
+        ordersUpdated: updated,
+        stageDurations: stageDurationsMap
       });
       
     } catch (error) {
