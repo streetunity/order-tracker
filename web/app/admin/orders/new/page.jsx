@@ -19,7 +19,16 @@ export default function NewOrderPage() {
     orderDate: new Date().toISOString().split('T')[0], // REQUIRED: Date field for ETA calculation
     sku: "", // Still sku in backend - will store user name
     customerDocsLink: "", // Customer Documents Link
-    items: [{ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" }],
+    items: [{ 
+      productCode: "", 
+      qty: 1, 
+      serialNumber: "", 
+      modelNumber: "", 
+      voltage: "", 
+      laserWattage: "", 
+      notes: "",
+      hasExtendedShipping: false // NEW: Extended shipping flag
+    }],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -184,7 +193,16 @@ export default function NewOrderPage() {
   function addItem() {
     setFormData({
       ...formData,
-      items: [...formData.items, { productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" }],
+      items: [...formData.items, { 
+        productCode: "", 
+        qty: 1, 
+        serialNumber: "", 
+        modelNumber: "", 
+        voltage: "", 
+        laserWattage: "", 
+        notes: "",
+        hasExtendedShipping: false 
+      }],
     });
   }
 
@@ -226,6 +244,9 @@ export default function NewOrderPage() {
   if (!user) {
     return null;
   }
+
+  // Check if any item has extended shipping
+  const hasExtendedShipping = formData.items.some(item => item.hasExtendedShipping);
 
   return (
     <main style={{ padding: "40px 20px", maxWidth: "800px", margin: "0 auto" }}>
@@ -272,6 +293,21 @@ export default function NewOrderPage() {
           color: "#fecaca",
         }}>
           {error}
+        </div>
+      )}
+
+      {/* Extended Shipping Notice */}
+      {hasExtendedShipping && (
+        <div style={{
+          padding: "12px",
+          marginBottom: "20px",
+          backgroundColor: "rgba(0, 255, 170, 0.1)",
+          border: "1px solid var(--success)",
+          borderRadius: "6px",
+          color: "var(--success)",
+        }}>
+          ⭐ <strong>Extended Shipping Active:</strong> This order contains items marked for extended shipping. 
+          Additional lead time will be added to the ETA calculation.
         </div>
       )}
 
@@ -519,10 +555,28 @@ export default function NewOrderPage() {
             <div key={index} style={{
               marginBottom: "24px",
               padding: "16px",
-              border: "1px solid var(--border)",
+              border: item.hasExtendedShipping ? "2px solid var(--success)" : "1px solid var(--border)",
               borderRadius: "8px",
-              backgroundColor: "var(--panel)"
+              backgroundColor: item.hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "var(--panel)",
+              position: "relative"
             }}>
+              {/* Extended Shipping Badge */}
+              {item.hasExtendedShipping && (
+                <div style={{
+                  position: "absolute",
+                  top: "-10px",
+                  right: "20px",
+                  backgroundColor: "var(--success)",
+                  color: "#000",
+                  padding: "4px 12px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  fontWeight: "bold",
+                }}>
+                  ⭐ EXTENDED SHIPPING
+                </div>
+              )}
+
               {/* First row: Product code and Quantity */}
               <div style={{
                 display: "flex",
@@ -699,6 +753,44 @@ export default function NewOrderPage() {
                     resize: "vertical",
                   }}
                 />
+              </div>
+              
+              {/* Extended Shipping Checkbox */}
+              <div style={{ 
+                marginBottom: "12px", 
+                padding: "12px", 
+                backgroundColor: item.hasExtendedShipping ? "rgba(0, 255, 170, 0.1)" : "rgba(255, 255, 255, 0.02)",
+                borderRadius: "6px",
+                border: "1px solid " + (item.hasExtendedShipping ? "var(--success)" : "var(--border)")
+              }}>
+                <label style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  cursor: "pointer",
+                  fontWeight: item.hasExtendedShipping ? "500" : "normal",
+                  color: item.hasExtendedShipping ? "var(--success)" : "var(--text)"
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={item.hasExtendedShipping}
+                    onChange={(e) => updateItem(index, "hasExtendedShipping", e.target.checked)}
+                    style={{ 
+                      marginRight: "8px", 
+                      width: "18px", 
+                      height: "18px",
+                      cursor: "pointer"
+                    }}
+                  />
+                  <span>⭐ Extended Shipping Required (Special Machine)</span>
+                </label>
+                <div style={{ 
+                  fontSize: "11px", 
+                  color: "var(--text-dim)", 
+                  marginTop: "4px", 
+                  marginLeft: "26px" 
+                }}>
+                  Check this if the item requires extended lead time (adds extra days to ETA)
+                </div>
               </div>
               
               {/* Remove button */}
