@@ -181,6 +181,16 @@ export function createSettingsRouter(prisma) {
         };
       }
 
+      // Add extended shipping days default
+      if (!settingsObj.EXTENDED_SHIPPING_DAYS) {
+        settingsObj.EXTENDED_SHIPPING_DAYS = {
+          value: '30',
+          description: 'Additional days for items requiring extended shipping (special machines)',
+          updatedAt: new Date(),
+          updatedBy: null
+        };
+      }
+
       res.json(settingsObj);
     } catch (error) {
       console.error('Get system settings error:', error);
@@ -210,10 +220,10 @@ export function createSettingsRouter(prisma) {
         }
       }
 
-      if (key === 'HOLIDAY_BUFFER_DAYS') {
+      if (key === 'HOLIDAY_BUFFER_DAYS' || key === 'EXTENDED_SHIPPING_DAYS') {
         const days = parseInt(value, 10);
         if (isNaN(days) || days < 0 || days > 100) {
-          return res.status(400).json({ error: 'Buffer days must be between 0 and 100' });
+          return res.status(400).json({ error: 'Days must be between 0 and 100' });
         }
       }
 
@@ -320,7 +330,9 @@ export function createSettingsRouter(prisma) {
    * Recalculate ETA dates for all orders based on current threshold settings
    * Admin-only endpoint that updates all customer tracking pages
    * 
-   * UPDATED: Uses orderDate field (when available) instead of createdAt for accurate calculations
+   * UPDATED: 
+   * - Uses orderDate field (when available) instead of createdAt
+   * - Checks for hasExtendedShipping on any items and adds extra days if needed
    */
   router.post('/recalculate-etas', adminGuard, async (req, res) => {
     try {
@@ -334,6 +346,12 @@ export function createSettingsRouter(prisma) {
           }
         }
       });
+      
+      // Get extended shipping days setting
+      const extendedShippingSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'EXTENDED_SHIPPING_DAYS' }
+      });
+      const extendedShippingDays = parseInt(extendedShippingSetting?.value || '30', 10);
       
       // Build stage durations map from database values
       const stageDurationsMap = {};
@@ -351,34 +369,48 @@ export function createSettingsRouter(prisma) {
       }
       
       console.log('Using stage durations from database:', stageDurationsMap);
+      console.log('Extended shipping days:', extendedShippingDays);
       
       // Calculate ETA date using actual database values
-      const calculateETADate = (orderDate) => {
+      const calculateETADate = (orderDate, hasExtendedItems) => {
         const totalDays = Object.values(stageDurationsMap).reduce((sum, days) => sum + days, 0);
-        const eta = new Date(orderDate);
-        eta.setDate(eta.getDate() + Math.round(totalDays));
+        const finalDays = hasExtendedItems ? totalDays + extendedShippingDays : totalDays;
         
-        console.log(`Order date: ${orderDate}, Total days: ${totalDays}, New ETA: ${eta}`);
+        const eta = new Date(orderDate);
+        eta.setDate(eta.getDate() + Math.round(finalDays));
+        
+        console.log(`Order date: ${orderDate}, Base days: ${totalDays}, Extended: ${hasExtendedItems}, Final days: ${finalDays}, New ETA: ${eta}`);
         return eta;
       };
       
-      // Get all orders with orderDate included
+      // Get all orders with orderDate and items included
       const orders = await prisma.order.findMany({
         select: {
           id: true,
           orderDate: true,  // Use orderDate field
           createdAt: true,  // Fallback to createdAt if orderDate is null
           etaDate: true,
-          poNumber: true    // For logging
+          poNumber: true,   // For logging
+          items: {
+            select: {
+              hasExtendedShipping: true
+            }
+          }
         }
       });
       
       // Recalculate ETAs for all orders
       let updated = 0;
+      let extendedCount = 0;
+      
       for (const order of orders) {
+        // Check if any items have extended shipping
+        const hasExtendedItems = order.items?.some(item => item.hasExtendedShipping === true) || false;
+        if (hasExtendedItems) extendedCount++;
+        
         // Use orderDate if available, otherwise fall back to createdAt
         const effectiveOrderDate = order.orderDate || order.createdAt;
-        const newETA = calculateETADate(effectiveOrderDate);
+        const newETA = calculateETADate(effectiveOrderDate, hasExtendedItems);
         
         await prisma.order.update({
           where: { id: order.id },
@@ -393,13 +425,15 @@ export function createSettingsRouter(prisma) {
         }
       }
       
-      console.log(`✅ Successfully recalculated ${updated} order ETAs`);
+      console.log(`✅ Successfully recalculated ${updated} order ETAs (${extendedCount} with extended shipping)`);
       
       res.json({
         success: true,
-        message: `Successfully recalculated ${updated} order ETAs using orderDate field`,
+        message: `Successfully recalculated ${updated} order ETAs (${extendedCount} with extended shipping)`,
         ordersUpdated: updated,
-        stageDurations: stageDurationsMap
+        ordersWithExtendedShipping: extendedCount,
+        stageDurations: stageDurationsMap,
+        extendedShippingDays: extendedShippingDays
       });
       
     } catch (error) {
