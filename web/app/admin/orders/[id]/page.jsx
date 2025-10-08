@@ -12,7 +12,16 @@ export default function EditOrderPage({ params }) {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [newItem, setNewItem] = useState({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" });
+  const [newItem, setNewItem] = useState({ 
+    productCode: "", 
+    qty: 1, 
+    serialNumber: "", 
+    modelNumber: "", 
+    voltage: "", 
+    laserWattage: "", 
+    notes: "",
+    hasExtendedShipping: false // NEW: Extended shipping flag
+  });
   const [saving, setSaving] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
@@ -260,7 +269,7 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  async function saveItem(itemId, productCode, qty, serialNumber, modelNumber, voltage, laserWattage, notes, itemPrice, privateItemNote) {
+  async function saveItem(itemId, productCode, qty, serialNumber, modelNumber, voltage, laserWattage, notes, itemPrice, privateItemNote, hasExtendedShipping) {
     try {
       setSaving(true);
       const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
@@ -278,7 +287,8 @@ export default function EditOrderPage({ params }) {
           laserWattage: laserWattage || null,
           notes,
           itemPrice: itemPrice || null,
-          privateItemNote: privateItemNote || null
+          privateItemNote: privateItemNote || null,
+          hasExtendedShipping: hasExtendedShipping || false
         }),
       });
       
@@ -326,6 +336,7 @@ export default function EditOrderPage({ params }) {
     const voltage = newItem.voltage.trim();
     const laserWattage = newItem.laserWattage.trim();
     const notes = newItem.notes.trim();
+    const hasExtendedShipping = newItem.hasExtendedShipping || false;
     
     if (!productCode) return alert("Item name is required");
     if (!Number.isFinite(qty) || qty <= 0) return alert("Quantity must be a positive number");
@@ -346,7 +357,8 @@ export default function EditOrderPage({ params }) {
           voltage, 
           laserWattage: laserWattage || null,
           notes,
-}),
+          hasExtendedShipping
+        }),
       });
       
       if (!res.ok) {
@@ -354,7 +366,7 @@ export default function EditOrderPage({ params }) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       
-      setNewItem({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" });
+      setNewItem({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "", hasExtendedShipping: false });
       await load();
     } catch (e) {
       alert(`Failed to add item: ${e.message}`);
@@ -366,6 +378,9 @@ export default function EditOrderPage({ params }) {
   if (!user) {
     return null;
   }
+
+  // Check if any item in the order has extended shipping
+  const hasExtendedShipping = order?.items?.some(item => item.hasExtendedShipping === true) || false;
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: 16 }}>
@@ -400,6 +415,21 @@ export default function EditOrderPage({ params }) {
         <div className="status">Order not found.</div>
       ) : (
         <>
+          {/* Extended Shipping Notice */}
+          {hasExtendedShipping && (
+            <div style={{
+              padding: "12px",
+              marginBottom: "16px",
+              backgroundColor: "rgba(0, 255, 170, 0.1)",
+              border: "1px solid var(--success)",
+              borderRadius: "6px",
+              color: "var(--success)"
+            }}>
+              ⭐ <strong>Extended Shipping Active:</strong> This order contains items marked for extended shipping. 
+              The customer tracking page will show an extended ETA.
+            </div>
+          )}
+
           {/* Lock Status Banner */}
           {order.isLocked && (
             <div style={{
@@ -415,7 +445,7 @@ export default function EditOrderPage({ params }) {
               <div>
                 <strong style={{ color: "#fecaca" }}>🔒 This order is locked</strong>
                 <div style={{ color: "#fca5a5", fontSize: "12px", marginTop: "4px" }}>
-                  Item details cannot be edited while the order is locked. Admin fields (price/purchasing notes) remain editable.
+                  Item details cannot be edited while the order is locked. Admin fields (price/purchasing notes/extended shipping) remain editable.
                   {order.lockedAt && (
                     <span> Locked on {new Date(order.lockedAt).toLocaleDateString()} by {order.lockedBy || "Admin"}</span>
                   )}
@@ -532,6 +562,11 @@ export default function EditOrderPage({ params }) {
                     <strong style={{ color: "#ef4444", fontSize: "12px" }}>ETA:</strong>
                     <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
                       {new Date(order.etaDate).toLocaleDateString()}
+                      {hasExtendedShipping && (
+                        <span style={{ fontSize: "11px", color: "var(--success)", marginLeft: "8px" }}>
+                          (Extended)
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -564,7 +599,7 @@ export default function EditOrderPage({ params }) {
                 marginBottom: "8px",
                 fontStyle: "italic"
               }}>
-                Note: Item editing is disabled while order is locked. You can still move items through stages.
+                Note: Item editing is disabled while order is locked. Admins can still edit price, purchasing notes, and extended shipping.
               </div>
             )}
             <div style={{ overflowX: "auto" }}>
@@ -590,8 +625,8 @@ export default function EditOrderPage({ params }) {
                       <EditableRow
                         key={it.id}
                         item={it}
-                        onSave={(name, qty, serial, model, voltage, laserWattage, notes, itemPrice, privateItemNote) => 
-                          saveItem(it.id, name, qty, serial, model, voltage, laserWattage, notes, itemPrice, privateItemNote)}
+                        onSave={(name, qty, serial, model, voltage, laserWattage, notes, itemPrice, privateItemNote, hasExtendedShipping) => 
+                          saveItem(it.id, name, qty, serial, model, voltage, laserWattage, notes, itemPrice, privateItemNote, hasExtendedShipping)}
                         onDelete={() => deleteItem(it.id)}
                         onMarkOrdered={() => markItemOrdered(it.id)}
                         onUnmarkOrdered={() => {
@@ -682,6 +717,18 @@ export default function EditOrderPage({ params }) {
                       onChange={e => setNewItem(v => ({ ...v, notes: e.target.value }))}
                       style={{ width: "180px" }}
                     />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="checkbox"
+                      id="extendedShipping"
+                      checked={newItem.hasExtendedShipping}
+                      onChange={e => setNewItem(v => ({ ...v, hasExtendedShipping: e.target.checked }))}
+                      style={{ width: "16px", height: "16px" }}
+                    />
+                    <label htmlFor="extendedShipping" style={{ fontSize: "12px", color: newItem.hasExtendedShipping ? "var(--success)" : "#6b7280" }}>
+                      ⭐ Extended
+                    </label>
                   </div>
                   <button className="btn primary" type="submit" disabled={saving}>Add Item</button>
                 </div>
@@ -949,6 +996,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
   const [notes, setNotes] = useState(item.notes || "");
   const [itemPrice, setItemPrice] = useState(item.itemPrice === null || item.itemPrice === undefined ? "" : item.itemPrice.toString());
   const [privateItemNote, setPrivateItemNote] = useState(item.privateItemNote || "");
+  const [hasExtendedShipping, setHasExtendedShipping] = useState(item.hasExtendedShipping || false); // NEW
 
   // Split change detection into regular fields and admin fields
   const regularFieldsChanged = 
@@ -962,7 +1010,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
 
   const adminFieldsChanged = isAdmin && (
     (itemPrice === "" ? null : parseFloat(itemPrice)) !== (item.itemPrice || null) ||
-    privateItemNote.trim() !== (item.privateItemNote || "")
+    privateItemNote.trim() !== (item.privateItemNote || "") ||
+    hasExtendedShipping !== (item.hasExtendedShipping || false)
   );
 
   // When locked, only admin fields can be changed (for admins)
@@ -975,7 +1024,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
   const handleSave = () => {
     const priceValue = itemPrice === "" ? null : parseFloat(itemPrice);
     onSave(name.trim(), Number(qty || 1), serialNumber.trim(), modelNumber.trim(), 
-           voltage.trim(), laserWattage.trim(), notes.trim(), priceValue, privateItemNote.trim());
+           voltage.trim(), laserWattage.trim(), notes.trim(), priceValue, privateItemNote.trim(), hasExtendedShipping);
   };
 
   const handlePriceChange = (e) => {
@@ -988,15 +1037,20 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
 
   return (
     <>
-      <tr>
+      <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent" }}>
         <td>
-          <input 
-            className="input" 
-            value={name} 
-            onChange={e => setName(e.target.value)} 
-            disabled={isLocked}
-            style={{ width: "145px", opacity: isLocked ? 0.6 : 1 }}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <input 
+              className="input" 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              disabled={isLocked}
+              style={{ width: "125px", opacity: isLocked ? 0.6 : 1 }}
+            />
+            {hasExtendedShipping && (
+              <span style={{ color: "var(--success)", fontSize: "16px" }} title="Extended Shipping">⭐</span>
+            )}
+          </div>
         </td>
         <td>
           <input 
@@ -1138,7 +1192,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
         </td>
       </tr>
       {isAdmin && (
-        <tr>
+        <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent" }}>
           <td colSpan="8" style={{ padding: "8px" }}>
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
@@ -1168,7 +1222,37 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                   />
                 </div>
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  type="checkbox"
+                  id={`extended-${item.id}`}
+                  checked={hasExtendedShipping}
+                  onChange={e => setHasExtendedShipping(e.target.checked)}
+                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                />
+                <label 
+                  htmlFor={`extended-${item.id}`} 
+                  style={{ 
+                    fontSize: "12px", 
+                    color: hasExtendedShipping ? "var(--success)" : "#6b7280",
+                    cursor: "pointer",
+                    fontWeight: hasExtendedShipping ? "500" : "normal"
+                  }}
+                >
+                  ⭐ Extended Shipping
+                </label>
+              </div>
             </div>
+            {hasExtendedShipping && (
+              <div style={{ 
+                marginTop: "4px", 
+                fontSize: "11px", 
+                color: "var(--success)", 
+                fontStyle: "italic" 
+              }}>
+                This item requires extended lead time and will add extra days to the ETA
+              </div>
+            )}
           </td>
           <td></td>
         </tr>
