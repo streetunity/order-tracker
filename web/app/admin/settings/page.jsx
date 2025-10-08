@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [localStartDate, setLocalStartDate] = useState('');
   const [localEndDate, setLocalEndDate] = useState('');
   const [localBufferDays, setLocalBufferDays] = useState('');
+  const [localExtendedDays, setLocalExtendedDays] = useState(''); // NEW: Extended shipping days
   const [hasUnsavedHolidayChanges, setHasUnsavedHolidayChanges] = useState(false);
   
   // Local state for stage thresholds
@@ -54,8 +55,9 @@ export default function SettingsPage() {
     });
     
     const averageTotal = (warningTotal + criticalTotal) / 2;
+    const extendedTotal = averageTotal + parseInt(localExtendedDays || '0', 10);
     
-    return { warningTotal, criticalTotal, averageTotal };
+    return { warningTotal, criticalTotal, averageTotal, extendedTotal };
   };
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function SettingsPage() {
         setLocalStartDate(systemData.HOLIDAY_SEASON_START?.value || '10-01');
         setLocalEndDate(systemData.HOLIDAY_SEASON_END?.value || '12-31');
         setLocalBufferDays(systemData.HOLIDAY_BUFFER_DAYS?.value || '25');
+        setLocalExtendedDays(systemData.EXTENDED_SHIPPING_DAYS?.value || '30'); // Initialize extended days
         setHasUnsavedHolidayChanges(false);
         setHasUnsavedThresholdChanges(false);
       }
@@ -184,10 +187,9 @@ export default function SettingsPage() {
     }
   };
 
-  const saveHolidaySettings = async () => {
+  const saveSpecialSettings = async () => {
     try {
       setSaving(true);
-      console.log('Saving holiday settings:', { localStartDate, localEndDate, localBufferDays });
       
       // Validate date format before sending
       const dateRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/;
@@ -210,7 +212,15 @@ export default function SettingsPage() {
         return;
       }
       
-      // Save all three settings
+      // Validate extended shipping days
+      const extendedNum = parseInt(localExtendedDays, 10);
+      if (isNaN(extendedNum) || extendedNum < 0 || extendedNum > 100) {
+        setMessage('Error: Extended shipping days must be between 0 and 100');
+        setSaving(false);
+        return;
+      }
+      
+      // Save all settings
       const promises = [
         fetch(`/api/settings/system/HOLIDAY_SEASON_START`, {
           method: 'PATCH',
@@ -226,6 +236,11 @@ export default function SettingsPage() {
           method: 'PATCH',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ value: localBufferDays })
+        }),
+        fetch(`/api/settings/system/EXTENDED_SHIPPING_DAYS`, {
+          method: 'PATCH',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: localExtendedDays })
         })
       ];
 
@@ -244,26 +259,26 @@ export default function SettingsPage() {
 
       // All successful
       const updates = await Promise.all(results.map(r => r.json()));
-      console.log('All settings saved successfully:', updates);
       
       setSystemSettings(prev => ({
         ...prev,
         HOLIDAY_SEASON_START: { ...prev.HOLIDAY_SEASON_START, value: updates[0].value },
         HOLIDAY_SEASON_END: { ...prev.HOLIDAY_SEASON_END, value: updates[1].value },
-        HOLIDAY_BUFFER_DAYS: { ...prev.HOLIDAY_BUFFER_DAYS, value: updates[2].value }
+        HOLIDAY_BUFFER_DAYS: { ...prev.HOLIDAY_BUFFER_DAYS, value: updates[2].value },
+        EXTENDED_SHIPPING_DAYS: { ...prev.EXTENDED_SHIPPING_DAYS, value: updates[3].value }
       }));
-      setMessage('✓ Holiday settings saved successfully');
+      setMessage('✓ Special settings saved successfully');
       setHasUnsavedHolidayChanges(false);
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Save error:', error);
-      setMessage(`Error saving holiday settings: ${error.message}`);
+      setMessage(`Error saving settings: ${error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleHolidayChange = (setter) => (e) => {
+  const handleSpecialChange = (setter) => (e) => {
     setter(e.target.value);
     setHasUnsavedHolidayChanges(true);
   };
@@ -281,7 +296,7 @@ export default function SettingsPage() {
 
   if (!user || user.role !== 'ADMIN') return null;
   
-  const { warningTotal, criticalTotal, averageTotal } = calculateETATotals();
+  const { warningTotal, criticalTotal, averageTotal, extendedTotal } = calculateETATotals();
 
   return (
     <main className="settings-container">
@@ -302,21 +317,20 @@ export default function SettingsPage() {
         <div className="loading">Loading settings...</div>
       ) : (
         <>
-          {/* System Settings Section */}
+          {/* Special Settings Section */}
           <section className="settings-section">
-            <h2>Holiday Season Configuration</h2>
+            <h2>Special Shipping & Holiday Configuration</h2>
             <p className="section-desc">
-              During the holiday season (Oct 1 - Dec 31), the MANUFACTURING stage gets {systemSettings.HOLIDAY_BUFFER_DAYS?.value || '25'} extra days 
-              added to its thresholds. Other stages remain unchanged but are naturally delayed by the extended manufacturing time.
+              Configure holiday season dates and special shipping requirements for extended lead time items.
             </p>
 
-            <div className="settings-grid">
+            <div className="settings-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
               <div className="setting-item">
                 <label>Holiday Season Start (MM-DD)</label>
                 <input
                   type="text"
                   value={localStartDate}
-                  onChange={handleHolidayChange(setLocalStartDate)}
+                  onChange={handleSpecialChange(setLocalStartDate)}
                   placeholder="10-01"
                   pattern="\d{2}-\d{2}"
                 />
@@ -328,7 +342,7 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   value={localEndDate}
-                  onChange={handleHolidayChange(setLocalEndDate)}
+                  onChange={handleSpecialChange(setLocalEndDate)}
                   placeholder="12-31"
                   pattern="\d{2}-\d{2}"
                 />
@@ -340,22 +354,37 @@ export default function SettingsPage() {
                 <input
                   type="number"
                   value={localBufferDays}
-                  onChange={handleHolidayChange(setLocalBufferDays)}
+                  onChange={handleSpecialChange(setLocalBufferDays)}
                   min="0"
                   max="100"
                 />
-                <small>Extra days for MANUFACTURING stage only (0-100)</small>
+                <small>Extra days for MANUFACTURING stage only during holidays (0-100)</small>
+              </div>
+
+              <div className="setting-item">
+                <label style={{ color: 'var(--success)' }}>Extended Shipping Days ⭐</label>
+                <input
+                  type="number"
+                  value={localExtendedDays}
+                  onChange={handleSpecialChange(setLocalExtendedDays)}
+                  min="0"
+                  max="100"
+                  style={{ borderColor: 'var(--success)' }}
+                />
+                <small style={{ color: 'var(--success)' }}>
+                  Additional days for items marked as "Extended Shipping" (special machines)
+                </small>
               </div>
             </div>
 
             <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
               <button 
-                onClick={saveHolidaySettings} 
+                onClick={saveSpecialSettings} 
                 disabled={saving || !hasUnsavedHolidayChanges}
                 className="btn-init"
                 style={{ opacity: (!hasUnsavedHolidayChanges || saving) ? 0.5 : 1 }}
               >
-                {saving ? 'Saving...' : 'Save Holiday Settings'}
+                {saving ? 'Saving...' : 'Save Special Settings'}
               </button>
               {hasUnsavedHolidayChanges && !saving && (
                 <span style={{ color: 'var(--accent)', fontSize: '14px' }}>
@@ -461,7 +490,7 @@ export default function SettingsPage() {
                     borderTop: '2px solid var(--accent)'
                   }}>
                     <td className="stage-name">
-                      ETA CALCULATION TOTALS
+                      STANDARD ETA TOTALS
                       <div style={{ 
                         fontSize: '12px', 
                         fontWeight: 'normal', 
@@ -485,7 +514,42 @@ export default function SettingsPage() {
                         marginTop: '4px',
                         color: 'var(--text-dim)'
                       }}>
-                        This is the number of days that will be added to order date for ETA
+                        Base ETA calculation for standard items
+                      </div>
+                    </td>
+                  </tr>
+                  
+                  {/* Extended Shipping Totals */}
+                  <tr style={{ 
+                    backgroundColor: 'rgba(0, 255, 170, 0.1)', 
+                    fontWeight: 'bold'
+                  }}>
+                    <td className="stage-name" style={{ color: 'var(--success)' }}>
+                      EXTENDED SHIPPING TOTALS ⭐
+                      <div style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 'normal', 
+                        marginTop: '4px',
+                        color: 'var(--text-dim)'
+                      }}>
+                        (For items marked as Extended Shipping)
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center', color: 'var(--success)' }}>
+                      {warningTotal + parseInt(localExtendedDays || '0', 10)} days
+                    </td>
+                    <td style={{ textAlign: 'center', color: 'var(--success)' }}>
+                      {criticalTotal + parseInt(localExtendedDays || '0', 10)} days
+                    </td>
+                    <td style={{ color: 'var(--success)' }}>
+                      Average: {extendedTotal.toFixed(1)} days
+                      <div style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 'normal', 
+                        marginTop: '4px',
+                        color: 'var(--text-dim)'
+                      }}>
+                        Standard ETA + {localExtendedDays || '0'} extended days
                       </div>
                     </td>
                   </tr>
@@ -501,15 +565,28 @@ export default function SettingsPage() {
               border: '1px solid rgba(0, 255, 170, 0.2)',
               borderRadius: '8px'
             }}>
-              <h4 style={{ marginTop: 0, color: 'var(--success)' }}>📅 ETA Calculation Example</h4>
-              <p style={{ margin: '0.5rem 0', fontSize: '14px' }}>
-                For an order placed today, the customer tracking page will show an ETA of:
-              </p>
-              <p style={{ margin: '0.5rem 0', fontSize: '16px', fontWeight: 'bold', color: 'var(--success)' }}>
-                Order Date + {averageTotal.toFixed(0)} days = Estimated Delivery Date
-              </p>
-              <p style={{ margin: '0.5rem 0 0', fontSize: '12px', color: 'var(--text-dim)' }}>
-                Note: Post-delivery stages (ONSITE, COMPLETED, FOLLOW_UP) are NOT included in customer ETA calculations.
+              <h4 style={{ marginTop: 0, color: 'var(--success)' }}>📅 ETA Calculation Examples</h4>
+              
+              <div style={{ marginBottom: '1rem' }}>
+                <p style={{ margin: '0.5rem 0', fontSize: '14px', fontWeight: 'bold' }}>
+                  Standard Items:
+                </p>
+                <p style={{ margin: '0.25rem 0 0.5rem 1.5rem', fontSize: '14px', color: 'var(--text-dim)' }}>
+                  Order Date + <strong>{averageTotal.toFixed(0)} days</strong> = Estimated Delivery
+                </p>
+              </div>
+              
+              <div>
+                <p style={{ margin: '0.5rem 0', fontSize: '14px', fontWeight: 'bold', color: 'var(--success)' }}>
+                  Extended Shipping Items (Special Machines):
+                </p>
+                <p style={{ margin: '0.25rem 0 0.5rem 1.5rem', fontSize: '14px', color: 'var(--text-dim)' }}>
+                  Order Date + <strong>{extendedTotal.toFixed(0)} days</strong> = Estimated Delivery
+                </p>
+              </div>
+              
+              <p style={{ margin: '1rem 0 0', fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                Note: If ANY item in an order requires extended shipping, the entire order uses the extended ETA.
               </p>
             </div>
 
@@ -547,10 +624,12 @@ export default function SettingsPage() {
             }}>
               <p style={{ margin: 0, color: 'var(--accent)' }}>
                 ⚠️ <strong>Warning:</strong> This will overwrite ALL existing ETA dates on customer tracking pages. 
-                Use this after changing threshold values to ensure all customers see updated delivery estimates.
               </p>
-              <p style={{ marginTop: '0.5rem', margin: 0, fontSize: '14px' }}>
-                Current calculation: Order Date + <strong>{averageTotal.toFixed(0)} days</strong> = ETA
+              <p style={{ marginTop: '0.5rem', fontSize: '14px' }}>
+                Standard orders: Order Date + <strong>{averageTotal.toFixed(0)} days</strong> = ETA
+              </p>
+              <p style={{ marginTop: '0.25rem', fontSize: '14px' }}>
+                Extended shipping orders: Order Date + <strong>{extendedTotal.toFixed(0)} days</strong> = ETA
               </p>
             </div>
 
@@ -572,10 +651,10 @@ export default function SettingsPage() {
             <ul>
               <li><strong>Warning</strong>: Items exceeding this time are flagged yellow (attention needed)</li>
               <li><strong>Critical</strong>: Items exceeding this time are flagged red (urgent action required)</li>
-              <li><strong>Holiday Adjustment</strong>: Buffer days are ONLY added to MANUFACTURING stage (Oct-Dec). Other stages are automatically pushed back by the extended manufacturing time.</li>
-              <li><strong>ETA Calculation</strong>: Customer delivery estimates use the average of Warning and Critical days for stages through DELIVERED only</li>
-              <li><strong>Saving Changes</strong>: Make your changes, then click the Save button to apply them</li>
-              <li><strong>ETA Recalculation</strong>: After updating thresholds, use the "Recalculate All ETAs" button to update customer delivery estimates</li>
+              <li><strong>Holiday Adjustment</strong>: Buffer days are ONLY added to MANUFACTURING stage (Oct-Dec)</li>
+              <li><strong style={{ color: 'var(--success)' }}>Extended Shipping</strong>: Additional days for special machines that require extended lead times</li>
+              <li><strong>ETA Calculation</strong>: Uses average of Warning and Critical days for stages through DELIVERED</li>
+              <li><strong>Order-Level ETA</strong>: If ANY item has extended shipping, the entire order uses the extended timeline</li>
             </ul>
           </div>
         </>
@@ -629,12 +708,14 @@ export default function SettingsPage() {
               </p>
               <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '14px' }}>
                 <li>All customer tracking pages will show updated ETA dates</li>
-                <li>ETAs will be calculated as: Order Date + <strong>{averageTotal.toFixed(0)} days</strong></li>
+                <li>Standard items: Order Date + <strong>{averageTotal.toFixed(0)} days</strong></li>
+                <li>Extended shipping items: Order Date + <strong>{extendedTotal.toFixed(0)} days</strong></li>
+                <li>Orders with ANY extended shipping items will use the extended timeline</li>
                 <li>This process cannot be undone</li>
               </ul>
             </div>
             <p style={{ marginTop: '1rem', color: 'var(--text-dim)', fontSize: '14px' }}>
-              <strong>When to use this:</strong> After updating stage thresholds or holiday settings to ensure all customer estimates are accurate.
+              <strong>When to use this:</strong> After updating stage thresholds or extended shipping days.
             </p>
             <div className="confirm-actions">
               <button 
