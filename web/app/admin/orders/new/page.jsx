@@ -15,9 +15,10 @@ export default function NewOrderPage() {
   const customerDropdownRef = useRef(null); // Add ref for customer dropdown
   const [formData, setFormData] = useState({
     accountId: "",
-    poNumber: "", // Still poNumber in backend
+    poNumber: "", // Now optional PO reference number
+    orderDate: new Date().toISOString().split('T')[0], // REQUIRED: Date field for ETA calculation
     sku: "", // Still sku in backend - will store user name
-    customerDocsLink: "", // NEW FIELD: Customer Documents Link
+    customerDocsLink: "", // Customer Documents Link
     items: [{ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "" }],
   });
   const [loading, setLoading] = useState(false);
@@ -109,6 +110,10 @@ export default function NewOrderPage() {
     e.preventDefault();
     if (!formData.accountId) {
       setError("Please select a customer");
+      return;
+    }
+    if (!formData.orderDate) {
+      setError("Please select an order date");
       return;
     }
     if (!formData.customerDocsLink || !formData.customerDocsLink.trim()) {
@@ -368,7 +373,7 @@ export default function NewOrderPage() {
           )}
         </div>
 
-        {/* Customer Documents Link - FIXED HELPER TEXT */}
+        {/* Customer Documents Link */}
         <div style={{ marginBottom: "24px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
             Customer Documents Link *
@@ -394,16 +399,41 @@ export default function NewOrderPage() {
           </div>
         </div>
 
-        {/* Order Date (formerly PO Number) */}
+        {/* Order Date (REQUIRED for ETA calculation) */}
         <div style={{ marginBottom: "24px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
-            Order Date
+            Order Date *
+          </label>
+          <input
+            type="date"
+            value={formData.orderDate}
+            onChange={(e) => setFormData({ ...formData, orderDate: e.target.value })}
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "1px solid var(--border)",
+              borderRadius: "6px",
+              backgroundColor: "var(--input-bg)",
+              color: "var(--text)",
+              fontSize: "14px",
+            }}
+            required
+          />
+          <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "4px" }}>
+            Required: Date when order was placed (used for ETA calculation)
+          </div>
+        </div>
+
+        {/* PO Number (Optional reference) */}
+        <div style={{ marginBottom: "24px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
+            PO Number / Reference
           </label>
           <input
             type="text"
             value={formData.poNumber}
             onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
-            placeholder="Enter order date (e.g., 2024-01-15 or Jan 15, 2024)"
+            placeholder="Optional: PO number or reference ID"
             style={{
               width: "100%",
               padding: "12px",
@@ -415,11 +445,11 @@ export default function NewOrderPage() {
             }}
           />
           <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "4px" }}>
-            Optional: Date when order was placed
+            Optional: Customer PO number or internal reference
           </div>
         </div>
 
-        {/* Sales Person (formerly SKU) - FIXED DROPDOWN */}
+        {/* Sales Person (formerly SKU) */}
         <div style={{ marginBottom: "24px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "var(--text)" }}>
             Sales Person
@@ -449,7 +479,7 @@ export default function NewOrderPage() {
             <option value="Other">Other (Custom)</option>
           </select>
           
-          {/* If "Other" is selected, show text input - FIXED */}
+          {/* If "Other" is selected, show text input */}
           {showOtherInput && (
             <input
               type="text"
