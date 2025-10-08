@@ -320,7 +320,7 @@ export function createSettingsRouter(prisma) {
    * Recalculate ETA dates for all orders based on current threshold settings
    * Admin-only endpoint that updates all customer tracking pages
    * 
-   * FIXED: Uses actual database values and only includes stages up to DELIVERED
+   * UPDATED: Uses orderDate field (when available) instead of createdAt for accurate calculations
    */
   router.post('/recalculate-etas', adminGuard, async (req, res) => {
     try {
@@ -362,19 +362,23 @@ export function createSettingsRouter(prisma) {
         return eta;
       };
       
-      // Get all orders
+      // Get all orders with orderDate included
       const orders = await prisma.order.findMany({
         select: {
           id: true,
-          createdAt: true,
-          etaDate: true
+          orderDate: true,  // Use orderDate field
+          createdAt: true,  // Fallback to createdAt if orderDate is null
+          etaDate: true,
+          poNumber: true    // For logging
         }
       });
       
       // Recalculate ETAs for all orders
       let updated = 0;
       for (const order of orders) {
-        const newETA = calculateETADate(order.createdAt);
+        // Use orderDate if available, otherwise fall back to createdAt
+        const effectiveOrderDate = order.orderDate || order.createdAt;
+        const newETA = calculateETADate(effectiveOrderDate);
         
         await prisma.order.update({
           where: { id: order.id },
@@ -382,13 +386,18 @@ export function createSettingsRouter(prisma) {
         });
         
         updated++;
+        
+        // Log progress every 10 orders
+        if (updated % 10 === 0) {
+          console.log(`Progress: ${updated} orders updated...`);
+        }
       }
       
       console.log(`✅ Successfully recalculated ${updated} order ETAs`);
       
       res.json({
         success: true,
-        message: `Successfully recalculated ${updated} order ETAs`,
+        message: `Successfully recalculated ${updated} order ETAs using orderDate field`,
         ordersUpdated: updated,
         stageDurations: stageDurationsMap
       });
