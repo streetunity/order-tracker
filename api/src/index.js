@@ -100,7 +100,10 @@ function toFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-function calculateETADate(orderDate = new Date()) {
+function calculateETADate(orderDate = new Date(), hasExtendedItems = false) {
+  // Get extended shipping days from env or use default
+  const extendedDays = parseInt(process.env.EXTENDED_SHIPPING_DAYS || '30', 10);
+
   // Only include stages up to delivery (exclude post-delivery stages)
   const stageDurations = {
     MANUFACTURING: (STAGE_THRESHOLDS.MANUFACTURING.warningDays + STAGE_THRESHOLDS.MANUFACTURING.criticalDays) / 2,
@@ -111,12 +114,13 @@ function calculateETADate(orderDate = new Date()) {
     QC: (STAGE_THRESHOLDS.QC.warningDays + STAGE_THRESHOLDS.QC.criticalDays) / 2,
     DELIVERED: (STAGE_THRESHOLDS.DELIVERED.warningDays + STAGE_THRESHOLDS.DELIVERED.criticalDays) / 2
   };
-  
+
   const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
-  
+  const finalDays = hasExtendedItems ? totalDays + extendedDays : totalDays;
+
   const eta = new Date(orderDate);
-  eta.setDate(eta.getDate() + Math.round(totalDays));
-  
+  eta.setDate(eta.getDate() + Math.round(finalDays));
+
   return eta;
 }
 
@@ -197,6 +201,7 @@ function normalizeIncomingItems(items) {
       modelNumber: i?.modelNumber ? String(i.modelNumber).trim() : null,
       voltage: i?.voltage ? String(i.voltage).trim() : null,
       
+      hasExtendedShipping: i?.hasExtendedShipping === true || false,
       laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
       notes: i?.notes ? String(i.notes).trim() : null
     }))
@@ -1525,8 +1530,11 @@ app.post('/orders', authGuard, async (req, res) => {
     const normalizedItems = normalizeIncomingItems(items);
     const trackingToken = newTrackingToken();
     
-    // AUTO-CALCULATE ETA DATE
-    const etaDate = calculateETADate(orderDate ? new Date(orderDate) : new Date());
+    
+    // Check if any items have extended shipping
+    const hasExtendedItems = normalizedItems.some(item => item.hasExtendedShipping === true);
+// AUTO-CALCULATE ETA DATE
+    const etaDate = calculateETADate(orderDate ? new Date(orderDate) : new Date(), hasExtendedItems);
 
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
