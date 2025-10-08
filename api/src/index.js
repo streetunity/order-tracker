@@ -962,7 +962,7 @@ app.get('/public/orders/:token', async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const {
-      id, poNumber, sku, createdAt, etaDate, currentStage,
+      id, poNumber, sku, createdAt, etaDate, currentStage, orderDate,
       shippingCarrier, trackingNumber, items, statusEvents, account, customerDocsLink
     } = order;
 
@@ -977,6 +977,7 @@ app.get('/public/orders/:token', async (req, res) => {
         machineVoltage: account.machineVoltage
       } : null,
       poNumber,
+            orderDate,
       sku,
       createdAt,
       etaDate,
@@ -1303,7 +1304,7 @@ app.patch('/orders/:id', authGuard, async (req, res) => {
     }
     
     // Handle customerDocsLink update (allowed even when locked)
-    const { customerDocsLink, internalNotes } = req.body || {};
+    const { customerDocsLink, internalNotes, orderDate } = req.body || {};
     if (customerDocsLink !== undefined && customerDocsLink !== original.customerDocsLink) {
       const updatedOrder = await prisma.order.update({
         where: { id: req.params.id },
@@ -1401,6 +1402,33 @@ app.patch('/orders/:id', authGuard, async (req, res) => {
       });
     }
     
+    
+
+// Handle orderDate update
+if (orderDate !== undefined) {
+  const newDate = orderDate ? new Date(orderDate) : null;
+  const oldDateStr = original.orderDate?.toISOString() || null;
+  const newDateStr = newDate?.toISOString() || null;
+
+  if (oldDateStr !== newDateStr) {
+    data.orderDate = newDate;
+    changes.push({
+      field: 'orderDate',
+      oldValue: oldDateStr || 'null',
+      newValue: newDateStr || 'null'
+    });
+
+    // Recalculate ETA if order date changed
+    if (newDate) {
+      data.etaDate = calculateETADate(newDate);
+      changes.push({
+        field: 'etaDate',
+        oldValue: original.etaDate?.toISOString() || 'null',
+        newValue: data.etaDate.toISOString()
+      });
+    }
+  }
+}
     if (internalNotes !== undefined && internalNotes !== original.internalNotes) {
       data.internalNotes = internalNotes;
       changes.push({
@@ -1491,14 +1519,14 @@ app.post('/orders/:id/items/:itemId/unordered', authGuard, async (req, res) => {
 // Create order with logging
 app.post('/orders', authGuard, async (req, res) => {
   try {
-    const { accountId, poNumber, sku, items = [], customerDocsLink } = req.body || {};
+    const { accountId, poNumber, sku, items = [], customerDocsLink, orderDate } = req.body || {};
     if (!accountId) return res.status(400).json({ error: 'accountId required' });
 
     const normalizedItems = normalizeIncomingItems(items);
     const trackingToken = newTrackingToken();
     
     // AUTO-CALCULATE ETA DATE
-    const etaDate = calculateETADate(new Date());
+    const etaDate = calculateETADate(orderDate ? new Date(orderDate) : new Date());
 
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
@@ -1506,6 +1534,7 @@ app.post('/orders', authGuard, async (req, res) => {
           accountId: String(accountId),
           poNumber: poNumber ?? null,
           sku: sku ?? null,
+		  orderDate: orderDate ? new Date(orderDate) : new Date(),
           trackingToken,
           customerDocsLink: customerDocsLink ?? null,
           etaDate: etaDate,
