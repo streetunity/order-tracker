@@ -10,6 +10,12 @@ const STAGES = [
   'SMT', 'QC', 'DELIVERED', 'ONSITE', 'COMPLETED', 'FOLLOW_UP'
 ];
 
+// Stages included in ETA calculation
+const ETA_STAGES = [
+  'MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA', 
+  'SMT', 'QC', 'DELIVERED'
+];
+
 export default function SettingsPage() {
   const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
@@ -33,6 +39,24 @@ export default function SettingsPage() {
   const [showInitConfirm, setShowInitConfirm] = useState(false);
   const [showETAConfirm, setShowETAConfirm] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+
+  // Calculate ETA totals
+  const calculateETATotals = () => {
+    let warningTotal = 0;
+    let criticalTotal = 0;
+    
+    ETA_STAGES.forEach(stage => {
+      const threshold = localThresholds.find(t => t.stage === stage);
+      if (threshold) {
+        warningTotal += threshold.warningDays || 0;
+        criticalTotal += threshold.criticalDays || 0;
+      }
+    });
+    
+    const averageTotal = (warningTotal + criticalTotal) / 2;
+    
+    return { warningTotal, criticalTotal, averageTotal };
+  };
 
   useEffect(() => {
     if (!user) {
@@ -256,6 +280,8 @@ export default function SettingsPage() {
   };
 
   if (!user || user.role !== 'ADMIN') return null;
+  
+  const { warningTotal, criticalTotal, averageTotal } = calculateETATotals();
 
   return (
     <main className="settings-container">
@@ -377,10 +403,27 @@ export default function SettingsPage() {
                       criticalDays: 60,
                       description: `${stage} stage`
                     };
+                    
+                    const isETAStage = ETA_STAGES.includes(stage);
 
                     return (
-                      <tr key={stage}>
-                        <td className="stage-name">{stage.replace(/_/g, ' ')}</td>
+                      <tr key={stage} style={{ 
+                        backgroundColor: isETAStage ? 'transparent' : 'rgba(128, 128, 128, 0.1)',
+                        opacity: isETAStage ? 1 : 0.7
+                      }}>
+                        <td className="stage-name">
+                          {stage.replace(/_/g, ' ')}
+                          {isETAStage && (
+                            <span style={{ 
+                              marginLeft: '8px', 
+                              fontSize: '12px', 
+                              color: 'var(--accent)',
+                              fontWeight: 'normal'
+                            }}>
+                              (ETA)
+                            </span>
+                          )}
+                        </td>
                         <td>
                           <input
                             type="number"
@@ -405,8 +448,69 @@ export default function SettingsPage() {
                       </tr>
                     );
                   })}
+                  
+                  {/* Separator row */}
+                  <tr style={{ borderTop: '2px solid var(--accent)' }}>
+                    <td colSpan="4" style={{ padding: '0', height: '2px', backgroundColor: 'transparent' }}></td>
+                  </tr>
+                  
+                  {/* Totals row */}
+                  <tr style={{ 
+                    backgroundColor: 'rgba(255, 170, 0, 0.1)', 
+                    fontWeight: 'bold',
+                    borderTop: '2px solid var(--accent)'
+                  }}>
+                    <td className="stage-name">
+                      ETA CALCULATION TOTALS
+                      <div style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 'normal', 
+                        marginTop: '4px',
+                        color: 'var(--text-dim)'
+                      }}>
+                        (Includes stages through DELIVERED only)
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center', color: 'var(--accent)' }}>
+                      {warningTotal} days
+                    </td>
+                    <td style={{ textAlign: 'center', color: 'var(--accent)' }}>
+                      {criticalTotal} days
+                    </td>
+                    <td style={{ color: 'var(--accent)' }}>
+                      Average: {averageTotal.toFixed(1)} days
+                      <div style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 'normal', 
+                        marginTop: '4px',
+                        color: 'var(--text-dim)'
+                      }}>
+                        This is the number of days that will be added to order date for ETA
+                      </div>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
+            </div>
+            
+            {/* ETA Calculation Example */}
+            <div style={{
+              marginTop: '1.5rem',
+              padding: '1rem',
+              backgroundColor: 'rgba(0, 255, 170, 0.05)',
+              border: '1px solid rgba(0, 255, 170, 0.2)',
+              borderRadius: '8px'
+            }}>
+              <h4 style={{ marginTop: 0, color: 'var(--success)' }}>📅 ETA Calculation Example</h4>
+              <p style={{ margin: '0.5rem 0', fontSize: '14px' }}>
+                For an order placed today, the customer tracking page will show an ETA of:
+              </p>
+              <p style={{ margin: '0.5rem 0', fontSize: '16px', fontWeight: 'bold', color: 'var(--success)' }}>
+                Order Date + {averageTotal.toFixed(0)} days = Estimated Delivery Date
+              </p>
+              <p style={{ margin: '0.5rem 0 0', fontSize: '12px', color: 'var(--text-dim)' }}>
+                Note: Post-delivery stages (ONSITE, COMPLETED, FOLLOW_UP) are NOT included in customer ETA calculations.
+              </p>
             </div>
 
             <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -445,6 +549,9 @@ export default function SettingsPage() {
                 ⚠️ <strong>Warning:</strong> This will overwrite ALL existing ETA dates on customer tracking pages. 
                 Use this after changing threshold values to ensure all customers see updated delivery estimates.
               </p>
+              <p style={{ marginTop: '0.5rem', margin: 0, fontSize: '14px' }}>
+                Current calculation: Order Date + <strong>{averageTotal.toFixed(0)} days</strong> = ETA
+              </p>
             </div>
 
             <button 
@@ -466,6 +573,7 @@ export default function SettingsPage() {
               <li><strong>Warning</strong>: Items exceeding this time are flagged yellow (attention needed)</li>
               <li><strong>Critical</strong>: Items exceeding this time are flagged red (urgent action required)</li>
               <li><strong>Holiday Adjustment</strong>: Buffer days are ONLY added to MANUFACTURING stage (Oct-Dec). Other stages are automatically pushed back by the extended manufacturing time.</li>
+              <li><strong>ETA Calculation</strong>: Customer delivery estimates use the average of Warning and Critical days for stages through DELIVERED only</li>
               <li><strong>Saving Changes</strong>: Make your changes, then click the Save button to apply them</li>
               <li><strong>ETA Recalculation</strong>: After updating thresholds, use the "Recalculate All ETAs" button to update customer delivery estimates</li>
             </ul>
@@ -521,7 +629,7 @@ export default function SettingsPage() {
               </p>
               <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '14px' }}>
                 <li>All customer tracking pages will show updated ETA dates</li>
-                <li>ETAs will be calculated based on your current threshold settings</li>
+                <li>ETAs will be calculated as: Order Date + <strong>{averageTotal.toFixed(0)} days</strong></li>
                 <li>This process cannot be undone</li>
               </ul>
             </div>
