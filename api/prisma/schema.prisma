@@ -65,6 +65,9 @@ model OrderItem {
   orderedAt      DateTime?                 // When it was marked as ordered
   orderedBy      String?                   // Who marked it as ordered (user name)
   
+  // EXTENDED SHIPPING FIELD
+  hasExtendedShipping Boolean @default(false) // Whether this item requires extended lead time
+  
   // MEASUREMENT FIELDS - Always editable even when order is locked
   height         Float?   // Height dimension
   width          Float?   // Width dimension
