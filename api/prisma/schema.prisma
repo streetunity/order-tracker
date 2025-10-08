@@ -25,7 +25,8 @@ model Order {
   accountId       String
   poNumber        String?
   sku             String?
-  customerDocsLink String?            // NEW FIELD: Customer Documents Link (Dropbox URL)
+  orderDate       DateTime?           // NEW FIELD: Actual order date from customer
+  customerDocsLink String?            // Customer Documents Link (Dropbox URL)
   internalNotes   String?             // Internal notes for the order
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
@@ -52,19 +53,19 @@ model OrderItem {
   serialNumber   String?
   modelNumber    String?
   voltage        String?
-  laserWattage   String?  // NEW FIELD: Laser Source Wattage
+  laserWattage   String?  // Laser Source Wattage
   notes          String?
   
-  // NEW PRICE AND PRIVATE NOTE FIELDS
+  // PRICE AND PRIVATE NOTE FIELDS
   itemPrice      Float?   // Price for this item (total, not per unit)
   privateItemNote String? // Private internal notes for this item (purchasing notes)
   
-  // NEW ORDERED STATUS FIELDS
+  // ORDERED STATUS FIELDS
   isOrdered      Boolean  @default(false)  // Whether this item has been ordered
   orderedAt      DateTime?                 // When it was marked as ordered
   orderedBy      String?                   // Who marked it as ordered (user name)
   
-  // NEW MEASUREMENT FIELDS - Always editable even when order is locked
+  // MEASUREMENT FIELDS - Always editable even when order is locked
   height         Float?   // Height dimension
   width          Float?   // Width dimension
   length         Float?   // Length dimension
@@ -124,7 +125,7 @@ model AuditLog {
   @@index([createdAt])
 }
 
-// NEW: Measurement-specific audit log for detailed tracking
+// Measurement-specific audit log for detailed tracking
 model MeasurementAuditLog {
   id          String   @id @default(cuid())
   
@@ -166,7 +167,7 @@ model User {
   auditLogs         AuditLog[]
 }
 
-// NEW: Stage threshold settings for reports
+// Stage threshold settings for reports
 model StageThreshold {
   id              String   @id @default(cuid())
   stage           String   @unique  // "MANUFACTURING", "TESTING", "SHIPPING", etc.
@@ -179,7 +180,7 @@ model StageThreshold {
   @@index([stage])
 }
 
-// NEW: System settings for global configurations
+// System settings for global configurations
 model SystemSetting {
   id              String   @id @default(cuid())
   key             String   @unique  // "HOLIDAY_SEASON_START", "HOLIDAY_SEASON_END", etc.
