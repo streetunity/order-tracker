@@ -228,7 +228,7 @@ function normalizeIncomingItems(items) {
       hasExtendedShipping: i?.hasExtendedShipping === true || false,
       laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
       notes: i?.notes ? String(i.notes).trim() : null,
-      containers: Array.isArray(i?.containers) ? i.containers : []
+      containers: Array.isArray(i?.containers) ? i.containers : "[]"
     }))
     .filter((i) => i.productCode.length > 0);
 }
