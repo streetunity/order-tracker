@@ -91,6 +91,30 @@ console.log('✅ Cycle time reports module loaded');
 // Helpers
 // -----------------------------
 
+// Container validation helper
+function validateContainers(containers) {
+  if (!containers) return [];
+  if (!Array.isArray(containers)) {
+    throw new Error('Containers must be an array');
+  }
+  return containers.map((container, index) => {
+    if (typeof container !== 'object' || container === null) {
+      throw new Error(`Container at index ${index} must be an object`);
+    }
+    return {
+      id: container.id || `container-${Date.now()}-${index}`,
+      label: String(container.label || `Container ${index + 1}`),
+      tracking: String(container.tracking || ''),
+      height: container.height != null ? parseFloat(container.height) : null,
+      width:  container.width  != null ? parseFloat(container.width)  : null,
+      length: container.length != null ? parseFloat(container.length) : null,
+      weight: container.weight != null ? parseFloat(container.weight) : null,
+      unit: String(container.unit || 'in')
+    };
+  });
+}
+
+
 // Helper function to safely convert strings to floats for measurements
 function toFloat(value) {
   if (value === null || value === undefined || value === '') {
@@ -203,7 +227,8 @@ function normalizeIncomingItems(items) {
       
       hasExtendedShipping: i?.hasExtendedShipping === true || false,
       laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
-      notes: i?.notes ? String(i.notes).trim() : null
+      notes: i?.notes ? String(i.notes).trim() : null,
+      containers: Array.isArray(i?.containers) ? i.containers : []
     }))
     .filter((i) => i.productCode.length > 0);
 }
@@ -871,7 +896,23 @@ app.patch('/users/:id', adminGuard, async (req, res) => {
       });
     }
     
-    if (Object.keys(data).length === 0) {
+    
+    // Containers array update (validated + stored as JSON string)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
+      try {
+        const validatedContainers = validateContainers(req.body.containers);
+        data.containers = JSON.stringify(validatedContainers);
+        changes.push({
+          field: 'containers',
+          oldValue: '[previous hidden]',
+          newValue: '[updated containers array]'
+        });
+      } catch (e) {
+        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
+      }
+    }
+
+if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -1291,7 +1332,17 @@ app.get('/orders/:id', authGuard, async (req, res) => {
       take: 10
     });
     
-    res.json({ ...order, internalNotes: order.internalNotes ?? null, auditLogs });
+    res.json({
+      ...order,
+      items: Array.isArray(order.items) ? order.items.map((it) => ({
+        ...it,
+        containers: it && it.containers
+          ? (() => { try { return JSON.parse(it.containers); } catch { return []; } })()
+          : []
+      })) : order.items,
+      internalNotes: order.internalNotes ?? null,
+      auditLogs
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1443,7 +1494,23 @@ if (orderDate !== undefined) {
       });
     }
 
-    if (Object.keys(data).length === 0) {
+    
+    // Containers array update (validated + stored as JSON string)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
+      try {
+        const validatedContainers = validateContainers(req.body.containers);
+        data.containers = JSON.stringify(validatedContainers);
+        changes.push({
+          field: 'containers',
+          oldValue: '[previous hidden]',
+          newValue: '[updated containers array]'
+        });
+      } catch (e) {
+        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
+      }
+    }
+
+if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -1764,7 +1831,23 @@ app.patch('/accounts/:id', authGuard, async (req, res) => {
       }
     }
     
-    if (Object.keys(data).length === 0) {
+    
+    // Containers array update (validated + stored as JSON string)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
+      try {
+        const validatedContainers = validateContainers(req.body.containers);
+        data.containers = JSON.stringify(validatedContainers);
+        changes.push({
+          field: 'containers',
+          oldValue: '[previous hidden]',
+          newValue: '[updated containers array]'
+        });
+      } catch (e) {
+        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
+      }
+    }
+
+if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -2067,7 +2150,8 @@ app.post('/orders/:orderId/items', authGuard, async (req, res) => {
             modelNumber: i.modelNumber,
             voltage: i.voltage,
             laserWattage: i.laserWattage || null,
-            notes: i.notes
+            notes: i.notes,
+            containers: i.containers ? JSON.stringify(validateContainers(i.containers)) : '[]'
           }
         });
         createdItems.push(row);
@@ -2412,7 +2496,23 @@ if (hasEditFieldChanges && order.isLocked) {
       }
     }
     
-    if (Object.keys(data).length === 0) {
+    
+    // Containers array update (validated + stored as JSON string)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
+      try {
+        const validatedContainers = validateContainers(req.body.containers);
+        data.containers = JSON.stringify(validatedContainers);
+        changes.push({
+          field: 'containers',
+          oldValue: '[previous hidden]',
+          newValue: '[updated containers array]'
+        });
+      } catch (e) {
+        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
+      }
+    }
+
+if (Object.keys(data).length === 0) {
       console.log('No changes detected for item:', itemId);
       return res.json(item);
     }
