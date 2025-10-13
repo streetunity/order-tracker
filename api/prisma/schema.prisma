@@ -78,8 +78,8 @@ model OrderItem {
   measuredAt     DateTime? // When measurements were last updated
   measuredBy     String?   // Who took the measurements
   
-  // MULTI-CONTAINER SUPPORT
-  containers     Json?    @default("[]") // JSON array of container objects
+  // MULTI-CONTAINER SUPPORT - Using String for SQLite compatibility
+  containers     String?  @default("[]") // JSON string of container objects
   
   currentStage   String?
   archivedAt     DateTime?
