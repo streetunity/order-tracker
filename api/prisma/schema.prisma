@@ -78,6 +78,9 @@ model OrderItem {
   measuredAt     DateTime? // When measurements were last updated
   measuredBy     String?   // Who took the measurements
   
+  // MULTI-CONTAINER SUPPORT
+  containers     Json?    @default("[]") // JSON array of container objects
+  
   currentStage   String?
   archivedAt     DateTime?
   createdAt      DateTime                @default(now())
