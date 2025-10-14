@@ -8,6 +8,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
   const [editingContainer, setEditingContainer] = useState(null);
   const [containerSaving, setContainerSaving] = useState(false);
   const [expandedItems, setExpandedItems] = useState(new Set());
+  const [localContainers, setLocalContainers] = useState({});
 
   const startEdit = (item) => {
     setEditingItem(item.id);
@@ -91,17 +92,39 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       
+      // Clear local state for this item
+      setLocalContainers(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
+      
       if (onRefresh) await onRefresh();
     } catch (e) {
       alert(`Failed to save containers: ${e.message}`);
+      // Revert local changes on error
+      setLocalContainers(prev => {
+        const newState = { ...prev };
+        delete newState[itemId];
+        return newState;
+      });
     } finally {
       setContainerSaving(false);
+      setEditingContainer(null);
     }
   };
 
-  const addContainer = (item) => {
-    const containers = item.containers ? 
+  const getContainersForItem = (item) => {
+    // Use local state if editing, otherwise use item data
+    if (localContainers[item.id]) {
+      return localContainers[item.id];
+    }
+    return item.containers ? 
       (typeof item.containers === 'string' ? JSON.parse(item.containers) : item.containers) : [];
+  };
+
+  const addContainer = (item) => {
+    const containers = getContainersForItem(item);
     
     const newContainer = {
       id: `box-${Date.now()}`,
@@ -117,24 +140,51 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     saveContainers(item.id, updated);
   };
 
-  const updateContainer = (item, containerId, field, value) => {
-    const containers = item.containers ? 
-      (typeof item.containers === 'string' ? JSON.parse(item.containers) : item.containers) : [];
-    
-    const updated = containers.map(c => 
-      c.id === containerId 
-        ? { ...c, [field]: field === 'height' || field === 'width' || field === 'length' || field === 'weight' 
-            ? (value === "" ? null : parseFloat(value)) 
-            : value }
-        : c
-    );
-    saveContainers(item.id, updated);
+  const startEditContainer = (item, container) => {
+    const containers = getContainersForItem(item);
+    setLocalContainers(prev => ({
+      ...prev,
+      [item.id]: [...containers]
+    }));
+    setEditingContainer(container.id);
+  };
+
+  const updateContainer = (itemId, containerId, field, value) => {
+    setLocalContainers(prev => {
+      const containers = prev[itemId] || getContainersForItem({ id: itemId, containers: items.find(i => i.id === itemId)?.containers });
+      const updated = containers.map(c => 
+        c.id === containerId 
+          ? { ...c, [field]: field === 'height' || field === 'width' || field === 'length' || field === 'weight' 
+              ? (value === "" ? null : parseFloat(value)) 
+              : value }
+          : c
+      );
+      return {
+        ...prev,
+        [itemId]: updated
+      };
+    });
+  };
+
+  const saveContainerEdits = (itemId) => {
+    const containers = localContainers[itemId];
+    if (containers) {
+      saveContainers(itemId, containers);
+    }
+  };
+
+  const cancelContainerEdit = (itemId) => {
+    setLocalContainers(prev => {
+      const newState = { ...prev };
+      delete newState[itemId];
+      return newState;
+    });
+    setEditingContainer(null);
   };
 
   const deleteContainer = (item, containerId) => {
     if (!confirm("Delete this container?")) return;
-    const containers = item.containers ? 
-      (typeof item.containers === 'string' ? JSON.parse(item.containers) : item.containers) : [];
+    const containers = getContainersForItem(item);
     
     const updated = containers.filter(c => c.id !== containerId);
     saveContainers(item.id, updated);
@@ -205,8 +255,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
               items.map((item) => {
                 const isEditing = editingItem === item.id;
                 const isExpanded = expandedItems.has(item.id);
-                const containers = item.containers ? 
-                  (typeof item.containers === 'string' ? JSON.parse(item.containers) : item.containers) : [];
+                const containers = getContainersForItem(item);
                 const totalContainerWeight = containers.reduce((sum, c) => sum + (c.weight || 0), 0);
                 
                 return (
@@ -423,181 +472,154 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                             </div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
-                              {containers.map((container) => (
-                                <div 
-                                  key={container.id}
-                                  style={{
-                                    padding: '8px',
-                                    backgroundColor: '#1a1a1a',
-                                    border: '1px solid #4b5563',
-                                    borderRadius: '4px'
-                                  }}
-                                >
-                                  {editingContainer === container.id ? (
-                                    /* Container Edit Mode */
-                                    <div>
-                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                                        <input
-                                          className="input"
-                                          value={container.label}
-                                          onChange={(e) => {
-                                            const newContainers = [...containers];
-                                            const idx = newContainers.findIndex(c => c.id === container.id);
-                                            newContainers[idx] = { ...container, label: e.target.value };
-                                            // Update local state for immediate feedback
-                                          }}
-                                          placeholder="Label"
-                                          style={{ fontSize: '12px' }}
-                                        />
-                                        <input
-                                          className="input"
-                                          value={container.tracking}
-                                          onChange={(e) => {
-                                            const newContainers = [...containers];
-                                            const idx = newContainers.findIndex(c => c.id === container.id);
-                                            newContainers[idx] = { ...container, tracking: e.target.value };
-                                          }}
-                                          placeholder="Tracking number"
-                                          style={{ fontSize: '12px' }}
-                                        />
-                                        <select
-                                          className="input"
-                                          value={container.unit}
-                                          onChange={(e) => {
-                                            const newContainers = [...containers];
-                                            const idx = newContainers.findIndex(c => c.id === container.id);
-                                            newContainers[idx] = { ...container, unit: e.target.value };
-                                          }}
-                                          style={{ fontSize: '12px' }}
-                                        >
-                                          <option value="in">Inches</option>
-                                          <option value="cm">Centimeters</option>
-                                        </select>
-                                      </div>
-                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                                        <input
-                                          className="input"
-                                          type="number"
-                                          value={container.length || ""}
-                                          onChange={(e) => {
-                                            const newContainers = [...containers];
-                                            const idx = newContainers.findIndex(c => c.id === container.id);
-                                            newContainers[idx] = { ...container, length: e.target.value ? parseFloat(e.target.value) : null };
-                                          }}
-                                          placeholder="Length"
-                                          style={{ fontSize: '12px' }}
-                                        />
-                                        <input
-                                          className="input"
-                                          type="number"
-                                          value={container.width || ""}
-                                          onChange={(e) => {
-                                            const newContainers = [...containers];
-                                            const idx = newContainers.findIndex(c => c.id === container.id);
-                                            newContainers[idx] = { ...container, width: e.target.value ? parseFloat(e.target.value) : null };
-                                          }}
-                                          placeholder="Width"
-                                          style={{ fontSize: '12px' }}
-                                        />
-                                        <input
-                                          className="input"
-                                          type="number"
-                                          value={container.height || ""}
-                                          onChange={(e) => {
-                                            const newContainers = [...containers];
-                                            const idx = newContainers.findIndex(c => c.id === container.id);
-                                            newContainers[idx] = { ...container, height: e.target.value ? parseFloat(e.target.value) : null };
-                                          }}
-                                          placeholder="Height"
-                                          style={{ fontSize: '12px' }}
-                                        />
-                                        <input
-                                          className="input"
-                                          type="number"
-                                          value={container.weight || ""}
-                                          onChange={(e) => {
-                                            const newContainers = [...containers];
-                                            const idx = newContainers.findIndex(c => c.id === container.id);
-                                            newContainers[idx] = { ...container, weight: e.target.value ? parseFloat(e.target.value) : null };
-                                          }}
-                                          placeholder="Weight (lbs)"
-                                          style={{ fontSize: '12px' }}
-                                        />
-                                      </div>
-                                      <div style={{ display: 'flex', gap: '4px' }}>
-                                        <button
-                                          className="btn primary"
-                                          onClick={() => {
-                                            // Save the edited container
-                                            setEditingContainer(null);
-                                          }}
-                                          disabled={containerSaving}
-                                          style={{ fontSize: '11px', padding: '2px 8px' }}
-                                        >
-                                          Save
-                                        </button>
-                                        <button
-                                          className="btn"
-                                          onClick={() => setEditingContainer(null)}
-                                          disabled={containerSaving}
-                                          style={{ fontSize: '11px', padding: '2px 8px' }}
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    /* Container View Mode */
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                                      <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: '500', fontSize: '12px', marginBottom: '2px', color: '#e4e4e4' }}>
-                                          {container.label}
+                              {containers.map((container) => {
+                                const isEditingThis = editingContainer === container.id;
+                                const currentContainer = localContainers[item.id]?.find(c => c.id === container.id) || container;
+                                
+                                return (
+                                  <div 
+                                    key={container.id}
+                                    style={{
+                                      padding: '8px',
+                                      backgroundColor: '#1a1a1a',
+                                      border: '1px solid #4b5563',
+                                      borderRadius: '4px'
+                                    }}
+                                  >
+                                    {isEditingThis ? (
+                                      /* Container Edit Mode */
+                                      <div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                          <input
+                                            className="input"
+                                            value={currentContainer.label}
+                                            onChange={(e) => updateContainer(item.id, container.id, 'label', e.target.value)}
+                                            placeholder="Label"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                          <input
+                                            className="input"
+                                            value={currentContainer.tracking}
+                                            onChange={(e) => updateContainer(item.id, container.id, 'tracking', e.target.value)}
+                                            placeholder="Tracking number"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                          <select
+                                            className="input"
+                                            value={currentContainer.unit}
+                                            onChange={(e) => updateContainer(item.id, container.id, 'unit', e.target.value)}
+                                            style={{ fontSize: '12px' }}
+                                          >
+                                            <option value="in">Inches</option>
+                                            <option value="cm">Centimeters</option>
+                                          </select>
                                         </div>
-                                        {container.tracking && (
-                                          <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '2px' }}>
-                                            📍 {container.tracking}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                          <input
+                                            className="input"
+                                            type="number"
+                                            value={currentContainer.length || ""}
+                                            onChange={(e) => updateContainer(item.id, container.id, 'length', e.target.value)}
+                                            placeholder="Length"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                          <input
+                                            className="input"
+                                            type="number"
+                                            value={currentContainer.width || ""}
+                                            onChange={(e) => updateContainer(item.id, container.id, 'width', e.target.value)}
+                                            placeholder="Width"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                          <input
+                                            className="input"
+                                            type="number"
+                                            value={currentContainer.height || ""}
+                                            onChange={(e) => updateContainer(item.id, container.id, 'height', e.target.value)}
+                                            placeholder="Height"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                          <input
+                                            className="input"
+                                            type="number"
+                                            value={currentContainer.weight || ""}
+                                            onChange={(e) => updateContainer(item.id, container.id, 'weight', e.target.value)}
+                                            placeholder="Weight (lbs)"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                          <button
+                                            className="btn primary"
+                                            onClick={() => saveContainerEdits(item.id)}
+                                            disabled={containerSaving}
+                                            style={{ fontSize: '11px', padding: '2px 8px' }}
+                                          >
+                                            {containerSaving ? 'Saving...' : 'Save'}
+                                          </button>
+                                          <button
+                                            className="btn"
+                                            onClick={() => cancelContainerEdit(item.id)}
+                                            disabled={containerSaving}
+                                            style={{ fontSize: '11px', padding: '2px 8px' }}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      /* Container View Mode */
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                        <div style={{ flex: 1 }}>
+                                          <div style={{ fontWeight: '500', fontSize: '12px', marginBottom: '2px', color: '#e4e4e4' }}>
+                                            {container.label}
                                           </div>
-                                        )}
-                                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                                          {container.length && container.width && container.height ? (
-                                            <>
-                                              📐 {container.length} × {container.width} × {container.height} {container.unit}
-                                            </>
-                                          ) : (
-                                            <span style={{ fontStyle: 'italic' }}>No dimensions</span>
+                                          {container.tracking && (
+                                            <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '2px' }}>
+                                              📍 {container.tracking}
+                                            </div>
                                           )}
-                                          {container.weight && (
-                                            <> · ⚖️ {container.weight} lbs</>
-                                          )}
+                                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                                            {container.length && container.width && container.height ? (
+                                              <>
+                                                📐 {container.length} × {container.width} × {container.height} {container.unit}
+                                              </>
+                                            ) : (
+                                              <span style={{ fontStyle: 'italic' }}>No dimensions</span>
+                                            )}
+                                            {container.weight && (
+                                              <> · ⚖️ {container.weight} lbs</>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                          <button
+                                            className="btn"
+                                            onClick={() => startEditContainer(item, container)}
+                                            disabled={containerSaving}
+                                            style={{ fontSize: '10px', padding: '1px 6px' }}
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            className="btn danger"
+                                            onClick={() => deleteContainer(item, container.id)}
+                                            disabled={containerSaving}
+                                            style={{ 
+                                              fontSize: '10px', 
+                                              padding: '1px 6px',
+                                              borderColor: '#ef4444',
+                                              color: '#ef4444'
+                                            }}
+                                          >
+                                            ×
+                                          </button>
                                         </div>
                                       </div>
-                                      <div style={{ display: 'flex', gap: '4px' }}>
-                                        <button
-                                          className="btn"
-                                          onClick={() => setEditingContainer(container.id)}
-                                          disabled={containerSaving}
-                                          style={{ fontSize: '10px', padding: '1px 6px' }}
-                                        >
-                                          Edit
-                                        </button>
-                                        <button
-                                          className="btn danger"
-                                          onClick={() => deleteContainer(item, container.id)}
-                                          disabled={containerSaving}
-                                          style={{ 
-                                            fontSize: '10px', 
-                                            padding: '1px 6px',
-                                            borderColor: '#ef4444',
-                                            color: '#ef4444'
-                                          }}
-                                        >
-                                          ×
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                           
