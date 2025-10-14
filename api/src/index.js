@@ -2047,33 +2047,35 @@ app.post('/orders/:orderId/items/:itemId/stage', authGuard, async (req, res) => 
 });
 
 // Update internal notes (separate endpoint for convenience)
+// Update internal notes (separate endpoint for convenience) - WITH AUDIT LOGGING
 app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
   try {
     const orderId = req.params.id;
     const { internalNotes } = req.body || {};
-    
-    console.log('Internal notes update - Order ID:', orderId);
-    console.log('Internal notes content:', internalNotes);
-
-    if (!orderId) {
-      return res.status(400).json({ error: 'Order ID is required' });
-    }
 
     const order = await prisma.order.findUnique({
-      where: { id: String(orderId) },  // Ensure it's a string
-      select: { id: true, internalNotes: true }
+      where: { id: String(orderId) },
+      select: { id: true, internalNotes: true, isLocked: true }
     });
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
+    // ADD THIS: Check if order is locked and user is not admin
+    if (order.isLocked && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ 
+        error: 'Cannot edit internal notes while order is locked. Only admins can edit locked orders.' 
+      });
+    }
+
     const updatedOrder = await prisma.$transaction(async (tx) => {
       const up = await tx.order.update({
-        where: { id: String(orderId) },  // Ensure it's a string here too
+        where: { id: String(orderId) },
         data: { internalNotes: internalNotes || null }
       });
 
+      // ENSURE THIS EXISTS: Create audit log for internal notes update
       await tx.auditLog.create({
         data: {
           entityType: 'Order',
@@ -2085,6 +2087,9 @@ app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
             oldValue: order.internalNotes || 'null',
             newValue: internalNotes || 'null'
           }]),
+          metadata: JSON.stringify({
+            message: 'Internal notes were updated'
+          }),
           performedByUserId: req.user?.id || 'Unknown',
           performedByName: req.user?.name || 'Unknown'
         }
@@ -2096,9 +2101,9 @@ app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error('Internal notes update error:', e);
-	  res.status(500).json({ error: e.message || 'Failed to update internal notes' });
+    res.status(500).json({ error: e.message || 'Failed to update internal notes' });
   }
-});
+}););
 
 // -----------------------------
 // Item CRUD Routes with Audit Logging
@@ -2212,7 +2217,8 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
         measurementUnit: true,
         weightUnit: true,
         itemPrice: true,
-        privateItemNote: true
+        privateItemNote: true,
+        containers: true
       } 
     });
     
@@ -2311,6 +2317,40 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
         data.measuredAt = new Date();
         data.measuredBy = req.user.name;
       }
+    // Containers update with validation and descriptive changes
+    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
+      try {
+        const validatedContainers = validateContainers(req.body.containers);
+        const oldContainers = item.containers ? JSON.parse(item.containers) : [];
+        const newContainersStr = JSON.stringify(validatedContainers);
+        
+        if (JSON.stringify(oldContainers) !== newContainersStr) {
+          data.containers = newContainersStr;
+          
+          const containerChange = {
+            field: 'containers',
+            oldValue: JSON.stringify(oldContainers),
+            newValue: newContainersStr
+          };
+          
+          // Add descriptive change info
+          if (oldContainers.length === 0 && validatedContainers.length > 0) {
+            containerChange.description = `Added ${validatedContainers.length} container(s)`;
+          } else if (oldContainers.length > 0 && validatedContainers.length === 0) {
+            containerChange.description = `Removed all containers`;
+          } else if (oldContainers.length !== validatedContainers.length) {
+            containerChange.description = `Changed from ${oldContainers.length} to ${validatedContainers.length} containers`;
+          } else {
+            containerChange.description = `Updated container details`;
+          }
+          
+          changes.push(containerChange);
+        }
+      } catch (e) {
+        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
+      }
+    }
+
     }
     
     // Admin-only fields that bypass lock (itemPrice and privateItemNote can be edited even when locked)
@@ -2532,22 +2572,33 @@ if (Object.keys(data).length === 0) {
       if (changes.length > 0) {
         const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
         
-        await tx.auditLog.create({
-          data: {
-            entityType: isMeasurementUpdate ? 'Measurement' : 'OrderItem',
-            entityId: itemId,
-            parentEntityId: orderId,
-            action: isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : 'ORDERITEM_UPDATED',
-            changes: JSON.stringify(changes),
-            metadata: isMeasurementUpdate ? JSON.stringify({
-              message: 'Measurements updated via item endpoint',
-              updatedFields: changes.map(c => c.field).join(', ')
-            }) : null,
-            performedByUserId: req.user.id,
-            performedByName: req.user.name
-          }
-        });
-        console.log('Audit log created for changes');
+        const isMeasurementUpdate = changes.every(c => ['height','width','length','weight','measurementUnit','weightUnit'].includes(c.field));
+const isContainerUpdate = changes.some(c => c.field === 'containers');
+
+let action = 'ITEM_UPDATED';
+if (isMeasurementUpdate) {
+  action = 'MEASUREMENTS_UPDATED';
+} else if (isContainerUpdate && changes.length === 1) {
+  action = 'CONTAINERS_UPDATED';
+}
+
+await tx.auditLog.create({
+  data: {
+    entityType: isContainerUpdate ? 'Container' : (isMeasurementUpdate ? 'Measurement' : 'OrderItem'),
+    entityId: itemId,
+    parentEntityId: orderId,
+    action: action,
+    changes: JSON.stringify(changes),
+    metadata: JSON.stringify({
+      message: isContainerUpdate ? 'Container configuration updated' : 
+               (isMeasurementUpdate ? 'Measurements updated via item endpoint' : 'Item details updated'),
+      updatedFields: changes.map(c => c.field).join(', ')
+    }),
+    performedByUserId: req.user.id,
+    performedByName: req.user.name
+  }
+});
+console.log('Audit log created for changes');
       }
       
       return updatedItem;
