@@ -1,4 +1,4 @@
-// MeasurementSection.jsx - Improved readability with better spacing and layout
+// MeasurementSection.jsx - Much better use of space with horizontal layout
 "use client";
 import { useState, useEffect } from "react";
 
@@ -237,357 +237,373 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
         </ul>
       </div>
       
-      <div style={{ overflowX: "auto" }}>
-        <table className="table" style={{ minWidth: "600px" }}>
-          <tbody>
-            {(!items || items.length === 0) ? (
-              <tr><td colSpan={1} style={{ color: "#6b7280" }}>No items in this order.</td></tr>
-            ) : (
-              items.map((item) => {
-                const isExpanded = expandedItems.has(item.id);
-                const containers = getContainersForItem(item);
-                const totalWeight = containers.reduce((sum, c) => sum + (c.weight || 0), 0);
-                const realContainerCount = containers.filter(c => !c.id.startsWith('default-') || c.tracking || c.height || c.width || c.length || c.weight).length;
-                
-                return (
-                  <>
-                    <tr key={item.id} style={{ 
-                      backgroundColor: '#1a1a1a',
-                      borderBottom: '1px solid #404040'
-                    }}>
-                      <td style={{ padding: '16px' }}>
-                        {/* Item Header */}
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between',
-                          alignItems: 'start',
-                          marginBottom: isExpanded ? '16px' : '0'
-                        }}>
-                          <div>
-                            <strong style={{ fontSize: '14px', color: '#e4e4e4' }}>{item.productCode}</strong>
-                            {item.serialNumber && (
-                              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                                S/N: {item.serialNumber}
-                              </div>
-                            )}
-                            {item.qty > 1 && (
-                              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
-                                Quantity: {item.qty}
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{ textAlign: 'right' }}>
-                              <span style={{ 
-                                padding: '4px 8px',
-                                backgroundColor: realContainerCount > 0 ? '#374151' : '#4b5563',
-                                color: '#fff',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                fontWeight: '500'
-                              }}>
-                                📦 {realContainerCount || 1} {realContainerCount === 1 ? 'container' : 'containers'}
-                              </span>
-                              {totalWeight > 0 && (
-                                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                                  Total: {totalWeight.toFixed(1)} lbs
-                                </div>
-                              )}
-                            </div>
-                            
-                            <button
-                              className="btn"
-                              onClick={() => toggleItemExpanded(item.id)}
-                              style={{ 
-                                fontSize: '11px', 
-                                padding: '4px 8px',
-                                backgroundColor: isExpanded ? '#6b7280' : '#404040',
-                                color: '#fff',
-                                border: 'none',
-                                minWidth: '70px'
-                              }}
-                            >
-                              {isExpanded ? '▼ Hide' : '▶ Edit'}
-                            </button>
-                          </div>
+      <div>
+        {(!items || items.length === 0) ? (
+          <div style={{ color: "#6b7280", padding: "16px" }}>No items in this order.</div>
+        ) : (
+          items.map((item) => {
+            const isExpanded = expandedItems.has(item.id);
+            const containers = getContainersForItem(item);
+            const totalWeight = containers.reduce((sum, c) => sum + (c.weight || 0), 0);
+            const realContainerCount = containers.filter(c => !c.id.startsWith('default-') || c.tracking || c.height || c.width || c.length || c.weight).length;
+            
+            return (
+              <div key={item.id} style={{ 
+                backgroundColor: '#1a1a1a',
+                border: '1px solid #404040',
+                borderRadius: '6px',
+                marginBottom: '12px',
+                overflow: 'hidden'
+              }}>
+                {/* Item Header */}
+                <div style={{ 
+                  padding: '16px',
+                  borderBottom: isExpanded ? '1px solid #404040' : 'none',
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'start'
+                }}>
+                  <div>
+                    <strong style={{ fontSize: '15px', color: '#e4e4e4' }}>{item.productCode}</strong>
+                    {item.serialNumber && (
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                        S/N: {item.serialNumber}
+                      </div>
+                    )}
+                    {item.qty > 1 && (
+                      <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                        Quantity: {item.qty}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ 
+                        padding: '4px 8px',
+                        backgroundColor: realContainerCount > 0 ? '#374151' : '#4b5563',
+                        color: '#fff',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: '500'
+                      }}>
+                        📦 {realContainerCount || 1} {realContainerCount === 1 ? 'container' : 'containers'}
+                      </span>
+                      {totalWeight > 0 && (
+                        <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                          Total: {totalWeight.toFixed(1)} lbs
                         </div>
+                      )}
+                    </div>
+                    
+                    <button
+                      className="btn"
+                      onClick={() => toggleItemExpanded(item.id)}
+                      style={{ 
+                        fontSize: '11px', 
+                        padding: '4px 8px',
+                        backgroundColor: isExpanded ? '#6b7280' : '#404040',
+                        color: '#fff',
+                        border: 'none',
+                        minWidth: '70px'
+                      }}
+                    >
+                      {isExpanded ? '▼ Hide' : '▶ Edit'}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Container Details - Only show when expanded */}
+                {isExpanded && (
+                  <div style={{ padding: '16px', backgroundColor: '#262626' }}>
+                    {item.qty > 1 && (
+                      <div style={{ 
+                        fontSize: '12px', 
+                        color: '#fbbf24',
+                        marginBottom: '16px',
+                        padding: '8px 12px',
+                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                        border: '1px solid rgba(251, 191, 36, 0.3)',
+                        borderRadius: '4px',
+                        display: 'inline-block'
+                      }}>
+                        ⚠️ This item has quantity {item.qty} - make sure to account for all units in your containers
+                      </div>
+                    )}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {containers.map((container, index) => {
+                        const isEditingThis = editingContainer === container.id;
+                        const currentContainer = localContainers[item.id]?.find(c => c.id === container.id) || container;
+                        const isDefaultEmpty = container.id.startsWith('default-') && 
+                          !container.tracking && !container.height && !container.width && !container.length && !container.weight;
                         
-                        {/* Container Details - Only show when expanded */}
-                        {isExpanded && (
-                          <div>
-                            {item.qty > 1 && (
-                              <div style={{ 
-                                fontSize: '11px', 
-                                color: '#fbbf24',
-                                marginBottom: '12px',
-                                padding: '6px 10px',
-                                backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                                border: '1px solid rgba(251, 191, 36, 0.3)',
-                                borderRadius: '4px',
-                                display: 'inline-block'
-                              }}>
-                                ⚠️ This item has quantity {item.qty} - make sure to account for all units in your containers
-                              </div>
-                            )}
-                            
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-                              {containers.map((container) => {
-                                const isEditingThis = editingContainer === container.id;
-                                const currentContainer = localContainers[item.id]?.find(c => c.id === container.id) || container;
-                                const isDefaultEmpty = container.id.startsWith('default-') && 
-                                  !container.tracking && !container.height && !container.width && !container.length && !container.weight;
-                                
-                                return (
-                                  <div 
-                                    key={container.id}
-                                    style={{
-                                      padding: '16px',
-                                      backgroundColor: '#2d2d2d',
-                                      border: isDefaultEmpty ? '1px dashed #4b5563' : '1px solid #4b5563',
-                                      borderRadius: '6px',
-                                      opacity: isDefaultEmpty && !isEditingThis ? 0.6 : 1
-                                    }}
+                        return (
+                          <div 
+                            key={container.id}
+                            style={{
+                              padding: '16px',
+                              backgroundColor: '#2d2d2d',
+                              border: isDefaultEmpty ? '2px dashed #4b5563' : '2px solid #4b5563',
+                              borderRadius: '6px'
+                            }}
+                          >
+                            {isEditingThis ? (
+                              /* Container Edit Mode */
+                              <div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px', gap: '12px', marginBottom: '12px' }}>
+                                  <input
+                                    className="input"
+                                    value={currentContainer.label}
+                                    onChange={(e) => updateContainer(item.id, container.id, 'label', e.target.value)}
+                                    placeholder="Label"
+                                    style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
+                                  />
+                                  <input
+                                    className="input"
+                                    value={currentContainer.tracking}
+                                    onChange={(e) => updateContainer(item.id, container.id, 'tracking', e.target.value)}
+                                    placeholder="Tracking number (optional)"
+                                    style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
+                                  />
+                                  <select
+                                    className="input"
+                                    value={currentContainer.unit}
+                                    onChange={(e) => updateContainer(item.id, container.id, 'unit', e.target.value)}
+                                    style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                   >
-                                    {isEditingThis ? (
-                                      /* Container Edit Mode */
-                                      <div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px', gap: '12px', marginBottom: '12px' }}>
-                                          <input
-                                            className="input"
-                                            value={currentContainer.label}
-                                            onChange={(e) => updateContainer(item.id, container.id, 'label', e.target.value)}
-                                            placeholder="Label"
-                                            style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
-                                          />
-                                          <input
-                                            className="input"
-                                            value={currentContainer.tracking}
-                                            onChange={(e) => updateContainer(item.id, container.id, 'tracking', e.target.value)}
-                                            placeholder="Tracking number (optional)"
-                                            style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
-                                          />
-                                          <select
-                                            className="input"
-                                            value={currentContainer.unit}
-                                            onChange={(e) => updateContainer(item.id, container.id, 'unit', e.target.value)}
-                                            style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
-                                          >
-                                            <option value="in">Inches</option>
-                                            <option value="cm">Centimeters</option>
-                                          </select>
+                                    <option value="in">Inches</option>
+                                    <option value="cm">Centimeters</option>
+                                  </select>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                  <div>
+                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Length</label>
+                                    <input
+                                      className="input"
+                                      type="number"
+                                      step="0.1"
+                                      value={currentContainer.length || ""}
+                                      onChange={(e) => updateContainer(item.id, container.id, 'length', e.target.value)}
+                                      placeholder="0"
+                                      style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Width</label>
+                                    <input
+                                      className="input"
+                                      type="number"
+                                      step="0.1"
+                                      value={currentContainer.width || ""}
+                                      onChange={(e) => updateContainer(item.id, container.id, 'width', e.target.value)}
+                                      placeholder="0"
+                                      style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Height</label>
+                                    <input
+                                      className="input"
+                                      type="number"
+                                      step="0.1"
+                                      value={currentContainer.height || ""}
+                                      onChange={(e) => updateContainer(item.id, container.id, 'height', e.target.value)}
+                                      placeholder="0"
+                                      style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Weight (lbs)</label>
+                                    <input
+                                      className="input"
+                                      type="number"
+                                      step="0.1"
+                                      value={currentContainer.weight || ""}
+                                      onChange={(e) => updateContainer(item.id, container.id, 'weight', e.target.value)}
+                                      placeholder="0"
+                                      style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
+                                    />
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button
+                                    className="btn primary"
+                                    onClick={() => saveContainerEdits(item.id)}
+                                    disabled={containerSaving}
+                                    style={{ fontSize: '12px', padding: '6px 16px' }}
+                                  >
+                                    {containerSaving ? 'Saving...' : 'Save Container'}
+                                  </button>
+                                  <button
+                                    className="btn"
+                                    onClick={() => cancelContainerEdit(item.id)}
+                                    disabled={containerSaving}
+                                    style={{ fontSize: '12px', padding: '6px 16px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* Container View Mode - HORIZONTAL LAYOUT FOR MAXIMUM READABILITY */
+                              <div>
+                                <div style={{ 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between', 
+                                  alignItems: 'center',
+                                  marginBottom: isDefaultEmpty ? '0' : '16px'
+                                }}>
+                                  <div style={{ 
+                                    fontWeight: '600', 
+                                    fontSize: '16px', 
+                                    color: '#e4e4e4' 
+                                  }}>
+                                    {container.label}
+                                    {isDefaultEmpty && (
+                                      <span style={{ 
+                                        fontSize: '13px', 
+                                        color: '#6b7280',
+                                        fontStyle: 'italic',
+                                        fontWeight: 'normal',
+                                        marginLeft: '12px'
+                                      }}>
+                                        (not configured)
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                      className="btn"
+                                      onClick={() => startEditContainer(item, container)}
+                                      disabled={containerSaving}
+                                      style={{ fontSize: '11px', padding: '4px 12px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
+                                    >
+                                      ✏️ Edit
+                                    </button>
+                                    {(!container.id.startsWith('default-') || containers.length > 1) && (
+                                      <button
+                                        className="btn danger"
+                                        onClick={() => deleteContainer(item, container.id)}
+                                        disabled={containerSaving}
+                                        style={{ 
+                                          fontSize: '11px', 
+                                          padding: '4px 12px',
+                                          borderColor: '#ef4444',
+                                          color: '#ef4444'
+                                        }}
+                                      >
+                                        🗑️ Delete
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {/* Container Info - FULL WIDTH HORIZONTAL LAYOUT */}
+                                {!isDefaultEmpty && (
+                                  <div style={{ 
+                                    display: 'flex',
+                                    gap: '32px',
+                                    alignItems: 'center',
+                                    flexWrap: 'wrap'
+                                  }}>
+                                    {/* Dimensions */}
+                                    {(container.length || container.width || container.height) && (
+                                      <div style={{ 
+                                        flex: '0 0 auto',
+                                        padding: '12px 20px',
+                                        backgroundColor: '#1a1a1a',
+                                        borderRadius: '6px',
+                                        border: '1px solid #404040'
+                                      }}>
+                                        <div style={{ color: '#9ca3af', fontSize: '11px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          📐 DIMENSIONS
                                         </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                                          <div>
-                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Length</label>
-                                            <input
-                                              className="input"
-                                              type="number"
-                                              step="0.1"
-                                              value={currentContainer.length || ""}
-                                              onChange={(e) => updateContainer(item.id, container.id, 'length', e.target.value)}
-                                              placeholder="0"
-                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
-                                            />
-                                          </div>
-                                          <div>
-                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Width</label>
-                                            <input
-                                              className="input"
-                                              type="number"
-                                              step="0.1"
-                                              value={currentContainer.width || ""}
-                                              onChange={(e) => updateContainer(item.id, container.id, 'width', e.target.value)}
-                                              placeholder="0"
-                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
-                                            />
-                                          </div>
-                                          <div>
-                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Height</label>
-                                            <input
-                                              className="input"
-                                              type="number"
-                                              step="0.1"
-                                              value={currentContainer.height || ""}
-                                              onChange={(e) => updateContainer(item.id, container.id, 'height', e.target.value)}
-                                              placeholder="0"
-                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
-                                            />
-                                          </div>
-                                          <div>
-                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Weight (lbs)</label>
-                                            <input
-                                              className="input"
-                                              type="number"
-                                              step="0.1"
-                                              value={currentContainer.weight || ""}
-                                              onChange={(e) => updateContainer(item.id, container.id, 'weight', e.target.value)}
-                                              placeholder="0"
-                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
-                                            />
-                                          </div>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                          <button
-                                            className="btn primary"
-                                            onClick={() => saveContainerEdits(item.id)}
-                                            disabled={containerSaving}
-                                            style={{ fontSize: '12px', padding: '6px 16px' }}
-                                          >
-                                            {containerSaving ? 'Saving...' : 'Save Container'}
-                                          </button>
-                                          <button
-                                            className="btn"
-                                            onClick={() => cancelContainerEdit(item.id)}
-                                            disabled={containerSaving}
-                                            style={{ fontSize: '12px', padding: '6px 16px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
-                                          >
-                                            Cancel
-                                          </button>
+                                        <div style={{ color: '#e4e4e4', fontSize: '18px', fontWeight: '500' }}>
+                                          {container.length || '0'} × {container.width || '0'} × {container.height || '0'} {container.unit}
                                         </div>
                                       </div>
-                                    ) : (
-                                      /* Container View Mode - IMPROVED READABILITY */
-                                      <div>
-                                        <div style={{ 
-                                          display: 'flex', 
-                                          justifyContent: 'space-between', 
-                                          alignItems: 'start',
-                                          marginBottom: '12px'
-                                        }}>
-                                          <div style={{ 
-                                            fontWeight: '600', 
-                                            fontSize: '14px', 
-                                            color: '#e4e4e4' 
-                                          }}>
-                                            {container.label}
-                                            {isDefaultEmpty && (
-                                              <span style={{ 
-                                                fontSize: '12px', 
-                                                color: '#6b7280',
-                                                fontStyle: 'italic',
-                                                fontWeight: 'normal',
-                                                marginLeft: '12px'
-                                              }}>
-                                                (not configured)
-                                              </span>
-                                            )}
-                                          </div>
-                                          
-                                          <div style={{ display: 'flex', gap: '8px' }}>
-                                            <button
-                                              className="btn"
-                                              onClick={() => startEditContainer(item, container)}
-                                              disabled={containerSaving}
-                                              style={{ fontSize: '11px', padding: '4px 12px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
-                                            >
-                                              ✏️ Edit
-                                            </button>
-                                            {(!container.id.startsWith('default-') || containers.length > 1) && (
-                                              <button
-                                                className="btn danger"
-                                                onClick={() => deleteContainer(item, container.id)}
-                                                disabled={containerSaving}
-                                                style={{ 
-                                                  fontSize: '11px', 
-                                                  padding: '4px 12px',
-                                                  borderColor: '#ef4444',
-                                                  color: '#ef4444'
-                                                }}
-                                              >
-                                                🗑️ Delete
-                                              </button>
-                                            )}
-                                          </div>
+                                    )}
+                                    
+                                    {/* Weight */}
+                                    {container.weight && (
+                                      <div style={{ 
+                                        flex: '0 0 auto',
+                                        padding: '12px 20px',
+                                        backgroundColor: '#1a1a1a',
+                                        borderRadius: '6px',
+                                        border: '1px solid #404040'
+                                      }}>
+                                        <div style={{ color: '#9ca3af', fontSize: '11px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          ⚖️ WEIGHT
                                         </div>
-                                        
-                                        {/* Container Info Grid - Much more readable */}
-                                        {!isDefaultEmpty && (
-                                          <div style={{ 
-                                            display: 'grid', 
-                                            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                                            gap: '16px',
-                                            fontSize: '13px'
-                                          }}>
-                                            {/* Dimensions */}
-                                            {(container.length || container.width || container.height) && (
-                                              <div>
-                                                <span style={{ color: '#9ca3af', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
-                                                  📐 Dimensions
-                                                </span>
-                                                <span style={{ color: '#e4e4e4', fontSize: '14px' }}>
-                                                  {container.length || '—'} × {container.width || '—'} × {container.height || '—'} {container.unit}
-                                                </span>
-                                              </div>
-                                            )}
-                                            
-                                            {/* Weight */}
-                                            {container.weight && (
-                                              <div>
-                                                <span style={{ color: '#9ca3af', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
-                                                  ⚖️ Weight
-                                                </span>
-                                                <span style={{ color: '#e4e4e4', fontSize: '14px' }}>
-                                                  {container.weight} lbs
-                                                </span>
-                                              </div>
-                                            )}
-                                            
-                                            {/* Tracking */}
-                                            {container.tracking && (
-                                              <div style={{ gridColumn: 'span 2' }}>
-                                                <span style={{ color: '#9ca3af', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
-                                                  📍 Tracking Number
-                                                </span>
-                                                <span style={{ color: '#60a5fa', fontSize: '14px' }}>
-                                                  {container.tracking}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                        
-                                        {/* Empty state message */}
-                                        {isDefaultEmpty && (
-                                          <div style={{ 
-                                            color: '#6b7280', 
-                                            fontSize: '13px',
-                                            fontStyle: 'italic'
-                                          }}>
-                                            No dimensions or tracking information set
-                                          </div>
-                                        )}
+                                        <div style={{ color: '#e4e4e4', fontSize: '18px', fontWeight: '500' }}>
+                                          {container.weight} lbs
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Tracking */}
+                                    {container.tracking && (
+                                      <div style={{ 
+                                        flex: '1 1 auto',
+                                        padding: '12px 20px',
+                                        backgroundColor: '#1a1a1a',
+                                        borderRadius: '6px',
+                                        border: '1px solid #404040'
+                                      }}>
+                                        <div style={{ color: '#9ca3af', fontSize: '11px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          📍 TRACKING NUMBER
+                                        </div>
+                                        <div style={{ color: '#60a5fa', fontSize: '16px', fontWeight: '500', wordBreak: 'break-all' }}>
+                                          {container.tracking}
+                                        </div>
                                       </div>
                                     )}
                                   </div>
-                                );
-                              })}
-                            </div>
-                            
-                            <button
-                              className="btn"
-                              onClick={() => addContainer(item)}
-                              disabled={containerSaving}
-                              style={{ 
-                                fontSize: '12px',
-                                padding: '8px 16px',
-                                backgroundColor: '#404040',
-                                color: '#fff',
-                                border: 'none'
-                              }}
-                            >
-                              + Add Container
-                            </button>
+                                )}
+                                
+                                {/* Empty state message */}
+                                {isDefaultEmpty && (
+                                  <div style={{ 
+                                    color: '#6b7280', 
+                                    fontSize: '14px',
+                                    fontStyle: 'italic',
+                                    textAlign: 'center',
+                                    padding: '20px'
+                                  }}>
+                                    Click "Edit" to add dimensions, weight, and tracking information
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  </>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                        );
+                      })}
+                    </div>
+                    
+                    <button
+                      className="btn"
+                      onClick={() => addContainer(item)}
+                      disabled={containerSaving}
+                      style={{ 
+                        fontSize: '12px',
+                        padding: '8px 16px',
+                        backgroundColor: '#404040',
+                        color: '#fff',
+                        border: 'none',
+                        marginTop: '12px'
+                      }}
+                    >
+                      + Add Container
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </section>
   );
