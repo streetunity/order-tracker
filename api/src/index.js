@@ -2103,7 +2103,7 @@ app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
     console.error('Internal notes update error:', e);
     res.status(500).json({ error: e.message || 'Failed to update internal notes' });
   }
-}););
+});
 
 // -----------------------------
 // Item CRUD Routes with Audit Logging
@@ -2537,50 +2537,49 @@ if (hasEditFieldChanges && order.isLocked) {
     }
     
     
-    // Containers array update (validated + stored as JSON string)
-    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
-      try {
-        const validatedContainers = validateContainers(req.body.containers);
-        data.containers = JSON.stringify(validatedContainers);
-        changes.push({
-          field: 'containers',
-          oldValue: '[previous hidden]',
-          newValue: '[updated containers array]'
-        });
-      } catch (e) {
-        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
-      }
-    }
+   // Containers array update (validated + stored as JSON string)
+if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
+  try {
+    const validatedContainers = validateContainers(req.body.containers);
+    data.containers = JSON.stringify(validatedContainers);
+    changes.push({
+      field: 'containers',
+      oldValue: '[previous hidden]',
+      newValue: '[updated containers array]'
+    });
+  } catch (e) {
+    return res.status(400).json({ error: e.message || 'Invalid containers payload' });
+  }
+}
 
 if (Object.keys(data).length === 0) {
-      console.log('No changes detected for item:', itemId);
-      return res.json(item);
-    }
-
-    console.log('Updating item with data:', data);
-    console.log('Changes to log:', changes);
-
-    const updated = await prisma.$transaction(async (tx) => {
-      const updatedItem = await tx.orderItem.update({ 
-        where: { id: itemId }, 
-        data 
-      });
-      
-      console.log('Item updated successfully:', updatedItem);
-      
-      // Log field changes using appropriate audit type
-      if (changes.length > 0) {
-        const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
-        
-        const isMeasurementUpdate = changes.every(c => ['height','width','length','weight','measurementUnit','weightUnit'].includes(c.field));
-const isContainerUpdate = changes.some(c => c.field === 'containers');
-
-let action = 'ITEM_UPDATED';
-if (isMeasurementUpdate) {
-  action = 'MEASUREMENTS_UPDATED';
-} else if (isContainerUpdate && changes.length === 1) {
-  action = 'CONTAINERS_UPDATED';
+  console.log('No changes detected for item:', itemId);
+  return res.json(item);
 }
+
+console.log('Updating item with data:', data);
+console.log('Changes to log:', changes);
+
+const updated = await prisma.$transaction(async (tx) => {
+  const updatedItem = await tx.orderItem.update({ 
+    where: { id: itemId }, 
+    data 
+  });
+  
+  console.log('Item updated successfully:', updatedItem);
+  
+  // Log field changes using appropriate audit type
+  if (changes.length > 0) {
+    // FIXED: Removed duplicate declaration
+    const isMeasurementUpdate = changes.every(c => ['height','width','length','weight','measurementUnit','weightUnit'].includes(c.field));
+    const isContainerUpdate = changes.some(c => c.field === 'containers');
+    
+    let action = 'ITEM_UPDATED';
+    if (isMeasurementUpdate) {
+      action = 'MEASUREMENTS_UPDATED';
+    } else if (isContainerUpdate && changes.length === 1) {
+      action = 'CONTAINERS_UPDATED';
+    }
 
 await tx.auditLog.create({
   data: {
