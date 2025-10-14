@@ -1,4 +1,4 @@
-// MeasurementSection.jsx - Fixed hide button, colors, and changed boxes to containers
+// MeasurementSection.jsx - Improved readability with better spacing and layout
 "use client";
 import { useState, useEffect } from "react";
 
@@ -261,7 +261,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                           display: 'flex', 
                           justifyContent: 'space-between',
                           alignItems: 'start',
-                          marginBottom: isExpanded ? '12px' : '0'
+                          marginBottom: isExpanded ? '16px' : '0'
                         }}>
                           <div>
                             <strong style={{ fontSize: '14px', color: '#e4e4e4' }}>{item.productCode}</strong>
@@ -320,7 +320,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                               <div style={{ 
                                 fontSize: '11px', 
                                 color: '#fbbf24',
-                                marginBottom: '8px',
+                                marginBottom: '12px',
                                 padding: '6px 10px',
                                 backgroundColor: 'rgba(251, 191, 36, 0.1)',
                                 border: '1px solid rgba(251, 191, 36, 0.3)',
@@ -331,7 +331,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                               </div>
                             )}
                             
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
                               {containers.map((container) => {
                                 const isEditingThis = editingContainer === container.id;
                                 const currentContainer = localContainers[item.id]?.find(c => c.id === container.id) || container;
@@ -342,7 +342,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                   <div 
                                     key={container.id}
                                     style={{
-                                      padding: '12px',
+                                      padding: '16px',
                                       backgroundColor: '#2d2d2d',
                                       border: isDefaultEmpty ? '1px dashed #4b5563' : '1px solid #4b5563',
                                       borderRadius: '6px',
@@ -352,34 +352,34 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                     {isEditingThis ? (
                                       /* Container Edit Mode */
                                       <div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px', gap: '8px', marginBottom: '8px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 120px', gap: '12px', marginBottom: '12px' }}>
                                           <input
                                             className="input"
                                             value={currentContainer.label}
                                             onChange={(e) => updateContainer(item.id, container.id, 'label', e.target.value)}
                                             placeholder="Label"
-                                            style={{ fontSize: '12px', backgroundColor: '#2a2a2a' }}
+                                            style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                           />
                                           <input
                                             className="input"
                                             value={currentContainer.tracking}
                                             onChange={(e) => updateContainer(item.id, container.id, 'tracking', e.target.value)}
                                             placeholder="Tracking number (optional)"
-                                            style={{ fontSize: '12px', backgroundColor: '#2a2a2a' }}
+                                            style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                           />
                                           <select
                                             className="input"
                                             value={currentContainer.unit}
                                             onChange={(e) => updateContainer(item.id, container.id, 'unit', e.target.value)}
-                                            style={{ fontSize: '12px', backgroundColor: '#2a2a2a' }}
+                                            style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                           >
                                             <option value="in">Inches</option>
                                             <option value="cm">Centimeters</option>
                                           </select>
                                         </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                           <div>
-                                            <label style={{ fontSize: '10px', color: '#9ca3af', display: 'block', marginBottom: '2px' }}>Length</label>
+                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Length</label>
                                             <input
                                               className="input"
                                               type="number"
@@ -387,11 +387,11 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                               value={currentContainer.length || ""}
                                               onChange={(e) => updateContainer(item.id, container.id, 'length', e.target.value)}
                                               placeholder="0"
-                                              style={{ fontSize: '12px', backgroundColor: '#2a2a2a' }}
+                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                             />
                                           </div>
                                           <div>
-                                            <label style={{ fontSize: '10px', color: '#9ca3af', display: 'block', marginBottom: '2px' }}>Width</label>
+                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Width</label>
                                             <input
                                               className="input"
                                               type="number"
@@ -399,11 +399,11 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                               value={currentContainer.width || ""}
                                               onChange={(e) => updateContainer(item.id, container.id, 'width', e.target.value)}
                                               placeholder="0"
-                                              style={{ fontSize: '12px', backgroundColor: '#2a2a2a' }}
+                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                             />
                                           </div>
                                           <div>
-                                            <label style={{ fontSize: '10px', color: '#9ca3af', display: 'block', marginBottom: '2px' }}>Height</label>
+                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Height</label>
                                             <input
                                               className="input"
                                               type="number"
@@ -411,11 +411,11 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                               value={currentContainer.height || ""}
                                               onChange={(e) => updateContainer(item.id, container.id, 'height', e.target.value)}
                                               placeholder="0"
-                                              style={{ fontSize: '12px', backgroundColor: '#2a2a2a' }}
+                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                             />
                                           </div>
                                           <div>
-                                            <label style={{ fontSize: '10px', color: '#9ca3af', display: 'block', marginBottom: '2px' }}>Weight (lbs)</label>
+                                            <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Weight (lbs)</label>
                                             <input
                                               className="input"
                                               type="number"
@@ -423,16 +423,16 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                               value={currentContainer.weight || ""}
                                               onChange={(e) => updateContainer(item.id, container.id, 'weight', e.target.value)}
                                               placeholder="0"
-                                              style={{ fontSize: '12px', backgroundColor: '#2a2a2a' }}
+                                              style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                             />
                                           </div>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
                                           <button
                                             className="btn primary"
                                             onClick={() => saveContainerEdits(item.id)}
                                             disabled={containerSaving}
-                                            style={{ fontSize: '11px', padding: '4px 12px' }}
+                                            style={{ fontSize: '12px', padding: '6px 16px' }}
                                           >
                                             {containerSaving ? 'Saving...' : 'Save Container'}
                                           </button>
@@ -440,83 +440,123 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                             className="btn"
                                             onClick={() => cancelContainerEdit(item.id)}
                                             disabled={containerSaving}
-                                            style={{ fontSize: '11px', padding: '4px 12px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
+                                            style={{ fontSize: '12px', padding: '6px 16px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
                                           >
                                             Cancel
                                           </button>
                                         </div>
                                       </div>
                                     ) : (
-                                      /* Container View Mode */
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                                        <div style={{ flex: 1 }}>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
-                                            <span style={{ 
-                                              fontWeight: '600', 
-                                              fontSize: '13px', 
-                                              color: '#e4e4e4' 
-                                            }}>
-                                              {container.label}
-                                            </span>
+                                      /* Container View Mode - IMPROVED READABILITY */
+                                      <div>
+                                        <div style={{ 
+                                          display: 'flex', 
+                                          justifyContent: 'space-between', 
+                                          alignItems: 'start',
+                                          marginBottom: '12px'
+                                        }}>
+                                          <div style={{ 
+                                            fontWeight: '600', 
+                                            fontSize: '14px', 
+                                            color: '#e4e4e4' 
+                                          }}>
+                                            {container.label}
                                             {isDefaultEmpty && (
                                               <span style={{ 
-                                                fontSize: '11px', 
+                                                fontSize: '12px', 
                                                 color: '#6b7280',
-                                                fontStyle: 'italic'
+                                                fontStyle: 'italic',
+                                                fontWeight: 'normal',
+                                                marginLeft: '12px'
                                               }}>
                                                 (not configured)
                                               </span>
                                             )}
                                           </div>
                                           
-                                          {container.tracking && (
-                                            <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '4px' }}>
-                                              📍 Tracking: {container.tracking}
-                                            </div>
-                                          )}
-                                          
-                                          <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                                            {container.length && container.width && container.height ? (
-                                              <>
-                                                📐 Dimensions: {container.length} × {container.width} × {container.height} {container.unit}
-                                              </>
-                                            ) : (
-                                              <span style={{ color: '#6b7280' }}>No dimensions set</span>
+                                          <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                              className="btn"
+                                              onClick={() => startEditContainer(item, container)}
+                                              disabled={containerSaving}
+                                              style={{ fontSize: '11px', padding: '4px 12px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
+                                            >
+                                              ✏️ Edit
+                                            </button>
+                                            {(!container.id.startsWith('default-') || containers.length > 1) && (
+                                              <button
+                                                className="btn danger"
+                                                onClick={() => deleteContainer(item, container.id)}
+                                                disabled={containerSaving}
+                                                style={{ 
+                                                  fontSize: '11px', 
+                                                  padding: '4px 12px',
+                                                  borderColor: '#ef4444',
+                                                  color: '#ef4444'
+                                                }}
+                                              >
+                                                🗑️ Delete
+                                              </button>
                                             )}
                                           </div>
-                                          
-                                          {container.weight && (
-                                            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
-                                              ⚖️ Weight: {container.weight} lbs
-                                            </div>
-                                          )}
                                         </div>
                                         
-                                        <div style={{ display: 'flex', gap: '6px' }}>
-                                          <button
-                                            className="btn"
-                                            onClick={() => startEditContainer(item, container)}
-                                            disabled={containerSaving}
-                                            style={{ fontSize: '11px', padding: '3px 10px', backgroundColor: '#404040', color: '#fff', border: 'none' }}
-                                          >
-                                            ✏️ Edit
-                                          </button>
-                                          {(!container.id.startsWith('default-') || containers.length > 1) && (
-                                            <button
-                                              className="btn danger"
-                                              onClick={() => deleteContainer(item, container.id)}
-                                              disabled={containerSaving}
-                                              style={{ 
-                                                fontSize: '11px', 
-                                                padding: '3px 10px',
-                                                borderColor: '#ef4444',
-                                                color: '#ef4444'
-                                              }}
-                                            >
-                                              🗑️ Delete
-                                            </button>
-                                          )}
-                                        </div>
+                                        {/* Container Info Grid - Much more readable */}
+                                        {!isDefaultEmpty && (
+                                          <div style={{ 
+                                            display: 'grid', 
+                                            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                            gap: '16px',
+                                            fontSize: '13px'
+                                          }}>
+                                            {/* Dimensions */}
+                                            {(container.length || container.width || container.height) && (
+                                              <div>
+                                                <span style={{ color: '#9ca3af', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                                                  📐 Dimensions
+                                                </span>
+                                                <span style={{ color: '#e4e4e4', fontSize: '14px' }}>
+                                                  {container.length || '—'} × {container.width || '—'} × {container.height || '—'} {container.unit}
+                                                </span>
+                                              </div>
+                                            )}
+                                            
+                                            {/* Weight */}
+                                            {container.weight && (
+                                              <div>
+                                                <span style={{ color: '#9ca3af', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                                                  ⚖️ Weight
+                                                </span>
+                                                <span style={{ color: '#e4e4e4', fontSize: '14px' }}>
+                                                  {container.weight} lbs
+                                                </span>
+                                              </div>
+                                            )}
+                                            
+                                            {/* Tracking */}
+                                            {container.tracking && (
+                                              <div style={{ gridColumn: 'span 2' }}>
+                                                <span style={{ color: '#9ca3af', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                                                  📍 Tracking Number
+                                                </span>
+                                                <span style={{ color: '#60a5fa', fontSize: '14px' }}>
+                                                  {container.tracking}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                        
+                                        {/* Empty state message */}
+                                        {isDefaultEmpty && (
+                                          <div style={{ 
+                                            color: '#6b7280', 
+                                            fontSize: '13px',
+                                            fontStyle: 'italic'
+                                          }}>
+                                            No dimensions or tracking information set
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -530,7 +570,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                               disabled={containerSaving}
                               style={{ 
                                 fontSize: '12px',
-                                padding: '6px 16px',
+                                padding: '8px 16px',
                                 backgroundColor: '#404040',
                                 color: '#fff',
                                 border: 'none'
