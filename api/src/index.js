@@ -2748,3 +2748,4 @@ app.listen(PORT, HOST, () => {
   console.log(`Admin: admin@stealthmachinetools.com / admin123`);
   console.log(`Agent: john@stealthmachinetools.com / agent123`);
 });
+// Complete version with audit logging
