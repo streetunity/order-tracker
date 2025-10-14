@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import MeasurementSection from "@/components/MeasurementSection";
-import ContainersSection from "@/components/ContainersSection";
+// REMOVED: import ContainersSection from "@/components/ContainersSection";
 
 export default function EditOrderPage({ params }) {
   const { id } = params;
@@ -637,10 +637,7 @@ export default function EditOrderPage({ params }) {
                         disabled={saving || order.isLocked}
                         isLocked={order.isLocked}
                         isAdmin={isAdmin}
-                      
-                        orderId={order.id}
-                        getAuthHeaders={getAuthHeaders}
-                        onRefresh={load}/>
+                      />
                     ))
                   )}
                 </tbody>
@@ -787,7 +784,7 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Measurements Section */}
+          {/* Measurements Section - NOW WITH CONTAINERS */}
           <MeasurementSection 
             order={order}
             items={order.items}
@@ -990,7 +987,7 @@ export default function EditOrderPage({ params }) {
 }
 
 
-function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, disabled, isLocked, isAdmin, orderId, getAuthHeaders, onRefresh}) {
+function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, disabled, isLocked, isAdmin }) {
   const [name, setName] = useState(item.productCode || "");
   const [qty, setQty] = useState(item.qty || 1);
   const [serialNumber, setSerialNumber] = useState(item.serialNumber || "");
@@ -1196,8 +1193,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
         </td>
       </tr>
       {isAdmin && (
-        <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent" }}>
-          <td colSpan="8" style={{ padding: "8px" }}>
+        <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", borderBottom: "2px solid #404040" }}>
+          <td colSpan="9" style={{ padding: "8px" }}>
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
                 <input
@@ -1258,23 +1255,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
               </div>
             )}
           </td>
-          <td></td>
         </tr>
       )}
-    
-      {/* Containers Section */}
-      <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent" }}>
-        <td colSpan="9" style={{ padding: "0 8px 8px 8px" }}>
-          <ContainersSection 
-            item={item}
-            orderId={orderId}
-            isAdmin={isAdmin}
-            isLocked={isLocked}
-            getAuthHeaders={getAuthHeaders}
-            onUpdate={onRefresh}
-          />
-        </td>
-      </tr>
-</>
+    </>
   );
 }
