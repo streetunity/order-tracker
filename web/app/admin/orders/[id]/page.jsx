@@ -737,9 +737,19 @@ export default function EditOrderPage({ params }) {
             )}
           </section>
 
-          {/* Internal Notes Section */}
+          {/* Internal Notes Section - NOW RESPECTS LOCK STATUS */}
           <section style={{ marginTop: 32 }}>
             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Internal Notes</h2>
+            {order.isLocked && (
+              <div style={{ 
+                fontSize: "12px", 
+                color: "#dc2626", 
+                marginBottom: "8px",
+                fontStyle: "italic"
+              }}>
+                🔒 Internal notes are locked and cannot be edited while the order is locked.
+              </div>
+            )}
             <div style={{
               backgroundColor: "#2d2d2d",
               border: "1px solid #4b5563",
@@ -749,10 +759,13 @@ export default function EditOrderPage({ params }) {
               <textarea
                 value={internalNotes}
                 onChange={(e) => {
-                  setInternalNotes(e.target.value);
-                  setInternalNotesChanged(true);
+                  if (!order.isLocked) {
+                    setInternalNotes(e.target.value);
+                    setInternalNotesChanged(true);
+                  }
                 }}
                 placeholder="Internal notes only, payment / ordering information."
+                disabled={order.isLocked}  // FIXED: Disable when order is locked
                 style={{
                   width: "100%",
                   minHeight: "120px",
@@ -761,25 +774,29 @@ export default function EditOrderPage({ params }) {
                   borderRadius: "4px",
                   fontSize: "14px",
                   fontFamily: "inherit",
-                  backgroundColor: "#2d2d2d",
-                  color: "#e5e7eb"
+                  backgroundColor: order.isLocked ? "#1a1a1a" : "#2d2d2d",  // Visual feedback when locked
+                  color: order.isLocked ? "#6b7280" : "#e5e7eb",  // Dimmed text when locked
+                  opacity: order.isLocked ? 0.7 : 1,  // Additional visual feedback
+                  cursor: order.isLocked ? "not-allowed" : "text"  // Show not-allowed cursor when locked
                 }}
               />
               <div style={{ marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>
                   These notes are private and will not be visible to customers.
                 </div>
-                <button
-                  className="btn primary"
-                  onClick={saveInternalNotes}
-                  disabled={!internalNotesChanged || internalNotesSaving}
-                  style={{
-                    opacity: !internalNotesChanged ? 0.5 : 1,
-                    cursor: !internalNotesChanged ? "not-allowed" : "pointer"
-                  }}
-                >
-                  {internalNotesSaving ? "Saving..." : "Save Internal Notes"}
-                </button>
+                {!order.isLocked && (  // Only show save button when order is not locked
+                  <button
+                    className="btn primary"
+                    onClick={saveInternalNotes}
+                    disabled={!internalNotesChanged || internalNotesSaving}
+                    style={{
+                      opacity: !internalNotesChanged ? 0.5 : 1,
+                      cursor: !internalNotesChanged ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    {internalNotesSaving ? "Saving..." : "Save Internal Notes"}
+                  </button>
+                )}
               </div>
             </div>
           </section>
