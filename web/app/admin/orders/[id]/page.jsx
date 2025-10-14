@@ -358,7 +358,8 @@ export default function EditOrderPage({ params }) {
           voltage, 
           laserWattage: laserWattage || null,
           notes,
-          hasExtendedShipping
+          hasExtendedShipping,
+          containers: []  // FIXED: Add empty containers array for new items
         }),
       });
       
