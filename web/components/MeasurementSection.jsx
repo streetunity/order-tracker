@@ -1,6 +1,6 @@
-// MeasurementSection.jsx - Updated to auto-display container details and fix button colors
+// MeasurementSection.jsx - Fixed hide button, colors, and changed boxes to containers
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function MeasurementSection({ order, items, onRefresh, getAuthHeaders }) {
   const [containerSaving, setContainerSaving] = useState(false);
@@ -15,6 +15,19 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
       c.tracking || c.height || c.width || c.length || c.weight || !c.id.startsWith('default-')
     );
   };
+
+  // Auto-expand items with container data on mount
+  useEffect(() => {
+    if (items) {
+      const itemsWithData = new Set();
+      items.forEach(item => {
+        if (itemHasContainerData(item)) {
+          itemsWithData.add(item.id);
+        }
+      });
+      setExpandedItems(itemsWithData);
+    }
+  }, [items]);
 
   // Container management functions
   const saveContainers = async (itemId, updatedContainers) => {
@@ -70,7 +83,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     if (containers.length === 0) {
       return [{
         id: `default-${item.id}`,
-        label: 'Box 1',
+        label: 'Container 1',
         tracking: '',
         height: null,
         width: null,
@@ -87,8 +100,8 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     const containers = getContainersForItem(item);
     
     const newContainer = {
-      id: `box-${Date.now()}`,
-      label: `Box ${containers.length + 1}`,
+      id: `container-${Date.now()}`,
+      label: `Container ${containers.length + 1}`,
       tracking: "",
       height: null,
       width: null,
@@ -182,7 +195,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
         alignItems: 'center',
         marginBottom: 8
       }}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>Shipping Containers / Boxes</h2>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Shipping Containers</h2>
         <span style={{ 
           backgroundColor: '#6b7280', 
           color: '#fff', 
@@ -218,7 +231,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
         <strong>📦 How containers work:</strong>
         <ul style={{ margin: "8px 0 0 20px", paddingLeft: "0" }}>
           <li>Each container represents a physical box or unit that will be shipped</li>
-          <li>Single items without multiple boxes should use "Box 1" only</li>
+          <li>Single items should use "Container 1" only unless shipping in multiple boxes</li>
           <li>Add additional containers only when items ship in multiple boxes</li>
           <li>Each container can have its own tracking number and dimensions</li>
         </ul>
@@ -231,8 +244,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
               <tr><td colSpan={1} style={{ color: "#6b7280" }}>No items in this order.</td></tr>
             ) : (
               items.map((item) => {
-                const hasData = itemHasContainerData(item);
-                const isExpanded = expandedItems.has(item.id) || hasData; // Auto-expand if has data
+                const isExpanded = expandedItems.has(item.id);
                 const containers = getContainersForItem(item);
                 const totalWeight = containers.reduce((sum, c) => sum + (c.weight || 0), 0);
                 const realContainerCount = containers.filter(c => !c.id.startsWith('default-') || c.tracking || c.height || c.width || c.length || c.weight).length;
@@ -269,13 +281,13 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                             <div style={{ textAlign: 'right' }}>
                               <span style={{ 
                                 padding: '4px 8px',
-                                backgroundColor: realContainerCount > 0 ? '#1e40af' : '#374151',
+                                backgroundColor: realContainerCount > 0 ? '#374151' : '#4b5563',
                                 color: '#fff',
                                 borderRadius: '4px',
                                 fontSize: '12px',
                                 fontWeight: '500'
                               }}>
-                                📦 {realContainerCount || 1} {realContainerCount === 1 ? 'box' : 'boxes'}
+                                📦 {realContainerCount || 1} {realContainerCount === 1 ? 'container' : 'containers'}
                               </span>
                               {totalWeight > 0 && (
                                 <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
@@ -290,7 +302,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                               style={{ 
                                 fontSize: '11px', 
                                 padding: '4px 8px',
-                                backgroundColor: isExpanded ? '#059669' : '#404040',
+                                backgroundColor: isExpanded ? '#6b7280' : '#404040',
                                 color: '#fff',
                                 border: 'none',
                                 minWidth: '70px'
@@ -301,7 +313,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                           </div>
                         </div>
                         
-                        {/* Container Details - Always visible if expanded */}
+                        {/* Container Details - Only show when expanded */}
                         {isExpanded && (
                           <div>
                             {item.qty > 1 && (
