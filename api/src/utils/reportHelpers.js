@@ -3,6 +3,7 @@ import { STAGES, STAGE_INDEX } from '../state.js';
 
 /**
  * Parse common query filters for reports
+ * FIXED: dateTo now includes the entire day (set to 23:59:59.999)
  */
 export function parseReportFilters(query) {
   const {
@@ -22,10 +23,20 @@ export function parseReportFilters(query) {
     sortDir = 'desc'
   } = query;
 
+  // Parse dates and make dateTo inclusive of the entire day
+  let dateFrom = date_from ? new Date(date_from) : null;
+  let dateTo = date_to ? new Date(date_to) : null;
+  
+  // CRITICAL FIX: Make dateTo inclusive of the entire day
+  // Set to 23:59:59.999 of the specified date
+  if (dateTo) {
+    dateTo.setHours(23, 59, 59, 999);
+  }
+
   const filters = {
     dateMode: date_mode,
-    dateFrom: date_from ? new Date(date_from) : null,
-    dateTo: date_to ? new Date(date_to) : null,
+    dateFrom: dateFrom,
+    dateTo: dateTo,
     accountId: accountId || null,
     repId: repId || null,
     stages: stage ? (Array.isArray(stage) ? stage : [stage]) : [],
