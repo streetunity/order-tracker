@@ -39,6 +39,10 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
   const saveContainers = async (itemId, updatedContainers) => {
     try {
       setContainerSaving(true);
+      
+      // Serialize containers to JSON string for the API
+      const containersJson = JSON.stringify(updatedContainers);
+      
       const res = await fetch(`/api/orders/${encodeURIComponent(order.id)}/items/${encodeURIComponent(itemId)}`, {
         method: "PATCH",
         headers: { 
@@ -46,7 +50,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
           ...getAuthHeaders()
         },
         body: JSON.stringify({ 
-          containers: updatedContainers
+          containers: containersJson
         }),
       });
       
@@ -91,8 +95,12 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     if (localContainers[item.id]) {
       return localContainers[item.id];
     }
-    const containers = item.containers ? 
-      (typeof item.containers === 'string' ? JSON.parse(item.containers) : item.containers) : [];
+    
+    // Find the item in localItems to get the most current data
+    const currentItem = localItems.find(i => i.id === item.id) || item;
+    
+    const containers = currentItem.containers ? 
+      (typeof currentItem.containers === 'string' ? JSON.parse(currentItem.containers) : currentItem.containers) : [];
     
     // If no containers exist, return a default one
     if (containers.length === 0) {
@@ -139,7 +147,8 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
 
   const updateContainer = (itemId, containerId, field, value) => {
     setLocalContainers(prev => {
-      const containers = prev[itemId] || getContainersForItem({ id: itemId, containers: localItems.find(i => i.id === itemId)?.containers });
+      const currentItem = localItems.find(i => i.id === itemId);
+      const containers = prev[itemId] || getContainersForItem(currentItem || { id: itemId });
       const updated = containers.map(c => 
         c.id === containerId 
           ? { ...c, [field]: field === 'height' || field === 'width' || field === 'length' || field === 'weight' 
