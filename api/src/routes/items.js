@@ -16,7 +16,8 @@ export function createItemsRouter() {
         modelNumber: i?.modelNumber ? String(i.modelNumber).trim() : null,
         voltage: i?.voltage ? String(i.voltage).trim() : null,
         laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
-        notes: i?.notes ? String(i.notes).trim() : null
+        notes: i?.notes ? String(i.notes).trim() : null,
+        hasExtendedShipping: i?.hasExtendedShipping === true
       }))
       .filter((i) => i.productCode.length > 0);
   }
@@ -72,7 +73,8 @@ export function createItemsRouter() {
               modelNumber: i.modelNumber,
               voltage: i.voltage,
               laserWattage: i.laserWattage || null,
-              notes: i.notes
+              notes: i.notes,
+              hasExtendedShipping: i.hasExtendedShipping || false
             }
           });
           createdItems.push(row);
@@ -133,6 +135,7 @@ export function createItemsRouter() {
           weightUnit: true,
           itemPrice: true,
           privateItemNote: true,
+          hasExtendedShipping: true,
           containers: true
         } 
       });
@@ -356,6 +359,20 @@ export function createItemsRouter() {
             field: 'privateItemNote',
             oldValue: item.privateItemNote || 'null',
             newValue: newPrivateNote || 'null'
+          });
+        }
+      }
+
+      // Handle hasExtendedShipping (allowed even on locked orders - all users can edit)
+      if (req.body.hasOwnProperty('hasExtendedShipping')) {
+        const newExtendedShipping = req.body.hasExtendedShipping === true;
+
+        if (newExtendedShipping !== (item.hasExtendedShipping || false)) {
+          data.hasExtendedShipping = newExtendedShipping;
+          changes.push({
+            field: 'hasExtendedShipping',
+            oldValue: String(item.hasExtendedShipping || false),
+            newValue: String(newExtendedShipping)
           });
         }
       }
