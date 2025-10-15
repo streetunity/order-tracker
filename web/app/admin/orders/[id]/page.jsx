@@ -512,6 +512,66 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
+          {/* Order Information Section - ADDED FOR ORDER DATE DISPLAY */}
+          <section style={{ marginTop: 16, marginBottom: 16 }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Order Information</h3>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
+                  Order Date
+                </label>
+                <div style={{ 
+                  padding: "8px 12px",
+                  backgroundColor: "#1a1a1a",
+                  border: "1px solid #404040",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  color: "#e4e4e4",
+                  minWidth: "120px"
+                }}>
+                  {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "Not set"}
+                </div>
+              </div>
+              {order.poNumber && (
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
+                    PO Number
+                  </label>
+                  <div style={{ 
+                    padding: "8px 12px",
+                    backgroundColor: "#1a1a1a",
+                    border: "1px solid #404040",
+                    borderRadius: "4px",
+                    fontSize: "14px",
+                    color: "#e4e4e4"
+                  }}>
+                    {order.poNumber}
+                  </div>
+                </div>
+              )}
+              {order.sku && (
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
+                    Sales Person
+                  </label>
+                  <div style={{ 
+                    padding: "8px 12px",
+                    backgroundColor: "#1a1a1a",
+                    border: "1px solid #404040",
+                    borderRadius: "4px",
+                    fontSize: "14px",
+                    color: "#e4e4e4"
+                  }}>
+                    {order.sku}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "8px" }}>
+              The order date is set when the order is created and is used for ETA calculations. This field cannot be edited after order creation.
+            </div>
+          </section>
+
           {/* Customer Documents Link Section */}
           <section style={{ marginTop: 16, marginBottom: 16 }}>
             <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>
