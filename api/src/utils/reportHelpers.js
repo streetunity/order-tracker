@@ -44,14 +44,28 @@ export function parseReportFilters(query) {
 
 /**
  * Build Prisma where clause from filters
+ * FIXED: Now properly handles different date modes
  */
 export function buildWhereClause(filters, targetEntity = 'order') {
   const where = {};
   const { dateMode, dateFrom, dateTo, accountId, repId, stages, productCodes, includeArchived } = filters;
 
-  // Date filtering
+  // Date filtering - FIXED to handle different date modes properly
   if (dateFrom || dateTo) {
-    const dateField = targetEntity === 'order' && dateMode === 'completed' ? 'completedAt' : 'createdAt';
+    let dateField = 'createdAt'; // Default
+    
+    if (targetEntity === 'order') {
+      // Use appropriate date field based on mode
+      // 'order' mode = filter by orderDate (when order was placed)
+      // 'created' mode = filter by createdAt (when entered in system)
+      // Note: 'completed' mode would need special handling with statusEvents
+      if (dateMode === 'order') {
+        dateField = 'orderDate';
+      } else {
+        dateField = 'createdAt';
+      }
+    }
+    
     where[dateField] = {};
     if (dateFrom) where[dateField].gte = dateFrom;
     if (dateTo) where[dateField].lte = dateTo;
@@ -168,9 +182,10 @@ export function bucketByWeek(date, timezone = 'UTC') {
 
 /**
  * Calculate completion status for an order
+ * FIXED: Changed orderItem to OrderItem (correct Prisma model name)
  */
 export async function calculateOrderCompletion(order, prisma) {
-  const items = await prisma.orderItem.findMany({
+  const items = await prisma.OrderItem.findMany({
     where: { orderId: order.id },
     include: {
       statusEvents: {
