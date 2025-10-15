@@ -14,6 +14,7 @@
  * Added sales-by-month endpoint here (moved from index.js)
  * FIXED: Sales by rep now uses sku field (which stores sales person name)
  * ADDED: /summary endpoint for main reports dashboard
+ * FIXED: Removed archivedAt filter from Order queries (only OrderItems have this field)
  */
 
 import { Router } from 'express';
@@ -53,26 +54,24 @@ export function createReportsRouter(prisma) {
       const isAdmin = req.user?.role === 'admin';
       
       // Get total active orders (not in final stage)
+      // Note: Orders don't have archivedAt field, only items do
       const finalStage = STAGES[STAGES.length - 1];
       const activeOrdersCount = await prisma.order.count({
         where: {
-          currentStage: { not: finalStage },
-          archivedAt: null
+          currentStage: { not: finalStage }
         }
       });
 
       // Get completed orders count
       const completedOrdersCount = await prisma.order.count({
         where: {
-          currentStage: finalStage,
-          archivedAt: null
+          currentStage: finalStage
         }
       });
 
       // Get orders by stage
       const ordersByStage = await prisma.order.groupBy({
         by: ['currentStage'],
-        where: { archivedAt: null },
         _count: { id: true }
       });
 
@@ -82,13 +81,14 @@ export function createReportsRouter(prisma) {
       }));
 
       // Calculate total revenue (admin only)
+      // Filter at item level for archived status
       let totalRevenue = 'N/A';
       let grandTotal = 0;
       if (isAdmin) {
         const items = await prisma.orderItem.findMany({
           where: { 
             itemPrice: { not: null },
-            order: { archivedAt: null }
+            archivedAt: null  // Filter archived items, not orders
           },
           select: {
             itemPrice: true,
