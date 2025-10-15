@@ -24,6 +24,7 @@ export function createCycleTimeReportsRouter(prisma) {
    * GET /reports/cycle-times
    * Cycle time analysis for completed items (not orders)
    * FIXED: Now tracks items through completion, not orders
+   * FRONTEND COMPATIBILITY FIX: Added completedOrders as alias for completedItems
    */
   router.get('/cycle-times', authGuard, async (req, res) => {
     try {
@@ -99,6 +100,7 @@ export function createCycleTimeReportsRouter(prisma) {
         },
         kpis: {
           completedItems: cycleData.length,
+          completedOrders: cycleData.length, // ADDED: Frontend compatibility - same as completedItems
           medianCycleTime: stats.median,
           medianCycleTimeDays: Math.floor((stats.median || 0) / 86400),
           medianFormatted: formatDuration(stats.median),
