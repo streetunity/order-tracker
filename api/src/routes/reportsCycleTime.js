@@ -658,6 +658,7 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/chokepoints
    * Identify bottlenecks for a specific stage with risk assessment based on SMT timeline
+   * FIXED: Use order.orderDate as fallback for items without status events
    */
   router.get('/chokepoints', authGuard, async (req, res) => {
     try {
@@ -673,7 +674,9 @@ export function createCycleTimeReportsRouter(prisma) {
         include: {
           order: {
             select: { 
-              poNumber: true, 
+              poNumber: true,
+              orderDate: true,
+              createdAt: true,
               account: { select: { name: true } }
             }
           },
@@ -694,9 +697,12 @@ export function createCycleTimeReportsRouter(prisma) {
       let criticalCount = 0;
       
       const itemsWithTime = items
-        .filter(item => item.statusEvents.length > 0)
         .map(item => {
-          const enteredAt = item.statusEvents[0].createdAt;
+          // Use status event time if available, otherwise use order's orderDate, then item createdAt
+          const enteredAt = item.statusEvents.length > 0 
+            ? item.statusEvents[0].createdAt 
+            : (item.order.orderDate || item.createdAt);
+          
           const timeInStageSec = (now - new Date(enteredAt)) / 1000;
           const timeInStageDays = (timeInStageSec / 86400).toFixed(1);
           const riskLevel = assessRiskLevel(targetStage, timeInStageSec);
