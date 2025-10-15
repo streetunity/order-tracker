@@ -486,7 +486,7 @@ export default function EditOrderPage({ params }) {
               <div>
                 <strong style={{ color: "#fecaca" }}>🔒 This order is locked</strong>
                 <div style={{ color: "#fca5a5", fontSize: "12px", marginTop: "4px" }}>
-                  Item details cannot be edited while the order is locked. Admin fields (price/purchasing notes/extended shipping) remain editable.
+                  Item details cannot be edited while the order is locked. Admin fields (price/purchasing notes) and extended shipping remain editable.
                   {order.lockedAt && (
                     <span> Locked on {new Date(order.lockedAt).toLocaleDateString()} by {order.lockedBy || "Admin"}</span>
                   )}
@@ -712,7 +712,7 @@ export default function EditOrderPage({ params }) {
                 marginBottom: "8px",
                 fontStyle: "italic"
               }}>
-                Note: Item editing is disabled while order is locked. Admins can still edit price, purchasing notes, and extended shipping.
+                Note: Item editing is disabled while order is locked. Extended shipping and admin fields (price/purchasing notes) remain editable.
               </div>
             )}
             <div style={{ overflowX: "auto" }}>
@@ -1123,6 +1123,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
   const [privateItemNote, setPrivateItemNote] = useState(item.privateItemNote || "");
   const [hasExtendedShipping, setHasExtendedShipping] = useState(item.hasExtendedShipping || false);
 
+  // Regular fields that all users can edit (including extended shipping)
   const regularFieldsChanged = 
     name.trim() !== (item.productCode || "") || 
     Number(qty) !== Number(item.qty || 1) ||
@@ -1130,15 +1131,16 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
     modelNumber.trim() !== (item.modelNumber || "") ||
     voltage.trim() !== (item.voltage || "") ||
     laserWattage.trim() !== (item.laserWattage || "") ||
-    notes.trim() !== (item.notes || "");
+    notes.trim() !== (item.notes || "") ||
+    hasExtendedShipping !== (item.hasExtendedShipping || false);
 
+  // Admin-only fields
   const adminFieldsChanged = isAdmin && (
     (itemPrice === "" ? null : parseFloat(itemPrice)) !== (item.itemPrice || null) ||
-    privateItemNote.trim() !== (item.privateItemNote || "") ||
-    hasExtendedShipping !== (item.hasExtendedShipping || false)
+    privateItemNote.trim() !== (item.privateItemNote || "")
   );
 
-  const changed = isLocked ? adminFieldsChanged : (regularFieldsChanged || adminFieldsChanged);
+  const changed = isLocked ? adminFieldsChanged || (hasExtendedShipping !== (item.hasExtendedShipping || false)) : (regularFieldsChanged || adminFieldsChanged);
 
   const isOrdered = item.isOrdered;
   const orderedDate = item.orderedAt ? new Date(item.orderedAt).toLocaleDateString() : null;
@@ -1312,71 +1314,79 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           </div>
         </td>
       </tr>
-      {isAdmin && (
-        <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", borderBottom: "2px solid #404040" }}>
-          <td colSpan="9" style={{ padding: "8px" }}>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <input
-                  className="input"
-                  value={privateItemNote}
-                  onChange={e => setPrivateItemNote(e.target.value)}
-                  placeholder="Purchasing notes (private, admin only)"
-                  style={{ 
-                    width: "100%"
-                  }}
-                />
-              </div>
-              <div style={{ width: "120px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
+      {/* Second row for extended shipping (all users) and admin fields */}
+      <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", borderBottom: "2px solid #404040" }}>
+        <td colSpan="9" style={{ padding: "8px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            {/* Extended Shipping - Available to all users */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="checkbox"
+                id={`extended-${item.id}`}
+                checked={hasExtendedShipping}
+                onChange={e => setHasExtendedShipping(e.target.checked)}
+                disabled={isLocked}
+                style={{ width: "16px", height: "16px", cursor: isLocked ? "not-allowed" : "pointer", opacity: isLocked ? 0.6 : 1 }}
+              />
+              <label 
+                htmlFor={`extended-${item.id}`} 
+                style={{ 
+                  fontSize: "12px", 
+                  color: hasExtendedShipping ? "var(--success)" : "#6b7280",
+                  cursor: isLocked ? "not-allowed" : "pointer",
+                  fontWeight: hasExtendedShipping ? "500" : "normal",
+                  opacity: isLocked ? 0.6 : 1
+                }}
+              >
+                ⭐ Extended Shipping
+              </label>
+            </div>
+            
+            {/* Admin-only fields */}
+            {isAdmin && (
+              <>
+                <div style={{ flex: 1, minWidth: "200px" }}>
                   <input
                     className="input"
-                    type="text"
-                    value={itemPrice}
-                    onChange={handlePriceChange}
-                    placeholder="0.00"
+                    value={privateItemNote}
+                    onChange={e => setPrivateItemNote(e.target.value)}
+                    placeholder="Purchasing notes (private, admin only)"
                     style={{ 
-                      width: "90px", 
-                      textAlign: "right"
+                      width: "100%"
                     }}
                   />
                 </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <input
-                  type="checkbox"
-                  id={`extended-${item.id}`}
-                  checked={hasExtendedShipping}
-                  onChange={e => setHasExtendedShipping(e.target.checked)}
-                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                />
-                <label 
-                  htmlFor={`extended-${item.id}`} 
-                  style={{ 
-                    fontSize: "12px", 
-                    color: hasExtendedShipping ? "var(--success)" : "#6b7280",
-                    cursor: "pointer",
-                    fontWeight: hasExtendedShipping ? "500" : "normal"
-                  }}
-                >
-                  ⭐ Extended Shipping
-                </label>
-              </div>
-            </div>
-            {hasExtendedShipping && (
-              <div style={{ 
-                marginTop: "4px", 
-                fontSize: "11px", 
-                color: "var(--success)", 
-                fontStyle: "italic" 
-              }}>
-                This item requires extended lead time and will add extra days to the ETA
-              </div>
+                <div style={{ width: "120px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
+                    <input
+                      className="input"
+                      type="text"
+                      value={itemPrice}
+                      onChange={handlePriceChange}
+                      placeholder="0.00"
+                      style={{ 
+                        width: "90px", 
+                        textAlign: "right"
+                      }}
+                    />
+                  </div>
+                </div>
+              </>
             )}
-          </td>
-        </tr>
-      )}
+          </div>
+          {hasExtendedShipping && (
+            <div style={{ 
+              marginTop: "4px", 
+              fontSize: "11px", 
+              color: "var(--success)", 
+              fontStyle: "italic" 
+            }}>
+              This item requires extended lead time and will add extra days to the ETA
+            </div>
+          )}
+        </td>
+      </tr>
     </>
   );
 }
