@@ -22,18 +22,24 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/cycle-times
    * Cycle time analysis for completed orders
+   * FIXED: Now properly supports filtering by order date or created date
    */
   router.get('/cycle-times', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       const finalStage = STAGES[STAGES.length - 1];
 
+      // Build where clause - use created date for operational reports by default
+      if (!filters.dateMode || filters.dateMode === 'completed') {
+        filters.dateMode = 'created'; // Default to created for cycle time analysis
+      }
+      
+      const whereClause = buildWhereClause(filters, 'order');
+      whereClause.currentStage = finalStage; // Only completed orders
+
       // Get all completed orders
       const orders = await prisma.order.findMany({
-        where: {
-          currentStage: finalStage,
-          ...buildWhereClause(filters, 'order')
-        },
+        where: whereClause,
         include: {
           account: { select: { name: true } },
           createdBy: { select: { name: true } },
@@ -50,7 +56,9 @@ export function createCycleTimeReportsRouter(prisma) {
         .filter(o => o.statusEvents.length > 0)
         .map(o => {
           const completedAt = o.statusEvents[0].createdAt;
-          const cycleTimeSec = calculateCycleTime(o.createdAt, completedAt);
+          // Use orderDate if available for cycle time calculation
+          const startDate = o.orderDate || o.createdAt;
+          const cycleTimeSec = calculateCycleTime(startDate, completedAt);
           const cycleTimeDays = Math.floor(cycleTimeSec / 86400);
           
           return {
@@ -58,6 +66,7 @@ export function createCycleTimeReportsRouter(prisma) {
             poNumber: o.poNumber,
             accountName: o.account?.name || 'Unknown',
             createdBy: o.createdBy?.name || 'Unknown',
+            orderDate: o.orderDate,
             createdAt: o.createdAt,
             completedAt: completedAt,
             cycleTimeSec,
@@ -76,7 +85,8 @@ export function createCycleTimeReportsRouter(prisma) {
         meta: {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
-          date_mode: filters.dateMode
+          date_mode: filters.dateMode,
+          note: 'Cycle time calculated from orderDate (or createdAt if not set) to completion'
         },
         kpis: {
           completedOrders: cycleData.length,
@@ -196,16 +206,38 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/first-pass-yield
    * Percentage of orders/items that moved forward without rework
+   * FIXED: Now properly filters by date mode
    */
   router.get('/first-pass-yield', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       
+      // Build where clause for items and orders
+      const orderWhere = buildWhereClause(filters, 'order');
+      const itemWhere = {};
+      
+      // Add date filtering for items if needed
+      if (filters.dateFrom || filters.dateTo) {
+        itemWhere.createdAt = {};
+        if (filters.dateFrom) itemWhere.createdAt.gte = filters.dateFrom;
+        if (filters.dateTo) itemWhere.createdAt.lte = filters.dateTo;
+      }
+      
+      // Add product code filter if specified
+      if (filters.productCodes.length > 0) {
+        itemWhere.productCode = { in: filters.productCodes };
+      }
+      
+      // Add archived filter
+      if (!filters.includeArchived) {
+        itemWhere.archivedAt = null;
+      }
+      
       const items = await prisma.orderItem.findMany({
-        where: buildWhereClause(filters, 'item'),
+        where: itemWhere,
         include: {
           order: {
-            where: buildWhereClause(filters, 'order'),
+            where: orderWhere,
             select: { poNumber: true, account: { select: { name: true } } }
           },
           statusEvents: {
@@ -219,6 +251,9 @@ export function createCycleTimeReportsRouter(prisma) {
       const reworkDetails = [];
 
       for (const item of items) {
+        // Skip items without matching orders (due to where clause filtering)
+        if (!item.order) continue;
+        
         if (item.statusEvents.length > 0) {
           totalItems++;
           const hadBackwardMovement = hasBackwardMovement(item.statusEvents);
@@ -248,13 +283,14 @@ export function createCycleTimeReportsRouter(prisma) {
       res.json({
         meta: {
           date_from: filters.dateFrom,
-          date_to: filters.dateTo
+          date_to: filters.dateTo,
+          date_mode: filters.dateMode
         },
         kpis: {
           totalItems,
           itemsWithRework,
           firstPassYield: firstPassYield.toFixed(1),
-          reworkRate: ((itemsWithRework / totalItems) * 100).toFixed(1)
+          reworkRate: totalItems > 0 ? ((itemsWithRework / totalItems) * 100).toFixed(1) : '0.0'
         },
         rows: paginated
       });
@@ -273,11 +309,18 @@ export function createCycleTimeReportsRouter(prisma) {
       const filters = parseReportFilters(req.query);
       const finalStage = STAGES[STAGES.length - 1];
 
+      // For throughput, we filter by completion date, not created date
+      // So we need custom filtering
+      const baseWhere = {
+        currentStage: finalStage
+      };
+      
+      // Add account and rep filters if specified
+      if (filters.accountId) baseWhere.accountId = filters.accountId;
+      if (filters.repId) baseWhere.createdByUserId = filters.repId;
+
       const orders = await prisma.order.findMany({
-        where: {
-          currentStage: finalStage,
-          ...buildWhereClause(filters, 'order')
-        },
+        where: baseWhere,
         include: {
           statusEvents: {
             where: { stage: finalStage },
@@ -287,19 +330,29 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       });
 
+      // Filter by completion date if date filters are specified
+      let filteredOrders = orders.filter(o => o.statusEvents.length > 0);
+      
+      if (filters.dateFrom || filters.dateTo) {
+        filteredOrders = filteredOrders.filter(order => {
+          const completedDate = order.statusEvents[0].createdAt;
+          if (filters.dateFrom && completedDate < filters.dateFrom) return false;
+          if (filters.dateTo && completedDate > filters.dateTo) return false;
+          return true;
+        });
+      }
+
       // Group by completion month
       const monthlyThroughput = new Map();
       
-      for (const order of orders) {
-        if (order.statusEvents.length > 0) {
-          const completedDate = order.statusEvents[0].createdAt;
-          const month = completedDate.toISOString().substring(0, 7); // YYYY-MM
-          
-          if (!monthlyThroughput.has(month)) {
-            monthlyThroughput.set(month, { month, ordersCompleted: 0 });
-          }
-          monthlyThroughput.get(month).ordersCompleted++;
+      for (const order of filteredOrders) {
+        const completedDate = order.statusEvents[0].createdAt;
+        const month = completedDate.toISOString().substring(0, 7); // YYYY-MM
+        
+        if (!monthlyThroughput.has(month)) {
+          monthlyThroughput.set(month, { month, ordersCompleted: 0 });
         }
+        monthlyThroughput.get(month).ordersCompleted++;
       }
 
       const series = Array.from(monthlyThroughput.values())
@@ -308,10 +361,11 @@ export function createCycleTimeReportsRouter(prisma) {
       res.json({
         meta: {
           date_from: filters.dateFrom,
-          date_to: filters.dateTo
+          date_to: filters.dateTo,
+          note: 'Throughput is based on completion date'
         },
         kpis: {
-          totalCompleted: orders.filter(o => o.statusEvents.length > 0).length,
+          totalCompleted: filteredOrders.length,
           avgMonthlyThroughput: series.length > 0 
             ? (series.reduce((sum, s) => sum + s.ordersCompleted, 0) / series.length).toFixed(1)
             : 0
@@ -334,12 +388,12 @@ export function createCycleTimeReportsRouter(prisma) {
       const filters = parseReportFilters(req.query);
       const finalStage = STAGES[STAGES.length - 1];
 
+      const whereClause = buildWhereClause(filters, 'order');
+      whereClause.currentStage = finalStage;
+      whereClause.etaDate = { not: null };
+
       const orders = await prisma.order.findMany({
-        where: {
-          currentStage: finalStage,
-          etaDate: { not: null },
-          ...buildWhereClause(filters, 'order')
-        },
+        where: whereClause,
         include: {
           account: { select: { name: true } },
           statusEvents: {
@@ -390,7 +444,8 @@ export function createCycleTimeReportsRouter(prisma) {
       res.json({
         meta: {
           date_from: filters.dateFrom,
-          date_to: filters.dateTo
+          date_to: filters.dateTo,
+          date_mode: filters.dateMode
         },
         kpis: {
           totalWithETA,
