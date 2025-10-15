@@ -77,9 +77,9 @@ export default function ReportsPage() {
             )}
           </div>
 
-          {/* Orders by Stage */}
+          {/* Items by Stage - FIXED LABEL */}
           <div className="report-section">
-            <h2>Orders by Stage</h2>
+            <h2>Items by Stage</h2>
             <div className="stage-grid">
               {summary.kpis.ordersByStage.map(item => (
                 <div key={item.stage} className="stage-card">
