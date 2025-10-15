@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import MeasurementSection from "@/components/MeasurementSection";
-// REMOVED: import ContainersSection from "@/components/ContainersSection";
 
 export default function EditOrderPage({ params }) {
   const { id } = params;
@@ -21,7 +20,7 @@ export default function EditOrderPage({ params }) {
     voltage: "", 
     laserWattage: "", 
     notes: "",
-    hasExtendedShipping: false // NEW: Extended shipping flag
+    hasExtendedShipping: false
   });
   const [saving, setSaving] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
@@ -31,20 +30,16 @@ export default function EditOrderPage({ params }) {
   const [internalNotesSaving, setInternalNotesSaving] = useState(false);
   const [internalNotesChanged, setInternalNotesChanged] = useState(false);
   
-  // State for unordering items
   const [showUnorderDialog, setShowUnorderDialog] = useState(false);
   const [unorderReason, setUnorderReason] = useState("");
   const [unorderingItemId, setUnorderingItemId] = useState(null);
   
-  // Local state for customer documents link
   const [customerDocsLink, setCustomerDocsLink] = useState("");
   const [isSavingDocsLink, setIsSavingDocsLink] = useState(false);
 
-  // State for order date editing
   const [orderDate, setOrderDate] = useState("");
   const [isSavingOrderDate, setIsSavingOrderDate] = useState(false);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!user) {
       router.push("/login");
@@ -67,7 +62,6 @@ export default function EditOrderPage({ params }) {
       setInternalNotes(orderData.internalNotes || "");
       setInternalNotesChanged(false);
       
-      // Format order date for input field (YYYY-MM-DD format)
       if (orderData.orderDate) {
         const date = new Date(orderData.orderDate);
         const formatted = date.toISOString().split('T')[0];
@@ -116,17 +110,15 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  // Save order date
   async function saveOrderDate() {
     if (!orderDate) {
       alert("Please select a valid date");
       return;
     }
     
-    // Check if date actually changed
     const currentOrderDate = order?.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : "";
     if (orderDate === currentOrderDate) {
-      return; // No change, don't save
+      return;
     }
     
     try {
@@ -145,12 +137,10 @@ export default function EditOrderPage({ params }) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       
-      // Update the order state with the new date
       setOrder(prev => ({ ...prev, orderDate: orderDate }));
       alert("Order date updated successfully");
     } catch (err) {
       alert(`Failed to update order date: ${err.message}`);
-      // Revert to original value on error
       if (order?.orderDate) {
         const date = new Date(order.orderDate);
         setOrderDate(date.toISOString().split('T')[0]);
@@ -160,7 +150,6 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  // Mark item as ordered
   async function markItemOrdered(itemId) {
     if (!isAdmin) {
       alert("Only administrators can mark items as ordered.");
@@ -190,7 +179,6 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  // Unmark item as ordered
   async function unmarkItemOrdered() {
     if (!isAdmin) {
       alert("Only administrators can unmark items as ordered.");
@@ -229,9 +217,7 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  // Save customer documents link
   async function saveCustomerDocsLink() {
-    // Only save if the value has changed
     if (customerDocsLink === (order?.customerDocsLink || "")) {
       return;
     }
@@ -249,11 +235,9 @@ export default function EditOrderPage({ params }) {
       
       if (!res.ok) throw new Error("Failed to update");
       
-      // Update the order state with the new link
       setOrder(prev => ({ ...prev, customerDocsLink: customerDocsLink }));
     } catch (err) {
       alert("Failed to update documents link");
-      // Revert to original value on error
       setCustomerDocsLink(order?.customerDocsLink || "");
     } finally {
       setIsSavingDocsLink(false);
@@ -417,7 +401,7 @@ export default function EditOrderPage({ params }) {
           laserWattage: laserWattage || null,
           notes,
           hasExtendedShipping,
-          containers: []  // FIXED: Add empty containers array for new items
+          containers: []
         }),
       });
       
@@ -439,7 +423,6 @@ export default function EditOrderPage({ params }) {
     return null;
   }
 
-  // Check if any item in the order has extended shipping
   const hasExtendedShipping = order?.items?.some(item => item.hasExtendedShipping === true) || false;
 
   return (
@@ -475,7 +458,6 @@ export default function EditOrderPage({ params }) {
         <div className="status">Order not found.</div>
       ) : (
         <>
-          {/* Extended Shipping Notice */}
           {hasExtendedShipping && (
             <div style={{
               padding: "12px",
@@ -490,7 +472,6 @@ export default function EditOrderPage({ params }) {
             </div>
           )}
 
-          {/* Lock Status Banner */}
           {order.isLocked && (
             <div style={{
               padding: "12px",
@@ -570,7 +551,6 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Order Information Section - NOW WITH EDITABLE ORDER DATE */}
           <section style={{ marginTop: 16, marginBottom: 16 }}>
             <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Order Information</h3>
             <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -636,7 +616,6 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Customer Documents Link Section */}
           <section style={{ marginTop: 16, marginBottom: 16 }}>
             <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -669,7 +648,6 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Shipping Information Section - NOW WITH ADDRESS */}
           <section style={{
             marginTop: 16,
             marginBottom: 16,
@@ -682,25 +660,14 @@ export default function EditOrderPage({ params }) {
               Shipping Information
             </h3>
             
-            {/* Customer Address */}
-            {order.account && (order.account.street || order.account.city) && (
+            {order.account?.address && (
               <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #404040" }}>
-                {order.account.street && (
-                  <div style={{ color: "#e4e4e4", fontSize: "14px", marginBottom: "4px" }}>
-                    {order.account.street}
-                  </div>
-                )}
-                {(order.account.city || order.account.state || order.account.zip) && (
-                  <div style={{ color: "#e4e4e4", fontSize: "14px" }}>
-                    {[order.account.city, order.account.state, order.account.zip]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </div>
-                )}
+                <div style={{ color: "#e4e4e4", fontSize: "14px" }}>
+                  {order.account.address}
+                </div>
               </div>
             )}
             
-            {/* ETA and Tracking Info */}
             {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
                 {order.etaDate && (
@@ -882,7 +849,6 @@ export default function EditOrderPage({ params }) {
             )}
           </section>
 
-          {/* Internal Notes Section - NOW RESPECTS LOCK STATUS */}
           <section style={{ marginTop: 32 }}>
             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Internal Notes</h2>
             {order.isLocked && (
@@ -910,7 +876,7 @@ export default function EditOrderPage({ params }) {
                   }
                 }}
                 placeholder="Internal notes only, payment / ordering information."
-                disabled={order.isLocked}  // FIXED: Disable when order is locked
+                disabled={order.isLocked}
                 style={{
                   width: "100%",
                   minHeight: "120px",
@@ -919,17 +885,17 @@ export default function EditOrderPage({ params }) {
                   borderRadius: "4px",
                   fontSize: "14px",
                   fontFamily: "inherit",
-                  backgroundColor: order.isLocked ? "#1a1a1a" : "#2d2d2d",  // Visual feedback when locked
-                  color: order.isLocked ? "#6b7280" : "#e5e7eb",  // Dimmed text when locked
-                  opacity: order.isLocked ? 0.7 : 1,  // Additional visual feedback
-                  cursor: order.isLocked ? "not-allowed" : "text"  // Show not-allowed cursor when locked
+                  backgroundColor: order.isLocked ? "#1a1a1a" : "#2d2d2d",
+                  color: order.isLocked ? "#6b7280" : "#e5e7eb",
+                  opacity: order.isLocked ? 0.7 : 1,
+                  cursor: order.isLocked ? "not-allowed" : "text"
                 }}
               />
               <div style={{ marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>
                   These notes are private and will not be visible to customers.
                 </div>
-                {!order.isLocked && (  // Only show save button when order is not locked
+                {!order.isLocked && (
                   <button
                     className="btn primary"
                     onClick={saveInternalNotes}
@@ -946,7 +912,6 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Measurements Section - NOW WITH CONTAINERS */}
           <MeasurementSection 
             order={order}
             items={order.items}
@@ -954,7 +919,6 @@ export default function EditOrderPage({ params }) {
             getAuthHeaders={getAuthHeaders}
           />
 
-          {/* Audit Log Section */}
           {order.auditLogs && order.auditLogs.length > 0 && (
             <section style={{ marginTop: 32 }}>
               <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Lock/Unlock History</h2>
@@ -1012,7 +976,6 @@ export default function EditOrderPage({ params }) {
         </>
       )}
 
-      {/* Unlock Dialog */}
       {showUnlockDialog && isAdmin && (
         <div style={{
           position: "fixed",
@@ -1078,7 +1041,6 @@ export default function EditOrderPage({ params }) {
         </div>
       )}
 
-      {/* Unorder Dialog */}
       {showUnorderDialog && isAdmin && (
         <div style={{
           position: "fixed",
@@ -1159,9 +1121,8 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
   const [notes, setNotes] = useState(item.notes || "");
   const [itemPrice, setItemPrice] = useState(item.itemPrice === null || item.itemPrice === undefined ? "" : item.itemPrice.toString());
   const [privateItemNote, setPrivateItemNote] = useState(item.privateItemNote || "");
-  const [hasExtendedShipping, setHasExtendedShipping] = useState(item.hasExtendedShipping || false); // NEW
+  const [hasExtendedShipping, setHasExtendedShipping] = useState(item.hasExtendedShipping || false);
 
-  // Split change detection into regular fields and admin fields
   const regularFieldsChanged = 
     name.trim() !== (item.productCode || "") || 
     Number(qty) !== Number(item.qty || 1) ||
@@ -1177,8 +1138,6 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
     hasExtendedShipping !== (item.hasExtendedShipping || false)
   );
 
-  // When locked, only admin fields can be changed (for admins)
-  // When unlocked, all fields can be changed
   const changed = isLocked ? adminFieldsChanged : (regularFieldsChanged || adminFieldsChanged);
 
   const isOrdered = item.isOrdered;
@@ -1192,7 +1151,6 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
 
   const handlePriceChange = (e) => {
     const value = e.target.value;
-    // Allow empty string or valid number format
     if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
       setItemPrice(value);
     }
