@@ -199,14 +199,14 @@ export default function AuditHistoryViewer() {
       if (userName !== userFilter) return false;
     }
 
-    // Date range filter
+    // Date range filter - USE TIMESTAMP FIELD
     if (dateRange.start) {
-      const logDate = new Date(log.createdAt);
+      const logDate = new Date(log.timestamp);
       const startDate = new Date(dateRange.start);
       if (logDate < startDate) return false;
     }
     if (dateRange.end) {
-      const logDate = new Date(log.createdAt);
+      const logDate = new Date(log.timestamp);
       const endDate = new Date(dateRange.end);
       endDate.setHours(23, 59, 59);
       if (logDate > endDate) return false;
@@ -237,7 +237,7 @@ export default function AuditHistoryViewer() {
     currentPage * itemsPerPage
   );
 
-  // Export function
+  // Export function - USE TIMESTAMP FIELD
   const exportToCSV = () => {
     const headers = ['Date', 'Action', 'Entity', 'User', 'Changes', 'Unlock Reason'];
     const rows = filteredLogs.map(log => {
@@ -247,7 +247,7 @@ export default function AuditHistoryViewer() {
       }
       
       return [
-        formatDate(log.createdAt),
+        formatDate(log.timestamp),
         log.action,
         log.entity || '',
         log.performedByName || log.performedBy?.name || 'System',
@@ -636,7 +636,7 @@ export default function AuditHistoryViewer() {
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: '12px', color: '#a0a0a0' }}>
-                              {formatDate(log.createdAt)}
+                              {formatDate(log.timestamp)}
                             </div>
                             <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>
                               by {log.performedByName || log.performedBy?.name || 'System'}
@@ -645,7 +645,7 @@ export default function AuditHistoryViewer() {
                         </div>
 
                         {/* Display unlock reason prominently if present - CHANGED TO RED */}
-                        {log.action === 'UNLOCKED' && log.message && log.message !== 'Order locked for data integrity' && (
+                        {log.action === 'UNLOCKED' && log.metadata?.message && log.metadata.message !== 'Order locked for data integrity' && (
                           <div style={{
                             backgroundColor: '#dc2626',
                             color: '#ffffff',
@@ -656,18 +656,18 @@ export default function AuditHistoryViewer() {
                             fontWeight: '500'
                           }}>
                             <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
-                              🔓 UNLOCK REASON:
+                              Reason:
                             </div>
                             <div style={{ fontSize: '15px' }}>
-                              "{log.message}"
+                              {log.metadata.message}
                             </div>
                           </div>
                         )}
 
                         {/* Display custom lock reason if present */}
-                        {log.action === 'LOCKED' && log.message && log.message !== 'Order locked for data integrity' && (
+                        {log.action === 'LOCKED' && log.metadata?.message && log.metadata.message !== 'Order locked for data integrity' && (
                           <div style={{
-                            backgroundColor: '#f59e0b',
+                            backgroundColor: '#059669',
                             color: '#ffffff',
                             padding: '12px',
                             borderRadius: '6px',
@@ -676,30 +676,10 @@ export default function AuditHistoryViewer() {
                             fontWeight: '500'
                           }}>
                             <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
-                              🔒 LOCK REASON:
+                              Reason:
                             </div>
                             <div style={{ fontSize: '15px' }}>
-                              "{log.message}"
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Display unorder reason prominently if present */}
-                        {log.action === 'ITEM_UNORDERED' && log.message && (
-                          <div style={{
-                            backgroundColor: '#ef4444',
-                            color: '#ffffff',
-                            padding: '12px',
-                            borderRadius: '6px',
-                            marginBottom: '10px',
-                            fontSize: '14px',
-                            fontWeight: '500'
-                          }}>
-                            <div style={{ marginBottom: '4px', fontSize: '12px', opacity: 0.9 }}>
-                              ⛔ UNORDER REASON:
-                            </div>
-                            <div style={{ fontSize: '15px' }}>
-                              "{log.message}"
+                              {log.metadata.message}
                             </div>
                           </div>
                         )}
@@ -748,20 +728,6 @@ export default function AuditHistoryViewer() {
                                 ))}
                               </div>
                             )}
-                          </div>
-                        )}
-
-                        {/* Other messages */}
-                        {log.message && !log.changes && log.action !== 'UNLOCKED' && log.action !== 'LOCKED' && log.action !== 'ITEM_UNORDERED' && (
-                          <div style={{ 
-                            fontSize: '13px',
-                            color: '#e4e4e4',
-                            marginTop: '10px',
-                            padding: '10px',
-                            backgroundColor: '#2d2d2d',
-                            borderRadius: '4px'
-                          }}>
-                            {log.message}
                           </div>
                         )}
                       </div>
@@ -824,7 +790,7 @@ export default function AuditHistoryViewer() {
                   </>
                 )}
 
-                {/* Summary Stats */}
+                {/* Summary Stats - USE TIMESTAMP */}
                 {!logsLoading && auditLogs.length > 0 && (
                   <div style={{ 
                     marginTop: '30px',
@@ -852,7 +818,7 @@ export default function AuditHistoryViewer() {
                       <div>
                         <span style={{ color: '#666' }}>Last Activity:</span>
                         <div style={{ fontSize: '14px', marginTop: '4px', color: '#e4e4e4' }}>
-                          {auditLogs[0] ? formatDate(auditLogs[0].createdAt) : 'N/A'}
+                          {auditLogs[0] ? formatDate(auditLogs[0].timestamp) : 'N/A'}
                         </div>
                       </div>
                     </div>
