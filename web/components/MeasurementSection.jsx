@@ -7,6 +7,12 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
   const [expandedItems, setExpandedItems] = useState(new Set());
   const [editingContainer, setEditingContainer] = useState(null);
   const [localContainers, setLocalContainers] = useState({});
+  const [localItems, setLocalItems] = useState(items || []);
+
+  // Update local items when props change
+  useEffect(() => {
+    setLocalItems(items || []);
+  }, [items]);
 
   // Helper function to check if an item has container data
   const itemHasContainerData = (item) => {
@@ -49,14 +55,23 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       
-      // Clear local state for this item
+      // Update local items state instead of refreshing the whole page
+      setLocalItems(prevItems => 
+        prevItems.map(item => 
+          item.id === itemId 
+            ? { ...item, containers: updatedContainers }
+            : item
+        )
+      );
+      
+      // Clear local editing state for this item
       setLocalContainers(prev => {
         const newState = { ...prev };
         delete newState[itemId];
         return newState;
       });
       
-      if (onRefresh) await onRefresh();
+      // Don't call onRefresh() to avoid page scroll
     } catch (e) {
       alert(`Failed to save containers: ${e.message}`);
       // Revert local changes on error
@@ -124,7 +139,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
 
   const updateContainer = (itemId, containerId, field, value) => {
     setLocalContainers(prev => {
-      const containers = prev[itemId] || getContainersForItem({ id: itemId, containers: items.find(i => i.id === itemId)?.containers });
+      const containers = prev[itemId] || getContainersForItem({ id: itemId, containers: localItems.find(i => i.id === itemId)?.containers });
       const updated = containers.map(c => 
         c.id === containerId 
           ? { ...c, [field]: field === 'height' || field === 'width' || field === 'length' || field === 'weight' 
@@ -238,10 +253,10 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
       </div>
       
       <div>
-        {(!items || items.length === 0) ? (
+        {(!localItems || localItems.length === 0) ? (
           <div style={{ color: "#6b7280", padding: "16px" }}>No items in this order.</div>
         ) : (
-          items.map((item) => {
+          localItems.map((item) => {
             const isExpanded = expandedItems.has(item.id);
             const containers = getContainersForItem(item);
             const totalWeight = containers.reduce((sum, c) => sum + (c.weight || 0), 0);
