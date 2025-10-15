@@ -16,6 +16,7 @@
  * ADDED: /summary endpoint for main reports dashboard
  * FIXED: Removed archivedAt filter from Order queries (only OrderItems have this field)
  * FIXED: Dashboard now shows items by stage, not orders (orders don't progress through stages)
+ * FIXED: Added backward compatibility for frontend (keeps old field names)
  */
 
 import { Router } from 'express';
@@ -50,6 +51,7 @@ export function createReportsRouter(prisma) {
    * Dashboard summary for main reports page
    * Shows high-level KPIs and ITEM distribution (not order distribution)
    * FIXED: Now shows items by stage since orders don't progress through stages
+   * NOTE: Maintains backward compatibility with frontend by keeping old field names
    */
   router.get('/summary', authGuard, async (req, res) => {
     try {
@@ -112,18 +114,26 @@ export function createReportsRouter(prisma) {
 
       res.json({
         kpis: {
+          // New accurate names
           activeItems: activeItemsCount,
           completedItems: completedItemsCount,
           totalOrders: totalOrdersCount,
+          itemsByStage: stageData,
+          
+          // Backward compatibility - keep old names pointing to item counts
+          activeOrders: activeItemsCount,
+          completedOrders: completedItemsCount,
+          ordersByStage: stageData,
+          
+          // Revenue
           totalRevenue: totalRevenue,
           grandTotal: grandTotal,
-          grandTotalFormatted: totalRevenue,
-          itemsByStage: stageData
+          grandTotalFormatted: totalRevenue
         },
         meta: {
           timestamp: new Date().toISOString(),
           userRole: req.user?.role,
-          note: 'Item counts shown because items progress through stages, not orders'
+          note: 'Counts shown are for items (which progress through stages), not orders. Legacy field names maintained for compatibility.'
         }
       });
     } catch (error) {
