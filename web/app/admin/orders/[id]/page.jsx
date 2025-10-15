@@ -40,6 +40,9 @@ export default function EditOrderPage({ params }) {
   const [orderDate, setOrderDate] = useState("");
   const [isSavingOrderDate, setIsSavingOrderDate] = useState(false);
 
+  // Track item edits
+  const [itemEdits, setItemEdits] = useState({});
+
   useEffect(() => {
     if (!user) {
       router.push("/login");
@@ -61,6 +64,7 @@ export default function EditOrderPage({ params }) {
       setCustomerDocsLink(orderData.customerDocsLink || "");
       setInternalNotes(orderData.internalNotes || "");
       setInternalNotesChanged(false);
+      setItemEdits({});  // Clear item edits after load
       
       if (orderData.orderDate) {
         const date = new Date(orderData.orderDate);
@@ -83,6 +87,57 @@ export default function EditOrderPage({ params }) {
       load(); 
     }
   }, [id, user]);
+
+  const hasUnsavedChanges = Object.keys(itemEdits).length > 0;
+
+  async function saveAllChanges() {
+    if (!hasUnsavedChanges) return;
+    
+    try {
+      setSaving(true);
+      const errors = [];
+      
+      for (const [itemId, changes] of Object.entries(itemEdits)) {
+        try {
+          const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
+            method: "PATCH",
+            headers: { 
+              "content-type": "application/json",
+              ...getAuthHeaders()
+            },
+            body: JSON.stringify(changes),
+          });
+          
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+        } catch (e) {
+          errors.push(`Item ${itemId}: ${e.message}`);
+        }
+      }
+      
+      if (errors.length > 0) {
+        alert(`Some items failed to save:\n${errors.join('\n')}`);
+      }
+      
+      await load();
+    } catch (e) {
+      alert(`Failed to save changes: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updateItemEdit(itemId, field, value) {
+    setItemEdits(prev => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] || {}),
+        [field]: value
+      }
+    }));
+  }
 
   async function saveInternalNotes() {
     try {
@@ -309,42 +364,6 @@ export default function EditOrderPage({ params }) {
       alert(`Failed to unlock order: ${e.message}`);
     } finally {
       setLockLoading(false);
-    }
-  }
-
-  async function saveItem(itemId, productCode, qty, serialNumber, modelNumber, voltage, laserWattage, notes, itemPrice, privateItemNote, hasExtendedShipping) {
-    try {
-      setSaving(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
-        method: "PATCH",
-        headers: { 
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ 
-          productCode, 
-          qty, 
-          serialNumber, 
-          modelNumber, 
-          voltage, 
-          laserWattage: laserWattage || null,
-          notes,
-          itemPrice: itemPrice || null,
-          privateItemNote: privateItemNote || null,
-          hasExtendedShipping: hasExtendedShipping || false
-        }),
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
-      await load();
-    } catch (e) {
-      alert(`Failed to save item: ${e.message}`);
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -704,7 +723,44 @@ export default function EditOrderPage({ params }) {
           </section>
 
           <section style={{ marginTop: 8 }}>
-            <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Items</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 16 }}>Items</h2>
+              {hasUnsavedChanges && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#fef3c7",
+                    border: "2px solid #f59e0b",
+                    borderRadius: "6px",
+                    color: "#92400e",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}>
+                    <span style={{ fontSize: "18px" }}>⚠️</span>
+                    You have unsaved changes to {Object.keys(itemEdits).length} item{Object.keys(itemEdits).length > 1 ? 's' : ''}
+                  </div>
+                  <button
+                    className="btn primary"
+                    onClick={saveAllChanges}
+                    disabled={saving}
+                    style={{
+                      backgroundColor: "#059669",
+                      color: "#fff",
+                      border: "none",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      padding: "10px 20px",
+                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
+                    }}
+                  >
+                    {saving ? "Saving..." : "💾 Save All Changes"}
+                  </button>
+                </div>
+              )}
+            </div>
             {order.isLocked && (
               <div style={{ 
                 fontSize: "12px", 
@@ -738,8 +794,8 @@ export default function EditOrderPage({ params }) {
                       <EditableRow
                         key={it.id}
                         item={it}
-                        onSave={(name, qty, serial, model, voltage, laserWattage, notes, itemPrice, privateItemNote, hasExtendedShipping) => 
-                          saveItem(it.id, name, qty, serial, model, voltage, laserWattage, notes, itemPrice, privateItemNote, hasExtendedShipping)}
+                        itemEdits={itemEdits[it.id] || {}}
+                        onFieldChange={(field, value) => updateItemEdit(it.id, field, value)}
                         onDelete={() => deleteItem(it.id)}
                         onMarkOrdered={() => markItemOrdered(it.id)}
                         onUnmarkOrdered={() => {
@@ -1111,62 +1167,49 @@ export default function EditOrderPage({ params }) {
 }
 
 
-function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, disabled, isLocked, isAdmin }) {
-  const [name, setName] = useState(item.productCode || "");
-  const [qty, setQty] = useState(item.qty || 1);
-  const [serialNumber, setSerialNumber] = useState(item.serialNumber || "");
-  const [modelNumber, setModelNumber] = useState(item.modelNumber || "");
-  const [voltage, setVoltage] = useState(item.voltage || "");
-  const [laserWattage, setLaserWattage] = useState(item.laserWattage || "");
-  const [notes, setNotes] = useState(item.notes || "");
-  const [itemPrice, setItemPrice] = useState(item.itemPrice === null || item.itemPrice === undefined ? "" : item.itemPrice.toString());
-  const [privateItemNote, setPrivateItemNote] = useState(item.privateItemNote || "");
-  const [hasExtendedShipping, setHasExtendedShipping] = useState(item.hasExtendedShipping || false);
+function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, onUnmarkOrdered, disabled, isLocked, isAdmin }) {
+  // Use itemEdits for current values, fallback to item's original values
+  const getValue = (field) => {
+    if (itemEdits.hasOwnProperty(field)) {
+      return itemEdits[field];
+    }
+    return item[field] ?? (field === 'qty' ? 1 : (field === 'hasExtendedShipping' ? false : (field === 'itemPrice' && item[field] !== null && item[field] !== undefined ? item[field].toString() : "")));
+  };
 
-  // Regular fields that all users can edit (including extended shipping)
-  const regularFieldsChanged = 
-    name.trim() !== (item.productCode || "") || 
-    Number(qty) !== Number(item.qty || 1) ||
-    serialNumber.trim() !== (item.serialNumber || "") ||
-    modelNumber.trim() !== (item.modelNumber || "") ||
-    voltage.trim() !== (item.voltage || "") ||
-    laserWattage.trim() !== (item.laserWattage || "") ||
-    notes.trim() !== (item.notes || "") ||
-    hasExtendedShipping !== (item.hasExtendedShipping || false);
+  const name = getValue('productCode') || "";
+  const qty = getValue('qty') || 1;
+  const serialNumber = getValue('serialNumber') || "";
+  const modelNumber = getValue('modelNumber') || "";
+  const voltage = getValue('voltage') || "";
+  const laserWattage = getValue('laserWattage') || "";
+  const notes = getValue('notes') || "";
+  const itemPrice = getValue('itemPrice') === null || getValue('itemPrice') === undefined || getValue('itemPrice') === "" ? "" : String(getValue('itemPrice'));
+  const privateItemNote = getValue('privateItemNote') || "";
+  const hasExtendedShipping = getValue('hasExtendedShipping') || false;
 
-  // Admin-only fields
-  const adminFieldsChanged = isAdmin && (
-    (itemPrice === "" ? null : parseFloat(itemPrice)) !== (item.itemPrice || null) ||
-    privateItemNote.trim() !== (item.privateItemNote || "")
-  );
-
-  const changed = isLocked ? adminFieldsChanged || (hasExtendedShipping !== (item.hasExtendedShipping || false)) : (regularFieldsChanged || adminFieldsChanged);
-
+  const hasChanges = Object.keys(itemEdits).length > 0;
   const isOrdered = item.isOrdered;
   const orderedDate = item.orderedAt ? new Date(item.orderedAt).toLocaleDateString() : null;
-
-  const handleSave = () => {
-    const priceValue = itemPrice === "" ? null : parseFloat(itemPrice);
-    onSave(name.trim(), Number(qty || 1), serialNumber.trim(), modelNumber.trim(), 
-           voltage.trim(), laserWattage.trim(), notes.trim(), priceValue, privateItemNote.trim(), hasExtendedShipping);
-  };
 
   const handlePriceChange = (e) => {
     const value = e.target.value;
     if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-      setItemPrice(value);
+      onFieldChange('itemPrice', value === "" ? null : value);
     }
   };
 
   return (
     <>
-      <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent" }}>
+      <tr style={{ 
+        backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
+        ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
+      }}>
         <td>
           <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <input 
               className="input" 
               value={name} 
-              onChange={e => setName(e.target.value)} 
+              onChange={e => onFieldChange('productCode', e.target.value)} 
               disabled={isLocked}
               style={{ width: "125px", opacity: isLocked ? 0.6 : 1 }}
             />
@@ -1181,7 +1224,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
             type="number" 
             min={1} 
             value={qty} 
-            onChange={e => setQty(e.target.value)} 
+            onChange={e => onFieldChange('qty', Number(e.target.value))} 
             style={{ width: "45px", opacity: isLocked ? 0.6 : 1 }} 
             disabled={isLocked}
           />
@@ -1190,7 +1233,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           <input 
             className="input" 
             value={serialNumber} 
-            onChange={e => setSerialNumber(e.target.value)} 
+            onChange={e => onFieldChange('serialNumber', e.target.value)} 
             placeholder="Optional"
             disabled={isLocked}
             style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
@@ -1200,7 +1243,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           <input 
             className="input" 
             value={modelNumber} 
-            onChange={e => setModelNumber(e.target.value)} 
+            onChange={e => onFieldChange('modelNumber', e.target.value)} 
             placeholder="Optional"
             disabled={isLocked}
             style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
@@ -1210,7 +1253,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           <input 
             className="input" 
             value={voltage} 
-            onChange={e => setVoltage(e.target.value)} 
+            onChange={e => onFieldChange('voltage', e.target.value)} 
             placeholder="Optional"
             disabled={isLocked}
             style={{ width: "65px", opacity: isLocked ? 0.6 : 1 }}
@@ -1220,7 +1263,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           <input 
             className="input" 
             value={laserWattage} 
-            onChange={e => setLaserWattage(e.target.value)} 
+            onChange={e => onFieldChange('laserWattage', e.target.value)} 
             placeholder="HP / Wattage"
             disabled={isLocked}
             style={{ width: "85px", opacity: isLocked ? 0.6 : 1 }}
@@ -1250,7 +1293,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           <input 
             className="input" 
             value={notes} 
-            onChange={e => setNotes(e.target.value)} 
+            onChange={e => onFieldChange('notes', e.target.value)} 
             placeholder="Optional"
             disabled={isLocked}
             style={{ width: "175px", opacity: isLocked ? 0.6 : 1 }}
@@ -1258,15 +1301,6 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
         </td>
         <td style={{ paddingLeft: "8px" }}>
           <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", justifyContent: "flex-start" }}>
-            <button 
-              className="btn" 
-              disabled={!changed || disabled} 
-              onClick={handleSave}
-              title={isLocked && !isAdmin ? "Order is locked" : "Save changes"}
-              style={{ fontSize: "11px", padding: "2px 5px" }}
-            >
-              Save
-            </button>
             <button 
               className="btn danger" 
               onClick={onDelete} 
@@ -1314,17 +1348,19 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           </div>
         </td>
       </tr>
-      {/* Second row for extended shipping (all users) and admin fields */}
-      <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", borderBottom: "2px solid #404040" }}>
+      <tr style={{ 
+        backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", 
+        borderBottom: "2px solid #404040",
+        ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
+      }}>
         <td colSpan="9" style={{ padding: "8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            {/* Extended Shipping - Available to all users */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input
                 type="checkbox"
                 id={`extended-${item.id}`}
                 checked={hasExtendedShipping}
-                onChange={e => setHasExtendedShipping(e.target.checked)}
+                onChange={e => onFieldChange('hasExtendedShipping', e.target.checked)}
                 disabled={isLocked}
                 style={{ width: "16px", height: "16px", cursor: isLocked ? "not-allowed" : "pointer", opacity: isLocked ? 0.6 : 1 }}
               />
@@ -1342,14 +1378,13 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
               </label>
             </div>
             
-            {/* Admin-only fields */}
             {isAdmin && (
               <>
                 <div style={{ flex: 1, minWidth: "200px" }}>
                   <input
                     className="input"
                     value={privateItemNote}
-                    onChange={e => setPrivateItemNote(e.target.value)}
+                    onChange={e => onFieldChange('privateItemNote', e.target.value)}
                     placeholder="Purchasing notes (private, admin only)"
                     style={{ 
                       width: "100%"
