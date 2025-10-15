@@ -8,19 +8,22 @@ const prisma = new PrismaClient();
 export function createOrdersRouter() {
   const router = express.Router();
 
-  // Helper to calculate ETA
+  // Helper to calculate ETA - using warning days (standard timeline) instead of averages
   function calculateETADate(orderDate = new Date()) {
+    // Use warning days (standard expected timeline) for ETA calculation
     const stageDurations = {
-      MANUFACTURING: (STAGE_THRESHOLDS.MANUFACTURING.warningDays + STAGE_THRESHOLDS.MANUFACTURING.criticalDays) / 2,
-      TESTING: (STAGE_THRESHOLDS.TESTING.warningDays + STAGE_THRESHOLDS.TESTING.criticalDays) / 2,
-      SHIPPING: (STAGE_THRESHOLDS.SHIPPING.warningDays + STAGE_THRESHOLDS.SHIPPING.criticalDays) / 2,
-      AT_SEA: (STAGE_THRESHOLDS.AT_SEA.warningDays + STAGE_THRESHOLDS.AT_SEA.criticalDays) / 2,
-      SMT: (STAGE_THRESHOLDS.SMT.warningDays + STAGE_THRESHOLDS.SMT.criticalDays) / 2,
-      QC: (STAGE_THRESHOLDS.QC.warningDays + STAGE_THRESHOLDS.QC.criticalDays) / 2,
-      DELIVERED: (STAGE_THRESHOLDS.DELIVERED.warningDays + STAGE_THRESHOLDS.DELIVERED.criticalDays) / 2
+      MANUFACTURING: STAGE_THRESHOLDS.MANUFACTURING.warningDays,  // 50 days
+      TESTING: STAGE_THRESHOLDS.TESTING.warningDays,              // 10 days  
+      SHIPPING: STAGE_THRESHOLDS.SHIPPING.warningDays,            // 45 days
+      AT_SEA: 0,  // Don't double count shipping (AT_SEA is alternative to SHIPPING)
+      SMT: STAGE_THRESHOLDS.SMT.warningDays,                      // 14 days
+      QC: STAGE_THRESHOLDS.QC.warningDays,                        // 7 days
+      DELIVERED: STAGE_THRESHOLDS.DELIVERED.warningDays           // 3 days
     };
     
+    // Total standard timeline: 50 + 10 + 45 + 14 + 7 + 3 = 129 days
     const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
+    
     const eta = new Date(orderDate);
     eta.setDate(eta.getDate() + Math.round(totalDays));
     return eta;
