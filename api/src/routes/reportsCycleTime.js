@@ -490,25 +490,27 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/on-time
    * On-time delivery performance
-   * FIXED: Now shows ALL completed orders, calculating expected delivery based on ETA or standard timeline
-   * Default expected delivery: 60 days from order date (or created date if no order date)
+   * FIXED: Now checks DELIVERED stage (not final FOLLOW_UP stage) and shows all delivered orders
+   * Considers an order "delivered" when it reaches DELIVERED, ONSITE, COMPLETED, or FOLLOW_UP stages
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
-      const finalStage = STAGES[STAGES.length - 1];
-      const DEFAULT_EXPECTED_DAYS = 60; // Default expected delivery time
+      
+      // For on-time delivery, we want orders that have been delivered
+      // This includes DELIVERED, ONSITE, COMPLETED, and FOLLOW_UP stages
+      const deliveryStages = ['DELIVERED', 'ONSITE', 'COMPLETED', 'FOLLOW_UP'];
 
       const whereClause = buildWhereClause(filters, 'order');
-      whereClause.currentStage = finalStage;
-      // REMOVED: whereClause.etaDate = { not: null };  // Now show ALL completed orders
+      whereClause.currentStage = { in: deliveryStages };
+      // Don't filter by etaDate - show all delivered orders
 
       const orders = await prisma.order.findMany({
         where: whereClause,
         include: {
           account: { select: { name: true } },
           statusEvents: {
-            where: { stage: finalStage },
+            where: { stage: 'DELIVERED' }, // Look for when it reached DELIVERED
             orderBy: { createdAt: 'asc' },
             take: 1
           }
@@ -518,60 +520,64 @@ export function createCycleTimeReportsRouter(prisma) {
       let onTimeCount = 0;
       let lateCount = 0;
       let earlyCount = 0;
+      let noDeliveryEvent = 0;
       let noEtaCount = 0;
       const orderDetails = [];
       const slippageDays = [];
+      const DEFAULT_EXPECTED_DAYS = 60;
 
       for (const order of orders) {
-        if (order.statusEvents.length > 0) {
-          const completedAt = order.statusEvents[0].createdAt;
-          const startDate = order.orderDate || order.createdAt;
-          
-          // Calculate expected delivery date
-          let expectedDate;
-          let hasETA = false;
-          
-          if (order.etaDate) {
-            // Use ETA if available
-            expectedDate = order.etaDate;
-            hasETA = true;
-          } else {
-            // Calculate expected date: start date + DEFAULT_EXPECTED_DAYS
-            expectedDate = new Date(startDate);
-            expectedDate.setDate(expectedDate.getDate() + DEFAULT_EXPECTED_DAYS);
-          }
-          
-          const slippage = calculateSlippage(completedAt, expectedDate);
-          
-          let status = 'on-time';
-          if (slippage > 0) {
-            status = 'late';
-            lateCount++;
-            slippageDays.push(slippage);
-          } else if (slippage < -7) {
-            status = 'early';
-            earlyCount++;
-          } else {
-            onTimeCount++;
-          }
-          
-          if (!hasETA) {
-            noEtaCount++;
-          }
-          
-          orderDetails.push({
-            orderId: order.id,
-            poNumber: order.poNumber,
-            accountName: order.account?.name || 'Unknown',
-            etaDate: order.etaDate,
-            expectedDate: hasETA ? order.etaDate : expectedDate.toISOString(),
-            completedAt,
-            slippageDays: slippage,
-            status,
-            hasETA,
-            note: hasETA ? null : `Expected delivery calculated as ${DEFAULT_EXPECTED_DAYS} days from order date`
-          });
+        // Check if we have a DELIVERED status event
+        if (order.statusEvents.length === 0) {
+          noDeliveryEvent++;
+          continue; // Skip orders without a delivery event
         }
+
+        const deliveredAt = order.statusEvents[0].createdAt;
+        const startDate = order.orderDate || order.createdAt;
+        
+        // Calculate expected delivery date
+        let expectedDate;
+        let hasETA = false;
+        
+        if (order.etaDate) {
+          // Use ETA if available
+          expectedDate = order.etaDate;
+          hasETA = true;
+        } else {
+          // Calculate expected date: start date + DEFAULT_EXPECTED_DAYS
+          expectedDate = new Date(startDate);
+          expectedDate.setDate(expectedDate.getDate() + DEFAULT_EXPECTED_DAYS);
+          noEtaCount++;
+        }
+        
+        const slippage = calculateSlippage(deliveredAt, expectedDate);
+        
+        let status = 'on-time';
+        if (slippage > 0) {
+          status = 'late';
+          lateCount++;
+          slippageDays.push(slippage);
+        } else if (slippage < -7) {
+          status = 'early';
+          earlyCount++;
+        } else {
+          onTimeCount++;
+        }
+        
+        orderDetails.push({
+          orderId: order.id,
+          poNumber: order.poNumber,
+          accountName: order.account?.name || 'Unknown',
+          etaDate: order.etaDate,
+          expectedDate: hasETA ? order.etaDate : expectedDate.toISOString(),
+          deliveredAt: deliveredAt,
+          currentStage: order.currentStage,
+          slippageDays: slippage,
+          status,
+          hasETA,
+          note: hasETA ? null : `Expected delivery calculated as ${DEFAULT_EXPECTED_DAYS} days from order date`
+        });
       }
 
       const totalOrders = onTimeCount + lateCount + earlyCount;
@@ -592,13 +598,15 @@ export function createCycleTimeReportsRouter(prisma) {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
           date_mode: filters.dateMode,
-          note: `Shows all completed orders. Orders without ETA use ${DEFAULT_EXPECTED_DAYS}-day default from order date.`
+          note: `Shows orders that reached DELIVERED stage. Orders without ETA use ${DEFAULT_EXPECTED_DAYS}-day default from order date.`,
+          deliveryStages: deliveryStages
         },
         kpis: {
           totalWithETA: totalOrders,
           totalOrders: totalOrders,
           ordersWithETA: totalOrders - noEtaCount,
           ordersWithoutETA: noEtaCount,
+          ordersWithoutDeliveryEvent: noDeliveryEvent,
           onTimeCount,
           lateCount,
           earlyCount,
