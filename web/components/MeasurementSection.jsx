@@ -571,7 +571,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                         <div style={{ color: '#9ca3af', fontSize: '11px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                           📍 TRACKING NUMBER
                                         </div>
-                                        <div style={{ color: '#60a5fa', fontSize: '16px', fontWeight: '500', wordBreak: 'break-all' }}>
+                                        <div style={{ color: '#ef4444', fontSize: '16px', fontWeight: '500', wordBreak: 'break-all' }}>
                                           {container.tracking}
                                         </div>
                                       </div>
