@@ -11,7 +11,7 @@
  * All endpoints require authentication; financial endpoints require admin role.
  * 
  * FIXED: Now uses orderDate for sales reports instead of createdAt
- * Removed duplicate sales-by-month endpoint (using the one in index.js)
+ * Added sales-by-month endpoint here (moved from index.js)
  */
 
 import { Router } from 'express';
@@ -40,6 +40,125 @@ export function createReportsRouter(prisma) {
   // ========================================
   // SALES & REVENUE REPORTS
   // ========================================
+
+  /**
+   * GET /reports/sales-by-month
+   * Monthly sales breakdown based on orderDate
+   * FIXED: Now uses orderDate correctly
+   */
+  router.get('/sales-by-month', adminGuard, async (req, res) => {
+    try {
+      const now = new Date();
+      const monthParam = req.query.month ? parseInt(String(req.query.month), 10) : (now.getMonth() + 1); // 1-12
+      const yearParam = req.query.year ? parseInt(String(req.query.year), 10) : now.getFullYear();
+
+      if (isNaN(monthParam) || monthParam < 1 || monthParam > 12) {
+        return res.status(400).json({ error: 'Invalid month. Use 1-12.' });
+      }
+      if (isNaN(yearParam) || yearParam < 1970 || yearParam > 9999) {
+        return res.status(400).json({ error: 'Invalid year.' });
+      }
+
+      // Selected month range [inclusive, exclusive)
+      const start = new Date(yearParam, monthParam - 1, 1);
+      const end = new Date(yearParam, monthParam, 1);
+
+      // Previous month range
+      const prevMonth = monthParam === 1 ? 12 : (monthParam - 1);
+      const prevYear = monthParam === 1 ? (yearParam - 1) : yearParam;
+      const prevStart = new Date(prevYear, prevMonth - 1, 1);
+      const prevEnd = new Date(prevYear, prevMonth, 1);
+
+      // Fetch orders filtered by orderDate (NOT createdAt)
+      const orders = await prisma.order.findMany({
+        where: {
+          orderDate: {
+            gte: start,
+            lt: end
+          }
+        },
+        include: {
+          account: { select: { name: true } },
+          items: { select: { qty: true, itemPrice: true } }
+        },
+        orderBy: [{ orderDate: 'asc' }]
+      });
+
+      // Compute totals for current period
+      const orderDetails = orders.map(o => {
+        // Subtotal by summing qty * itemPrice when available; fallback to itemPrice if qty missing
+        let subtotal = 0;
+        let itemCount = 0;
+        for (const it of (o.items || [])) {
+          const qty = typeof it.qty === 'number' && !isNaN(it.qty) ? it.qty : 1;
+          const price = typeof it.itemPrice === 'number' && !isNaN(it.itemPrice) ? it.itemPrice : 0;
+          subtotal += qty * price;
+          itemCount += qty;
+        }
+        return {
+          id: o.id,
+          poNumber: o.poNumber || null,
+          accountName: o.account?.name || null,
+          orderDate: o.orderDate,
+          itemCount,
+          subtotal
+        };
+      });
+
+      const periodSubtotal = orderDetails.reduce((s, d) => s + d.subtotal, 0);
+      const periodOrderCount = orderDetails.length;
+      const periodItemCount = orderDetails.reduce((s, d) => s + d.itemCount, 0);
+
+      // Previous month totals for MoM comparison
+      const prevOrders = await prisma.order.findMany({
+        where: {
+          orderDate: {
+            gte: prevStart,
+            lt: prevEnd
+          }
+        },
+        include: { items: { select: { qty: true, itemPrice: true } } }
+      });
+      
+      let prevSubtotal = 0;
+      for (const o of prevOrders) {
+        for (const it of (o.items || [])) {
+          const qty = typeof it.qty === 'number' && !isNaN(it.qty) ? it.qty : 1;
+          const price = typeof it.itemPrice === 'number' && !isNaN(it.itemPrice) ? it.itemPrice : 0;
+          prevSubtotal += qty * price;
+        }
+      }
+
+      const deltaAbs = periodSubtotal - prevSubtotal;
+      const deltaPct = prevSubtotal === 0 ? null : (deltaAbs / prevSubtotal);
+
+      res.json({
+        month: monthParam,
+        year: yearParam,
+        range: { start: start.toISOString(), end: end.toISOString() },
+        orders: orderDetails,
+        summary: {
+          orderCount: periodOrderCount,
+          itemCount: periodItemCount,
+          subtotal: periodSubtotal,
+          subtotalFormatted: formatCurrency(periodSubtotal)
+        },
+        monthOverMonth: {
+          prev: { month: prevMonth, year: prevYear, subtotal: prevSubtotal },
+          deltaAbs,
+          deltaPct,
+          deltaAbsFormatted: formatCurrency(Math.abs(deltaAbs)),
+          deltaPctFormatted: deltaPct !== null ? `${(deltaPct * 100).toFixed(1)}%` : 'N/A'
+        },
+        meta: {
+          note: 'Sales data is based on orderDate (when order was placed)'
+        }
+      });
+    } catch (e) {
+      console.error('sales-by-month error:', e);
+      res.status(500).json({ error: 'Failed to generate sales-by-month report' });
+    }
+  });
 
   /**
    * GET /reports/sales-by-rep
@@ -177,8 +296,6 @@ export function createReportsRouter(prisma) {
       res.status(500).json({ error: error.message });
     }
   });
-
-  // REMOVED sales-by-month endpoint as it exists in index.js and is already fixed there
 
   /**
    * GET /reports/sales-by-item
