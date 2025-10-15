@@ -1,17 +1,19 @@
 // api/src/routes/reportsOperational.js
 import { Router } from 'express';
+import { STAGES } from '../state.js';
 
 export function createOperationalReportsRouter(prisma) {
   const router = Router();
 
   /**
-   * Get orders requiring action
-   * FIXED: Now uses correct stage names (AT_SEA and SHIPPING instead of IN_TRANSIT)
+   * Get items requiring action
+   * FIXED: Now uses item stages, not order stages
    */
   router.get('/operational/action-required', async (req, res) => {
     try {
-      const orders = await prisma.order.findMany({
+      const items = await prisma.orderItem.findMany({
         where: {
+          archivedAt: null,
           OR: [
             { currentStage: 'MANUFACTURING' },
             { currentStage: 'TESTING' },
@@ -22,20 +24,19 @@ export function createOperationalReportsRouter(prisma) {
           ]
         },
         include: {
-          account: {
+          order: {
             select: {
               id: true,
-              name: true,
-              email: true
-            }
-          },
-          items: {
-            select: {
-              id: true,
-              productCode: true,
-              qty: true,
-              currentStage: true,
-              archivedAt: true
+              poNumber: true,
+              sku: true,
+              account: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              },
+              createdAt: true
             }
           },
           statusEvents: {
@@ -47,22 +48,22 @@ export function createOperationalReportsRouter(prisma) {
       });
 
       const now = new Date();
-      const actionRequired = orders.map(order => {
+      const actionRequired = items.map(item => {
         // Get time in current stage from last status event
-        const lastEvent = order.statusEvents[0];
-        const stageEnteredAt = lastEvent ? lastEvent.createdAt : order.createdAt;
+        const lastEvent = item.statusEvents[0];
+        const stageEnteredAt = lastEvent ? lastEvent.createdAt : item.createdAt;
         const daysInStage = Math.floor((now - new Date(stageEnteredAt)) / (1000 * 60 * 60 * 24));
         
         return {
-          id: order.id,
-          poNumber: order.poNumber,
-          sku: order.sku,
-          customer: order.account?.name || 'Unknown',
-          stage: order.currentStage,
-          createdAt: order.createdAt,
+          itemId: item.id,
+          orderId: item.order.id,
+          poNumber: item.order.poNumber,
+          productCode: item.productCode,
+          sku: item.order.sku,
+          customer: item.order.account?.name || 'Unknown',
+          stage: item.currentStage,
+          createdAt: item.createdAt,
           stageEnteredAt: stageEnteredAt,
-          activeItems: order.items.filter(item => !item.archivedAt).length,
-          totalItems: order.items.length,
           daysInStage
         };
       });
@@ -75,24 +76,27 @@ export function createOperationalReportsRouter(prisma) {
   });
 
   /**
-   * Get stage distribution
+   * Get stage distribution - ITEMS by stage, not orders
+   * FIXED: Now counts items, not orders
    */
   router.get('/operational/stage-distribution', async (req, res) => {
     try {
-      const orders = await prisma.order.findMany({
+      const items = await prisma.orderItem.findMany({
+        where: {
+          archivedAt: null
+        },
         select: {
           currentStage: true
         }
       });
 
-      const distribution = orders.reduce((acc, order) => {
-        acc[order.currentStage] = (acc[order.currentStage] || 0) + 1;
+      const distribution = items.reduce((acc, item) => {
+        acc[item.currentStage] = (acc[item.currentStage] || 0) + 1;
         return acc;
       }, {});
 
-      // Add zero counts for stages with no orders
-      const allStages = ['MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA', 'SMT', 'QC', 'DELIVERED', 'COMPLETED'];
-      allStages.forEach(stage => {
+      // Add zero counts for stages with no items
+      STAGES.forEach(stage => {
         if (!distribution[stage]) {
           distribution[stage] = 0;
         }
@@ -106,43 +110,46 @@ export function createOperationalReportsRouter(prisma) {
   });
 
   /**
-   * Get average completion time
-   * FIXED: Now properly calculates based on actual delivery date from status events
+   * Get average completion time - based on ITEMS
+   * FIXED: Now tracks items through stages, not orders
    */
   router.get('/operational/avg-completion-time', async (req, res) => {
     try {
-      const completedOrders = await prisma.order.findMany({
+      const completedItems = await prisma.orderItem.findMany({
         where: {
           OR: [
             { currentStage: 'DELIVERED' },
-            { currentStage: 'COMPLETED' }
+            { currentStage: 'ONSITE' },
+            { currentStage: 'COMPLETED' },
+            { currentStage: 'FOLLOW_UP' }
           ]
         },
         select: {
           createdAt: true,
-          orderDate: true,
           statusEvents: {
             where: {
-              OR: [
-                { stage: 'DELIVERED' },
-                { stage: 'COMPLETED' }
-              ]
+              stage: 'DELIVERED'
             },
             orderBy: {
-              createdAt: 'desc'
+              createdAt: 'asc'
             },
             take: 1
+          },
+          order: {
+            select: {
+              orderDate: true
+            }
           }
         }
       });
 
-      const completionTimes = completedOrders
-        .filter(order => order.statusEvents.length > 0)
-        .map(order => {
-          const completedDate = new Date(order.statusEvents[0].createdAt);
-          // Use orderDate if available, otherwise use createdAt
-          const startDate = order.orderDate ? new Date(order.orderDate) : new Date(order.createdAt);
-          return Math.floor((completedDate - startDate) / (1000 * 60 * 60 * 24));
+      const completionTimes = completedItems
+        .filter(item => item.statusEvents.length > 0)
+        .map(item => {
+          const deliveredDate = new Date(item.statusEvents[0].createdAt);
+          // Use order's orderDate if available, otherwise use item's createdAt
+          const startDate = item.order.orderDate ? new Date(item.order.orderDate) : new Date(item.createdAt);
+          return Math.floor((deliveredDate - startDate) / (1000 * 60 * 60 * 24));
         });
 
       const avgTime = completionTimes.length > 0
@@ -163,7 +170,7 @@ export function createOperationalReportsRouter(prisma) {
         minDays: sortedTimes.length > 0 ? sortedTimes[0] : 0,
         maxDays: sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0,
         totalCompleted: completionTimes.length,
-        note: 'Calculated from orderDate (or createdAt if not set) to delivery date'
+        note: 'Calculated from order date to item delivery. Based on items, not orders.'
       });
     } catch (error) {
       console.error('Avg completion time error:', error);
