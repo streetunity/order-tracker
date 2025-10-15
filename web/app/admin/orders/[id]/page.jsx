@@ -90,6 +90,18 @@ export default function EditOrderPage({ params }) {
 
   const hasUnsavedChanges = Object.keys(itemEdits).length > 0;
 
+  // Helper function to format dates safely
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "Unknown";
+    try {
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) return "Invalid date";
+      return date.toLocaleString();
+    } catch {
+      return "Invalid date";
+    }
+  };
+
   async function saveAllChanges() {
     if (!hasUnsavedChanges) return;
     
@@ -1021,7 +1033,7 @@ export default function EditOrderPage({ params }) {
                         </div>
                       </div>
                       <div style={{ fontSize: "11px", color: "#9ca3af", whiteSpace: "nowrap" }}>
-                        {new Date(log.createdAt).toLocaleString()}
+                        {formatDate(log.createdAt)}
                       </div>
                     </div>
                   </div>
