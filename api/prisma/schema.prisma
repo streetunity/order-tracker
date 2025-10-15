@@ -81,7 +81,7 @@ model OrderItem {
   // MULTI-CONTAINER SUPPORT - Using String for SQLite compatibility
   containers     String?  @default("[]") // JSON string of container objects
   
-  currentStage   String?
+  currentStage   String   @default("MANUFACTURING") // FIXED: Added default value and made non-nullable
   archivedAt     DateTime?
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
