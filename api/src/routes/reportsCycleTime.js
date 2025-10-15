@@ -507,6 +507,8 @@ export function createCycleTimeReportsRouter(prisma) {
       
       const whereClause = buildWhereClause(filters, 'order');
 
+      console.log('On-time report - whereClause:', JSON.stringify(whereClause, null, 2));
+
       // Get ALL orders with their items and item status events
       // We'll filter by whether items reached DELIVERED
       const orders = await prisma.order.findMany({
@@ -525,6 +527,8 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       });
 
+      console.log(`On-time report - Found ${orders.length} orders matching where clause`);
+
       let onTimeCount = 0;
       let lateCount = 0;
       let earlyCount = 0;
@@ -534,6 +538,8 @@ export function createCycleTimeReportsRouter(prisma) {
       const slippageDays = [];
 
       for (const order of orders) {
+        console.log(`Order ${order.poNumber}: etaDate=${order.etaDate}, items with DELIVERED=${order.items.filter(i => i.statusEvents.length > 0).length}`);
+        
         // Skip if no ETA date
         if (!order.etaDate) {
           noEtaCount++;
@@ -547,12 +553,15 @@ export function createCycleTimeReportsRouter(prisma) {
         
         // If no items have reached DELIVERED, skip this order
         if (deliveryEvents.length === 0) {
+          console.log(`Order ${order.poNumber}: No DELIVERED events found`);
           noDeliveryEvent++;
           continue;
         }
 
         const deliveredAt = deliveryEvents[0].createdAt;
         const slippage = calculateSlippage(deliveredAt, order.etaDate);
+        
+        console.log(`Order ${order.poNumber}: deliveredAt=${deliveredAt}, slippage=${slippage} days`);
         
         let status = 'on-time';
         if (slippage > 0) {
@@ -582,6 +591,8 @@ export function createCycleTimeReportsRouter(prisma) {
       const onTimePercent = totalOrders > 0 
         ? (onTimeCount / totalOrders) * 100 
         : 0;
+
+      console.log(`On-time report results: total=${totalOrders}, onTime=${onTimeCount}, late=${lateCount}, early=${earlyCount}, noETA=${noEtaCount}, noDelivery=${noDeliveryEvent}`);
 
       // Calculate slippage statistics
       const slippageStats = calculateStats(slippageDays);
