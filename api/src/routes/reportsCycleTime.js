@@ -409,10 +409,13 @@ export function createCycleTimeReportsRouter(prisma) {
    * GET /reports/throughput
    * Items entering each stage per week
    * FIXED: Changed from statusEvent to orderItemStatusEvent
+   * ADDED: Debug logging to see what's happening
    */
   router.get('/throughput', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
+      
+      console.log('Throughput - filters:', JSON.stringify(filters, null, 2));
       
       // Get all status events in the date range
       const whereClause = {};
@@ -422,11 +425,19 @@ export function createCycleTimeReportsRouter(prisma) {
         if (filters.dateTo) whereClause.createdAt.lte = filters.dateTo;
       }
 
+      console.log('Throughput - whereClause:', JSON.stringify(whereClause, null, 2));
+
       // FIXED: Use orderItemStatusEvent instead of statusEvent
       const statusEvents = await prisma.orderItemStatusEvent.findMany({
         where: whereClause,
         orderBy: { createdAt: 'asc' }
       });
+
+      console.log(`Throughput - Found ${statusEvents.length} status events`);
+      if (statusEvents.length > 0) {
+        console.log('Throughput - First event:', statusEvents[0]);
+        console.log('Throughput - Last event:', statusEvents[statusEvents.length - 1]);
+      }
 
       // Group by stage
       const stageTransitions = new Map();
@@ -435,6 +446,8 @@ export function createCycleTimeReportsRouter(prisma) {
       for (const event of statusEvents) {
         const stage = event.stage;
         const week = bucketByWeek(event.createdAt, filters.timezone);
+        
+        console.log(`Event: stage=${stage}, createdAt=${event.createdAt}, week=${week}`);
         
         // Count total by stage
         if (!stageTransitions.has(stage)) {
@@ -451,6 +464,9 @@ export function createCycleTimeReportsRouter(prisma) {
         }
         weeklyTransitions.get(week)[stage]++;
       }
+
+      console.log('Throughput - stageTransitions:', Array.from(stageTransitions.entries()));
+      console.log('Throughput - weeklyTransitions:', Array.from(weeklyTransitions.entries()));
 
       // Calculate total transitions
       const totalTransitions = statusEvents.length;
@@ -473,6 +489,8 @@ export function createCycleTimeReportsRouter(prisma) {
         }
         return weekData;
       });
+
+      console.log('Throughput - Returning:', { totalTransitions, rows: rows.length, series: series.length });
 
       res.json({
         meta: {
