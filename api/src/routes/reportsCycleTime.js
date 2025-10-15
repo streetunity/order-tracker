@@ -7,7 +7,6 @@ import {
   buildWhereClause,
   calculateStats,
   formatDuration,
-  formatCurrency,
   bucketByWeek,
   calculateCycleTime,
   hasBackwardMovement,
@@ -111,7 +110,7 @@ export function createCycleTimeReportsRouter(prisma) {
 
   /**
    * GET /reports/stage-durations
-   * Average time spent in each stage
+   * Average time spent in each stage - base endpoint
    */
   router.get('/stage-durations', authGuard, async (req, res) => {
     try {
@@ -201,6 +200,102 @@ export function createCycleTimeReportsRouter(prisma) {
       });
     } catch (error) {
       console.error('Stage durations error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * GET /reports/stage-durations/leaderboard
+   * Same as stage-durations but with /leaderboard path
+   */
+  router.get('/stage-durations/leaderboard', authGuard, async (req, res) => {
+    try {
+      const { lookbackDays = 90 } = req.query;
+      const lookback = parseInt(lookbackDays, 10);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - lookback);
+      
+      // Get all items with their status events in the lookback period
+      const items = await prisma.orderItem.findMany({
+        where: {
+          createdAt: { gte: cutoffDate }
+        },
+        include: {
+          order: {
+            select: { 
+              poNumber: true, 
+              account: { select: { name: true } },
+              createdAt: true
+            }
+          },
+          statusEvents: {
+            orderBy: { createdAt: 'asc' }
+          }
+        }
+      });
+
+      // Calculate stage durations for each item
+      const stageDurations = new Map();
+      const slowestItems = [];
+      
+      for (const stage of STAGES) {
+        stageDurations.set(stage, []);
+      }
+
+      for (const item of items) {
+        const durations = calculateStageDurations(item.statusEvents);
+        for (const d of durations) {
+          stageDurations.get(d.stage)?.push(d.durationSec);
+          
+          // Track slowest items
+          slowestItems.push({
+            productCode: item.productCode,
+            poNumber: item.order.poNumber,
+            accountName: item.order.account?.name || 'Unknown',
+            stage: d.stage,
+            durationSec: d.durationSec,
+            durationFormatted: formatDuration(d.durationSec)
+          });
+        }
+      }
+
+      // Calculate stats for each stage
+      const series = STAGES.map(stage => {
+        const times = stageDurations.get(stage) || [];
+        const stats = calculateStats(times);
+        
+        return {
+          stage,
+          count: times.length,
+          medianDuration: stats.median,
+          medianDays: Math.floor((stats.median || 0) / 86400),
+          medianFormatted: formatDuration(stats.median),
+          p90Duration: stats.p90,
+          p90Days: Math.floor((stats.p90 || 0) / 86400),
+          p90Formatted: formatDuration(stats.p90),
+          maxDuration: stats.max,
+          maxFormatted: formatDuration(stats.max)
+        };
+      }).filter(s => s.count > 0);
+
+      // Sort slowest items
+      slowestItems.sort((a, b) => b.durationSec - a.durationSec);
+
+      res.json({
+        meta: {
+          lookbackDays: lookback
+        },
+        kpis: {
+          itemsAnalyzed: items.length,
+          stagesTracked: series.length
+        },
+        series,
+        rows: {
+          slowest: slowestItems.slice(0, 20)
+        }
+      });
+    } catch (error) {
+      console.error('Stage durations leaderboard error:', error);
       res.status(500).json({ error: error.message });
     }
   });
