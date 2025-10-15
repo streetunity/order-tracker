@@ -9,6 +9,9 @@
  * - Operational friction points
  * 
  * All endpoints require authentication; financial endpoints require admin role.
+ * 
+ * FIXED: Now uses orderDate for sales reports instead of createdAt
+ * Removed duplicate sales-by-month endpoint (using the one in index.js)
  */
 
 import { Router } from 'express';
@@ -42,10 +45,13 @@ export function createReportsRouter(prisma) {
    * GET /reports/sales-by-rep
    * Sales broken down by sales representative
    * Returns total revenue per rep with optional monthly breakdown
+   * FIXED: Now uses orderDate for monthly bucketing
    */
   router.get('/sales-by-rep', adminGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
+      // Force date_mode to 'order' for sales reports
+      filters.dateMode = 'order';
       const { monthly = 'false' } = req.query;
       const includeMonthly = monthly === 'true';
       const startTime = Date.now();
@@ -98,9 +104,9 @@ export function createReportsRouter(prisma) {
             }
             repTotals.get(repId).total += amount;
 
-            // Monthly breakdown
+            // Monthly breakdown - FIXED to use orderDate
             if (includeMonthly) {
-              const month = bucketByMonth(order.createdAt, filters.timezone);
+              const month = bucketByMonth(order.orderDate || order.createdAt, filters.timezone);
               if (!repMonthly.has(repId)) {
                 repMonthly.set(repId, new Map());
               }
@@ -139,13 +145,14 @@ export function createReportsRouter(prisma) {
         meta: {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
-          date_mode: filters.dateMode,
+          date_mode: 'order', // Always use orderDate for sales reports
           filtersApplied: {
             accountId: filters.accountId,
             stages: filters.stages,
             productCodes: filters.productCodes
           },
-          timezone: filters.timezone
+          timezone: filters.timezone,
+          note: 'Sales data is based on orderDate (when order was placed)'
         },
         kpis: {
           grandTotal,
@@ -171,102 +178,18 @@ export function createReportsRouter(prisma) {
     }
   });
 
-  /**
-   * GET /reports/sales-by-month
-   * Monthly sales breakdown with MoM change
-   */
-  router.get('/sales-by-month', adminGuard, async (req, res) => {
-    try {
-      const filters = parseReportFilters(req.query);
-      const startTime = Date.now();
-
-      const whereOrder = buildWhereClause(filters, 'order');
-
-      const orders = await prisma.order.findMany({
-        where: whereOrder,
-        include: {
-          items: {
-            where: {
-              itemPrice: { not: null },
-              ...(filters.productCodes.length > 0 ? { productCode: { in: filters.productCodes } } : {})
-            },
-            select: {
-              itemPrice: true
-            }
-          }
-        }
-      });
-
-      // Bucket by month
-      const monthlyTotals = new Map();
-      let grandTotal = 0;
-
-      for (const order of orders) {
-        const month = bucketByMonth(order.createdAt, filters.timezone);
-        
-        for (const item of order.items) {
-          if (item.itemPrice) {
-            grandTotal += item.itemPrice;
-            monthlyTotals.set(month, (monthlyTotals.get(month) || 0) + item.itemPrice);
-          }
-        }
-      }
-
-      // Convert to sorted array
-      const series = Array.from(monthlyTotals.entries())
-        .map(([month, total]) => ({ month, total, totalFormatted: formatCurrency(total) }))
-        .sort((a, b) => a.month.localeCompare(b.month));
-
-      // Calculate MoM changes
-      series.forEach((item, index) => {
-        if (index > 0) {
-          const prev = series[index - 1];
-          const change = item.total - prev.total;
-          const changePercent = prev.total > 0 ? (change / prev.total) * 100 : 0;
-          item.mom = {
-            change,
-            changeFormatted: formatCurrency(Math.abs(change)),
-            changePercent: changePercent.toFixed(1),
-            direction: change >= 0 ? 'up' : 'down'
-          };
-        }
-      });
-
-      res.json({
-        meta: {
-          date_from: filters.dateFrom,
-          date_to: filters.dateTo,
-          date_mode: filters.dateMode,
-          filtersApplied: {
-            accountId: filters.accountId,
-            stages: filters.stages,
-            productCodes: filters.productCodes
-          },
-          timezone: filters.timezone
-        },
-        kpis: {
-          grandTotal,
-          grandTotalFormatted: formatCurrency(grandTotal),
-          monthCount: series.length
-        },
-        series,
-        debug: req.query.debug === '1' ? {
-          executionTimeMs: Date.now() - startTime
-        } : undefined
-      });
-    } catch (error) {
-      console.error('Sales by month error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+  // REMOVED sales-by-month endpoint as it exists in index.js and is already fixed there
 
   /**
    * GET /reports/sales-by-item
    * Top N products by revenue
+   * FIXED: Now uses orderDate for filtering
    */
   router.get('/sales-by-item', adminGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
+      // Force date_mode to 'order' for sales reports
+      filters.dateMode = 'order';
       const { topN = 10 } = req.query;
       const limit = parseInt(topN, 10);
       const startTime = Date.now();
@@ -350,12 +273,13 @@ export function createReportsRouter(prisma) {
         meta: {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
-          date_mode: filters.dateMode,
+          date_mode: 'order', // Always use orderDate for sales reports
           topN: limit,
           filtersApplied: {
             accountId: filters.accountId,
             stages: filters.stages
-          }
+          },
+          note: 'Sales data is based on orderDate (when order was placed)'
         },
         kpis: {
           grandTotal,
