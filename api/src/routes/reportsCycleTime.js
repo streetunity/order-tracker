@@ -408,7 +408,7 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/throughput
    * Items entering each stage per week
-   * FIXED: Now returns weekly stage transitions as expected by frontend
+   * FIXED: Changed from statusEvent to orderItemStatusEvent
    */
   router.get('/throughput', authGuard, async (req, res) => {
     try {
@@ -422,7 +422,8 @@ export function createCycleTimeReportsRouter(prisma) {
         if (filters.dateTo) whereClause.createdAt.lte = filters.dateTo;
       }
 
-      const statusEvents = await prisma.statusEvent.findMany({
+      // FIXED: Use orderItemStatusEvent instead of statusEvent
+      const statusEvents = await prisma.orderItemStatusEvent.findMany({
         where: whereClause,
         orderBy: { createdAt: 'asc' }
       });
