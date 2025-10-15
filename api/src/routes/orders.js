@@ -1,3 +1,4 @@
+import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { newTrackingToken } from '../state.js';
 import { STAGE_THRESHOLDS } from '../config/stageThresholds.js';
@@ -311,6 +312,48 @@ export function createOrdersRouter() {
           field: 'sku',
           oldValue: original.sku || 'null',
           newValue: sku || 'null'
+        });
+      }
+      
+      if (etaDate !== undefined) {
+        const newDate = etaDate ? new Date(etaDate) : null;
+        const oldDateStr = original.etaDate?.toISOString() || null;
+        const newDateStr = newDate?.toISOString() || null;
+        
+        if (oldDateStr !== newDateStr) {
+          data.etaDate = newDate;
+          changes.push({
+            field: 'etaDate',
+            oldValue: oldDateStr || 'null',
+            newValue: newDateStr || 'null'
+          });
+        }
+      }
+      
+      if (trackingNumber !== undefined && trackingNumber !== original.trackingNumber) {
+        data.trackingNumber = trackingNumber;
+        changes.push({
+          field: 'trackingNumber',
+          oldValue: original.trackingNumber || 'null',
+          newValue: trackingNumber || 'null'
+        });
+      }
+      
+      if (shippingCarrier !== undefined && shippingCarrier !== original.shippingCarrier) {
+        data.shippingCarrier = shippingCarrier;
+        changes.push({
+          field: 'shippingCarrier',
+          oldValue: original.shippingCarrier || 'null',
+          newValue: shippingCarrier || 'null'
+        });
+      }
+      
+      if (accountId !== undefined && accountId !== original.accountId) {
+        data.accountId = accountId;
+        changes.push({
+          field: 'accountId',
+          oldValue: original.accountId,
+          newValue: accountId
         });
       }
       
