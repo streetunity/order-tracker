@@ -132,7 +132,8 @@ export function createItemsRouter() {
           measurementUnit: true,
           weightUnit: true,
           itemPrice: true,
-          privateItemNote: true
+          privateItemNote: true,
+          containers: true
         } 
       });
       
@@ -162,6 +163,22 @@ export function createItemsRouter() {
             field: 'archivedAt',
             oldValue: oldArchivedStr || 'null',
             newValue: newArchivedStr || 'null'
+          });
+        }
+      }
+      
+      // Containers are allowed even when locked (always editable)
+      if (req.body.hasOwnProperty('containers')) {
+        const newContainers = typeof req.body.containers === 'string' 
+          ? req.body.containers 
+          : JSON.stringify(req.body.containers);
+          
+        if (newContainers !== item.containers) {
+          data.containers = newContainers;
+          changes.push({
+            field: 'containers',
+            oldValue: item.containers || '[]',
+            newValue: newContainers
           });
         }
       }
@@ -366,17 +383,18 @@ export function createItemsRouter() {
         });
         
         if (changes.length > 0) {
+          const isContainerUpdate = changes.some(c => c.field === 'containers');
           const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
           
           await tx.auditLog.create({
             data: {
-              entityType: isMeasurementUpdate ? 'Measurement' : 'OrderItem',
+              entityType: isContainerUpdate ? 'Container' : (isMeasurementUpdate ? 'Measurement' : 'OrderItem'),
               entityId: itemId,
               parentEntityId: orderId,
-              action: isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : 'ORDERITEM_UPDATED',
+              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : 'ORDERITEM_UPDATED'),
               changes: JSON.stringify(changes),
-              metadata: isMeasurementUpdate ? JSON.stringify({
-                message: 'Measurements updated via item endpoint',
+              metadata: (isContainerUpdate || isMeasurementUpdate) ? JSON.stringify({
+                message: isContainerUpdate ? 'Containers updated' : 'Measurements updated via item endpoint',
                 updatedFields: changes.map(c => c.field).join(', ')
               }) : null,
               performedByUserId: req.user.id,
