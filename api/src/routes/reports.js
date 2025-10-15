@@ -12,6 +12,7 @@
  * 
  * FIXED: Now uses orderDate for sales reports instead of createdAt
  * Added sales-by-month endpoint here (moved from index.js)
+ * FIXED: Sales by rep now uses sku field (which stores sales person name)
  */
 
 import { Router } from 'express';
@@ -164,7 +165,7 @@ export function createReportsRouter(prisma) {
    * GET /reports/sales-by-rep
    * Sales broken down by sales representative
    * Returns total revenue per rep with optional monthly breakdown
-   * FIXED: Now uses orderDate for monthly bucketing
+   * FIXED: Now uses sku field (which stores sales person name) instead of createdBy
    */
   router.get('/sales-by-rep', adminGuard, async (req, res) => {
     try {
@@ -178,7 +179,7 @@ export function createReportsRouter(prisma) {
       // Build where clause for orders
       const whereOrder = buildWhereClause(filters, 'order');
 
-      // Fetch orders with items and creator info
+      // Fetch orders with items (using sku field for sales person)
       const orders = await prisma.order.findMany({
         where: whereOrder,
         include: {
@@ -192,25 +193,23 @@ export function createReportsRouter(prisma) {
               productCode: true
             }
           },
-          createdBy: {
+          account: {
             select: {
-              id: true,
-              name: true,
-              email: true
+              name: true
             }
           }
         }
       });
 
-      // Aggregate by rep
+      // Aggregate by rep (using sku field)
       const repTotals = new Map();
       const repMonthly = new Map(); // rep -> month -> total
       let grandTotal = 0;
 
       for (const order of orders) {
-        const rep = order.createdBy;
-        const repId = rep?.id || 'unknown';
-        const repName = rep?.name || 'Unknown';
+        // Use sku field as the sales person name
+        const repName = order.sku || 'Unassigned';
+        const repId = repName.toLowerCase().replace(/\s+/g, '_'); // Create a consistent ID from the name
 
         for (const item of order.items) {
           if (item.itemPrice) {
@@ -219,9 +218,20 @@ export function createReportsRouter(prisma) {
 
             // Add to rep total
             if (!repTotals.has(repId)) {
-              repTotals.set(repId, { repId, repName, total: 0, email: rep?.email });
+              repTotals.set(repId, { 
+                repId, 
+                repName, 
+                total: 0,
+                orderCount: 0,
+                customers: new Set()
+              });
             }
-            repTotals.get(repId).total += amount;
+            const repData = repTotals.get(repId);
+            repData.total += amount;
+            repData.orderCount += 1;
+            if (order.account?.name) {
+              repData.customers.add(order.account.name);
+            }
 
             // Monthly breakdown - FIXED to use orderDate
             if (includeMonthly) {
@@ -240,6 +250,11 @@ export function createReportsRouter(prisma) {
 
       // Convert to arrays and sort
       const rows = Array.from(repTotals.values())
+        .map(rep => ({
+          ...rep,
+          customerCount: rep.customers.size,
+          customers: undefined // Remove the Set from the response
+        }))
         .sort((a, b) => b.total - a.total);
 
       // Build monthly series if requested
@@ -271,7 +286,7 @@ export function createReportsRouter(prisma) {
             productCodes: filters.productCodes
           },
           timezone: filters.timezone,
-          note: 'Sales data is based on orderDate (when order was placed)'
+          note: 'Sales data is based on orderDate (when order was placed) and grouped by sales person (sku field)'
         },
         kpis: {
           grandTotal,
@@ -282,7 +297,9 @@ export function createReportsRouter(prisma) {
         series: monthlySeries,
         rows: rows.map(r => ({
           ...r,
-          totalFormatted: formatCurrency(r.total)
+          totalFormatted: formatCurrency(r.total),
+          avgOrderValue: r.orderCount > 0 ? r.total / r.orderCount : 0,
+          avgOrderValueFormatted: r.orderCount > 0 ? formatCurrency(r.total / r.orderCount) : '$0.00'
         })),
         debug: req.query.debug === '1' ? {
           executionTimeMs: Date.now() - startTime,
