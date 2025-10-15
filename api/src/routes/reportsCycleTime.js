@@ -490,8 +490,7 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/on-time
    * On-time delivery performance
-   * FIXED: Now checks DELIVERED stage (not final FOLLOW_UP stage) and shows all delivered orders
-   * Considers an order "delivered" when it reaches DELIVERED, ONSITE, COMPLETED, or FOLLOW_UP stages
+   * Measures delivery time against ETA for all orders that reached DELIVERED stage
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
@@ -503,7 +502,6 @@ export function createCycleTimeReportsRouter(prisma) {
 
       const whereClause = buildWhereClause(filters, 'order');
       whereClause.currentStage = { in: deliveryStages };
-      // Don't filter by etaDate - show all delivered orders
 
       const orders = await prisma.order.findMany({
         where: whereClause,
@@ -524,9 +522,14 @@ export function createCycleTimeReportsRouter(prisma) {
       let noEtaCount = 0;
       const orderDetails = [];
       const slippageDays = [];
-      const DEFAULT_EXPECTED_DAYS = 60;
 
       for (const order of orders) {
+        // Skip if no ETA date
+        if (!order.etaDate) {
+          noEtaCount++;
+          continue;
+        }
+
         // Check if we have a DELIVERED status event
         if (order.statusEvents.length === 0) {
           noDeliveryEvent++;
@@ -534,24 +537,7 @@ export function createCycleTimeReportsRouter(prisma) {
         }
 
         const deliveredAt = order.statusEvents[0].createdAt;
-        const startDate = order.orderDate || order.createdAt;
-        
-        // Calculate expected delivery date
-        let expectedDate;
-        let hasETA = false;
-        
-        if (order.etaDate) {
-          // Use ETA if available
-          expectedDate = order.etaDate;
-          hasETA = true;
-        } else {
-          // Calculate expected date: start date + DEFAULT_EXPECTED_DAYS
-          expectedDate = new Date(startDate);
-          expectedDate.setDate(expectedDate.getDate() + DEFAULT_EXPECTED_DAYS);
-          noEtaCount++;
-        }
-        
-        const slippage = calculateSlippage(deliveredAt, expectedDate);
+        const slippage = calculateSlippage(deliveredAt, order.etaDate);
         
         let status = 'on-time';
         if (slippage > 0) {
@@ -570,13 +556,10 @@ export function createCycleTimeReportsRouter(prisma) {
           poNumber: order.poNumber,
           accountName: order.account?.name || 'Unknown',
           etaDate: order.etaDate,
-          expectedDate: hasETA ? order.etaDate : expectedDate.toISOString(),
           deliveredAt: deliveredAt,
           currentStage: order.currentStage,
           slippageDays: slippage,
-          status,
-          hasETA,
-          note: hasETA ? null : `Expected delivery calculated as ${DEFAULT_EXPECTED_DAYS} days from order date`
+          status
         });
       }
 
@@ -598,13 +581,11 @@ export function createCycleTimeReportsRouter(prisma) {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
           date_mode: filters.dateMode,
-          note: `Shows orders that reached DELIVERED stage. Orders without ETA use ${DEFAULT_EXPECTED_DAYS}-day default from order date.`,
+          note: 'Shows orders that reached DELIVERED stage and compares delivery time against ETA',
           deliveryStages: deliveryStages
         },
         kpis: {
-          totalWithETA: totalOrders,
           totalOrders: totalOrders,
-          ordersWithETA: totalOrders - noEtaCount,
           ordersWithoutETA: noEtaCount,
           ordersWithoutDeliveryEvent: noDeliveryEvent,
           onTimeCount,
