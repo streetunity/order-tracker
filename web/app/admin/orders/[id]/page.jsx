@@ -746,7 +746,7 @@ export default function EditOrderPage({ params }) {
                           setUnorderingItemId(it.id);
                           setShowUnorderDialog(true);
                         }}
-                        disabled={saving || order.isLocked}
+                        disabled={saving}
                         isLocked={order.isLocked}
                         isAdmin={isAdmin}
                       />
@@ -1258,7 +1258,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", justifyContent: "flex-start" }}>
             <button 
               className="btn" 
-              disabled={!changed || (disabled && !isAdmin)} 
+              disabled={!changed || disabled} 
               onClick={handleSave}
               title={isLocked && !isAdmin ? "Order is locked" : "Save changes"}
               style={{ fontSize: "11px", padding: "2px 5px" }}
@@ -1268,7 +1268,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
             <button 
               className="btn danger" 
               onClick={onDelete} 
-              disabled={disabled} 
+              disabled={disabled || isLocked} 
               style={{ borderColor: "#ef4444", color: "#b91c1c", fontSize: "11px", padding: "2px 5px" }}
               title={isLocked ? "Order is locked" : "Delete item"}
             >
