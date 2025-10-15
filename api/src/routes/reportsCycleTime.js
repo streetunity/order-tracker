@@ -7,6 +7,8 @@ import {
   buildWhereClause,
   calculateStats,
   formatDuration,
+  formatCurrency,
+  bucketByWeek,
   calculateCycleTime,
   hasBackwardMovement,
   calculateStageDurations,
@@ -108,10 +110,10 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/stage-durations/leaderboard
-   * Average time spent in each stage with leaderboard
+   * GET /reports/stage-durations
+   * Average time spent in each stage
    */
-  router.get('/stage-durations/leaderboard', authGuard, async (req, res) => {
+  router.get('/stage-durations', authGuard, async (req, res) => {
     try {
       const { lookbackDays = 90 } = req.query;
       const lookback = parseInt(lookbackDays, 10);
@@ -302,76 +304,87 @@ export function createCycleTimeReportsRouter(prisma) {
 
   /**
    * GET /reports/throughput
-   * Orders/items completed per time period
+   * Items entering each stage per week
+   * FIXED: Now returns weekly stage transitions as expected by frontend
    */
   router.get('/throughput', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
-      const finalStage = STAGES[STAGES.length - 1];
-
-      // For throughput, we filter by completion date, not created date
-      // So we need custom filtering
-      const baseWhere = {
-        currentStage: finalStage
-      };
       
-      // Add account and rep filters if specified
-      if (filters.accountId) baseWhere.accountId = filters.accountId;
-      if (filters.repId) baseWhere.createdByUserId = filters.repId;
+      // Get all status events in the date range
+      const whereClause = {};
+      if (filters.dateFrom || filters.dateTo) {
+        whereClause.createdAt = {};
+        if (filters.dateFrom) whereClause.createdAt.gte = filters.dateFrom;
+        if (filters.dateTo) whereClause.createdAt.lte = filters.dateTo;
+      }
 
-      const orders = await prisma.order.findMany({
-        where: baseWhere,
-        include: {
-          statusEvents: {
-            where: { stage: finalStage },
-            orderBy: { createdAt: 'asc' },
-            take: 1
-          }
-        }
+      const statusEvents = await prisma.statusEvent.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'asc' }
       });
 
-      // Filter by completion date if date filters are specified
-      let filteredOrders = orders.filter(o => o.statusEvents.length > 0);
+      // Group by stage
+      const stageTransitions = new Map();
+      const weeklyTransitions = new Map();
       
-      if (filters.dateFrom || filters.dateTo) {
-        filteredOrders = filteredOrders.filter(order => {
-          const completedDate = order.statusEvents[0].createdAt;
-          if (filters.dateFrom && completedDate < filters.dateFrom) return false;
-          if (filters.dateTo && completedDate > filters.dateTo) return false;
-          return true;
-        });
-      }
-
-      // Group by completion month
-      const monthlyThroughput = new Map();
-      
-      for (const order of filteredOrders) {
-        const completedDate = order.statusEvents[0].createdAt;
-        const month = completedDate.toISOString().substring(0, 7); // YYYY-MM
+      for (const event of statusEvents) {
+        const stage = event.stage;
+        const week = bucketByWeek(event.createdAt, filters.timezone);
         
-        if (!monthlyThroughput.has(month)) {
-          monthlyThroughput.set(month, { month, ordersCompleted: 0 });
+        // Count total by stage
+        if (!stageTransitions.has(stage)) {
+          stageTransitions.set(stage, 0);
         }
-        monthlyThroughput.get(month).ordersCompleted++;
+        stageTransitions.set(stage, stageTransitions.get(stage) + 1);
+        
+        // Count by week and stage
+        if (!weeklyTransitions.has(week)) {
+          weeklyTransitions.set(week, {});
+        }
+        if (!weeklyTransitions.get(week)[stage]) {
+          weeklyTransitions.get(week)[stage] = 0;
+        }
+        weeklyTransitions.get(week)[stage]++;
       }
 
-      const series = Array.from(monthlyThroughput.values())
-        .sort((a, b) => a.month.localeCompare(b.month));
+      // Calculate total transitions
+      const totalTransitions = statusEvents.length;
+
+      // Format stage summary
+      const rows = STAGES.map(stage => ({
+        stage,
+        count: stageTransitions.get(stage) || 0,
+        percentage: totalTransitions > 0 
+          ? ((stageTransitions.get(stage) || 0) / totalTransitions * 100).toFixed(1)
+          : '0.0'
+      })).filter(row => row.count > 0);
+
+      // Format weekly series
+      const weeks = Array.from(weeklyTransitions.keys()).sort();
+      const series = weeks.map(week => {
+        const weekData = { week };
+        for (const stage of STAGES) {
+          weekData[stage] = weeklyTransitions.get(week)[stage] || 0;
+        }
+        return weekData;
+      });
 
       res.json({
         meta: {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
-          note: 'Throughput is based on completion date'
+          note: 'Shows items entering each stage per week'
         },
         kpis: {
-          totalCompleted: filteredOrders.length,
-          avgMonthlyThroughput: series.length > 0 
-            ? (series.reduce((sum, s) => sum + s.ordersCompleted, 0) / series.length).toFixed(1)
+          totalTransitions,
+          weekCount: weeks.length,
+          avgWeeklyTransitions: weeks.length > 0 
+            ? Math.round(totalTransitions / weeks.length)
             : 0
         },
-        series,
-        rows: series
+        rows,
+        series
       });
     } catch (error) {
       console.error('Throughput error:', error);
@@ -382,6 +395,7 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/on-time
    * On-time delivery performance
+   * FIXED: Added missing fields for frontend
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
@@ -406,40 +420,52 @@ export function createCycleTimeReportsRouter(prisma) {
 
       let onTimeCount = 0;
       let lateCount = 0;
-      const lateOrders = [];
+      let earlyCount = 0;
+      const orderDetails = [];
+      const slippageDays = [];
 
       for (const order of orders) {
         if (order.statusEvents.length > 0) {
           const completedAt = order.statusEvents[0].createdAt;
           const onTime = isOnTime(completedAt, order.etaDate);
+          const slippage = calculateSlippage(completedAt, order.etaDate);
           
-          if (onTime) {
-            onTimeCount++;
-          } else {
+          let status = 'on-time';
+          if (slippage > 0) {
+            status = 'late';
             lateCount++;
-            const slippage = calculateSlippage(completedAt, order.etaDate);
-            lateOrders.push({
-              orderId: order.id,
-              poNumber: order.poNumber,
-              accountName: order.account?.name || 'Unknown',
-              etaDate: order.etaDate,
-              completedAt,
-              slippageDays: slippage
-            });
+            slippageDays.push(slippage);
+          } else if (slippage < -7) {
+            status = 'early';
+            earlyCount++;
+          } else {
+            onTimeCount++;
           }
+          
+          orderDetails.push({
+            orderId: order.id,
+            poNumber: order.poNumber,
+            accountName: order.account?.name || 'Unknown',
+            etaDate: order.etaDate,
+            completedAt,
+            slippageDays: slippage,
+            status
+          });
         }
       }
 
-      const totalWithETA = onTimeCount + lateCount;
+      const totalWithETA = onTimeCount + lateCount + earlyCount;
       const onTimePercent = totalWithETA > 0 
         ? (onTimeCount / totalWithETA) * 100 
         : 0;
 
-      const paginated = paginateResults(
-        lateOrders.sort((a, b) => b.slippageDays - a.slippageDays),
-        filters.page,
-        filters.pageSize
-      );
+      // Calculate slippage statistics
+      const slippageStats = calculateStats(slippageDays);
+
+      // Sort by slippage (worst first)
+      orderDetails.sort((a, b) => b.slippageDays - a.slippageDays);
+
+      const paginated = paginateResults(orderDetails, filters.page, filters.pageSize);
 
       res.json({
         meta: {
@@ -451,7 +477,12 @@ export function createCycleTimeReportsRouter(prisma) {
           totalWithETA,
           onTimeCount,
           lateCount,
-          onTimePercent: onTimePercent.toFixed(1)
+          earlyCount,
+          onTimePercent: onTimePercent.toFixed(1),
+          onTimeRate: onTimePercent.toFixed(1),
+          onTimeRateFormatted: `${onTimePercent.toFixed(1)}%`,
+          avgSlippageDays: slippageStats.mean ? slippageStats.mean.toFixed(1) : '0.0',
+          medianSlippageDays: slippageStats.median ? slippageStats.median.toFixed(1) : '0.0'
         },
         rows: paginated
       });
