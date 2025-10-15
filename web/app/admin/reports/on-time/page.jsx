@@ -158,7 +158,7 @@ export default function OnTimePage() {
                         {new Date(row.etaDate).toLocaleDateString()}
                       </td>
                       <td style={{ fontSize: '13px' }}>
-                        {new Date(row.completedAt).toLocaleDateString()}
+                        {row.completedAt ? new Date(row.completedAt).toLocaleDateString() : '—'}
                       </td>
                       <td>
                         <span style={{ 
