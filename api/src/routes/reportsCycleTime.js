@@ -490,7 +490,7 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/on-time
    * On-time delivery performance
-   * Measures delivery time against ETA for all orders that reached DELIVERED stage
+   * FIXED: Now checks BOTH order-level AND item-level status events for DELIVERED stage
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
@@ -507,10 +507,21 @@ export function createCycleTimeReportsRouter(prisma) {
         where: whereClause,
         include: {
           account: { select: { name: true } },
+          // Get order-level status events
           statusEvents: {
-            where: { stage: 'DELIVERED' }, // Look for when it reached DELIVERED
+            where: { stage: 'DELIVERED' },
             orderBy: { createdAt: 'asc' },
             take: 1
+          },
+          // ALSO get item-level status events to find DELIVERED timestamp
+          items: {
+            include: {
+              statusEvents: {
+                where: { stage: 'DELIVERED' },
+                orderBy: { createdAt: 'asc' },
+                take: 1
+              }
+            }
           }
         }
       });
@@ -530,13 +541,29 @@ export function createCycleTimeReportsRouter(prisma) {
           continue;
         }
 
-        // Check if we have a DELIVERED status event
-        if (order.statusEvents.length === 0) {
-          noDeliveryEvent++;
-          continue; // Skip orders without a delivery event
+        // Check for DELIVERED event - first try order-level, then item-level
+        let deliveredAt = null;
+        
+        // Try order-level status events first
+        if (order.statusEvents.length > 0) {
+          deliveredAt = order.statusEvents[0].createdAt;
+        } else {
+          // Try item-level status events - find earliest DELIVERED event
+          const itemDeliveryEvents = order.items
+            .flatMap(item => item.statusEvents)
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+          
+          if (itemDeliveryEvents.length > 0) {
+            deliveredAt = itemDeliveryEvents[0].createdAt;
+          }
         }
 
-        const deliveredAt = order.statusEvents[0].createdAt;
+        // If no delivery event found at all, skip
+        if (!deliveredAt) {
+          noDeliveryEvent++;
+          continue;
+        }
+
         const slippage = calculateSlippage(deliveredAt, order.etaDate);
         
         let status = 'on-time';
@@ -581,7 +608,7 @@ export function createCycleTimeReportsRouter(prisma) {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
           date_mode: filters.dateMode,
-          note: 'Shows orders that reached DELIVERED stage and compares delivery time against ETA',
+          note: 'Shows orders that reached DELIVERED stage. Checks both order-level and item-level status events.',
           deliveryStages: deliveryStages
         },
         kpis: {
