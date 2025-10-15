@@ -7,6 +7,35 @@ const prisma = new PrismaClient();
 export function createOrdersRouter() {
   const router = express.Router();
 
+  // Helper to build role-based where clause for orders
+  function buildRoleBasedWhere(user, additionalWhere = {}) {
+    const where = { ...additionalWhere };
+    
+    // If user is an AGENT, only show orders where sku (sales person) matches their name
+    if (user.role === 'AGENT') {
+      where.sku = user.name;
+    }
+    
+    // ADMIN users see all orders (no additional filtering)
+    
+    return where;
+  }
+
+  // Helper to check if user can access specific order
+  async function canAccessOrder(user, orderId) {
+    if (user.role === 'ADMIN') return true;
+    
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { sku: true }
+    });
+    
+    if (!order) return false;
+    
+    // Agent can only access if order's sales person matches their name
+    return order.sku === user.name;
+  }
+
   // Helper to calculate ETA - should use actual settings from database
   async function calculateETADate(orderDate = new Date()) {
     try {
@@ -80,16 +109,16 @@ export function createOrdersRouter() {
       .filter((i) => i.productCode.length > 0);
   }
 
-  // List orders
+  // List orders - ROLE-FILTERED
   router.get('/', async (req, res) => {
     try {
       const { stage, accountId, search } = req.query;
-      const where = {};
-      if (stage) where.currentStage = String(stage);
-      if (accountId) where.accountId = String(accountId);
+      const baseWhere = {};
+      if (stage) baseWhere.currentStage = String(stage);
+      if (accountId) baseWhere.accountId = String(accountId);
       if (search) {
         const q = String(search);
-        where.OR = [
+        baseWhere.OR = [
           { poNumber: { contains: q } },
           { sku: { contains: q } },
           { account: { is: { name: { contains: q } } } },
@@ -97,6 +126,9 @@ export function createOrdersRouter() {
           { items: { some: { serialNumber: { contains: q } } } }
         ];
       }
+
+      // Apply role-based filtering
+      const where = buildRoleBasedWhere(req.user, baseWhere);
 
       const orders = await prisma.order.findMany({
         where,
@@ -117,7 +149,7 @@ export function createOrdersRouter() {
     }
   });
 
-  // Get yearly total
+  // Get yearly total - ROLE-FILTERED
   router.get('/yearly-total', async (req, res) => {
     try {
       if (req.user.role !== 'ADMIN') {
@@ -173,9 +205,15 @@ export function createOrdersRouter() {
     }
   });
 
-  // Get single order
+  // Get single order - ROLE-FILTERED
   router.get('/:id', async (req, res) => {
     try {
+      // Check access permission
+      const hasAccess = await canAccessOrder(req.user, req.params.id);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only view orders assigned to you.' });
+      }
+
       const order = await prisma.order.findUnique({
         where: { id: req.params.id },
         include: {
@@ -277,9 +315,15 @@ export function createOrdersRouter() {
     }
   });
 
-  // Update order
+  // Update order - ROLE-FILTERED
   router.patch('/:id', async (req, res) => {
     try {
+      // Check access permission
+      const hasAccess = await canAccessOrder(req.user, req.params.id);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only edit orders assigned to you.' });
+      }
+
       const original = await prisma.order.findUnique({
         where: { id: req.params.id }
       });
@@ -464,9 +508,15 @@ export function createOrdersRouter() {
     }
   });
 
-  // Delete order
+  // Delete order - ROLE-FILTERED
   router.delete('/:id', async (req, res) => {
     try {
+      // Check access permission
+      const hasAccess = await canAccessOrder(req.user, req.params.id);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only delete orders assigned to you.' });
+      }
+
       const order = await prisma.order.findUnique({ 
         where: { id: req.params.id },
         select: { id: true, isLocked: true } 
@@ -511,10 +561,17 @@ export function createOrdersRouter() {
     }
   });
 
-  // Update internal notes
+  // Update internal notes - ROLE-FILTERED
   router.patch('/:id/internal-notes', async (req, res) => {
     try {
       const orderId = req.params.id;
+      
+      // Check access permission
+      const hasAccess = await canAccessOrder(req.user, orderId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only edit orders assigned to you.' });
+      }
+
       const { internalNotes } = req.body || {};
       
       const order = await prisma.order.findUnique({
