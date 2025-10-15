@@ -498,15 +498,19 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/on-time
    * On-time delivery performance
-   * FIXED: Get ALL status events for items, then filter for DELIVERED in code
+   * CRITICAL FIX: Use orderDate for filtering, not createdAt
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       
+      // FORCE orderDate filtering for on-time delivery reports
+      filters.dateMode = 'order';
+      
       const whereClause = buildWhereClause(filters, 'order');
 
       console.log('On-time report - whereClause:', JSON.stringify(whereClause, null, 2));
+      console.log('On-time report - dateMode:', filters.dateMode);
 
       // Get ALL orders with their items and ALL item status events
       const orders = await prisma.order.findMany({
@@ -516,7 +520,6 @@ export function createCycleTimeReportsRouter(prisma) {
           items: {
             include: {
               statusEvents: {
-                // Get ALL status events, filter for DELIVERED in code
                 orderBy: { createdAt: 'asc' }
               }
             }
@@ -541,7 +544,7 @@ export function createCycleTimeReportsRouter(prisma) {
           item.statusEvents.filter(evt => evt.stage === 'DELIVERED')
         );
         
-        console.log(`Order ${order.poNumber}: etaDate=${order.etaDate}, total status events=${totalStatusEvents}, DELIVERED events=${deliveredEvents.length}`);
+        console.log(`Order ${order.poNumber}: etaDate=${order.etaDate}, total status events=${totalStatusEvents}, DELIVERED events=${deliveredEvents.length}, items=${order.items.length}`);
         
         // Skip if no ETA date
         if (!order.etaDate) {
@@ -609,8 +612,8 @@ export function createCycleTimeReportsRouter(prisma) {
         meta: {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
-          date_mode: filters.dateMode,
-          note: 'Shows orders where items reached DELIVERED stage. Compares delivery time against ETA.'
+          date_mode: 'order',
+          note: 'Filtered by orderDate. Shows orders where items reached DELIVERED stage.'
         },
         kpis: {
           totalOrders: totalOrders,
