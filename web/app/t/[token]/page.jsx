@@ -98,7 +98,6 @@ export default function PublicTrackingPage() {
     );
   }
 
-  // Helper function to format dates
   const formatDate = (dateStr) => {
     try {
       const date = new Date(dateStr);
@@ -110,7 +109,6 @@ export default function PublicTrackingPage() {
 
   return (
     <main style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto", position: "relative" }}>
-      {/* SMT Logo in top left corner */}
       <div style={{
         position: "absolute",
         top: "20px",
@@ -124,13 +122,11 @@ export default function PublicTrackingPage() {
         zIndex: 10
       }}></div>
 
-      {/* Header */}
       <div style={{ marginBottom: "40px", textAlign: "center" }}>
         <h1 style={{ fontSize: "32px", fontWeight: "600", color: "#e4e4e4", marginBottom: "20px" }}>
           Order Status
         </h1>
         
-        {/* Order Details - FIXED to show proper order date */}
         <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
           {order.orderDate && (
             <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
@@ -150,7 +146,6 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* Complete Customer Information - Four Row Layout */}
       <div style={{ 
         backgroundColor: "#2d2d2d", 
         border: "1px solid #404040", 
@@ -164,7 +159,6 @@ export default function PublicTrackingPage() {
           Customer Information
         </h2>
         
-        {/* First Row: Name and Email */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "16px" }}>
           <div>
             <strong style={{ color: "#ef4444" }}>Name:</strong>
@@ -176,7 +170,6 @@ export default function PublicTrackingPage() {
           </div>
         </div>
         
-        {/* Second Row: Phone and Address */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "16px" }}>
           <div>
             <strong style={{ color: "#ef4444" }}>Phone:</strong>
@@ -188,13 +181,11 @@ export default function PublicTrackingPage() {
           </div>
         </div>
         
-        {/* Third Row: Machine Voltage */}
         <div style={{ marginBottom: "16px" }}>
           <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
           <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
         </div>
         
-        {/* Fourth Row: Customer Files Link - NEW */}
         {order.customerDocsLink && (
           <div>
             <strong style={{ color: "#ef4444" }}>Customer Files Link:</strong>
@@ -216,7 +207,6 @@ export default function PublicTrackingPage() {
         )}
       </div>
 
-      {/* Shipping Information - MOVED HERE after customer info */}
       {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
         <div style={{ 
           padding: "20px",
@@ -251,7 +241,6 @@ export default function PublicTrackingPage() {
         </div>
       )}
 
-      {/* Items List with Individual Progress - FIXED WIDTH */}
       <div style={{ 
         marginBottom: "40px",
         width: "100%",
@@ -261,7 +250,6 @@ export default function PublicTrackingPage() {
           Order Items & Progress
         </h2>
         
-        {/* Check if items exist and have length */}
         {(!order.items || order.items.length === 0) ? (
           <div style={{
             padding: "40px",
@@ -280,10 +268,9 @@ export default function PublicTrackingPage() {
         ) : (
           <div style={{ display: "grid", gap: "24px" }}>
             {order.items.map((item) => {
-              // FIX: Get the effective current stage, defaulting to MANUFACTURING if neither exists
               const effectiveStage = item.currentStage || order.currentStage || "MANUFACTURING";
               const currentStageIndex = STAGES.indexOf(effectiveStage);
-              const validStageIndex = currentStageIndex >= 0 ? currentStageIndex : 0; // Default to first stage if invalid
+              const validStageIndex = currentStageIndex >= 0 ? currentStageIndex : 0;
               const isCompleted = effectiveStage === "FOLLOW_UP";
               
               console.log(`Item ${item.id}: effectiveStage=${effectiveStage}, index=${validStageIndex}`);
@@ -300,7 +287,6 @@ export default function PublicTrackingPage() {
                     boxSizing: "border-box"
                   }}
                 >
-                  {/* Item Header */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                     <div>
                       <div style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "4px" }}>
@@ -310,7 +296,6 @@ export default function PublicTrackingPage() {
                         Quantity: {item.qty || 1}
                       </div>
                       
-                      {/* Always show Serial Number */}
                       <div style={{ 
                         fontSize: "14px", 
                         color: item.serialNumber ? "#ef4444" : "#6b7280", 
@@ -320,7 +305,6 @@ export default function PublicTrackingPage() {
                         Serial Number: {item.serialNumber || "Not specified"}
                       </div>
                       
-                      {/* Always show Model Number */}
                       <div style={{ 
                         fontSize: "14px", 
                         color: item.modelNumber ? "#ef4444" : "#6b7280", 
@@ -330,7 +314,6 @@ export default function PublicTrackingPage() {
                         Model Number: {item.modelNumber || "Not specified"}
                       </div>
                       
-                      {/* Always show Voltage */}
                       <div style={{ 
                         fontSize: "14px", 
                         color: "#a0a0a0", 
@@ -339,16 +322,14 @@ export default function PublicTrackingPage() {
                         Voltage: {item.voltage || "Not specified"}
                       </div>
                       
-                      {/* Always show Power */}
                       <div style={{ 
                         fontSize: "14px", 
                         color: "#a0a0a0", 
                         marginTop: "4px"
                       }}>
-                        Power: {item.power || "Not specified"}
+                        Power: {item.laserWattage || "Not specified"}
                       </div>
                       
-                      {/* Always show Notes */}
                       <div style={{ 
                         fontSize: "13px", 
                         color: "#a0a0a0", 
@@ -372,7 +353,6 @@ export default function PublicTrackingPage() {
                     </div>
                   </div>
                   
-                  {/* Individual Stage Progress for This Item */}
                   <div style={{ marginBottom: "16px" }}>
                     <h4 style={{ fontSize: "14px", fontWeight: "500", color: "#e4e4e4", marginBottom: "10px" }}>
                       Production Progress
@@ -395,7 +375,6 @@ export default function PublicTrackingPage() {
                           
                           let backgroundColor, borderColor, textColor;
                           if (isCurrent) {
-                            // Special case: if this is the final stage (FOLLOW_UP), show green instead of red
                             if (stage === "FOLLOW_UP") {
                               backgroundColor = "#059669";
                               borderColor = "#059669";
@@ -450,7 +429,6 @@ export default function PublicTrackingPage() {
                     </div>
                   </div>
                   
-                  {/* Progress Bar */}
                   <div style={{ marginBottom: "16px" }}>
                     <div style={{ 
                       height: "8px", 
@@ -470,7 +448,6 @@ export default function PublicTrackingPage() {
                     </div>
                   </div>
 
-                  {/* Item Timeline/Log */}
                   {item.statusEvents && item.statusEvents.length > 0 && (
                     <div>
                       <h4 style={{ fontSize: "16px", fontWeight: "500", color: "#e4e4e4", marginBottom: "12px" }}>
@@ -520,7 +497,6 @@ export default function PublicTrackingPage() {
         )}
       </div>
 
-      {/* Order-Level Timeline - FIXED WIDTH */}
       {order.statusEvents && order.statusEvents.length > 0 && (
         <div style={{ 
           padding: "20px",
@@ -572,7 +548,6 @@ export default function PublicTrackingPage() {
         </div>
       )}
 
-      {/* Footer */}
       <div style={{ marginTop: "40px", paddingTop: "20px", borderTop: "1px solid #404040", textAlign: "center" }}>
         <p style={{ color: "#a0a0a0", fontSize: "14px" }}>
           Order created on {new Date(order.createdAt).toLocaleDateString()}
