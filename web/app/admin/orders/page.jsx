@@ -140,7 +140,7 @@ export default function ManageOrdersPage() {
             {rows.map((o) => (
               <tr key={o.id}>
                 <td>{o.account?.name ?? "—"}</td>
-                <td>{o.poNumber ?? "—"}</td>
+                <td>{o.orderDate ? new Date(o.orderDate).toLocaleDateString() : "—"}</td>
                 <td>{o.sku ?? "—"}</td>
                 <td>{new Date(o.createdAt).toLocaleString()}</td>
                 <td>{o.createdBy?.name ?? "—"}</td>
@@ -171,7 +171,7 @@ export default function ManageOrdersPage() {
                         alert("Cannot delete a locked order. Please unlock it first.");
                         return;
                       }
-                      remove(o.id, `Order Date:${o.poNumber ?? "—"} / Sales Person:${o.sku ?? "—"}`);
+                      remove(o.id, `Order Date:${o.orderDate ? new Date(o.orderDate).toLocaleDateString() : "—"} / Sales Person:${o.sku ?? "—"}`);
                     }}
                     style={{
                       opacity: o.isLocked ? 0.5 : 1,
