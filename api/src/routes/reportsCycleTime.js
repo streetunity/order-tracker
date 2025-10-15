@@ -518,6 +518,7 @@ export function createCycleTimeReportsRouter(prisma) {
    * GET /reports/on-time
    * On-time delivery performance
    * CRITICAL FIX: Use orderDate for filtering, not createdAt
+   * FRONTEND COMPATIBILITY FIX: Added completedAt as alias for deliveredAt
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
@@ -606,6 +607,7 @@ export function createCycleTimeReportsRouter(prisma) {
           accountName: order.account?.name || 'Unknown',
           etaDate: order.etaDate,
           deliveredAt: deliveredAt,
+          completedAt: deliveredAt, // ADDED: Frontend compatibility - same as deliveredAt
           currentStage: order.currentStage,
           slippageDays: slippage,
           status
