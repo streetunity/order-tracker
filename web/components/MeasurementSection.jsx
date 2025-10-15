@@ -103,7 +103,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     if (containers.length === 0) {
       return [{
         id: `default-${item.id}`,
-        label: 'Container 1',
+        label: 'Skid 1',
         tracking: '',
         height: null,
         width: null,
@@ -121,7 +121,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     
     const newContainer = {
       id: `container-${Date.now()}`,
-      label: `Container ${containers.length + 1}`,
+      label: `Skid ${containers.length + 1}`,
       tracking: "",
       height: null,
       width: null,
@@ -252,7 +252,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
         <strong>📦 How containers work:</strong>
         <ul style={{ margin: "8px 0 0 20px", paddingLeft: "0" }}>
           <li>Each container represents a physical box or unit that will be shipped</li>
-          <li>Single items should use "Container 1" only unless shipping in multiple boxes</li>
+          <li>Single items should use "Skid 1" only unless shipping in multiple boxes</li>
           <li>Add additional containers only when items ship in multiple boxes</li>
           <li>Each container can have its own tracking number and dimensions</li>
         </ul>
@@ -384,7 +384,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                     className="input"
                                     value={currentContainer.tracking}
                                     onChange={(e) => updateContainer(item.id, container.id, 'tracking', e.target.value)}
-                                    placeholder="Tracking number (optional)"
+                                    placeholder="Notes (optional)"
                                     style={{ fontSize: '13px', backgroundColor: '#2a2a2a' }}
                                   />
                                   <select
@@ -399,7 +399,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                   <div>
-                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Length</label>
+                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Length (L)</label>
                                     <input
                                       className="input"
                                       type="number"
@@ -411,7 +411,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                     />
                                   </div>
                                   <div>
-                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Width</label>
+                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Width (W)</label>
                                     <input
                                       className="input"
                                       type="number"
@@ -423,7 +423,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                     />
                                   </div>
                                   <div>
-                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Height</label>
+                                    <label style={{ fontSize: '11px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Height (H)</label>
                                     <input
                                       className="input"
                                       type="number"
@@ -542,7 +542,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                           📐 DIMENSIONS
                                         </div>
                                         <div style={{ color: '#e4e4e4', fontSize: '18px', fontWeight: '500' }}>
-                                          {container.length || '0'} × {container.width || '0'} × {container.height || '0'} {container.unit}
+                                          L {container.length || '0'} × W {container.width || '0'} × H {container.height || '0'} {container.unit}
                                         </div>
                                       </div>
                                     )}
@@ -565,7 +565,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                       </div>
                                     )}
                                     
-                                    {/* Tracking */}
+                                    {/* Notes (previously Tracking) */}
                                     {container.tracking && (
                                       <div style={{ 
                                         flex: '1 1 auto',
@@ -575,7 +575,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                                         border: '1px solid #404040'
                                       }}>
                                         <div style={{ color: '#9ca3af', fontSize: '11px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                          📍 TRACKING NUMBER
+                                          📝 NOTES
                                         </div>
                                         <div style={{ color: '#ef4444', fontSize: '16px', fontWeight: '500', wordBreak: 'break-all' }}>
                                           {container.tracking}
