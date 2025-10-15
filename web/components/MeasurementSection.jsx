@@ -40,9 +40,6 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     try {
       setContainerSaving(true);
       
-      // Serialize containers to JSON string for the API
-      const containersJson = JSON.stringify(updatedContainers);
-      
       const res = await fetch(`/api/orders/${encodeURIComponent(order.id)}/items/${encodeURIComponent(itemId)}`, {
         method: "PATCH",
         headers: { 
@@ -50,7 +47,7 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
           ...getAuthHeaders()
         },
         body: JSON.stringify({ 
-          containers: containersJson
+          containers: updatedContainers
         }),
       });
       
