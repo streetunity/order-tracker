@@ -747,7 +747,7 @@ export default function EditOrderPage({ params }) {
                     onClick={saveAllChanges}
                     disabled={saving}
                     style={{
-                      backgroundColor: "#059669",
+                      backgroundColor: "#dc2626",
                       color: "#fff",
                       border: "none",
                       fontSize: "14px",
