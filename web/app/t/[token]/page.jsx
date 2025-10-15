@@ -130,11 +130,16 @@ export default function PublicTrackingPage() {
           Order Status
         </h1>
         
-        {/* Order Details */}
+        {/* Order Details - FIXED to show proper order date */}
         <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
+          {order.orderDate && (
+            <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
+              <strong>Order Date:</strong> {new Date(order.orderDate).toLocaleDateString()}
+            </div>
+          )}
           {order.poNumber && (
             <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
-              <strong>Order Date:</strong> {order.poNumber}
+              <strong>PO Number:</strong> {order.poNumber}
             </div>
           )}
           {order.sku && (
