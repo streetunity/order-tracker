@@ -345,7 +345,7 @@ export default function PublicTrackingPage() {
                         color: "#a0a0a0", 
                         marginTop: "4px"
                       }}>
-                        Power: {item.laserWattage || "Not specified"}
+                        Power: {item.power || "Not specified"}
                       </div>
                       
                       {/* Always show Notes */}
