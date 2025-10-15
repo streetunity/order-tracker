@@ -87,33 +87,121 @@ const cycleTimeReportsRouter = createCycleTimeReportsRouter(prisma);
 app.use('/reports', authGuard, cycleTimeReportsRouter);
 console.log('✅ Cycle time reports module loaded');
 
+// =============================
+// Sales by Month Report (orderDate-based)
+// =============================
+app.get('/api/reports/sales-by-month', authGuard, async (req, res) => {
+  try {
+    const now = new Date();
+    const monthParam = req.query.month ? parseInt(String(req.query.month), 10) : (now.getMonth() + 1); // 1-12
+    const yearParam = req.query.year ? parseInt(String(req.query.year), 10) : now.getFullYear();
+
+    if (isNaN(monthParam) || monthParam < 1 || monthParam > 12) {
+      return res.status(400).json({ error: 'Invalid month. Use 1-12.' });
+    }
+    if (isNaN(yearParam) || yearParam < 1970 || yearParam > 9999) {
+      return res.status(400).json({ error: 'Invalid year.' });
+    }
+
+    // Selected month range [inclusive, exclusive)
+    const start = new Date(yearParam, monthParam - 1, 1);
+    const end = new Date(yearParam, monthParam, 1);
+
+    // Previous month range
+    const prevMonth = monthParam === 1 ? 12 : (monthParam - 1);
+    const prevYear = monthParam === 1 ? (yearParam - 1) : yearParam;
+    const prevStart = new Date(prevYear, prevMonth - 1, 1);
+    const prevEnd = new Date(prevYear, prevMonth, 1);
+
+    // Fetch orders filtered by orderDate (NOT createdAt)
+    const orders = await prisma.order.findMany({
+      where: {
+        orderDate: {
+          gte: start,
+          lt: end
+        }
+      },
+      include: {
+        account: { select: { name: true } },
+        items: { select: { qty: true, itemPrice: true } }
+      },
+      orderBy: [{ orderDate: 'asc' }]
+    });
+
+    // Compute totals for current period
+    const orderDetails = orders.map(o => {
+      // Subtotal by summing qty * itemPrice when available; fallback to itemPrice if qty missing
+      let subtotal = 0;
+      let itemCount = 0;
+      for (const it of (o.items || [])) {
+        const qty = typeof it.qty === 'number' && !isNaN(it.qty) ? it.qty : 1;
+        const price = typeof it.itemPrice === 'number' && !isNaN(it.itemPrice) ? it.itemPrice : 0;
+        subtotal += qty * price;
+        itemCount += qty;
+      }
+      return {
+        id: o.id,
+        poNumber: o.poNumber || null,
+        accountName: o.account?.name || null,
+        orderDate: o.orderDate,
+        itemCount,
+        subtotal
+      };
+    });
+
+    const periodSubtotal = orderDetails.reduce((s, d) => s + d.subtotal, 0);
+    const periodOrderCount = orderDetails.length;
+    const periodItemCount = orderDetails.reduce((s, d) => s + d.itemCount, 0);
+
+    // Previous month totals for MoM comparison
+    const prevOrders = await prisma.order.findMany({
+      where: {
+        orderDate: {
+          gte: prevStart,
+          lt: prevEnd
+        }
+      },
+      include: { items: { select: { qty: true, itemPrice: true } } }
+    });
+    let prevSubtotal = 0;
+    for (const o of prevOrders) {
+      for (const it of (o.items || [])) {
+        const qty = typeof it.qty === 'number' && !isNaN(it.qty) ? it.qty : 1;
+        const price = typeof it.itemPrice === 'number' && !isNaN(it.itemPrice) ? it.itemPrice : 0;
+        prevSubtotal += qty * price;
+      }
+    }
+
+    const deltaAbs = periodSubtotal - prevSubtotal;
+    const deltaPct = prevSubtotal === 0 ? null : (deltaAbs / prevSubtotal);
+
+    res.json({
+      month: monthParam,
+      year: yearParam,
+      range: { start: start.toISOString(), end: end.toISOString() },
+      orders: orderDetails,
+      summary: {
+        orderCount: periodOrderCount,
+        itemCount: periodItemCount,
+        subtotal: periodSubtotal
+      },
+      monthOverMonth: {
+        prev: { month: prevMonth, year: prevYear, subtotal: prevSubtotal },
+        deltaAbs,
+        deltaPct
+      }
+    });
+  } catch (e) {
+    console.error('sales-by-month error:', e);
+    res.status(500).json({ error: 'Failed to generate sales-by-month report' });
+  }
+});
+
+
+
 // -----------------------------
 // Helpers
 // -----------------------------
-
-// Container validation helper
-function validateContainers(containers) {
-  if (!containers) return [];
-  if (!Array.isArray(containers)) {
-    throw new Error('Containers must be an array');
-  }
-  return containers.map((container, index) => {
-    if (typeof container !== 'object' || container === null) {
-      throw new Error(`Container at index ${index} must be an object`);
-    }
-    return {
-      id: container.id || `container-${Date.now()}-${index}`,
-      label: String(container.label || `Container ${index + 1}`),
-      tracking: String(container.tracking || ''),
-      height: container.height != null ? parseFloat(container.height) : null,
-      width:  container.width  != null ? parseFloat(container.width)  : null,
-      length: container.length != null ? parseFloat(container.length) : null,
-      weight: container.weight != null ? parseFloat(container.weight) : null,
-      unit: String(container.unit || 'in')
-    };
-  });
-}
-
 
 // Helper function to safely convert strings to floats for measurements
 function toFloat(value) {
@@ -124,10 +212,7 @@ function toFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-function calculateETADate(orderDate = new Date(), hasExtendedItems = false) {
-  // Get extended shipping days from env or use default
-  const extendedDays = parseInt(process.env.EXTENDED_SHIPPING_DAYS || '30', 10);
-
+function calculateETADate(orderDate = new Date()) {
   // Only include stages up to delivery (exclude post-delivery stages)
   const stageDurations = {
     MANUFACTURING: (STAGE_THRESHOLDS.MANUFACTURING.warningDays + STAGE_THRESHOLDS.MANUFACTURING.criticalDays) / 2,
@@ -138,13 +223,12 @@ function calculateETADate(orderDate = new Date(), hasExtendedItems = false) {
     QC: (STAGE_THRESHOLDS.QC.warningDays + STAGE_THRESHOLDS.QC.criticalDays) / 2,
     DELIVERED: (STAGE_THRESHOLDS.DELIVERED.warningDays + STAGE_THRESHOLDS.DELIVERED.criticalDays) / 2
   };
-
+  
   const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
-  const finalDays = hasExtendedItems ? totalDays + extendedDays : totalDays;
-
+  
   const eta = new Date(orderDate);
-  eta.setDate(eta.getDate() + Math.round(finalDays));
-
+  eta.setDate(eta.getDate() + Math.round(totalDays));
+  
   return eta;
 }
 
@@ -225,10 +309,8 @@ function normalizeIncomingItems(items) {
       modelNumber: i?.modelNumber ? String(i.modelNumber).trim() : null,
       voltage: i?.voltage ? String(i.voltage).trim() : null,
       
-      hasExtendedShipping: i?.hasExtendedShipping === true || false,
       laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
-      notes: i?.notes ? String(i.notes).trim() : null,
-      containers: Array.isArray(i?.containers) ? i.containers : "[]"
+      notes: i?.notes ? String(i.notes).trim() : null
     }))
     .filter((i) => i.productCode.length > 0);
 }
@@ -896,23 +978,7 @@ app.patch('/users/:id', adminGuard, async (req, res) => {
       });
     }
     
-    
-    // Containers array update (validated + stored as JSON string)
-    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
-      try {
-        const validatedContainers = validateContainers(req.body.containers);
-        data.containers = JSON.stringify(validatedContainers);
-        changes.push({
-          field: 'containers',
-          oldValue: '[previous hidden]',
-          newValue: '[updated containers array]'
-        });
-      } catch (e) {
-        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
-      }
-    }
-
-if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -1332,17 +1398,7 @@ app.get('/orders/:id', authGuard, async (req, res) => {
       take: 10
     });
     
-    res.json({
-      ...order,
-      items: Array.isArray(order.items) ? order.items.map((it) => ({
-        ...it,
-        containers: it && it.containers
-          ? (() => { try { return JSON.parse(it.containers); } catch { return []; } })()
-          : []
-      })) : order.items,
-      internalNotes: order.internalNotes ?? null,
-      auditLogs
-    });
+    res.json({ ...order, internalNotes: order.internalNotes ?? null, auditLogs });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1494,23 +1550,7 @@ if (orderDate !== undefined) {
       });
     }
 
-    
-    // Containers array update (validated + stored as JSON string)
-    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
-      try {
-        const validatedContainers = validateContainers(req.body.containers);
-        data.containers = JSON.stringify(validatedContainers);
-        changes.push({
-          field: 'containers',
-          oldValue: '[previous hidden]',
-          newValue: '[updated containers array]'
-        });
-      } catch (e) {
-        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
-      }
-    }
-
-if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -1597,11 +1637,8 @@ app.post('/orders', authGuard, async (req, res) => {
     const normalizedItems = normalizeIncomingItems(items);
     const trackingToken = newTrackingToken();
     
-    
-    // Check if any items have extended shipping
-    const hasExtendedItems = normalizedItems.some(item => item.hasExtendedShipping === true);
-// AUTO-CALCULATE ETA DATE
-    const etaDate = calculateETADate(orderDate ? new Date(orderDate) : new Date(), hasExtendedItems);
+    // AUTO-CALCULATE ETA DATE
+    const etaDate = calculateETADate(orderDate ? new Date(orderDate) : new Date());
 
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
@@ -1831,23 +1868,7 @@ app.patch('/accounts/:id', authGuard, async (req, res) => {
       }
     }
     
-    
-    // Containers array update (validated + stored as JSON string)
-    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
-      try {
-        const validatedContainers = validateContainers(req.body.containers);
-        data.containers = JSON.stringify(validatedContainers);
-        changes.push({
-          field: 'containers',
-          oldValue: '[previous hidden]',
-          newValue: '[updated containers array]'
-        });
-      } catch (e) {
-        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
-      }
-    }
-
-if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
@@ -2047,35 +2068,33 @@ app.post('/orders/:orderId/items/:itemId/stage', authGuard, async (req, res) => 
 });
 
 // Update internal notes (separate endpoint for convenience)
-// Update internal notes (separate endpoint for convenience) - WITH AUDIT LOGGING
 app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
   try {
     const orderId = req.params.id;
     const { internalNotes } = req.body || {};
+    
+    console.log('Internal notes update - Order ID:', orderId);
+    console.log('Internal notes content:', internalNotes);
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required' });
+    }
 
     const order = await prisma.order.findUnique({
-      where: { id: String(orderId) },
-      select: { id: true, internalNotes: true, isLocked: true }
+      where: { id: String(orderId) },  // Ensure it's a string
+      select: { id: true, internalNotes: true }
     });
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // ADD THIS: Check if order is locked and user is not admin
-    if (order.isLocked && req.user.role !== 'ADMIN') {
-      return res.status(403).json({ 
-        error: 'Cannot edit internal notes while order is locked. Only admins can edit locked orders.' 
-      });
-    }
-
     const updatedOrder = await prisma.$transaction(async (tx) => {
       const up = await tx.order.update({
-        where: { id: String(orderId) },
+        where: { id: String(orderId) },  // Ensure it's a string here too
         data: { internalNotes: internalNotes || null }
       });
 
-      // ENSURE THIS EXISTS: Create audit log for internal notes update
       await tx.auditLog.create({
         data: {
           entityType: 'Order',
@@ -2087,9 +2106,6 @@ app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
             oldValue: order.internalNotes || 'null',
             newValue: internalNotes || 'null'
           }]),
-          metadata: JSON.stringify({
-            message: 'Internal notes were updated'
-          }),
           performedByUserId: req.user?.id || 'Unknown',
           performedByName: req.user?.name || 'Unknown'
         }
@@ -2101,7 +2117,7 @@ app.patch('/orders/:id/internal-notes', authGuard, async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error('Internal notes update error:', e);
-    res.status(500).json({ error: e.message || 'Failed to update internal notes' });
+	  res.status(500).json({ error: e.message || 'Failed to update internal notes' });
   }
 });
 
@@ -2155,8 +2171,7 @@ app.post('/orders/:orderId/items', authGuard, async (req, res) => {
             modelNumber: i.modelNumber,
             voltage: i.voltage,
             laserWattage: i.laserWattage || null,
-            notes: i.notes,
-            containers: i.containers ? JSON.stringify(validateContainers(i.containers)) : '[]'
+            notes: i.notes
           }
         });
         createdItems.push(row);
@@ -2217,8 +2232,7 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
         measurementUnit: true,
         weightUnit: true,
         itemPrice: true,
-        privateItemNote: true,
-        containers: true
+        privateItemNote: true
       } 
     });
     
@@ -2317,40 +2331,6 @@ app.patch('/orders/:orderId/items/:itemId', authGuard, async (req, res) => {
         data.measuredAt = new Date();
         data.measuredBy = req.user.name;
       }
-    // Containers update with validation and descriptive changes
-    if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
-      try {
-        const validatedContainers = validateContainers(req.body.containers);
-        const oldContainers = item.containers ? JSON.parse(item.containers) : [];
-        const newContainersStr = JSON.stringify(validatedContainers);
-        
-        if (JSON.stringify(oldContainers) !== newContainersStr) {
-          data.containers = newContainersStr;
-          
-          const containerChange = {
-            field: 'containers',
-            oldValue: JSON.stringify(oldContainers),
-            newValue: newContainersStr
-          };
-          
-          // Add descriptive change info
-          if (oldContainers.length === 0 && validatedContainers.length > 0) {
-            containerChange.description = `Added ${validatedContainers.length} container(s)`;
-          } else if (oldContainers.length > 0 && validatedContainers.length === 0) {
-            containerChange.description = `Removed all containers`;
-          } else if (oldContainers.length !== validatedContainers.length) {
-            containerChange.description = `Changed from ${oldContainers.length} to ${validatedContainers.length} containers`;
-          } else {
-            containerChange.description = `Updated container details`;
-          }
-          
-          changes.push(containerChange);
-        }
-      } catch (e) {
-        return res.status(400).json({ error: e.message || 'Invalid containers payload' });
-      }
-    }
-
     }
     
     // Admin-only fields that bypass lock (itemPrice and privateItemNote can be edited even when locked)
@@ -2536,68 +2516,42 @@ if (hasEditFieldChanges && order.isLocked) {
       }
     }
     
-    
-   // Containers array update (validated + stored as JSON string)
-if (Object.prototype.hasOwnProperty.call(req.body, 'containers')) {
-  try {
-    const validatedContainers = validateContainers(req.body.containers);
-    data.containers = JSON.stringify(validatedContainers);
-    changes.push({
-      field: 'containers',
-      oldValue: '[previous hidden]',
-      newValue: '[updated containers array]'
-    });
-  } catch (e) {
-    return res.status(400).json({ error: e.message || 'Invalid containers payload' });
-  }
-}
-
-if (Object.keys(data).length === 0) {
-  console.log('No changes detected for item:', itemId);
-  return res.json(item);
-}
-
-console.log('Updating item with data:', data);
-console.log('Changes to log:', changes);
-
-const updated = await prisma.$transaction(async (tx) => {
-  const updatedItem = await tx.orderItem.update({ 
-    where: { id: itemId }, 
-    data 
-  });
-  
-  console.log('Item updated successfully:', updatedItem);
-  
-  // Log field changes using appropriate audit type
-  if (changes.length > 0) {
-    // FIXED: Removed duplicate declaration
-    const isMeasurementUpdate = changes.every(c => ['height','width','length','weight','measurementUnit','weightUnit'].includes(c.field));
-    const isContainerUpdate = changes.some(c => c.field === 'containers');
-    
-    let action = 'ITEM_UPDATED';
-    if (isMeasurementUpdate) {
-      action = 'MEASUREMENTS_UPDATED';
-    } else if (isContainerUpdate && changes.length === 1) {
-      action = 'CONTAINERS_UPDATED';
+    if (Object.keys(data).length === 0) {
+      console.log('No changes detected for item:', itemId);
+      return res.json(item);
     }
 
-await tx.auditLog.create({
-  data: {
-    entityType: isContainerUpdate ? 'Container' : (isMeasurementUpdate ? 'Measurement' : 'OrderItem'),
-    entityId: itemId,
-    parentEntityId: orderId,
-    action: action,
-    changes: JSON.stringify(changes),
-    metadata: JSON.stringify({
-      message: isContainerUpdate ? 'Container configuration updated' : 
-               (isMeasurementUpdate ? 'Measurements updated via item endpoint' : 'Item details updated'),
-      updatedFields: changes.map(c => c.field).join(', ')
-    }),
-    performedByUserId: req.user.id,
-    performedByName: req.user.name
-  }
-});
-console.log('Audit log created for changes');
+    console.log('Updating item with data:', data);
+    console.log('Changes to log:', changes);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedItem = await tx.orderItem.update({ 
+        where: { id: itemId }, 
+        data 
+      });
+      
+      console.log('Item updated successfully:', updatedItem);
+      
+      // Log field changes using appropriate audit type
+      if (changes.length > 0) {
+        const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
+        
+        await tx.auditLog.create({
+          data: {
+            entityType: isMeasurementUpdate ? 'Measurement' : 'OrderItem',
+            entityId: itemId,
+            parentEntityId: orderId,
+            action: isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : 'ORDERITEM_UPDATED',
+            changes: JSON.stringify(changes),
+            metadata: isMeasurementUpdate ? JSON.stringify({
+              message: 'Measurements updated via item endpoint',
+              updatedFields: changes.map(c => c.field).join(', ')
+            }) : null,
+            performedByUserId: req.user.id,
+            performedByName: req.user.name
+          }
+        });
+        console.log('Audit log created for changes');
       }
       
       return updatedItem;
@@ -2798,4 +2752,3 @@ app.listen(PORT, HOST, () => {
   console.log(`Admin: admin@stealthmachinetools.com / admin123`);
   console.log(`Agent: john@stealthmachinetools.com / agent123`);
 });
-// Complete version with audit logging
