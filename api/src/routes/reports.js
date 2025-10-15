@@ -15,6 +15,7 @@
  * FIXED: Sales by rep now uses sku field (which stores sales person name)
  * ADDED: /summary endpoint for main reports dashboard
  * FIXED: Removed archivedAt filter from Order queries (only OrderItems have this field)
+ * FIXED: Dashboard now shows items by stage, not orders (orders don't progress through stages)
  */
 
 import { Router } from 'express';
@@ -47,48 +48,53 @@ export function createReportsRouter(prisma) {
   /**
    * GET /reports/summary
    * Dashboard summary for main reports page
-   * Shows high-level KPIs and order distribution
+   * Shows high-level KPIs and ITEM distribution (not order distribution)
+   * FIXED: Now shows items by stage since orders don't progress through stages
    */
   router.get('/summary', authGuard, async (req, res) => {
     try {
       const isAdmin = req.user?.role === 'admin';
       
-      // Get total active orders (not in final stage)
-      // Note: Orders don't have archivedAt field, only items do
+      // Get total active items (not in final stage)
       const finalStage = STAGES[STAGES.length - 1];
-      const activeOrdersCount = await prisma.order.count({
+      const activeItemsCount = await prisma.orderItem.count({
         where: {
-          currentStage: { not: finalStage }
+          currentStage: { not: finalStage },
+          archivedAt: null
         }
       });
 
-      // Get completed orders count
-      const completedOrdersCount = await prisma.order.count({
+      // Get completed items count
+      const completedItemsCount = await prisma.orderItem.count({
         where: {
-          currentStage: finalStage
+          currentStage: finalStage,
+          archivedAt: null
         }
       });
 
-      // Get orders by stage
-      const ordersByStage = await prisma.order.groupBy({
+      // Get items by stage (not orders)
+      const itemsByStage = await prisma.orderItem.groupBy({
         by: ['currentStage'],
+        where: { archivedAt: null },
         _count: { id: true }
       });
 
       const stageData = STAGES.map(stage => ({
         stage: stage,
-        count: ordersByStage.find(s => s.currentStage === stage)?._count.id || 0
+        count: itemsByStage.find(s => s.currentStage === stage)?._count.id || 0
       }));
 
+      // Get total orders count for reference
+      const totalOrdersCount = await prisma.order.count();
+
       // Calculate total revenue (admin only)
-      // Filter at item level for archived status
       let totalRevenue = 'N/A';
       let grandTotal = 0;
       if (isAdmin) {
         const items = await prisma.orderItem.findMany({
           where: { 
             itemPrice: { not: null },
-            archivedAt: null  // Filter archived items, not orders
+            archivedAt: null
           },
           select: {
             itemPrice: true,
@@ -106,16 +112,18 @@ export function createReportsRouter(prisma) {
 
       res.json({
         kpis: {
-          activeOrders: activeOrdersCount,
-          completedOrders: completedOrdersCount,
+          activeItems: activeItemsCount,
+          completedItems: completedItemsCount,
+          totalOrders: totalOrdersCount,
           totalRevenue: totalRevenue,
           grandTotal: grandTotal,
           grandTotalFormatted: totalRevenue,
-          ordersByStage: stageData
+          itemsByStage: stageData
         },
         meta: {
           timestamp: new Date().toISOString(),
-          userRole: req.user?.role
+          userRole: req.user?.role,
+          note: 'Item counts shown because items progress through stages, not orders'
         }
       });
     } catch (error) {
