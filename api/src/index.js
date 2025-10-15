@@ -116,16 +116,17 @@ app.get('/health', (req, res) => {
 // Public routes (no auth, rate limited)
 app.use('/public', publicRouter);
 
-// Authentication routes (no auth required for login)
-app.use('/auth', authRouter);
-
-// Apply auth middleware to specific auth routes that need it
-app.get('/auth/me', authGuard, (req, res, next) => {
-  authRouter.handle(req, res, next);
-});
-
-app.post('/auth/logout', authGuard, (req, res, next) => {
-  authRouter.handle(req, res, next);
+// Authentication routes - mixed auth requirements
+// Most auth routes don't need authentication
+app.use('/auth', (req, res, next) => {
+  // Apply authGuard only to specific routes
+  if (req.path === '/me' || req.path === '/logout') {
+    return authGuard(req, res, () => {
+      authRouter(req, res, next);
+    });
+  }
+  // Other auth routes don't need authentication (login, check)
+  authRouter(req, res, next);
 });
 
 // Reports modules (all require auth)
