@@ -22,8 +22,8 @@ export function createCycleTimeReportsRouter(prisma) {
 
   /**
    * GET /reports/cycle-times
-   * Cycle time analysis for completed orders
-   * FIXED: Now properly supports filtering by order date or created date
+   * Cycle time analysis for completed items (not orders)
+   * FIXED: Now tracks items through completion, not orders
    */
   router.get('/cycle-times', authGuard, async (req, res) => {
     try {
@@ -35,15 +35,22 @@ export function createCycleTimeReportsRouter(prisma) {
         filters.dateMode = 'created'; // Default to created for cycle time analysis
       }
       
-      const whereClause = buildWhereClause(filters, 'order');
-      whereClause.currentStage = finalStage; // Only completed orders
-
-      // Get all completed orders
-      const orders = await prisma.order.findMany({
-        where: whereClause,
+      // Get completed items (not orders)
+      const items = await prisma.orderItem.findMany({
+        where: {
+          currentStage: finalStage,
+          archivedAt: null
+        },
         include: {
-          account: { select: { name: true } },
-          createdBy: { select: { name: true } },
+          order: {
+            select: { 
+              poNumber: true,
+              orderDate: true,
+              createdAt: true,
+              account: { select: { name: true } },
+              createdBy: { select: { name: true } }
+            }
+          },
           statusEvents: {
             where: { stage: finalStage },
             orderBy: { createdAt: 'asc' },
@@ -53,22 +60,23 @@ export function createCycleTimeReportsRouter(prisma) {
       });
 
       // Calculate cycle times
-      const cycleData = orders
-        .filter(o => o.statusEvents.length > 0)
-        .map(o => {
-          const completedAt = o.statusEvents[0].createdAt;
-          // Use orderDate if available for cycle time calculation
-          const startDate = o.orderDate || o.createdAt;
+      const cycleData = items
+        .filter(item => item.statusEvents.length > 0)
+        .map(item => {
+          const completedAt = item.statusEvents[0].createdAt;
+          // Use order's orderDate if available, otherwise item's createdAt
+          const startDate = item.order.orderDate || item.createdAt;
           const cycleTimeSec = calculateCycleTime(startDate, completedAt);
           const cycleTimeDays = Math.floor(cycleTimeSec / 86400);
           
           return {
-            orderId: o.id,
-            poNumber: o.poNumber,
-            accountName: o.account?.name || 'Unknown',
-            createdBy: o.createdBy?.name || 'Unknown',
-            orderDate: o.orderDate,
-            createdAt: o.createdAt,
+            itemId: item.id,
+            productCode: item.productCode,
+            poNumber: item.order.poNumber,
+            accountName: item.order.account?.name || 'Unknown',
+            createdBy: item.order.createdBy?.name || 'Unknown',
+            orderDate: item.order.orderDate,
+            createdAt: item.createdAt,
             completedAt: completedAt,
             cycleTimeSec,
             cycleTimeDays,
@@ -87,10 +95,10 @@ export function createCycleTimeReportsRouter(prisma) {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
           date_mode: filters.dateMode,
-          note: 'Cycle time calculated from orderDate (or createdAt if not set) to completion'
+          note: 'Cycle time calculated from orderDate (or item createdAt if not set) to item completion'
         },
         kpis: {
-          completedOrders: cycleData.length,
+          completedItems: cycleData.length,
           medianCycleTime: stats.median,
           medianCycleTimeDays: Math.floor((stats.median || 0) / 86400),
           medianFormatted: formatDuration(stats.median),
