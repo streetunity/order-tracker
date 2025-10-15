@@ -1,32 +1,69 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { newTrackingToken } from '../state.js';
-import { STAGE_THRESHOLDS } from '../config/stageThresholds.js';
 
 const prisma = new PrismaClient();
 
 export function createOrdersRouter() {
   const router = express.Router();
 
-  // Helper to calculate ETA - using warning days (standard timeline) instead of averages
-  function calculateETADate(orderDate = new Date()) {
-    // Use warning days (standard expected timeline) for ETA calculation
-    const stageDurations = {
-      MANUFACTURING: STAGE_THRESHOLDS.MANUFACTURING.warningDays,  // 50 days
-      TESTING: STAGE_THRESHOLDS.TESTING.warningDays,              // 10 days  
-      SHIPPING: STAGE_THRESHOLDS.SHIPPING.warningDays,            // 45 days
-      AT_SEA: 0,  // Don't double count shipping (AT_SEA is alternative to SHIPPING)
-      SMT: STAGE_THRESHOLDS.SMT.warningDays,                      // 14 days
-      QC: STAGE_THRESHOLDS.QC.warningDays,                        // 7 days
-      DELIVERED: STAGE_THRESHOLDS.DELIVERED.warningDays           // 3 days
-    };
-    
-    // Total standard timeline: 50 + 10 + 45 + 14 + 7 + 3 = 129 days
-    const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
-    
-    const eta = new Date(orderDate);
-    eta.setDate(eta.getDate() + Math.round(totalDays));
-    return eta;
+  // Helper to calculate ETA - should use actual settings from database
+  async function calculateETADate(orderDate = new Date()) {
+    try {
+      // Get the actual stage thresholds from settings
+      const settings = await prisma.settings.findMany({
+        where: {
+          key: {
+            startsWith: 'stage_threshold_'
+          }
+        }
+      });
+
+      // Parse settings into a map
+      const thresholds = {};
+      settings.forEach(setting => {
+        const match = setting.key.match(/stage_threshold_(.+)_(warning|critical)/);
+        if (match) {
+          const stage = match[1];
+          const type = match[2];
+          if (!thresholds[stage]) thresholds[stage] = {};
+          thresholds[stage][type] = parseFloat(setting.value);
+        }
+      });
+
+      // Calculate using averages of actual settings values
+      // Only include stages up to DELIVERED (exclude post-delivery stages)
+      const stageDurations = {
+        MANUFACTURING: thresholds.MANUFACTURING ? 
+          (thresholds.MANUFACTURING.warning + thresholds.MANUFACTURING.critical) / 2 : 35,
+        TESTING: thresholds.TESTING ? 
+          (thresholds.TESTING.warning + thresholds.TESTING.critical) / 2 : 5.5,
+        SHIPPING: thresholds.SHIPPING ? 
+          (thresholds.SHIPPING.warning + thresholds.SHIPPING.critical) / 2 : 5.5,
+        AT_SEA: thresholds.AT_SEA ? 
+          (thresholds.AT_SEA.warning + thresholds.AT_SEA.critical) / 2 : 35,
+        SMT: thresholds.SMT ? 
+          (thresholds.SMT.warning + thresholds.SMT.critical) / 2 : 5.5,
+        QC: thresholds.QC ? 
+          (thresholds.QC.warning + thresholds.QC.critical) / 2 : 5.5,
+        DELIVERED: thresholds.DELIVERED ? 
+          (thresholds.DELIVERED.warning + thresholds.DELIVERED.critical) / 2 : 4.5
+      };
+      
+      // Total should be around 96.5 days with default values
+      const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
+      
+      const eta = new Date(orderDate);
+      eta.setDate(eta.getDate() + Math.round(totalDays));
+      return eta;
+    } catch (error) {
+      console.error('Error calculating ETA from settings:', error);
+      // Fallback to hardcoded defaults if settings not available
+      const totalDays = 96.5; // Standard ETA total
+      const eta = new Date(orderDate);
+      eta.setDate(eta.getDate() + Math.round(totalDays));
+      return eta;
+    }
   }
 
   function normalizeIncomingItems(items) {
@@ -183,7 +220,7 @@ export function createOrdersRouter() {
 
       const normalizedItems = normalizeIncomingItems(items);
       const trackingToken = newTrackingToken();
-      const etaDate = calculateETADate(orderDate ? new Date(orderDate) : new Date());
+      const etaDate = await calculateETADate(orderDate ? new Date(orderDate) : new Date());
 
       const order = await prisma.$transaction(async (tx) => {
         const newOrder = await tx.order.create({
@@ -374,7 +411,7 @@ export function createOrdersRouter() {
           });
 
           if (newDate) {
-            data.etaDate = calculateETADate(newDate);
+            data.etaDate = await calculateETADate(newDate);
             changes.push({
               field: 'etaDate',
               oldValue: original.etaDate?.toISOString() || 'null',
