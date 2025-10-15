@@ -57,6 +57,7 @@ export function createPublicRouter() {
           serialNumber: it.serialNumber,
           modelNumber: it.modelNumber,
           voltage: it.voltage,
+          laserWattage: it.laserWattage,
           notes: it.notes,
           currentStage: it.currentStage ?? currentStage,
           archivedAt: it.archivedAt,
