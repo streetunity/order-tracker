@@ -1,226 +1,279 @@
-const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-const { logAuditTrail } = require('../helpers/auditHelpers');
-const router = express.Router();
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
-// Get all accounts
-router.get('/', async (req, res) => {
-  try {
-    const accounts = await prisma.account.findMany({
-      orderBy: {
-        name: 'asc'
-      },
-      include: {
-        _count: {
-          select: {
-            orders: true
-          }
-        }
-      }
-    });
-    res.json({ accounts });
-  } catch (error) {
-    console.error('Error fetching accounts:', error);
-    res.status(500).json({ error: 'Failed to fetch accounts' });
-  }
-});
+export function createAccountsRouter() {
+  const router = express.Router();
 
-// Get single account
-router.get('/:accountId', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    
-    const account = await prisma.account.findUnique({
-      where: { id: parseInt(accountId) },
-      include: {
-        orders: {
-          include: {
-            account: true,
-            orderItems: true
-          },
-          orderBy: {
-            createdAt: 'desc'
-          },
-          take: 10
+  // Get all accounts
+  router.get('/', async (req, res) => {
+    try {
+      const accounts = await prisma.account.findMany({
+        select: { 
+          id: true, 
+          name: true, 
+          email: true, 
+          address: true,
+          phone: true,
+          machineVoltage: true,
+          notes: true,
+          createdAt: true 
         },
-        _count: {
-          select: {
-            orders: true
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(accounts);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Get single account
+  router.get('/:id', async (req, res) => {
+    try {
+      const account = await prisma.account.findUnique({
+        where: { id: req.params.id },
+        include: { orders: true }
+      });
+      if (!account) return res.status(404).json({ error: 'Not found' });
+      res.json(account);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Create account
+  router.post('/', async (req, res) => {
+    try {
+      const { name, email, address, phone, machineVoltage, notes } = req.body || {};
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: 'name required' });
+      }
+      
+      const account = await prisma.$transaction(async (tx) => {
+        const newAccount = await tx.account.create({
+          data: { 
+            name: String(name).trim(), 
+            email: email ? String(email).trim() : null,
+            address: address ? String(address).trim() : null,
+            phone: phone ? String(phone).trim() : null,
+            machineVoltage: machineVoltage ? String(machineVoltage).trim() : null,
+            notes: notes ? String(notes).trim() : null
           }
+        });
+        
+        await tx.auditLog.create({
+          data: {
+            entityType: 'Account',
+            entityId: newAccount.id,
+            action: 'ACCOUNT_CREATED',
+            metadata: JSON.stringify({
+              entity: 'Account',
+              entityId: newAccount.id,
+              data: {
+                name: newAccount.name,
+                email: newAccount.email,
+                phone: newAccount.phone
+              }
+            }),
+            performedByUserId: req.user.id,
+            performedByName: req.user.name
+          }
+        });
+        
+        return newAccount;
+      });
+      
+      res.status(201).json(account);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Update account
+  router.patch('/:id', async (req, res) => {
+    try {
+      const original = await prisma.account.findUnique({
+        where: { id: req.params.id }
+      });
+      
+      if (!original) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+      
+      const { name, email, address, phone, machineVoltage, notes } = req.body || {};
+      const data = {};
+      const changes = [];
+      
+      if (name !== undefined && String(name).trim() !== original.name) {
+        data.name = String(name).trim();
+        changes.push({
+          field: 'name',
+          oldValue: original.name,
+          newValue: data.name
+        });
+      }
+      
+      if (email !== undefined) {
+        const newEmail = email ? String(email).trim() : null;
+        if (newEmail !== original.email) {
+          data.email = newEmail;
+          changes.push({
+            field: 'email',
+            oldValue: original.email || 'null',
+            newValue: newEmail || 'null'
+          });
         }
       }
-    });
-
-    if (!account) {
-      return res.status(404).json({ error: 'Account not found' });
-    }
-
-    res.json({ account });
-  } catch (error) {
-    console.error('Error fetching account:', error);
-    res.status(500).json({ error: 'Failed to fetch account' });
-  }
-});
-
-// Create new account
-router.post('/', async (req, res) => {
-  try {
-    const { name, email, phone, address, notes } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'Account name is required' });
-    }
-
-    const account = await prisma.account.create({
-      data: {
-        name,
-        email,
-        phone,
-        address,
-        notes
+      
+      if (address !== undefined) {
+        const newAddress = address ? String(address).trim() : null;
+        if (newAddress !== original.address) {
+          data.address = newAddress;
+          changes.push({
+            field: 'address',
+            oldValue: original.address || 'null',
+            newValue: newAddress || 'null'
+          });
+        }
       }
-    });
-
-    await logAuditTrail(req, 'ACCOUNT_CREATED', 'ACCOUNT', account.id, { name });
-
-    res.json({ account });
-  } catch (error) {
-    console.error('Error creating account:', error);
-    res.status(500).json({ error: 'Failed to create account' });
-  }
-});
-
-// Update account
-router.patch('/:accountId', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    const { name, email, phone, address, notes } = req.body;
-
-    const updateData = {};
-    if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
-    if (phone !== undefined) updateData.phone = phone;
-    if (address !== undefined) updateData.address = address;
-    if (notes !== undefined) updateData.notes = notes;
-
-    const account = await prisma.account.update({
-      where: { id: parseInt(accountId) },
-      data: updateData
-    });
-
-    await logAuditTrail(req, 'ACCOUNT_UPDATED', 'ACCOUNT', account.id, updateData);
-
-    res.json({ account });
-  } catch (error) {
-    console.error('Error updating account:', error);
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Account not found' });
-    }
-    res.status(500).json({ error: 'Failed to update account' });
-  }
-});
-
-// Delete account
-router.delete('/:accountId', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-
-    // Check if account has orders
-    const orderCount = await prisma.order.count({
-      where: { accountId: parseInt(accountId) }
-    });
-
-    if (orderCount > 0) {
-      return res.status(400).json({ 
-        error: 'Cannot delete account with existing orders',
-        orderCount 
+      
+      if (phone !== undefined) {
+        const newPhone = phone ? String(phone).trim() : null;
+        if (newPhone !== original.phone) {
+          data.phone = newPhone;
+          changes.push({
+            field: 'phone',
+            oldValue: original.phone || 'null',
+            newValue: newPhone || 'null'
+          });
+        }
+      }
+      
+      if (machineVoltage !== undefined) {
+        const newVoltage = machineVoltage ? String(machineVoltage).trim() : null;
+        if (newVoltage !== original.machineVoltage) {
+          data.machineVoltage = newVoltage;
+          changes.push({
+            field: 'machineVoltage',
+            oldValue: original.machineVoltage || 'null',
+            newValue: newVoltage || 'null'
+          });
+        }
+      }
+      
+      if (notes !== undefined) {
+        const newNotes = notes ? String(notes).trim() : null;
+        if (newNotes !== original.notes) {
+          data.notes = newNotes;
+          changes.push({
+            field: 'notes',
+            oldValue: original.notes || 'null',
+            newValue: newNotes || 'null'
+          });
+        }
+      }
+      
+      if (Object.keys(data).length === 0) {
+        return res.status(400).json({ error: 'No fields to update' });
+      }
+      
+      const account = await prisma.$transaction(async (tx) => {
+        const updated = await tx.account.update({
+          where: { id: req.params.id },
+          data
+        });
+        
+        if (changes.length > 0) {
+          await tx.auditLog.create({
+            data: {
+              entityType: 'Account',
+              entityId: req.params.id,
+              action: 'ACCOUNT_UPDATED',
+              changes: JSON.stringify(changes),
+              performedByUserId: req.user.id,
+              performedByName: req.user.name
+            }
+          });
+        }
+        
+        return updated;
       });
+      
+      res.json(account);
+    } catch (e) {
+      console.error('Account update error:', e);
+      res.status(500).json({ error: e.message });
     }
+  });
 
-    await prisma.account.delete({
-      where: { id: parseInt(accountId) }
-    });
-
-    await logAuditTrail(req, 'ACCOUNT_DELETED', 'ACCOUNT', parseInt(accountId), {});
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting account:', error);
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Account not found' });
+  // Delete account
+  router.delete('/:id', async (req, res) => {
+    try {
+      const account = await prisma.account.findUnique({
+        where: { id: req.params.id },
+        include: {
+          orders: {
+            select: {
+              id: true,
+              poNumber: true,
+              createdAt: true
+            }
+          }
+        }
+      });
+      
+      if (!account) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+      
+      if (account.orders && account.orders.length > 0) {
+        const orderDetails = account.orders.slice(0, 3).map(o => 
+          `PO#${o.poNumber || 'N/A'} (${new Date(o.createdAt).toLocaleDateString()})`
+        ).join(', ');
+        
+        const moreOrders = account.orders.length > 3 
+          ? ` and ${account.orders.length - 3} more` 
+          : '';
+        
+        return res.status(400).json({
+          error: `Cannot delete customer "${account.name}" because they have ${account.orders.length} associated order(s): ${orderDetails}${moreOrders}. Please delete all orders first.`
+        });
+      }
+      
+      await prisma.$transaction(async (tx) => {
+        await tx.auditLog.create({
+          data: {
+            entityType: 'Account',
+            entityId: account.id,
+            action: 'ACCOUNT_DELETED',
+            metadata: JSON.stringify({ 
+              message: `Account "${account.name}" deleted (no associated orders)` 
+            }),
+            performedByUserId: req.user.id,
+            performedByName: req.user.name
+          }
+        });
+        
+        await tx.account.delete({ 
+          where: { id: req.params.id } 
+        });
+      });
+      
+      res.status(204).end();
+    } catch (e) {
+      if (e.code === 'P2003') {
+        console.error('Foreign key constraint error:', e);
+        return res.status(400).json({ 
+          error: 'Cannot delete this customer because they have associated orders. Please delete all orders first.' 
+        });
+      }
+      console.error('Account deletion error:', e);
+      res.status(500).json({ error: e.message });
     }
-    res.status(500).json({ error: 'Failed to delete account' });
-  }
-});
+  });
 
-// Get account orders
-router.get('/:accountId/orders', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    const { limit = 50, offset = 0 } = req.query;
+  return router;
+}
 
-    const orders = await prisma.order.findMany({
-      where: { accountId: parseInt(accountId) },
-      include: {
-        orderItems: true,
-        account: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: parseInt(limit),
-      skip: parseInt(offset)
-    });
-
-    const total = await prisma.order.count({
-      where: { accountId: parseInt(accountId) }
-    });
-
-    res.json({ orders, total });
-  } catch (error) {
-    console.error('Error fetching account orders:', error);
-    res.status(500).json({ error: 'Failed to fetch account orders' });
-  }
-});
-
-// Merge accounts
-router.post('/merge', async (req, res) => {
-  try {
-    const { sourceAccountId, targetAccountId } = req.body;
-
-    if (!sourceAccountId || !targetAccountId) {
-      return res.status(400).json({ error: 'Source and target account IDs are required' });
-    }
-
-    if (sourceAccountId === targetAccountId) {
-      return res.status(400).json({ error: 'Cannot merge an account with itself' });
-    }
-
-    // Move all orders from source to target
-    const result = await prisma.order.updateMany({
-      where: { accountId: parseInt(sourceAccountId) },
-      data: { accountId: parseInt(targetAccountId) }
-    });
-
-    // Delete the source account
-    await prisma.account.delete({
-      where: { id: parseInt(sourceAccountId) }
-    });
-
-    await logAuditTrail(req, 'ACCOUNTS_MERGED', 'ACCOUNT', parseInt(targetAccountId), { 
-      sourceAccountId: parseInt(sourceAccountId),
-      ordersTransferred: result.count 
-    });
-
-    res.json({ 
-      success: true, 
-      ordersTransferred: result.count 
-    });
-  } catch (error) {
-    console.error('Error merging accounts:', error);
-    res.status(500).json({ error: 'Failed to merge accounts' });
-  }
-});
-
-module.exports = router;
+export default createAccountsRouter;
