@@ -13,6 +13,7 @@
  * FIXED: Now uses orderDate for sales reports instead of createdAt
  * Added sales-by-month endpoint here (moved from index.js)
  * FIXED: Sales by rep now uses sku field (which stores sales person name)
+ * ADDED: /summary endpoint for main reports dashboard
  */
 
 import { Router } from 'express';
@@ -37,6 +38,91 @@ import { getStageThreshold, assessRiskLevel } from '../config/stageThresholds.js
 
 export function createReportsRouter(prisma) {
   const router = Router();
+
+  // ========================================
+  // DASHBOARD SUMMARY
+  // ========================================
+
+  /**
+   * GET /reports/summary
+   * Dashboard summary for main reports page
+   * Shows high-level KPIs and order distribution
+   */
+  router.get('/summary', authGuard, async (req, res) => {
+    try {
+      const isAdmin = req.user?.role === 'admin';
+      
+      // Get total active orders (not in final stage)
+      const finalStage = STAGES[STAGES.length - 1];
+      const activeOrdersCount = await prisma.order.count({
+        where: {
+          currentStage: { not: finalStage },
+          archivedAt: null
+        }
+      });
+
+      // Get completed orders count
+      const completedOrdersCount = await prisma.order.count({
+        where: {
+          currentStage: finalStage,
+          archivedAt: null
+        }
+      });
+
+      // Get orders by stage
+      const ordersByStage = await prisma.order.groupBy({
+        by: ['currentStage'],
+        where: { archivedAt: null },
+        _count: { id: true }
+      });
+
+      const stageData = STAGES.map(stage => ({
+        stage: stage,
+        count: ordersByStage.find(s => s.currentStage === stage)?._count.id || 0
+      }));
+
+      // Calculate total revenue (admin only)
+      let totalRevenue = 'N/A';
+      let grandTotal = 0;
+      if (isAdmin) {
+        const items = await prisma.orderItem.findMany({
+          where: { 
+            itemPrice: { not: null },
+            order: { archivedAt: null }
+          },
+          select: {
+            itemPrice: true,
+            qty: true
+          }
+        });
+
+        for (const item of items) {
+          const qty = typeof item.qty === 'number' && !isNaN(item.qty) ? item.qty : 1;
+          const price = typeof item.itemPrice === 'number' && !isNaN(item.itemPrice) ? item.itemPrice : 0;
+          grandTotal += qty * price;
+        }
+        totalRevenue = formatCurrency(grandTotal);
+      }
+
+      res.json({
+        kpis: {
+          activeOrders: activeOrdersCount,
+          completedOrders: completedOrdersCount,
+          totalRevenue: totalRevenue,
+          grandTotal: grandTotal,
+          grandTotalFormatted: totalRevenue,
+          ordersByStage: stageData
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+          userRole: req.user?.role
+        }
+      });
+    } catch (error) {
+      console.error('Summary endpoint error:', error);
+      res.status(500).json({ error: 'Failed to generate summary' });
+    }
+  });
 
   // ========================================
   // SALES & REVENUE REPORTS
@@ -99,10 +185,14 @@ export function createReportsRouter(prisma) {
         return {
           id: o.id,
           poNumber: o.poNumber || null,
+          customerName: o.account?.name || 'Unknown',
+          salesPerson: o.sku || 'N/A',  // sku field stores sales person
           accountName: o.account?.name || null,
           orderDate: o.orderDate,
           itemCount,
-          subtotal
+          subtotal,
+          totalFormatted: formatCurrency(subtotal),
+          status: o.currentStage
         };
       });
 
@@ -122,6 +212,7 @@ export function createReportsRouter(prisma) {
       });
       
       let prevSubtotal = 0;
+      let prevOrderCount = prevOrders.length;
       for (const o of prevOrders) {
         for (const it of (o.items || [])) {
           const qty = typeof it.qty === 'number' && !isNaN(it.qty) ? it.qty : 1;
@@ -132,17 +223,41 @@ export function createReportsRouter(prisma) {
 
       const deltaAbs = periodSubtotal - prevSubtotal;
       const deltaPct = prevSubtotal === 0 ? null : (deltaAbs / prevSubtotal);
+      const ordersChange = periodOrderCount - prevOrderCount;
+      const ordersChangePct = prevOrderCount === 0 ? null : (ordersChange / prevOrderCount);
+
+      // Format average order value
+      const averageOrderValue = periodOrderCount > 0 ? periodSubtotal / periodOrderCount : 0;
 
       res.json({
         month: monthParam,
         year: yearParam,
         range: { start: start.toISOString(), end: end.toISOString() },
         orders: orderDetails,
+        kpis: {
+          orderCount: periodOrderCount,
+          itemCount: periodItemCount,
+          grandTotal: periodSubtotal,
+          grandTotalFormatted: formatCurrency(periodSubtotal),
+          totalRevenue: formatCurrency(periodSubtotal),
+          averageOrderValue: formatCurrency(averageOrderValue)
+        },
         summary: {
           orderCount: periodOrderCount,
           itemCount: periodItemCount,
           subtotal: periodSubtotal,
           subtotalFormatted: formatCurrency(periodSubtotal)
+        },
+        comparison: {
+          currentOrders: periodOrderCount,
+          previousOrders: prevOrderCount,
+          ordersChange: ordersChange,
+          ordersChangePercent: ordersChangePct !== null ? (ordersChangePct * 100).toFixed(1) : 'N/A',
+          currentRevenue: formatCurrency(periodSubtotal),
+          previousRevenue: formatCurrency(prevSubtotal),
+          revenueChange: deltaAbs,
+          revenueChangeFormatted: formatCurrency(Math.abs(deltaAbs)),
+          revenueChangePercent: deltaPct !== null ? (deltaPct * 100).toFixed(1) : 'N/A'
         },
         monthOverMonth: {
           prev: { month: prevMonth, year: prevYear, subtotal: prevSubtotal },
