@@ -498,8 +498,7 @@ export function createCycleTimeReportsRouter(prisma) {
   /**
    * GET /reports/on-time
    * On-time delivery performance
-   * FIXED: Now finds orders by checking if ANY of their items reached DELIVERED stage
-   * This is because orders track stage at ITEM level, not order level
+   * FIXED: Get ALL status events for items, then filter for DELIVERED in code
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
@@ -509,8 +508,7 @@ export function createCycleTimeReportsRouter(prisma) {
 
       console.log('On-time report - whereClause:', JSON.stringify(whereClause, null, 2));
 
-      // Get ALL orders with their items and item status events
-      // We'll filter by whether items reached DELIVERED
+      // Get ALL orders with their items and ALL item status events
       const orders = await prisma.order.findMany({
         where: whereClause,
         include: {
@@ -518,9 +516,8 @@ export function createCycleTimeReportsRouter(prisma) {
           items: {
             include: {
               statusEvents: {
-                where: { stage: 'DELIVERED' },
-                orderBy: { createdAt: 'asc' },
-                take: 1
+                // Get ALL status events, filter for DELIVERED in code
+                orderBy: { createdAt: 'asc' }
               }
             }
           }
@@ -538,7 +535,13 @@ export function createCycleTimeReportsRouter(prisma) {
       const slippageDays = [];
 
       for (const order of orders) {
-        console.log(`Order ${order.poNumber}: etaDate=${order.etaDate}, items with DELIVERED=${order.items.filter(i => i.statusEvents.length > 0).length}`);
+        // Count DELIVERED events across all items
+        const totalStatusEvents = order.items.reduce((sum, item) => sum + item.statusEvents.length, 0);
+        const deliveredEvents = order.items.flatMap(item => 
+          item.statusEvents.filter(evt => evt.stage === 'DELIVERED')
+        );
+        
+        console.log(`Order ${order.poNumber}: etaDate=${order.etaDate}, total status events=${totalStatusEvents}, DELIVERED events=${deliveredEvents.length}`);
         
         // Skip if no ETA date
         if (!order.etaDate) {
@@ -546,19 +549,19 @@ export function createCycleTimeReportsRouter(prisma) {
           continue;
         }
 
-        // Find earliest DELIVERED event from any item
-        const deliveryEvents = order.items
-          .flatMap(item => item.statusEvents)
-          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-        
         // If no items have reached DELIVERED, skip this order
-        if (deliveryEvents.length === 0) {
+        if (deliveredEvents.length === 0) {
           console.log(`Order ${order.poNumber}: No DELIVERED events found`);
           noDeliveryEvent++;
           continue;
         }
 
-        const deliveredAt = deliveryEvents[0].createdAt;
+        // Find earliest DELIVERED event
+        const sortedDeliveryEvents = deliveredEvents.sort((a, b) => 
+          new Date(a.createdAt) - new Date(b.createdAt)
+        );
+        
+        const deliveredAt = sortedDeliveryEvents[0].createdAt;
         const slippage = calculateSlippage(deliveredAt, order.etaDate);
         
         console.log(`Order ${order.poNumber}: deliveredAt=${deliveredAt}, slippage=${slippage} days`);
