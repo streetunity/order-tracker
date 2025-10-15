@@ -669,19 +669,39 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Shipping Information Section */}
-          {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
-            <section style={{
-              marginTop: 16,
-              marginBottom: 16,
-              padding: "16px",
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #404040",
-              borderRadius: "8px"
-            }}>
-              <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#e4e4e4" }}>
-                Shipping Information
-              </h3>
+          {/* Shipping Information Section - NOW WITH ADDRESS */}
+          <section style={{
+            marginTop: 16,
+            marginBottom: 16,
+            padding: "16px",
+            backgroundColor: "#2d2d2d",
+            border: "1px solid #404040",
+            borderRadius: "8px"
+          }}>
+            <h3 style={{ margin: "0 0 12px", fontSize: 14, color: "#e4e4e4" }}>
+              Shipping Information
+            </h3>
+            
+            {/* Customer Address */}
+            {order.account && (order.account.street || order.account.city) && (
+              <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #404040" }}>
+                {order.account.street && (
+                  <div style={{ color: "#e4e4e4", fontSize: "14px", marginBottom: "4px" }}>
+                    {order.account.street}
+                  </div>
+                )}
+                {(order.account.city || order.account.state || order.account.zip) && (
+                  <div style={{ color: "#e4e4e4", fontSize: "14px" }}>
+                    {[order.account.city, order.account.state, order.account.zip]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* ETA and Tracking Info */}
+            {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
                 {order.etaDate && (
                   <div>
@@ -713,8 +733,8 @@ export default function EditOrderPage({ params }) {
                   </div>
                 )}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           <section style={{ marginTop: 8 }}>
             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Items</h2>
