@@ -40,6 +40,10 @@ export default function EditOrderPage({ params }) {
   const [customerDocsLink, setCustomerDocsLink] = useState("");
   const [isSavingDocsLink, setIsSavingDocsLink] = useState(false);
 
+  // State for order date editing
+  const [orderDate, setOrderDate] = useState("");
+  const [isSavingOrderDate, setIsSavingOrderDate] = useState(false);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!user) {
@@ -62,6 +66,16 @@ export default function EditOrderPage({ params }) {
       setCustomerDocsLink(orderData.customerDocsLink || "");
       setInternalNotes(orderData.internalNotes || "");
       setInternalNotesChanged(false);
+      
+      // Format order date for input field (YYYY-MM-DD format)
+      if (orderData.orderDate) {
+        const date = new Date(orderData.orderDate);
+        const formatted = date.toISOString().split('T')[0];
+        setOrderDate(formatted);
+      } else {
+        setOrderDate("");
+      }
+      
       setErr("");
     } catch (e) {
       setErr(String(e?.message || e));
@@ -99,6 +113,50 @@ export default function EditOrderPage({ params }) {
       alert(`Failed to save internal notes: ${e.message}`);
     } finally {
       setInternalNotesSaving(false);
+    }
+  }
+
+  // Save order date
+  async function saveOrderDate() {
+    if (!orderDate) {
+      alert("Please select a valid date");
+      return;
+    }
+    
+    // Check if date actually changed
+    const currentOrderDate = order?.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : "";
+    if (orderDate === currentOrderDate) {
+      return; // No change, don't save
+    }
+    
+    try {
+      setIsSavingOrderDate(true);
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ orderDate: orderDate })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      // Update the order state with the new date
+      setOrder(prev => ({ ...prev, orderDate: orderDate }));
+      alert("Order date updated successfully");
+    } catch (err) {
+      alert(`Failed to update order date: ${err.message}`);
+      // Revert to original value on error
+      if (order?.orderDate) {
+        const date = new Date(order.orderDate);
+        setOrderDate(date.toISOString().split('T')[0]);
+      }
+    } finally {
+      setIsSavingOrderDate(false);
     }
   }
 
@@ -512,24 +570,30 @@ export default function EditOrderPage({ params }) {
             </div>
           </section>
 
-          {/* Order Information Section - ADDED FOR ORDER DATE DISPLAY */}
+          {/* Order Information Section - NOW WITH EDITABLE ORDER DATE */}
           <section style={{ marginTop: 16, marginBottom: 16 }}>
             <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Order Information</h3>
-            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
               <div>
                 <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
-                  Order Date
+                  Order Date *
                 </label>
-                <div style={{ 
-                  padding: "8px 12px",
-                  backgroundColor: "#1a1a1a",
-                  border: "1px solid #404040",
-                  borderRadius: "4px",
-                  fontSize: "14px",
-                  color: "#e4e4e4",
-                  minWidth: "120px"
-                }}>
-                  {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "Not set"}
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <input
+                    type="date"
+                    value={orderDate}
+                    onChange={(e) => setOrderDate(e.target.value)}
+                    onBlur={saveOrderDate}
+                    className="input"
+                    style={{ 
+                      width: "150px",
+                      padding: "8px 12px"
+                    }}
+                    disabled={isSavingOrderDate}
+                  />
+                  {isSavingOrderDate && (
+                    <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
+                  )}
                 </div>
               </div>
               {order.poNumber && (
@@ -568,7 +632,7 @@ export default function EditOrderPage({ params }) {
               )}
             </div>
             <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "8px" }}>
-              The order date is set when the order is created and is used for ETA calculations. This field cannot be edited after order creation.
+              The order date is used for ETA calculations and sales reports. Change it if it was entered incorrectly. Press Tab or click outside to save.
             </div>
           </section>
 
