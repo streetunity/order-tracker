@@ -454,7 +454,7 @@ export function createCycleTimeReportsRouter(prisma) {
       const itemIds = accessibleItems.map(i => i.id);
       
       const whereClause = {
-        orderitemId: { in: itemIds } // ROLE FILTERING
+        orderItemId: { in: itemIds } // ROLE FILTERING
       };
       
       if (filters.dateFrom || filters.dateTo) {
