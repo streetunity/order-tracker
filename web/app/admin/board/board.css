@@ -186,6 +186,7 @@
   flex-direction: column; 
   gap: 6px;
   min-height: 80px;
+  height: 100%; /* CRITICAL: Make it fill the full grid cell height */
   position: relative;
 }
 
