@@ -546,142 +546,143 @@ async function load() {
                     {itemsInStage.length === 0 ? (
                       <div className="emptyCell">—</div>
                     ) : (
-                      itemsInStage.map(({ it, order }) => {
-                        const s = it.currentStage || order.currentStage || "MANUFACTURING";
-                        const next = nextStageOf(s);
-                        const prev = prevStageOf(s);
-                        const isArchived = !!it.archivedAt;
-                        const isOrderLocked = order.isLocked;
-                        
-                        // Create display text with all item details for tooltip
-                        let tooltipText = `${it.productCode || "Item"} - ${s}`;
-                        if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
-                        if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
-                        if (it.voltage) tooltipText += `\nPower: ${it.voltage}`;
-                        if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
-                        if (isOrderLocked) tooltipText += "\n(Order Locked)";
-                        
-                        return (
-                          <div
-                            key={it.id}
-                            className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`}
-                            title={tooltipText}
-                            style={{
-                              borderColor: isOrderLocked ? "#dc2626" : undefined,
-                              borderWidth: isOrderLocked ? "2px" : undefined
-                            }}
-                          >
-                            <div className="itemTitle">
-                              {it.productCode || "Item"}
-                            </div>
-                            
-                            <div className="itemActions" style={{ gap: "2px" }}>
-                              {/* Back (icon) */}
-                              <button
-                                className="miniBtn"
-                                aria-label="Move back"
-                                disabled={!prev}
-                                onClick={async () => {
-                                  if (!prev) return;
-                                  try {
-                                    await changeItemStage(order.id, it.id, prev, {
-                                      allowBackward: true,
-                                    });
-                                    await load();
-                                  } catch (e) {
-                                    alert(
-                                      `Failed to move back: ${
-                                        e instanceof Error ? e.message : e
-                                      }`
-                                    );
-                                  }
-                                }}
-                                title={
-                                  prev
-                                    ? `Move to ${STAGE_LABELS[prev] ?? prev}`
-                                    : "No previous stage"
-                                }
-                                style={{ fontSize: "10px", padding: "2px 4px" }}
-                              >
-                                ◀
-                              </button>
-
-                              {/* Forward (icon) */}
-                              <button
-                                className="miniBtn"
-                                aria-label="Move forward"
-                                disabled={!next}
-                                onClick={async () => {
-                                  if (!next) return;
-                                  try {
-                                    await changeItemStage(order.id, it.id, next, {
-                                      allowFastForward: true,
-                                    });
-                                    await load();
-                                  } catch (e) {
-                                    alert(
-                                      `Failed to move forward: ${
-                                        e instanceof Error ? e.message : e
-                                      }`
-                                    );
-                                  }
-                                }}
-                                title={
-                                  next
-                                    ? `Move to ${STAGE_LABELS[next] ?? next}`
-                                    : "No next stage"
-                                }
-                                style={{ fontSize: "10px", padding: "2px 4px" }}
-                              >
-                                ▶
-                              </button>
-
-                              {/* Archive / Restore (icons) */}
-                              {!isArchived ? (
-                                <button
-                                  className="miniBtn danger"
-                                  aria-label="Archive"
-                                  onClick={async () => {
-                                    try {
-                                      await archiveItem(order.id, it.id, true);
-                                      await load();
-                                    } catch (e) {
-                                      alert(
-                                        `Failed to archive: ${
-                                          e instanceof Error ? e.message : e
-                                        }`
-                                      );
-                                    }
-                                  }}
-                                  title="Archive (hide from board)"
-                                  style={{ fontSize: "10px", padding: "2px 4px" }}
-                                >
-                                  ✕
-                                </button>
-                              ) : (
+                      <div className="itemsContainer">
+                        {itemsInStage.map(({ it, order }) => {
+                          const s = it.currentStage || order.currentStage || "MANUFACTURING";
+                          const next = nextStageOf(s);
+                          const prev = prevStageOf(s);
+                          const isArchived = !!it.archivedAt;
+                          const isOrderLocked = order.isLocked;
+                          
+                          // Create display text with all item details for tooltip
+                          let tooltipText = `${it.productCode || "Item"} - ${s}`;
+                          if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
+                          if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
+                          if (it.voltage) tooltipText += `\nPower: ${it.voltage}`;
+                          if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
+                          if (isOrderLocked) tooltipText += "\n(Order Locked)";
+                          
+                          return (
+                            <div
+                              key={it.id}
+                              className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`}
+                              title={tooltipText}
+                              style={{
+                                borderColor: isOrderLocked ? "#dc2626" : undefined,
+                                borderWidth: isOrderLocked ? "2px" : undefined
+                              }}
+                            >
+                              <div className="itemTitle">
+                                {it.productCode || "Item"}
+                              </div>
+                              
+                              <div className="itemActions" style={{ gap: "2px" }}>
+                                {/* Back (icon) */}
                                 <button
                                   className="miniBtn"
-                                  aria-label="Restore"
+                                  aria-label="Move back"
+                                  disabled={!prev}
                                   onClick={async () => {
+                                    if (!prev) return;
                                     try {
-                                      await archiveItem(order.id, it.id, false);
+                                      await changeItemStage(order.id, it.id, prev, {
+                                        allowBackward: true,
+                                      });
                                       await load();
                                     } catch (e) {
                                       alert(
-                                        `Failed to restore: ${
+                                        `Failed to move back: ${
                                           e instanceof Error ? e.message : e
                                         }`
                                       );
                                     }
                                   }}
-                                  title="Restore (show on board)"
+                                  title={
+                                    prev
+                                      ? `Move to ${STAGE_LABELS[prev] ?? prev}`
+                                      : "No previous stage"
+                                  }
                                   style={{ fontSize: "10px", padding: "2px 4px" }}
                                 >
-                                  ↺
+                                  ◀
                                 </button>
-                              )}
 
-                           {/* Delete item (icon) */}
+                                {/* Forward (icon) */}
+                                <button
+                                  className="miniBtn"
+                                  aria-label="Move forward"
+                                  disabled={!next}
+                                  onClick={async () => {
+                                    if (!next) return;
+                                    try {
+                                      await changeItemStage(order.id, it.id, next, {
+                                        allowFastForward: true,
+                                      });
+                                      await load();
+                                    } catch (e) {
+                                      alert(
+                                        `Failed to move forward: ${
+                                          e instanceof Error ? e.message : e
+                                        }`
+                                      );
+                                    }
+                                  }}
+                                  title={
+                                    next
+                                      ? `Move to ${STAGE_LABELS[next] ?? next}`
+                                      : "No next stage"
+                                  }
+                                  style={{ fontSize: "10px", padding: "2px 4px" }}
+                                >
+                                  ▶
+                                </button>
+
+                                {/* Archive / Restore (icons) */}
+                                {!isArchived ? (
+                                  <button
+                                    className="miniBtn danger"
+                                    aria-label="Archive"
+                                    onClick={async () => {
+                                      try {
+                                        await archiveItem(order.id, it.id, true);
+                                        await load();
+                                      } catch (e) {
+                                        alert(
+                                          `Failed to archive: ${
+                                            e instanceof Error ? e.message : e
+                                          }`
+                                        );
+                                      }
+                                    }}
+                                    title="Archive (hide from board)"
+                                    style={{ fontSize: "10px", padding: "2px 4px" }}
+                                  >
+                                    ✕
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="miniBtn"
+                                    aria-label="Restore"
+                                    onClick={async () => {
+                                      try {
+                                        await archiveItem(order.id, it.id, false);
+                                        await load();
+                                      } catch (e) {
+                                        alert(
+                                          `Failed to restore: ${
+                                            e instanceof Error ? e.message : e
+                                          }`
+                                        );
+                                      }
+                                    }}
+                                    title="Restore (show on board)"
+                                    style={{ fontSize: "10px", padding: "2px 4px" }}
+                                  >
+                                    ↺
+                                  </button>
+                                )}
+
+                             {/* Delete item (icon) */}
 <button
   className="miniBtn danger"
   aria-label="Delete item"
@@ -739,10 +740,11 @@ async function load() {
     $
   </span>
 )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 );
