@@ -56,7 +56,7 @@ export default function AdminBoardPage() {
 
   
 async function loadYearlyTotal() {
-  if (!user || !isAdmin) return;
+  if (!user) return;
 
   try {
     const res = await fetch("/api/orders/yearly-total", {
@@ -79,8 +79,6 @@ async function load() {
       setErr("");
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-      // REMOVED: Don't send stage filter to backend - filter on frontend instead
-      // if (stageFilter) params.set("stage", stageFilter);
 
       const res = await fetch(`/api/orders?${params.toString()}`, {
         headers: getAuthHeaders(),
@@ -102,7 +100,7 @@ async function load() {
   useEffect(() => {
     if (user) {
       load();
-      if (isAdmin) { loadYearlyTotal(); }
+      loadYearlyTotal(); // Now loads for both admins and agents
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -210,7 +208,6 @@ async function load() {
   function copyToClipboard(token, orderId) {
     const url = `${window.location.origin}/t/${token}`;
     
-    // Use the fallback method that works on HTTP
     const textArea = document.createElement("textarea");
     textArea.value = url;
     textArea.style.position = "fixed";
@@ -232,13 +229,9 @@ async function load() {
     }
   }
 
-  // Use filteredOrders instead of orders for grouping
-  // This ensures customers with no active items don't appear on the board
   const grouped = useMemo(() => {
     const by = new Map();
-    // Use filteredOrders which already excludes orders without active items
     for (const o of filteredOrders) {
-      // Double-check that the order has items (should already be filtered but being safe)
       if (!o.items || o.items.length === 0) continue;
       
       const key = o.account?.id || o.accountId || o.id;
@@ -255,17 +248,15 @@ async function load() {
     );
   }, [filteredOrders]);
 
-  // Don't render content until authentication is checked
   if (!user) {
     return null;
   }
 
   return (
     <main>
-      {/* Top header with user navigation */}
       <div className="header">
         <h1 className="h1">Orders Board</h1>
-        {isAdmin && yearlyTotal && (
+        {yearlyTotal && (
           <div style={{
             marginLeft: "20px",
             padding: "8px 16px",
@@ -294,7 +285,6 @@ async function load() {
            <Link href="/admin/reports" className="btn">
             Reports
           </Link>
-          {/* User menu */}
           <div style={{ 
             display: 'flex', 
             gap: '10px', 
@@ -322,7 +312,6 @@ async function load() {
         </nav>
       </div>
 
-      {/* Filter toolbar */}
       <div className="toolbar">
         <div className="tool">
           <input
@@ -348,7 +337,6 @@ async function load() {
               </option>
             ))}
           </select>
-          {/* Show Clear button when filter is active */}
           {stageFilter && (
             <button 
               className="btn" 
@@ -369,7 +357,6 @@ async function load() {
             Show archived
           </label>
         </div>
-        {/* Admin-only Audit button */}
         {isAdmin && (
           <div className="tool">
             <Link href="/history" className="btn">
@@ -379,7 +366,6 @@ async function load() {
         )}
         {!!err && <div className="errorBox">Failed to load: {err}</div>}
         {loading && <div className="loading">Loading…</div>}
-        {/* Show message when filter results in no matches */}
         {!loading && stageFilter && grouped.length === 0 && (
           <div style={{ 
             padding: "8px 12px", 
@@ -406,9 +392,7 @@ async function load() {
         )}
       </div>
 
-      {/* Stage grid */}
       <div className="stageBoard">
-        {/* First column header cell */}
         <div className="stageCol stickyHeader stickyCol">
           <div className="stageTitle">
             Customer
@@ -424,7 +408,6 @@ async function load() {
             )}
           </div>
         </div>
-        {/* Stage headers with display labels */}
         {STAGES.map((s) => (
           <div key={s} className="stageCol stickyHeader">
             <div className="stageTitle">
@@ -444,14 +427,11 @@ async function load() {
           </div>
         ))}
 
-        {/* Rows by customer; items are placed into their current stage col */}
         {grouped.map((group) => {
-          // Check if any order for this customer is locked
           const hasLockedOrder = group.orders.some(o => o.isLocked);
           
           return (
             <div className="customerRow" key={group.accountId || group.accountName}>
-              {/* Sticky customer cell */}
               <div className="stageCol stickyCol">
                 <div className="customerHeader">
                   <div className="customerName">
@@ -526,7 +506,6 @@ async function load() {
                 </div>
               </div>
 
-              {/* For each stage column, render that customer's items in that stage */}
               {STAGES.map((stageKey) => {
                 const itemsInStage = (group.orders || [])
                   .flatMap((o) =>
@@ -534,8 +513,6 @@ async function load() {
                       .filter((it) => {
                         const s = it.currentStage || o.currentStage || "MANUFACTURING";
                         if (!showArchived && it.archivedAt) return false;
-                        // When filter is active, items are already pre-filtered
-                        // Just match the current stage column
                         return s === stageKey;
                       })
                       .map((it) => ({ it, order: o }))
@@ -554,7 +531,6 @@ async function load() {
                           const isArchived = !!it.archivedAt;
                           const isOrderLocked = order.isLocked;
                           
-                          // Create display text with all item details for tooltip
                           let tooltipText = `${it.productCode || "Item"} - ${s}`;
                           if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
                           if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
@@ -577,7 +553,6 @@ async function load() {
                               </div>
                               
                               <div className="itemActions" style={{ gap: "2px" }}>
-                                {/* Back (icon) */}
                                 <button
                                   className="miniBtn"
                                   aria-label="Move back"
@@ -607,7 +582,6 @@ async function load() {
                                   ◀
                                 </button>
 
-                                {/* Forward (icon) */}
                                 <button
                                   className="miniBtn"
                                   aria-label="Move forward"
@@ -637,7 +611,6 @@ async function load() {
                                   ▶
                                 </button>
 
-                                {/* Archive / Restore (icons) */}
                                 {!isArchived ? (
                                   <button
                                     className="miniBtn danger"
@@ -682,64 +655,61 @@ async function load() {
                                   </button>
                                 )}
 
-                             {/* Delete item (icon) */}
-<button
-  className="miniBtn danger"
-  aria-label="Delete item"
-  onClick={async () => {
-    if (isOrderLocked) {
-      alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
-      return;
-    }
-    if (!confirm("Delete this item permanently?")) return;
-    try {
-      await deleteItem(order.id, it.id);
-      await load();
-    } catch (e) {
-      alert(
-        `Failed to delete: ${
-          e instanceof Error ? e.message : e
-        }`
-      );
-    }
-  }}
-  title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"}
-  style={{
-    opacity: isOrderLocked ? 0.5 : 1,
-    cursor: isOrderLocked ? "not-allowed" : "pointer",
-    fontSize: "10px", 
-    padding: "2px 4px"
-  }}
->
-  🗑
-</button>
+                                <button
+                                  className="miniBtn danger"
+                                  aria-label="Delete item"
+                                  onClick={async () => {
+                                    if (isOrderLocked) {
+                                      alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
+                                      return;
+                                    }
+                                    if (!confirm("Delete this item permanently?")) return;
+                                    try {
+                                      await deleteItem(order.id, it.id);
+                                      await load();
+                                    } catch (e) {
+                                      alert(
+                                        `Failed to delete: ${
+                                          e instanceof Error ? e.message : e
+                                        }`
+                                      );
+                                    }
+                                  }}
+                                  title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"}
+                                  style={{
+                                    opacity: isOrderLocked ? 0.5 : 1,
+                                    cursor: isOrderLocked ? "not-allowed" : "pointer",
+                                    fontSize: "10px", 
+                                    padding: "2px 4px"
+                                  }}
+                                >
+                                  🗑
+                                </button>
 
-{/* Spacer between delete and ordered indicator */}
-{it.isOrdered && (
-  <span style={{ width: '8px', display: 'inline-block' }}></span>
-)}
+                                {it.isOrdered && (
+                                  <span style={{ width: '8px', display: 'inline-block' }}></span>
+                                )}
 
-{/* Ordered indicator - shows $ for ordered items */}
-{it.isOrdered && (
-  <span
-    title="Item ordered"
-    style={{
-      display: 'inline-block',
-      backgroundColor: '#16a34a',
-      color: 'white',
-      fontWeight: 'bold',
-      fontSize: '10px',
-      width: '16px',
-      height: '16px',
-      lineHeight: '16px',
-      textAlign: 'center',
-      borderRadius: '50%',
-      cursor: 'help'
-    }}
-  >
-    $
-  </span>
-)}
+                                {it.isOrdered && (
+                                  <span
+                                    title="Item ordered"
+                                    style={{
+                                      display: 'inline-block',
+                                      backgroundColor: '#16a34a',
+                                      color: 'white',
+                                      fontWeight: 'bold',
+                                      fontSize: '10px',
+                                      width: '16px',
+                                      height: '16px',
+                                      lineHeight: '16px',
+                                      textAlign: 'center',
+                                      borderRadius: '50%',
+                                      cursor: 'help'
+                                    }}
+                                  >
+                                    $
+                                  </span>
+                                )}
                               </div>
                             </div>
                           );
