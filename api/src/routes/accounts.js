@@ -6,10 +6,51 @@ const prisma = new PrismaClient();
 export function createAccountsRouter() {
   const router = express.Router();
 
-  // Get all accounts
+  // Helper to get account IDs accessible by user
+  async function getAccessibleAccountIds(user) {
+    if (user.role === 'ADMIN') {
+      // Admin can see all accounts
+      return null; // null means no filter needed
+    }
+    
+    // Agent: Get account IDs from orders assigned to them
+    const orders = await prisma.order.findMany({
+      where: { sku: user.name },
+      select: { accountId: true },
+      distinct: ['accountId']
+    });
+    
+    return orders.map(o => o.accountId);
+  }
+
+  // Helper to check if user can access specific account
+  async function canAccessAccount(user, accountId) {
+    if (user.role === 'ADMIN') return true;
+    
+    // Agent: Check if they have any orders for this account
+    const order = await prisma.order.findFirst({
+      where: {
+        accountId: accountId,
+        sku: user.name
+      }
+    });
+    
+    return !!order;
+  }
+
+  // Get all accounts - ROLE-FILTERED
   router.get('/', async (req, res) => {
     try {
+      const accessibleAccountIds = await getAccessibleAccountIds(req.user);
+      
+      const where = {};
+      if (accessibleAccountIds !== null) {
+        // Agent: Only show accounts they have orders for
+        where.id = { in: accessibleAccountIds };
+      }
+
       const accounts = await prisma.account.findMany({
+        where,
         select: { 
           id: true, 
           name: true, 
@@ -22,19 +63,31 @@ export function createAccountsRouter() {
         },
         orderBy: { createdAt: 'desc' }
       });
+      
       res.json(accounts);
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  // Get single account
+  // Get single account - ROLE-FILTERED
   router.get('/:id', async (req, res) => {
     try {
+      // Check access permission
+      const hasAccess = await canAccessAccount(req.user, req.params.id);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only view customers assigned to you.' });
+      }
+
       const account = await prisma.account.findUnique({
         where: { id: req.params.id },
-        include: { orders: true }
+        include: { 
+          orders: req.user.role === 'ADMIN' ? true : {
+            where: { sku: req.user.name } // Agents only see their own orders for this account
+          }
+        }
       });
+      
       if (!account) return res.status(404).json({ error: 'Not found' });
       res.json(account);
     } catch (e) {
@@ -90,9 +143,15 @@ export function createAccountsRouter() {
     }
   });
 
-  // Update account
+  // Update account - ROLE-FILTERED
   router.patch('/:id', async (req, res) => {
     try {
+      // Check access permission
+      const hasAccess = await canAccessAccount(req.user, req.params.id);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only edit customers assigned to you.' });
+      }
+
       const original = await prisma.account.findUnique({
         where: { id: req.params.id }
       });
@@ -207,9 +266,15 @@ export function createAccountsRouter() {
     }
   });
 
-  // Delete account
+  // Delete account - ROLE-FILTERED
   router.delete('/:id', async (req, res) => {
     try {
+      // Check access permission
+      const hasAccess = await canAccessAccount(req.user, req.params.id);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only delete customers assigned to you.' });
+      }
+
       const account = await prisma.account.findUnique({
         where: { id: req.params.id },
         include: {
@@ -218,7 +283,9 @@ export function createAccountsRouter() {
               id: true,
               poNumber: true,
               createdAt: true
-            }
+            },
+            // For agents, only check their own orders
+            ...(req.user.role === 'AGENT' ? { where: { sku: req.user.name } } : {})
           }
         }
       });
