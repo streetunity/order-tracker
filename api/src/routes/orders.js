@@ -170,24 +170,23 @@ export function createOrdersRouter() {
     }
   });
 
-  // Get yearly total - ADMIN ONLY
+  // Get yearly total - ROLE-FILTERED (both admins and agents can access)
   router.get('/yearly-total', async (req, res) => {
     try {
-      if (req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Admin access required' });
-      }
-
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
       const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
 
+      // Apply role-based filtering
+      const where = buildRoleBasedWhere(req.user, {
+        createdAt: {
+          gte: yearStart,
+          lte: yearEnd
+        }
+      });
+
       const orders = await prisma.order.findMany({
-        where: {
-          createdAt: {
-            gte: yearStart,
-            lte: yearEnd
-          }
-        },
+        where,
         include: {
           items: {
             select: {
@@ -218,7 +217,8 @@ export function createOrdersRouter() {
         total: total,
         formatted: formatted,
         orderCount: orders.length,
-        itemCount: orders.reduce((sum, o) => sum + o.items.length, 0)
+        itemCount: orders.reduce((sum, o) => sum + o.items.length, 0),
+        userRole: req.user?.role // Include for debugging
       });
     } catch (e) {
       console.error('Yearly total error:', e);
