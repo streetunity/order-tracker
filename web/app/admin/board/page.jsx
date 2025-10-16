@@ -513,7 +513,7 @@ async function load() {
                             cursor: "pointer",
                             padding: "2px",
                             fontSize: "12px",
-                            color: copiedLink === o.id ? "#059669" : "#3b82f6",
+                            color: copiedLink === o.id ? "#d1d5db" : "#9ca3af",
                             transition: "color 0.2s"
                           }}
                           title={copiedLink === o.id ? "Copied!" : "Copy link to clipboard"}
