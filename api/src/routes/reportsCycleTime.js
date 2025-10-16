@@ -432,6 +432,7 @@ export function createCycleTimeReportsRouter(prisma) {
 
   /**
    * GET /reports/throughput - ROLE-FILTERED
+   * FIXED: Split item ID query to avoid async-in-object-literal bug
    */
   router.get('/throughput', authGuard, async (req, res) => {
     try {
@@ -445,11 +446,15 @@ export function createCycleTimeReportsRouter(prisma) {
       });
       const orderIds = accessibleOrders.map(o => o.id);
       
+      // Get accessible item IDs (FIXED: split into separate query)
+      const accessibleItems = await prisma.orderItem.findMany({
+        where: { orderId: { in: orderIds } },
+        select: { id: true }
+      });
+      const itemIds = accessibleItems.map(i => i.id);
+      
       const whereClause = {
-        itemId: { in: await prisma.orderItem.findMany({
-          where: { orderId: { in: orderIds } },
-          select: { id: true }
-        }).then(items => items.map(i => i.id)) }
+        itemId: { in: itemIds } // ROLE FILTERING
       };
       
       if (filters.dateFrom || filters.dateTo) {
