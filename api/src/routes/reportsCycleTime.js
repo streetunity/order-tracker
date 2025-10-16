@@ -20,25 +20,40 @@ import { getStageThreshold, assessRiskLevel, getThresholdDays } from '../config/
 export function createCycleTimeReportsRouter(prisma) {
   const router = Router();
 
+  // Helper to apply role-based filtering
+  function buildRoleBasedOrderWhere(user, additionalWhere = {}) {
+    const where = { ...additionalWhere };
+    if (user.role === 'AGENT') {
+      where.sku = user.name; // Filter by sales person matching agent's name
+    }
+    return where;
+  }
+
   /**
-   * GET /reports/cycle-times
+   * GET /reports/cycle-times - ROLE-FILTERED
    * Cycle time analysis for completed items (not orders)
-   * FIXED: Now tracks items through completion, not orders
-   * FRONTEND COMPATIBILITY FIX: Added completedOrders as alias for completedItems
    */
   router.get('/cycle-times', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       const finalStage = STAGES[STAGES.length - 1];
 
-      // Build where clause - use created date for operational reports by default
       if (!filters.dateMode || filters.dateMode === 'completed') {
-        filters.dateMode = 'created'; // Default to created for cycle time analysis
+        filters.dateMode = 'created';
       }
       
-      // Get completed items (not orders)
+      // Get accessible order IDs
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
+      
+      // Get completed items from accessible orders only
       const items = await prisma.orderItem.findMany({
         where: {
+          orderId: { in: orderIds }, // ROLE FILTERING
           currentStage: finalStage,
           archivedAt: null
         },
@@ -60,12 +75,10 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       });
 
-      // Calculate cycle times
       const cycleData = items
         .filter(item => item.statusEvents.length > 0)
         .map(item => {
           const completedAt = item.statusEvents[0].createdAt;
-          // Use order's orderDate if available, otherwise item's createdAt
           const startDate = item.order.orderDate || item.createdAt;
           const cycleTimeSec = calculateCycleTime(startDate, completedAt);
           const cycleTimeDays = Math.floor(cycleTimeSec / 86400);
@@ -88,7 +101,6 @@ export function createCycleTimeReportsRouter(prisma) {
 
       const cycleTimes = cycleData.map(d => d.cycleTimeSec);
       const stats = calculateStats(cycleTimes);
-
       const paginated = paginateResults(cycleData, filters.page, filters.pageSize);
 
       res.json({
@@ -96,11 +108,12 @@ export function createCycleTimeReportsRouter(prisma) {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
           date_mode: filters.dateMode,
-          note: 'Cycle time calculated from orderDate (or item createdAt if not set) to item completion'
+          note: 'Cycle time calculated from orderDate (or item createdAt if not set) to item completion',
+          userRole: req.user?.role
         },
         kpis: {
           completedItems: cycleData.length,
-          completedOrders: cycleData.length, // ADDED: Frontend compatibility - same as completedItems
+          completedOrders: cycleData.length,
           medianCycleTime: stats.median,
           medianCycleTimeDays: Math.floor((stats.median || 0) / 86400),
           medianFormatted: formatDuration(stats.median),
@@ -119,8 +132,7 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/stage-durations
-   * Average time spent in each stage - base endpoint
+   * GET /reports/stage-durations - ROLE-FILTERED
    */
   router.get('/stage-durations', authGuard, async (req, res) => {
     try {
@@ -129,9 +141,18 @@ export function createCycleTimeReportsRouter(prisma) {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - lookback);
       
-      // Get all items with their status events in the lookback period
+      // Get accessible order IDs
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
+      
+      // Get all items from accessible orders
       const items = await prisma.orderItem.findMany({
         where: {
+          orderId: { in: orderIds }, // ROLE FILTERING
           createdAt: { gte: cutoffDate }
         },
         include: {
@@ -148,7 +169,6 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       });
 
-      // Calculate stage durations for each item
       const stageDurations = new Map();
       const slowestItems = [];
       
@@ -161,7 +181,6 @@ export function createCycleTimeReportsRouter(prisma) {
         for (const d of durations) {
           stageDurations.get(d.stage)?.push(d.durationSec);
           
-          // Track slowest items
           slowestItems.push({
             productCode: item.productCode,
             poNumber: item.order.poNumber,
@@ -173,7 +192,6 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       }
 
-      // Calculate stats for each stage
       const series = STAGES.map(stage => {
         const times = stageDurations.get(stage) || [];
         const stats = calculateStats(times);
@@ -192,12 +210,12 @@ export function createCycleTimeReportsRouter(prisma) {
         };
       }).filter(s => s.count > 0);
 
-      // Sort slowest items
       slowestItems.sort((a, b) => b.durationSec - a.durationSec);
 
       res.json({
         meta: {
-          lookbackDays: lookback
+          lookbackDays: lookback,
+          userRole: req.user?.role
         },
         kpis: {
           itemsAnalyzed: items.length,
@@ -215,8 +233,7 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/stage-durations/leaderboard
-   * Same as stage-durations but with /leaderboard path
+   * GET /reports/stage-durations/leaderboard - ROLE-FILTERED
    */
   router.get('/stage-durations/leaderboard', authGuard, async (req, res) => {
     try {
@@ -225,9 +242,18 @@ export function createCycleTimeReportsRouter(prisma) {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - lookback);
       
-      // Get all items with their status events in the lookback period
+      // Get accessible order IDs
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
+      
+      // Get all items from accessible orders
       const items = await prisma.orderItem.findMany({
         where: {
+          orderId: { in: orderIds }, // ROLE FILTERING
           createdAt: { gte: cutoffDate }
         },
         include: {
@@ -244,7 +270,6 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       });
 
-      // Calculate stage durations for each item
       const stageDurations = new Map();
       const slowestItems = [];
       
@@ -257,7 +282,6 @@ export function createCycleTimeReportsRouter(prisma) {
         for (const d of durations) {
           stageDurations.get(d.stage)?.push(d.durationSec);
           
-          // Track slowest items
           slowestItems.push({
             productCode: item.productCode,
             poNumber: item.order.poNumber,
@@ -269,7 +293,6 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       }
 
-      // Calculate stats for each stage
       const series = STAGES.map(stage => {
         const times = stageDurations.get(stage) || [];
         const stats = calculateStats(times);
@@ -288,12 +311,12 @@ export function createCycleTimeReportsRouter(prisma) {
         };
       }).filter(s => s.count > 0);
 
-      // Sort slowest items
       slowestItems.sort((a, b) => b.durationSec - a.durationSec);
 
       res.json({
         meta: {
-          lookbackDays: lookback
+          lookbackDays: lookback,
+          userRole: req.user?.role
         },
         kpis: {
           itemsAnalyzed: items.length,
@@ -311,31 +334,34 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/first-pass-yield
-   * Percentage of orders/items that moved forward without rework
-   * FIXED: Now properly filters by date mode
+   * GET /reports/first-pass-yield - ROLE-FILTERED
    */
   router.get('/first-pass-yield', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       
-      // Build where clause for items and orders
-      const orderWhere = buildWhereClause(filters, 'order');
-      const itemWhere = {};
+      // Get accessible order IDs
+      const orderWhere = buildRoleBasedOrderWhere(req.user, buildWhereClause(filters, 'order'));
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
       
-      // Add date filtering for items if needed
+      const itemWhere = {
+        orderId: { in: orderIds } // ROLE FILTERING
+      };
+      
       if (filters.dateFrom || filters.dateTo) {
         itemWhere.createdAt = {};
         if (filters.dateFrom) itemWhere.createdAt.gte = filters.dateFrom;
         if (filters.dateTo) itemWhere.createdAt.lte = filters.dateTo;
       }
       
-      // Add product code filter if specified
       if (filters.productCodes.length > 0) {
         itemWhere.productCode = { in: filters.productCodes };
       }
       
-      // Add archived filter
       if (!filters.includeArchived) {
         itemWhere.archivedAt = null;
       }
@@ -344,7 +370,6 @@ export function createCycleTimeReportsRouter(prisma) {
         where: itemWhere,
         include: {
           order: {
-            where: orderWhere,
             select: { poNumber: true, account: { select: { name: true } } }
           },
           statusEvents: {
@@ -358,9 +383,6 @@ export function createCycleTimeReportsRouter(prisma) {
       const reworkDetails = [];
 
       for (const item of items) {
-        // Skip items without matching orders (due to where clause filtering)
-        if (!item.order) continue;
-        
         if (item.statusEvents.length > 0) {
           totalItems++;
           const hadBackwardMovement = hasBackwardMovement(item.statusEvents);
@@ -391,7 +413,8 @@ export function createCycleTimeReportsRouter(prisma) {
         meta: {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
-          date_mode: filters.dateMode
+          date_mode: filters.dateMode,
+          userRole: req.user?.role
         },
         kpis: {
           totalItems,
@@ -408,40 +431,38 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/throughput
-   * Items entering each stage per week
-   * FIXED: Changed from statusEvent to orderItemStatusEvent
-   * ADDED: Debug logging to see what's happening
+   * GET /reports/throughput - ROLE-FILTERED
    */
   router.get('/throughput', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       
-      console.log('Throughput - filters:', JSON.stringify(filters, null, 2));
+      // Get accessible order IDs
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
       
-      // Get all status events in the date range
-      const whereClause = {};
+      const whereClause = {
+        itemId: { in: await prisma.orderItem.findMany({
+          where: { orderId: { in: orderIds } },
+          select: { id: true }
+        }).then(items => items.map(i => i.id)) }
+      };
+      
       if (filters.dateFrom || filters.dateTo) {
         whereClause.createdAt = {};
         if (filters.dateFrom) whereClause.createdAt.gte = filters.dateFrom;
         if (filters.dateTo) whereClause.createdAt.lte = filters.dateTo;
       }
 
-      console.log('Throughput - whereClause:', JSON.stringify(whereClause, null, 2));
-
-      // FIXED: Use orderItemStatusEvent instead of statusEvent
       const statusEvents = await prisma.orderItemStatusEvent.findMany({
         where: whereClause,
         orderBy: { createdAt: 'asc' }
       });
 
-      console.log(`Throughput - Found ${statusEvents.length} status events`);
-      if (statusEvents.length > 0) {
-        console.log('Throughput - First event:', statusEvents[0]);
-        console.log('Throughput - Last event:', statusEvents[statusEvents.length - 1]);
-      }
-
-      // Group by stage
       const stageTransitions = new Map();
       const weeklyTransitions = new Map();
       
@@ -449,15 +470,11 @@ export function createCycleTimeReportsRouter(prisma) {
         const stage = event.stage;
         const week = bucketByWeek(event.createdAt, filters.timezone);
         
-        console.log(`Event: stage=${stage}, createdAt=${event.createdAt}, week=${week}`);
-        
-        // Count total by stage
         if (!stageTransitions.has(stage)) {
           stageTransitions.set(stage, 0);
         }
         stageTransitions.set(stage, stageTransitions.get(stage) + 1);
         
-        // Count by week and stage
         if (!weeklyTransitions.has(week)) {
           weeklyTransitions.set(week, {});
         }
@@ -467,13 +484,7 @@ export function createCycleTimeReportsRouter(prisma) {
         weeklyTransitions.get(week)[stage]++;
       }
 
-      console.log('Throughput - stageTransitions:', Array.from(stageTransitions.entries()));
-      console.log('Throughput - weeklyTransitions:', Array.from(weeklyTransitions.entries()));
-
-      // Calculate total transitions
       const totalTransitions = statusEvents.length;
-
-      // Format stage summary
       const rows = STAGES.map(stage => ({
         stage,
         count: stageTransitions.get(stage) || 0,
@@ -482,7 +493,6 @@ export function createCycleTimeReportsRouter(prisma) {
           : '0.0'
       })).filter(row => row.count > 0);
 
-      // Format weekly series
       const weeks = Array.from(weeklyTransitions.keys()).sort();
       const series = weeks.map(week => {
         const weekData = { week };
@@ -492,13 +502,12 @@ export function createCycleTimeReportsRouter(prisma) {
         return weekData;
       });
 
-      console.log('Throughput - Returning:', { totalTransitions, rows: rows.length, series: series.length });
-
       res.json({
         meta: {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
-          note: 'Shows items entering each stage per week'
+          note: 'Shows items entering each stage per week',
+          userRole: req.user?.role
         },
         kpis: {
           totalTransitions,
@@ -517,24 +526,15 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/on-time
-   * On-time delivery performance
-   * CRITICAL FIX: Use orderDate for filtering, not createdAt
-   * FRONTEND COMPATIBILITY FIX: Added completedAt as alias for deliveredAt
+   * GET /reports/on-time - ROLE-FILTERED
    */
   router.get('/on-time', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
-      
-      // FORCE orderDate filtering for on-time delivery reports
       filters.dateMode = 'order';
       
-      const whereClause = buildWhereClause(filters, 'order');
+      const whereClause = buildRoleBasedOrderWhere(req.user, buildWhereClause(filters, 'order'));
 
-      console.log('On-time report - whereClause:', JSON.stringify(whereClause, null, 2));
-      console.log('On-time report - dateMode:', filters.dateMode);
-
-      // Get ALL orders with their items and ALL item status events
       const orders = await prisma.order.findMany({
         where: whereClause,
         include: {
@@ -549,8 +549,6 @@ export function createCycleTimeReportsRouter(prisma) {
         }
       });
 
-      console.log(`On-time report - Found ${orders.length} orders matching where clause`);
-
       let onTimeCount = 0;
       let lateCount = 0;
       let earlyCount = 0;
@@ -560,36 +558,26 @@ export function createCycleTimeReportsRouter(prisma) {
       const slippageDays = [];
 
       for (const order of orders) {
-        // Count DELIVERED events across all items
-        const totalStatusEvents = order.items.reduce((sum, item) => sum + item.statusEvents.length, 0);
         const deliveredEvents = order.items.flatMap(item => 
           item.statusEvents.filter(evt => evt.stage === 'DELIVERED')
         );
         
-        console.log(`Order ${order.poNumber}: etaDate=${order.etaDate}, total status events=${totalStatusEvents}, DELIVERED events=${deliveredEvents.length}, items=${order.items.length}`);
-        
-        // Skip if no ETA date
         if (!order.etaDate) {
           noEtaCount++;
           continue;
         }
 
-        // If no items have reached DELIVERED, skip this order
         if (deliveredEvents.length === 0) {
-          console.log(`Order ${order.poNumber}: No DELIVERED events found`);
           noDeliveryEvent++;
           continue;
         }
 
-        // Find earliest DELIVERED event
         const sortedDeliveryEvents = deliveredEvents.sort((a, b) => 
           new Date(a.createdAt) - new Date(b.createdAt)
         );
         
         const deliveredAt = sortedDeliveryEvents[0].createdAt;
         const slippage = calculateSlippage(deliveredAt, order.etaDate);
-        
-        console.log(`Order ${order.poNumber}: deliveredAt=${deliveredAt}, slippage=${slippage} days`);
         
         let status = 'on-time';
         if (slippage > 0) {
@@ -609,7 +597,7 @@ export function createCycleTimeReportsRouter(prisma) {
           accountName: order.account?.name || 'Unknown',
           etaDate: order.etaDate,
           deliveredAt: deliveredAt,
-          completedAt: deliveredAt, // ADDED: Frontend compatibility - same as deliveredAt
+          completedAt: deliveredAt,
           currentStage: order.currentStage,
           slippageDays: slippage,
           status
@@ -621,14 +609,8 @@ export function createCycleTimeReportsRouter(prisma) {
         ? (onTimeCount / totalOrders) * 100 
         : 0;
 
-      console.log(`On-time report results: total=${totalOrders}, onTime=${onTimeCount}, late=${lateCount}, early=${earlyCount}, noETA=${noEtaCount}, noDelivery=${noDeliveryEvent}`);
-
-      // Calculate slippage statistics
       const slippageStats = calculateStats(slippageDays);
-
-      // Sort by slippage (worst first)
       orderDetails.sort((a, b) => b.slippageDays - a.slippageDays);
-
       const paginated = paginateResults(orderDetails, filters.page, filters.pageSize);
 
       res.json({
@@ -636,7 +618,8 @@ export function createCycleTimeReportsRouter(prisma) {
           date_from: filters.dateFrom,
           date_to: filters.dateTo,
           date_mode: 'order',
-          note: 'Filtered by orderDate. Shows orders where items reached DELIVERED stage.'
+          note: 'Filtered by orderDate. Shows orders where items reached DELIVERED stage.',
+          userRole: req.user?.role
         },
         kpis: {
           totalOrders: totalOrders,
@@ -660,18 +643,25 @@ export function createCycleTimeReportsRouter(prisma) {
   });
 
   /**
-   * GET /reports/chokepoints
-   * Identify bottlenecks for a specific stage with risk assessment based on SMT timeline
-   * FIXED: Use order.orderDate as fallback for items without status events
+   * GET /reports/chokepoints - ROLE-FILTERED
    */
   router.get('/chokepoints', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       const { targetStage = 'MANUFACTURING' } = req.query;
 
-      // Get items currently in the target stage
+      // Get accessible order IDs
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
+
+      // Get items currently in the target stage from accessible orders
       const items = await prisma.orderItem.findMany({
         where: {
+          orderId: { in: orderIds }, // ROLE FILTERING
           currentStage: targetStage,
           archivedAt: null
         },
@@ -695,14 +685,12 @@ export function createCycleTimeReportsRouter(prisma) {
       const now = new Date();
       const thresholds = getThresholdDays(targetStage);
       
-      // Categorize items by risk level
       let normalCount = 0;
       let warningCount = 0;
       let criticalCount = 0;
       
       const itemsWithTime = items
         .map(item => {
-          // Use status event time if available, otherwise use order's orderDate, then item createdAt
           const enteredAt = item.statusEvents.length > 0 
             ? item.statusEvents[0].createdAt 
             : (item.order.orderDate || item.createdAt);
@@ -711,7 +699,6 @@ export function createCycleTimeReportsRouter(prisma) {
           const timeInStageDays = (timeInStageSec / 86400).toFixed(1);
           const riskLevel = assessRiskLevel(targetStage, timeInStageSec);
           
-          // Count by risk level
           if (riskLevel === 'critical') criticalCount++;
           else if (riskLevel === 'warning') warningCount++;
           else normalCount++;
@@ -731,7 +718,6 @@ export function createCycleTimeReportsRouter(prisma) {
 
       const times = itemsWithTime.map(i => i.timeInStageSec);
       const stats = calculateStats(times);
-
       const paginated = paginateResults(itemsWithTime, filters.page, filters.pageSize);
 
       res.json({
@@ -741,7 +727,8 @@ export function createCycleTimeReportsRouter(prisma) {
             warningDays: thresholds.warning,
             criticalDays: thresholds.critical,
             note: 'Based on SMT manufacturing timeline document'
-          }
+          },
+          userRole: req.user?.role
         },
         kpis: {
           itemsInStage: itemsWithTime.length,
