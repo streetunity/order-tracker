@@ -1,18 +1,37 @@
 // api/src/routes/reportsOperational.js
 import { Router } from 'express';
+import { authGuard } from '../middleware/auth.js';
 import { STAGES } from '../state.js';
 
 export function createOperationalReportsRouter(prisma) {
   const router = Router();
 
+  // Helper to apply role-based filtering
+  function buildRoleBasedOrderWhere(user, additionalWhere = {}) {
+    const where = { ...additionalWhere };
+    if (user.role === 'AGENT') {
+      where.sku = user.name; // Filter by sales person matching agent's name
+    }
+    return where;
+  }
+
   /**
-   * Get items requiring action
-   * FIXED: Now uses item stages, not order stages
+   * Get items requiring action - ROLE-FILTERED
+   * FIXED: Now uses item stages, not order stages, and filters by agent
    */
-  router.get('/operational/action-required', async (req, res) => {
+  router.get('/operational/action-required', authGuard, async (req, res) => {
     try {
+      // First get order IDs that the user has access to
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
+
       const items = await prisma.orderItem.findMany({
         where: {
+          orderId: { in: orderIds }, // Only items from accessible orders
           archivedAt: null,
           OR: [
             { currentStage: 'MANUFACTURING' },
@@ -76,13 +95,22 @@ export function createOperationalReportsRouter(prisma) {
   });
 
   /**
-   * Get stage distribution - ITEMS by stage, not orders
-   * FIXED: Now counts items, not orders
+   * Get stage distribution - ITEMS by stage, not orders - ROLE-FILTERED
+   * FIXED: Now counts items, not orders, and filters by agent
    */
-  router.get('/operational/stage-distribution', async (req, res) => {
+  router.get('/operational/stage-distribution', authGuard, async (req, res) => {
     try {
+      // First get order IDs that the user has access to
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
+
       const items = await prisma.orderItem.findMany({
         where: {
+          orderId: { in: orderIds }, // Only items from accessible orders
           archivedAt: null
         },
         select: {
@@ -110,13 +138,22 @@ export function createOperationalReportsRouter(prisma) {
   });
 
   /**
-   * Get average completion time - based on ITEMS
-   * FIXED: Now tracks items through stages, not orders
+   * Get average completion time - based on ITEMS - ROLE-FILTERED
+   * FIXED: Now tracks items through stages, not orders, and filters by agent
    */
-  router.get('/operational/avg-completion-time', async (req, res) => {
+  router.get('/operational/avg-completion-time', authGuard, async (req, res) => {
     try {
+      // First get order IDs that the user has access to
+      const orderWhere = buildRoleBasedOrderWhere(req.user, {});
+      const accessibleOrders = await prisma.order.findMany({
+        where: orderWhere,
+        select: { id: true }
+      });
+      const orderIds = accessibleOrders.map(o => o.id);
+
       const completedItems = await prisma.orderItem.findMany({
         where: {
+          orderId: { in: orderIds }, // Only items from accessible orders
           OR: [
             { currentStage: 'DELIVERED' },
             { currentStage: 'ONSITE' },
@@ -170,7 +207,8 @@ export function createOperationalReportsRouter(prisma) {
         minDays: sortedTimes.length > 0 ? sortedTimes[0] : 0,
         maxDays: sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0,
         totalCompleted: completionTimes.length,
-        note: 'Calculated from order date to item delivery. Based on items, not orders.'
+        note: 'Calculated from order date to item delivery. Based on items, not orders. Filtered by user role.',
+        userRole: req.user?.role
       });
     } catch (error) {
       console.error('Avg completion time error:', error);
