@@ -27,7 +27,7 @@
   display: grid;
   grid-template-columns: 200px repeat(10, 1fr);
   gap: 0;
-  align-items: stretch; /* Changed from start to stretch */
+  align-items: stretch; /* All cells in a row stretch to match tallest cell */
   padding: 0;
   background: var(--bg);
   width: 100%;
@@ -122,13 +122,12 @@
 
 /* Stage columns & titles */
 .stageCol { 
-  min-height: 100px;
+  min-height: 80px; /* Reduced minimum for flexibility */
   background: transparent;
   padding: 0;
   border-right: 1px solid rgba(255,255,255,0.1);
-  display: flex; /* Add flex to contain items properly */
+  display: flex; /* Flex to contain items properly */
   flex-direction: column; /* Stack items vertically */
-  height: 100%; /* Take full height of grid cell */
 }
 
 /* Remove border from last column */
@@ -145,7 +144,7 @@
   text-transform: capitalize;
   padding: 8px 6px;
   width: 100%;
-  font-size: 12px; /* Slightly smaller for space */
+  font-size: 12px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.5);
   word-wrap: break-word;
   overflow-wrap: break-word;
@@ -160,19 +159,25 @@
   display: contents; 
 }
 
-/* Add stronger alternating row backgrounds with border separation */
+/* Strong alternating row backgrounds with thick left border */
 .customerRow:nth-child(even) .stageCol {
   background: var(--row-bg-even);
-  border-top: 1px solid rgba(59, 130, 246, 0.2);
+  border-top: 2px solid rgba(59, 130, 246, 0.3);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.3);
 }
 
 .customerRow:nth-child(odd) .stageCol {
   background: var(--row-bg-odd);
+  border-bottom: 1px solid var(--border);
 }
 
-/* Add bottom border to all customer row cells for clear separation */
-.customerRow .stageCol {
-  border-bottom: 1px solid var(--border);
+/* Enhanced customer header with thick colored left border */
+.customerRow:nth-child(even) .stickyCol {
+  border-left: 4px solid #3b82f6;
+}
+
+.customerRow:nth-child(odd) .stickyCol {
+  border-left: 4px solid #6b7280;
 }
 
 .customerHeader { 
@@ -180,33 +185,29 @@
   display: flex; 
   flex-direction: column; 
   gap: 6px;
-  min-height: 100px;
-  height: 100%; /* Take full height of grid cell */
+  min-height: 80px;
   position: relative;
 }
 
-/* Enhanced customer header with stronger background */
-.customerRow:nth-child(even) .stickyCol .customerHeader {
+/* Enhanced customer header backgrounds */
+.customerRow:nth-child(even) .customerHeader {
   background: rgba(30, 64, 175, 0.15);
-  border-left: 3px solid #3b82f6;
 }
 
-.customerRow:nth-child(odd) .stickyCol .customerHeader {
+.customerRow:nth-child(odd) .customerHeader {
   background: #1a1a1a;
-  border-left: 3px solid #4b5563;
 }
 
-/* Add visual indicator line connecting customer to their items */
-.stickyCol .customerHeader::after {
-  content: '';
+/* Add strong visual indicator arrow connecting customer to items */
+.customerHeader::after {
+  content: '▶';
   position: absolute;
-  right: 0;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  width: 8px;
-  height: 2px;
-  background: linear-gradient(to right, transparent, currentColor);
-  opacity: 0.3;
+  font-size: 14px;
+  color: currentColor;
+  opacity: 0.4;
 }
 
 .customerName { 
@@ -224,18 +225,16 @@
   opacity: .8; 
 }
 
-/* Container for items in each stage column - allows proper scrolling if needed */
+/* Container for items - allows flexible wrapping and growth */
 .itemsContainer {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px;
-  height: 100%;
-  overflow-y: auto; /* Allow vertical scroll if too many items */
-  overflow-x: hidden;
+  padding: 8px 6px;
+  flex: 1; /* Take available space */
 }
 
-/* Item cards - enhanced with better shadows and hover */
+/* Item cards - enhanced with strong colored left border matching row */
 .itemCard {
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -248,20 +247,21 @@
   flex-shrink: 0; /* Prevent cards from shrinking */
 }
 
-/* Add subtle left border to match customer rows */
+/* Strong colored left border on item cards to match customer row */
 .customerRow:nth-child(even) .itemCard {
-  border-left: 2px solid #3b82f6;
-  background: rgba(30, 64, 175, 0.05);
+  border-left: 4px solid #3b82f6;
+  background: rgba(30, 64, 175, 0.08);
 }
 
 .customerRow:nth-child(odd) .itemCard {
-  border-left: 2px solid #4b5563;
+  border-left: 4px solid #6b7280;
+  background: rgba(107, 114, 128, 0.05);
 }
 
 .itemCard:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,.4);
-  border-left-width: 3px;
+  border-left-width: 5px;
 }
 
 .itemCard.archived { 
@@ -364,11 +364,11 @@
   padding: 10px; 
   color: var(--text-dim); 
   text-align: center;
-  min-height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%; /* Take full height */
+  min-height: 80px;
+  flex: 1; /* Take available space to match other cells */
 }
 .errorBox { 
   color: #fecaca; 
@@ -396,10 +396,9 @@
   accent-color: var(--accent);
 }
 
-/* Stage column cells in customer rows - ensure consistent height */
+/* Stage column cells in customer rows - flexible height */
 .customerRow .stageCol:not(.stickyCol) {
-  min-height: 120px; /* Increased minimum height */
-  padding: 0; /* Remove padding, it's on itemsContainer now */
+  min-height: 80px; /* Reduced for flexibility */
 }
 
 /* Responsive adjustments */
