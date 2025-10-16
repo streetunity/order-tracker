@@ -27,7 +27,7 @@
   display: grid;
   grid-template-columns: 200px repeat(10, 1fr);
   gap: 0;
-  align-items: start;
+  align-items: stretch; /* Changed from start to stretch */
   padding: 0;
   background: var(--bg);
   width: 100%;
@@ -126,7 +126,9 @@
   background: transparent;
   padding: 0;
   border-right: 1px solid rgba(255,255,255,0.1);
-  overflow: hidden; /* Prevent content overflow */
+  display: flex; /* Add flex to contain items properly */
+  flex-direction: column; /* Stack items vertically */
+  height: 100%; /* Take full height of grid cell */
 }
 
 /* Remove border from last column */
@@ -179,6 +181,7 @@
   flex-direction: column; 
   gap: 6px;
   min-height: 100px;
+  height: 100%; /* Take full height of grid cell */
   position: relative;
 }
 
@@ -221,17 +224,28 @@
   opacity: .8; 
 }
 
+/* Container for items in each stage column - allows proper scrolling if needed */
+.itemsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  height: 100%;
+  overflow-y: auto; /* Allow vertical scroll if too many items */
+  overflow-x: hidden;
+}
+
 /* Item cards - enhanced with better shadows and hover */
 .itemCard {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
   padding: 6px;
-  margin: 6px;
   box-shadow: 0 2px 6px rgba(0,0,0,.3);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   font-size: 11px;
   position: relative;
+  flex-shrink: 0; /* Prevent cards from shrinking */
 }
 
 /* Add subtle left border to match customer rows */
@@ -354,6 +368,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%; /* Take full height */
 }
 .errorBox { 
   color: #fecaca; 
@@ -383,8 +398,8 @@
 
 /* Stage column cells in customer rows - ensure consistent height */
 .customerRow .stageCol:not(.stickyCol) {
-  min-height: 100px;
-  padding: 4px 0;
+  min-height: 120px; /* Increased minimum height */
+  padding: 0; /* Remove padding, it's on itemsContainer now */
 }
 
 /* Responsive adjustments */
