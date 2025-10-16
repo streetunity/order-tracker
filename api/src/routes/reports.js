@@ -8,19 +8,22 @@ import { getStageThreshold, assessRiskLevel } from '../config/stageThresholds.js
 export function createReportsRouter(prisma) {
   const router = Router();
 
+  // Helper to apply role-based filtering to order queries
   function buildRoleBasedOrderWhere(user, additionalWhere = {}) {
     const where = { ...additionalWhere };
     if (user.role === 'AGENT') {
-      where.sku = user.name;
+      where.sku = user.name; // Filter by sales person matching agent's name
     }
     return where;
   }
 
+  // Summary report - ROLE-FILTERED
   router.get('/summary', authGuard, async (req, res) => {
     try {
       const isAdmin = req.user?.role === 'ADMIN';
       const finalStage = STAGES[STAGES.length - 1];
       
+      // Apply role-based filtering
       const orderWhere = buildRoleBasedOrderWhere(req.user, {});
       const orderIds = await prisma.order.findMany({ where: orderWhere, select: { id: true } });
       const orderIdList = orderIds.map(o => o.id);
@@ -64,7 +67,8 @@ export function createReportsRouter(prisma) {
     }
   });
 
-  router.get('/sales-by-month', adminGuard, async (req, res) => {
+  // Sales by month - ROLE-FILTERED
+  router.get('/sales-by-month', authGuard, async (req, res) => {
     try {
       const now = new Date();
       const monthParam = req.query.month ? parseInt(String(req.query.month), 10) : (now.getMonth() + 1);
@@ -77,6 +81,8 @@ export function createReportsRouter(prisma) {
       const prevYear = monthParam === 1 ? (yearParam - 1) : yearParam;
       const prevStart = new Date(prevYear, prevMonth - 1, 1);
       const prevEnd = new Date(prevYear, prevMonth, 1);
+      
+      // Apply role-based filtering
       const orders = await prisma.order.findMany({
         where: buildRoleBasedOrderWhere(req.user, { orderDate: { gte: start, lt: end } }),
         include: { account: { select: { name: true } }, items: { select: { qty: true, itemPrice: true } } },
@@ -96,6 +102,8 @@ export function createReportsRouter(prisma) {
       const periodSubtotal = orderDetails.reduce((s, d) => s + d.subtotal, 0);
       const periodOrderCount = orderDetails.length;
       const periodItemCount = orderDetails.reduce((s, d) => s + d.itemCount, 0);
+      
+      // Apply role-based filtering to previous period
       const prevOrders = await prisma.order.findMany({
         where: buildRoleBasedOrderWhere(req.user, { orderDate: { gte: prevStart, lt: prevEnd } }),
         include: { items: { select: { qty: true, itemPrice: true } } }
@@ -120,7 +128,7 @@ export function createReportsRouter(prisma) {
         summary: { orderCount: periodOrderCount, itemCount: periodItemCount, subtotal: periodSubtotal, subtotalFormatted: formatCurrency(periodSubtotal) },
         comparison: { currentOrders: periodOrderCount, previousOrders: prevOrderCount, ordersChange: ordersChange, ordersChangePercent: ordersChangePct !== null ? (ordersChangePct * 100).toFixed(1) : 'N/A', currentRevenue: formatCurrency(periodSubtotal), previousRevenue: formatCurrency(prevSubtotal), revenueChange: deltaAbs, revenueChangeFormatted: formatCurrency(Math.abs(deltaAbs)), revenueChangePercent: deltaPct !== null ? (deltaPct * 100).toFixed(1) : 'N/A' },
         monthOverMonth: { prev: { month: prevMonth, year: prevYear, subtotal: prevSubtotal }, deltaAbs, deltaPct, deltaAbsFormatted: formatCurrency(Math.abs(deltaAbs)), deltaPctFormatted: deltaPct !== null ? `${(deltaPct * 100).toFixed(1)}%` : 'N/A' },
-        meta: { note: 'Sales data is based on orderDate (when order was placed)' }
+        meta: { note: 'Sales data is based on orderDate (when order was placed)', userRole: req.user?.role }
       });
     } catch (e) {
       console.error('sales-by-month error:', e);
@@ -128,14 +136,18 @@ export function createReportsRouter(prisma) {
     }
   });
 
-  router.get('/sales-by-rep', adminGuard, async (req, res) => {
+  // Sales by rep - ROLE-FILTERED
+  router.get('/sales-by-rep', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       filters.dateMode = 'order';
       const { monthly = 'false' } = req.query;
       const includeMonthly = monthly === 'true';
       const startTime = Date.now();
-      const whereOrder = buildWhereClause(filters, 'order');
+      
+      // Apply role-based filtering
+      const whereOrder = buildRoleBasedOrderWhere(req.user, buildWhereClause(filters, 'order'));
+      
       const orders = await prisma.order.findMany({ where: whereOrder, include: { items: { where: { itemPrice: { not: null }, ...(filters.productCodes.length > 0 ? { productCode: { in: filters.productCodes } } : {}) }, select: { itemPrice: true, productCode: true } }, account: { select: { name: true } } } });
       const repTotals = new Map();
       const repMonthly = new Map();
@@ -176,7 +188,7 @@ export function createReportsRouter(prisma) {
         });
       }
       const response = {
-        meta: { date_from: filters.dateFrom, date_to: filters.dateTo, date_mode: 'order', filtersApplied: { accountId: filters.accountId, stages: filters.stages, productCodes: filters.productCodes }, timezone: filters.timezone, note: 'Sales data is based on orderDate (when order was placed) and grouped by sales person (sku field)' },
+        meta: { date_from: filters.dateFrom, date_to: filters.dateTo, date_mode: 'order', filtersApplied: { accountId: filters.accountId, stages: filters.stages, productCodes: filters.productCodes }, timezone: filters.timezone, note: 'Sales data is based on orderDate (when order was placed) and grouped by sales person (sku field)', userRole: req.user?.role },
         kpis: { grandTotal, grandTotalFormatted: formatCurrency(grandTotal), repCount: rows.length, orderCount: orders.length },
         series: monthlySeries,
         rows: rows.map(r => ({ ...r, totalFormatted: formatCurrency(r.total), avgOrderValue: r.orderCount > 0 ? r.total / r.orderCount : 0, avgOrderValueFormatted: r.orderCount > 0 ? formatCurrency(r.total / r.orderCount) : '$0.00' })),
@@ -189,14 +201,18 @@ export function createReportsRouter(prisma) {
     }
   });
 
-  router.get('/sales-by-item', adminGuard, async (req, res) => {
+  // Sales by item - ROLE-FILTERED
+  router.get('/sales-by-item', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       filters.dateMode = 'order';
       const { topN = 10 } = req.query;
       const limit = parseInt(topN, 10);
       const startTime = Date.now();
+      
+      // Apply role-based filtering
       const whereOrder = buildRoleBasedOrderWhere(req.user, buildWhereClause(filters, 'order'));
+      
       const orders = await prisma.order.findMany({ where: whereOrder, include: { items: { where: { itemPrice: { not: null }, ...(filters.productCodes.length > 0 ? { productCode: { in: filters.productCodes } } : {}) }, select: { productCode: true, itemPrice: true, modelNumber: true, voltage: true, laserWattage: true } } } });
       const productTotals = new Map();
       let grandTotal = 0;
@@ -219,21 +235,25 @@ export function createReportsRouter(prisma) {
       const otherTotal = otherItems.reduce((sum, item) => sum + item.total, 0);
       const rows = topItems.map(item => ({ ...item, totalFormatted: formatCurrency(item.total), avgPriceFormatted: formatCurrency(item.avgPrice), percentOfTotal: ((item.total / grandTotal) * 100).toFixed(1) }));
       if (otherTotal > 0) rows.push({ productCode: 'OTHER', total: otherTotal, count: otherItems.reduce((sum, item) => sum + item.count, 0), avgPrice: otherTotal / otherItems.length, totalFormatted: formatCurrency(otherTotal), avgPriceFormatted: formatCurrency(otherTotal / otherItems.length), percentOfTotal: ((otherTotal / grandTotal) * 100).toFixed(1) });
-      res.json({ meta: { date_from: filters.dateFrom, date_to: filters.dateTo, date_mode: 'order', topN: limit, filtersApplied: { accountId: filters.accountId, stages: filters.stages }, note: 'Sales data is based on orderDate (when order was placed)' }, kpis: { grandTotal, grandTotalFormatted: formatCurrency(grandTotal), uniqueProducts: productTotals.size }, series: rows.slice(0, -1), rows, debug: req.query.debug === '1' ? { executionTimeMs: Date.now() - startTime } : undefined });
+      res.json({ meta: { date_from: filters.dateFrom, date_to: filters.dateTo, date_mode: 'order', topN: limit, filtersApplied: { accountId: filters.accountId, stages: filters.stages }, note: 'Sales data is based on orderDate (when order was placed)', userRole: req.user?.role }, kpis: { grandTotal, grandTotalFormatted: formatCurrency(grandTotal), uniqueProducts: productTotals.size }, series: rows.slice(0, -1), rows, debug: req.query.debug === '1' ? { executionTimeMs: Date.now() - startTime } : undefined });
     } catch (error) {
       console.error('Sales by item error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  router.get('/ovar', adminGuard, async (req, res) => {
+  // Orders at Value Risk (OVaR) - ROLE-FILTERED
+  router.get('/ovar', authGuard, async (req, res) => {
     try {
       const filters = parseReportFilters(req.query);
       const startTime = Date.now();
       const now = new Date();
       const finalStage = STAGES[STAGES.length - 1];
       const baseWhere = { currentStage: { not: finalStage }, ...(filters.accountId ? { accountId: filters.accountId } : {}), ...(filters.repId ? { createdByUserId: filters.repId } : {}), ...(filters.stages.length > 0 ? { currentStage: { in: filters.stages } } : {}) };
+      
+      // Apply role-based filtering
       const whereOrder = buildRoleBasedOrderWhere(req.user, baseWhere);
+      
       const orders = await prisma.order.findMany({ where: whereOrder, include: { items: { where: { itemPrice: { not: null } }, select: { itemPrice: true, currentStage: true } }, account: { select: { name: true } }, statusEvents: { orderBy: { createdAt: 'desc' }, take: 1 } } });
       let lateTotal = 0, criticalTotal = 0, warningTotal = 0;
       const lateOrders = [], criticalOrders = [], warningOrders = [];
@@ -260,7 +280,7 @@ export function createReportsRouter(prisma) {
       criticalOrders.sort((a, b) => b.value - a.value);
       warningOrders.sort((a, b) => b.value - a.value);
       const totalAtRisk = lateTotal + criticalTotal + warningTotal;
-      res.json({ meta: { note: 'Thresholds based on SMT manufacturing timeline document', filtersApplied: { accountId: filters.accountId, repId: filters.repId, stages: filters.stages } }, kpis: { totalAtRisk, totalAtRiskFormatted: formatCurrency(totalAtRisk), lateTotal, lateTotalFormatted: formatCurrency(lateTotal), lateCount: lateOrders.length, criticalTotal, criticalTotalFormatted: formatCurrency(criticalTotal), criticalCount: criticalOrders.length, warningTotal, warningTotalFormatted: formatCurrency(warningTotal), warningCount: warningOrders.length }, series: [{ category: 'Late (Past ETA)', value: lateTotal, count: lateOrders.length, severity: 'high' }, { category: 'Critical Aging', value: criticalTotal, count: criticalOrders.length, severity: 'high' }, { category: 'Warning Aging', value: warningTotal, count: warningOrders.length, severity: 'medium' }], rows: { late: lateOrders.slice(0, 20), critical: criticalOrders.slice(0, 20), warning: warningOrders.slice(0, 20) }, debug: req.query.debug === '1' ? { executionTimeMs: Date.now() - startTime } : undefined });
+      res.json({ meta: { note: 'Thresholds based on SMT manufacturing timeline document', filtersApplied: { accountId: filters.accountId, repId: filters.repId, stages: filters.stages }, userRole: req.user?.role }, kpis: { totalAtRisk, totalAtRiskFormatted: formatCurrency(totalAtRisk), lateTotal, lateTotalFormatted: formatCurrency(lateTotal), lateCount: lateOrders.length, criticalTotal, criticalTotalFormatted: formatCurrency(criticalTotal), criticalCount: criticalOrders.length, warningTotal, warningTotalFormatted: formatCurrency(warningTotal), warningCount: warningOrders.length }, series: [{ category: 'Late (Past ETA)', value: lateTotal, count: lateOrders.length, severity: 'high' }, { category: 'Critical Aging', value: criticalTotal, count: criticalOrders.length, severity: 'high' }, { category: 'Warning Aging', value: warningTotal, count: warningOrders.length, severity: 'medium' }], rows: { late: lateOrders.slice(0, 20), critical: criticalOrders.slice(0, 20), warning: warningOrders.slice(0, 20) }, debug: req.query.debug === '1' ? { executionTimeMs: Date.now() - startTime } : undefined });
     } catch (error) {
       console.error('OVaR error:', error);
       res.status(500).json({ error: error.message });
