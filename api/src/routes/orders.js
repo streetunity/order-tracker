@@ -13,7 +13,12 @@ export function createOrdersRouter() {
     
     // If user is an AGENT, only show orders where sku (sales person) matches their name
     if (user.role === 'AGENT') {
+      // CRITICAL: Filter to only show orders assigned to this agent
+      // Agent can only see orders where the sku field (sales person) matches their name exactly
       where.sku = user.name;
+      
+      // Log for debugging
+      console.log(`[AGENT FILTER] User: ${user.name}, Role: ${user.role}, Filtering orders by sku: ${user.name}`);
     }
     
     // ADMIN users see all orders (no additional filtering)
@@ -33,7 +38,13 @@ export function createOrdersRouter() {
     if (!order) return false;
     
     // Agent can only access if order's sales person matches their name
-    return order.sku === user.name;
+    const hasAccess = order.sku === user.name;
+    
+    if (!hasAccess) {
+      console.log(`[ACCESS DENIED] Agent ${user.name} tried to access order with sku: ${order.sku}`);
+    }
+    
+    return hasAccess;
   }
 
   // Helper to calculate ETA - should use actual settings from database
@@ -127,7 +138,7 @@ export function createOrdersRouter() {
         ];
       }
 
-      // Apply role-based filtering
+      // Apply role-based filtering - CRITICAL FOR AGENT SECURITY
       const where = buildRoleBasedWhere(req.user, baseWhere);
 
       const orders = await prisma.order.findMany({
@@ -143,13 +154,23 @@ export function createOrdersRouter() {
         orderBy: [{ createdAt: 'desc' }]
       });
 
-      res.json(orders);
+      // Additional safety check - filter out any orders that shouldn't be visible to agents
+      const filteredOrders = orders.filter(order => {
+        if (req.user.role === 'AGENT') {
+          return order.sku === req.user.name;
+        }
+        return true;
+      });
+
+      console.log(`[GET /orders] User: ${req.user.name} (${req.user.role}) - Returned ${filteredOrders.length} orders`);
+
+      res.json(filteredOrders);
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  // Get yearly total - ROLE-FILTERED
+  // Get yearly total - ADMIN ONLY
   router.get('/yearly-total', async (req, res) => {
     try {
       if (req.user.role !== 'ADMIN') {
