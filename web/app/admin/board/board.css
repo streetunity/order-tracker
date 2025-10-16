@@ -8,6 +8,8 @@
   --stage-gap: 12px;       /* space below header row */
   --board-lift: 0px;       /* removed the upward lift to fix sticky headers */
   --sticky-top: calc(var(--header-h) + var(--toolbar-h));
+  --row-bg-even: rgba(30, 64, 175, 0.08);  /* Subtle blue for even rows */
+  --row-bg-odd: transparent;                 /* Transparent for odd rows */
 }
 
 /* Main board container wrapper for proper sticky behavior */
@@ -156,9 +158,19 @@
   display: contents; 
 }
 
-/* Add alternating row backgrounds for better visibility */
+/* Add stronger alternating row backgrounds with border separation */
 .customerRow:nth-child(even) .stageCol {
-  background: rgba(255,255,255,0.02);
+  background: var(--row-bg-even);
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.customerRow:nth-child(odd) .stageCol {
+  background: var(--row-bg-odd);
+}
+
+/* Add bottom border to all customer row cells for clear separation */
+.customerRow .stageCol {
+  border-bottom: 1px solid var(--border);
 }
 
 .customerHeader { 
@@ -166,20 +178,41 @@
   display: flex; 
   flex-direction: column; 
   gap: 6px;
-  background: var(--panel);
   min-height: 100px;
-  border-bottom: 1px solid var(--border);
+  position: relative;
 }
 
-/* Ensure sticky customer column has solid background */
-.stickyCol .customerHeader {
-  background: #1a1a1a; /* Solid dark background */
+/* Enhanced customer header with stronger background */
+.customerRow:nth-child(even) .stickyCol .customerHeader {
+  background: rgba(30, 64, 175, 0.15);
+  border-left: 3px solid #3b82f6;
+}
+
+.customerRow:nth-child(odd) .stickyCol .customerHeader {
+  background: #1a1a1a;
+  border-left: 3px solid #4b5563;
+}
+
+/* Add visual indicator line connecting customer to their items */
+.stickyCol .customerHeader::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 2px;
+  background: linear-gradient(to right, transparent, currentColor);
+  opacity: 0.3;
 }
 
 .customerName { 
   font-weight: 600; 
-  color: var(--text); 
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.01em;
 }
+
 .publicLinks { 
   display: flex; 
   flex-wrap: wrap; 
@@ -188,21 +221,35 @@
   opacity: .8; 
 }
 
-/* Item cards - adjusted for smaller columns */
+/* Item cards - enhanced with better shadows and hover */
 .itemCard {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
   padding: 6px;
-  margin: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,.2);
-  transition: transform 0.2s, box-shadow 0.2s;
-  font-size: 11px; /* Smaller text for space */
+  margin: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  font-size: 11px;
+  position: relative;
 }
+
+/* Add subtle left border to match customer rows */
+.customerRow:nth-child(even) .itemCard {
+  border-left: 2px solid #3b82f6;
+  background: rgba(30, 64, 175, 0.05);
+}
+
+.customerRow:nth-child(odd) .itemCard {
+  border-left: 2px solid #4b5563;
+}
+
 .itemCard:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0,0,0,.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  border-left-width: 3px;
 }
+
 .itemCard.archived { 
   opacity: .5; 
   background: var(--muted); 
@@ -307,7 +354,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-bottom: 1px solid var(--border);
 }
 .errorBox { 
   color: #fecaca; 
@@ -335,10 +381,10 @@
   accent-color: var(--accent);
 }
 
-/* Stage column cells in customer rows */
+/* Stage column cells in customer rows - ensure consistent height */
 .customerRow .stageCol:not(.stickyCol) {
-  border-bottom: 1px solid var(--border);
   min-height: 100px;
+  padding: 4px 0;
 }
 
 /* Responsive adjustments */
