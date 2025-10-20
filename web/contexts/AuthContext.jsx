@@ -2,6 +2,13 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { 
+  isSuperAdmin, 
+  isAccountantOrHigher, 
+  isAdminOrHigher,
+  canEditRole,
+  canDeactivateUser 
+} from '../lib/roleUtils';
 
 const AuthContext = createContext({});
 
@@ -89,9 +96,25 @@ export function AuthProvider({ children }) {
     };
   };
 
-  // Check if user is admin
-  const isAdmin = user?.role === 'ADMIN';
+  // Role checking functions using the new hierarchy
+  const isSuperAdminUser = user ? isSuperAdmin(user.role) : false;
+  const isAccountantOrHigherUser = user ? isAccountantOrHigher(user.role) : false;
+  const isAdminOrHigherUser = user ? isAdminOrHigher(user.role) : false;
+  
+  // Legacy role checks for backward compatibility
+  const isAdmin = isAdminOrHigherUser; // Now includes ADMIN, ACCOUNTANT, and SUPER_ADMIN
   const isAgent = user?.role === 'AGENT';
+
+  // Permission checking functions
+  const canEditUser = (targetUserRole) => {
+    if (!user) return false;
+    return canEditRole(user.role, targetUserRole);
+  };
+
+  const canDeactivateUserCheck = (targetUserRole) => {
+    if (!user) return false;
+    return canDeactivateUser(user.role, targetUserRole);
+  };
 
   // Migration: Update old authToken to new token key
   useEffect(() => {
@@ -112,8 +135,16 @@ export function AuthProvider({ children }) {
     login,
     logout,
     getAuthHeaders,
+    // Legacy role checks (backward compatibility)
     isAdmin,
     isAgent,
+    // New role hierarchy checks
+    isSuperAdmin: isSuperAdminUser,
+    isAccountantOrHigher: isAccountantOrHigherUser,
+    isAdminOrHigher: isAdminOrHigherUser,
+    // Permission checking functions
+    canEditUser,
+    canDeactivateUser: canDeactivateUserCheck,
     token
   };
 
