@@ -45,10 +45,16 @@ export function getRoleDisplayName(role) {
 
 /**
  * Check if user can edit target user based on role hierarchy
+ * Super Admins can edit other Super Admins
  */
 export function canEditRole(userRole, targetRole) {
   const userLevel = getRoleLevel(userRole);
   const targetLevel = getRoleLevel(targetRole);
+  // Super Admins can edit users at their level or below
+  if (userRole === ROLES.SUPER_ADMIN) {
+    return userLevel >= targetLevel;
+  }
+  // Other roles can only edit users below them
   return userLevel > targetLevel;
 }
 
@@ -64,11 +70,16 @@ export function canCreateRole(userRole, targetRole) {
 
 /**
  * Check if user can deactivate target user
+ * Super Admins can deactivate other Super Admins
  */
 export function canDeactivateUser(userRole, targetRole) {
   const userLevel = getRoleLevel(userRole);
   const targetLevel = getRoleLevel(targetRole);
-  // Can only deactivate users with lower role level
+  // Super Admins can deactivate users at their level or below
+  if (userRole === ROLES.SUPER_ADMIN) {
+    return userLevel >= targetLevel;
+  }
+  // Other roles can only deactivate users below them
   return userLevel > targetLevel;
 }
 
