@@ -28,8 +28,8 @@ export default function NewOrderPage() {
       laserWattage: "", 
       notes: "",
       hasExtendedShipping: false, // NEW: Extended shipping flag
-      itemPrice: "", // NEW: Price field (admin-only)
-      privateItemNote: "" // NEW: Private purchasing notes (admin-only)
+      itemPrice: "", // Price field (visible to all users)
+      privateItemNote: "" // Private purchasing notes (admin-only)
     }],
   });
   const [loading, setLoading] = useState(false);
@@ -749,27 +749,59 @@ export default function NewOrderPage() {
                 </div>
               </div>
               
-              {/* Fourth row: Notes */}
-              <div style={{ marginBottom: "12px" }}>
-                <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                  Item Notes
-                </label>
-                <textarea
-                  value={item.notes}
-                  onChange={(e) => updateItem(index, "notes", e.target.value)}
-                  placeholder="Optional notes about this item"
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    border: "1px solid var(--border)",
-                    borderRadius: "6px",
-                    backgroundColor: "var(--input-bg)",
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    minHeight: "60px",
-                    resize: "vertical",
-                  }}
-                />
+              {/* Fourth row: Notes and Price */}
+              <div style={{
+                display: "flex",
+                gap: "12px",
+                marginBottom: "12px",
+                alignItems: "end",
+              }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
+                    Item Notes
+                  </label>
+                  <textarea
+                    value={item.notes}
+                    onChange={(e) => updateItem(index, "notes", e.target.value)}
+                    placeholder="Optional notes about this item"
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "6px",
+                      backgroundColor: "var(--input-bg)",
+                      color: "var(--text)",
+                      fontSize: "14px",
+                      minHeight: "60px",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+                
+                <div style={{ width: "130px" }}>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
+                    Price
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
+                    <input
+                      type="text"
+                      value={item.itemPrice}
+                      onChange={(e) => handlePriceChange(index, e.target.value)}
+                      placeholder="0.00"
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        border: "1px solid var(--border)",
+                        borderRadius: "6px",
+                        backgroundColor: "var(--input-bg)",
+                        color: "var(--text)",
+                        fontSize: "14px",
+                        textAlign: "right"
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
               
               {/* Extended Shipping Checkbox */}
@@ -810,7 +842,7 @@ export default function NewOrderPage() {
                 </div>
               </div>
               
-              {/* Admin-only fields: Price and Private Notes */}
+              {/* Admin-only field: Private Notes */}
               {isAdmin && (
                 <div style={{ 
                   marginBottom: "12px", 
@@ -820,53 +852,27 @@ export default function NewOrderPage() {
                   border: "1px solid var(--border)"
                 }}>
                   <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "8px", fontStyle: "italic" }}>
-                    Admin Only Fields
+                    Admin Only
                   </div>
-                  <div style={{ display: "flex", gap: "12px", alignItems: "end" }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                        Purchasing Notes (Private)
-                      </label>
-                      <input
-                        type="text"
-                        value={item.privateItemNote}
-                        onChange={(e) => updateItem(index, "privateItemNote", e.target.value)}
-                        placeholder="Private purchasing notes"
-                        style={{
-                          width: "100%",
-                          padding: "8px 12px",
-                          border: "1px solid var(--border)",
-                          borderRadius: "6px",
-                          backgroundColor: "var(--input-bg)",
-                          color: "var(--text)",
-                          fontSize: "14px",
-                        }}
-                      />
-                    </div>
-                    <div style={{ width: "130px" }}>
-                      <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
-                        Price
-                      </label>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
-                        <input
-                          type="text"
-                          value={item.itemPrice}
-                          onChange={(e) => handlePriceChange(index, e.target.value)}
-                          placeholder="0.00"
-                          style={{
-                            width: "100%",
-                            padding: "8px 12px",
-                            border: "1px solid var(--border)",
-                            borderRadius: "6px",
-                            backgroundColor: "var(--input-bg)",
-                            color: "var(--text)",
-                            fontSize: "14px",
-                            textAlign: "right"
-                          }}
-                        />
-                      </div>
-                    </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
+                      Purchasing Notes (Private)
+                    </label>
+                    <input
+                      type="text"
+                      value={item.privateItemNote}
+                      onChange={(e) => updateItem(index, "privateItemNote", e.target.value)}
+                      placeholder="Private purchasing notes"
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        border: "1px solid var(--border)",
+                        borderRadius: "6px",
+                        backgroundColor: "var(--input-bg)",
+                        color: "var(--text)",
+                        fontSize: "14px",
+                      }}
+                    />
                   </div>
                 </div>
               )}
