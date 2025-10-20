@@ -23,7 +23,17 @@ export default function NewOrderPage() {
 
   // Items to be added with the order
   const [items, setItems] = useState([
-    { description: "", itemPrice: "", privateItemNote: "" }
+    { 
+      name: "",
+      qty: "",
+      serialNumber: "",
+      modelNumber: "",
+      voltage: "",
+      power: "",
+      description: "",
+      itemPrice: "",
+      privateItemNote: ""
+    }
   ]);
 
   useEffect(() => {
@@ -93,7 +103,17 @@ export default function NewOrderPage() {
   }
 
   function addItem() {
-    setItems([...items, { description: "", itemPrice: "", privateItemNote: "" }]);
+    setItems([...items, { 
+      name: "",
+      qty: "",
+      serialNumber: "",
+      modelNumber: "",
+      voltage: "",
+      power: "",
+      description: "",
+      itemPrice: "",
+      privateItemNote: ""
+    }]);
   }
 
   function removeItem(index) {
@@ -121,10 +141,10 @@ export default function NewOrderPage() {
       return;
     }
 
-    // Validate that at least one item has a description
-    const validItems = items.filter(item => item.description.trim());
+    // Validate that at least one item has a name
+    const validItems = items.filter(item => item.name.trim());
     if (validItems.length === 0) {
-      setError("Please add at least one item with a description");
+      setError("Please add at least one item with a name");
       return;
     }
 
@@ -163,7 +183,13 @@ export default function NewOrderPage() {
           },
           body: JSON.stringify({
             orderId: order.id,
-            description: item.description.trim(),
+            name: item.name.trim(),
+            qty: item.qty.trim() || null,
+            serialNumber: item.serialNumber.trim() || null,
+            modelNumber: item.modelNumber.trim() || null,
+            voltage: item.voltage.trim() || null,
+            power: item.power.trim() || null,
+            description: item.description.trim() || null,
             itemPrice: item.itemPrice.trim() || null,
             privateItemNote: item.privateItemNote.trim() || null
           })
@@ -202,7 +228,7 @@ export default function NewOrderPage() {
   }
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: 16 }}>
+    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: 16 }}>
       <header className="header" style={{ position: "static", paddingLeft: 0, paddingRight: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1 className="h1">Add New Order</h1>
@@ -377,7 +403,7 @@ export default function NewOrderPage() {
                 marginBottom: "16px"
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                 <h3 style={{ fontSize: "14px", fontWeight: "600", color: "#e4e4e4" }}>
                   Item {index + 1}
                 </h3>
@@ -399,6 +425,7 @@ export default function NewOrderPage() {
                 )}
               </div>
 
+              {/* Row 1: Name and Qty */}
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px", marginBottom: "12px" }}>
                 <div>
                   <label style={{
@@ -408,18 +435,148 @@ export default function NewOrderPage() {
                     marginBottom: "6px",
                     color: "#e4e4e4"
                   }}>
-                    Description *
+                    Name *
                   </label>
                   <input
                     type="text"
                     className="input"
-                    value={item.description}
-                    onChange={(e) => updateItem(index, 'description', e.target.value)}
-                    placeholder="Enter item description"
+                    value={item.name}
+                    onChange={(e) => updateItem(index, 'name', e.target.value)}
+                    placeholder="Item name"
                     style={{ width: "100%" }}
                   />
                 </div>
 
+                <div>
+                  <label style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    marginBottom: "6px",
+                    color: "#e4e4e4"
+                  }}>
+                    Qty
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={item.qty}
+                    onChange={(e) => updateItem(index, 'qty', e.target.value)}
+                    placeholder="Quantity"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Serial # and Model # */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                <div>
+                  <label style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    marginBottom: "6px",
+                    color: "#e4e4e4"
+                  }}>
+                    Serial #
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={item.serialNumber}
+                    onChange={(e) => updateItem(index, 'serialNumber', e.target.value)}
+                    placeholder="Serial number"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    marginBottom: "6px",
+                    color: "#e4e4e4"
+                  }}>
+                    Model #
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={item.modelNumber}
+                    onChange={(e) => updateItem(index, 'modelNumber', e.target.value)}
+                    placeholder="Model number"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Voltage and Power */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                <div>
+                  <label style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    marginBottom: "6px",
+                    color: "#e4e4e4"
+                  }}>
+                    Voltage
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={item.voltage}
+                    onChange={(e) => updateItem(index, 'voltage', e.target.value)}
+                    placeholder="e.g., 120V"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    marginBottom: "6px",
+                    color: "#e4e4e4"
+                  }}>
+                    Power
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={item.power}
+                    onChange={(e) => updateItem(index, 'power', e.target.value)}
+                    placeholder="e.g., 1000W"
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Notes (Description) */}
+              <div style={{ marginBottom: "12px" }}>
+                <label style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  marginBottom: "6px",
+                  color: "#e4e4e4"
+                }}>
+                  Notes
+                </label>
+                <textarea
+                  className="input"
+                  value={item.description}
+                  onChange={(e) => updateItem(index, 'description', e.target.value)}
+                  placeholder="Additional notes or description"
+                  rows={2}
+                  style={{ width: "100%", resize: "vertical" }}
+                />
+              </div>
+
+              {/* Row 5: Price and Private Notes */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px" }}>
                 <div>
                   <label style={{
                     display: "block",
@@ -435,30 +592,30 @@ export default function NewOrderPage() {
                     className="input"
                     value={item.itemPrice}
                     onChange={(e) => updateItem(index, 'itemPrice', e.target.value)}
-                    placeholder="Optional"
+                    placeholder="Item price"
                     style={{ width: "100%" }}
                   />
                 </div>
-              </div>
 
-              <div>
-                <label style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  marginBottom: "6px",
-                  color: "#e4e4e4"
-                }}>
-                  Private Notes (internal only)
-                </label>
-                <textarea
-                  className="input"
-                  value={item.privateItemNote}
-                  onChange={(e) => updateItem(index, 'privateItemNote', e.target.value)}
-                  placeholder="Optional purchasing notes (not visible to customer)"
-                  rows={2}
-                  style={{ width: "100%", resize: "vertical" }}
-                />
+                <div>
+                  <label style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    marginBottom: "6px",
+                    color: "#e4e4e4"
+                  }}>
+                    Private Notes (internal only)
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={item.privateItemNote}
+                    onChange={(e) => updateItem(index, 'privateItemNote', e.target.value)}
+                    placeholder="Internal purchasing notes"
+                    style={{ width: "100%" }}
+                  />
+                </div>
               </div>
             </div>
           ))}
@@ -488,7 +645,7 @@ export default function NewOrderPage() {
         fontSize: "13px",
         color: "#a0a0a0"
       }}>
-        <strong style={{ color: "#e4e4e4" }}>Note:</strong> You can add multiple items with prices and notes before creating the order. After creating the order, you can still add more items or edit existing ones on the order details page.
+        <strong style={{ color: "#e4e4e4" }}>Note:</strong> You can add multiple items with all details before creating the order. After creating the order, you can still add more items or edit existing ones on the order details page.
       </div>
     </div>
   );
