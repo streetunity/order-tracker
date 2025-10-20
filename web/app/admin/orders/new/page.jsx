@@ -27,7 +27,9 @@ export default function NewOrderPage() {
       voltage: "", 
       laserWattage: "", 
       notes: "",
-      hasExtendedShipping: false // NEW: Extended shipping flag
+      hasExtendedShipping: false, // NEW: Extended shipping flag
+      itemPrice: "", // NEW: Price field (admin-only)
+      privateItemNote: "" // NEW: Private purchasing notes (admin-only)
     }],
   });
   const [loading, setLoading] = useState(false);
@@ -165,7 +167,12 @@ export default function NewOrderPage() {
       // If "Other" is selected, use the custom sales person value
       const submitData = {
         ...formData,
-        sku: showOtherInput ? customSalesPerson : formData.sku
+        sku: showOtherInput ? customSalesPerson : formData.sku,
+        // Process items to convert empty price strings to null
+        items: formData.items.map(item => ({
+          ...item,
+          itemPrice: item.itemPrice === "" ? null : item.itemPrice
+        }))
       };
 
       const res = await fetch("/api/orders", {
@@ -201,7 +208,9 @@ export default function NewOrderPage() {
         voltage: "", 
         laserWattage: "", 
         notes: "",
-        hasExtendedShipping: false 
+        hasExtendedShipping: false,
+        itemPrice: "",
+        privateItemNote: ""
       }],
     });
   }
@@ -219,6 +228,14 @@ export default function NewOrderPage() {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
     setFormData({ ...formData, items: newItems });
+  }
+
+  // Handle price change with validation
+  function handlePriceChange(index, value) {
+    // Allow empty string or valid decimal numbers with up to 2 decimal places
+    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+      updateItem(index, "itemPrice", value);
+    }
   }
 
   function selectCustomer(customer) {
@@ -792,6 +809,67 @@ export default function NewOrderPage() {
                   Check this if the item requires extended lead time (adds extra days to ETA)
                 </div>
               </div>
+              
+              {/* Admin-only fields: Price and Private Notes */}
+              {isAdmin && (
+                <div style={{ 
+                  marginBottom: "12px", 
+                  padding: "12px", 
+                  backgroundColor: "rgba(255, 255, 255, 0.02)",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border)"
+                }}>
+                  <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "8px", fontStyle: "italic" }}>
+                    Admin Only Fields
+                  </div>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "end" }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
+                        Purchasing Notes (Private)
+                      </label>
+                      <input
+                        type="text"
+                        value={item.privateItemNote}
+                        onChange={(e) => updateItem(index, "privateItemNote", e.target.value)}
+                        placeholder="Private purchasing notes"
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          border: "1px solid var(--border)",
+                          borderRadius: "6px",
+                          backgroundColor: "var(--input-bg)",
+                          color: "var(--text)",
+                          fontSize: "14px",
+                        }}
+                      />
+                    </div>
+                    <div style={{ width: "130px" }}>
+                      <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "var(--text-dim)" }}>
+                        Price
+                      </label>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
+                        <input
+                          type="text"
+                          value={item.itemPrice}
+                          onChange={(e) => handlePriceChange(index, e.target.value)}
+                          placeholder="0.00"
+                          style={{
+                            width: "100%",
+                            padding: "8px 12px",
+                            border: "1px solid var(--border)",
+                            borderRadius: "6px",
+                            backgroundColor: "var(--input-bg)",
+                            color: "var(--text)",
+                            fontSize: "14px",
+                            textAlign: "right"
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* Remove button */}
               {formData.items.length > 1 && (
