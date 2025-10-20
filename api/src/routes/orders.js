@@ -1,11 +1,8 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import { newTrackingToken } from '../state.js';
 import { isAdminOrHigher } from '../utils/roleHelpers.js';
 
-const prisma = new PrismaClient();
-
-export function createOrdersRouter() {
+export function createOrdersRouter(prisma) {
   const router = express.Router();
 
   // Helper to build role-based where clause for orders
@@ -334,6 +331,7 @@ export function createOrdersRouter() {
 
       res.status(201).json(order);
     } catch (e) {
+      console.error('Order creation error:', e);
       res.status(500).json({ error: e.message });
     }
   });
