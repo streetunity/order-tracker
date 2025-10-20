@@ -9,7 +9,7 @@ import {
   getAssignableRoles as getLocalAssignableRoles,
   canEditRole,
   canDeactivateUser 
-} from "../../lib/roleUtils";
+} from "../../../lib/roleUtils";
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
