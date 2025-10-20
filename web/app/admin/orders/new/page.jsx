@@ -161,6 +161,33 @@ export default function NewOrderPage() {
       return;
     }
 
+    // Validate required fields for each item
+    for (let i = 0; i < validItems.length; i++) {
+      const item = validItems[i];
+      const itemNum = items.indexOf(item) + 1;
+      
+      if (!item.qty || !item.qty.trim()) {
+        setError(`Item ${itemNum}: Quantity is required`);
+        return;
+      }
+      if (!item.modelNumber || !item.modelNumber.trim()) {
+        setError(`Item ${itemNum}: Model # is required`);
+        return;
+      }
+      if (!item.voltage || !item.voltage.trim()) {
+        setError(`Item ${itemNum}: Voltage is required`);
+        return;
+      }
+      if (!item.power || !item.power.trim()) {
+        setError(`Item ${itemNum}: Power is required`);
+        return;
+      }
+      if (!item.itemPrice || !item.itemPrice.trim()) {
+        setError(`Item ${itemNum}: Price is required`);
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       
@@ -193,11 +220,11 @@ export default function NewOrderPage() {
           productCode: item.name.trim(), // API expects productCode, not name
           qty: item.qty.trim() ? parseInt(item.qty.trim()) : 1,
           serialNumber: item.serialNumber.trim() || null,
-          modelNumber: item.modelNumber.trim() || null,
-          voltage: item.voltage.trim() || null,
-          laserWattage: item.power.trim() || null, // API expects laserWattage, not power
+          modelNumber: item.modelNumber.trim(),
+          voltage: item.voltage.trim(),
+          laserWattage: item.power.trim(), // API expects laserWattage, not power
           notes: item.notes.trim() || null,
-          itemPrice: item.itemPrice.trim() ? parseFloat(item.itemPrice.trim()) : null,
+          itemPrice: parseFloat(item.itemPrice.trim()),
           privateItemNote: item.privateItemNote.trim() || null,
           hasExtendedShipping: item.hasExtendedShipping || false
         };
@@ -496,7 +523,7 @@ export default function NewOrderPage() {
                     marginBottom: "6px",
                     color: "#e4e4e4"
                   }}>
-                    Qty
+                    Qty *
                   </label>
                   <input
                     type="text"
@@ -539,7 +566,7 @@ export default function NewOrderPage() {
                     marginBottom: "6px",
                     color: "#e4e4e4"
                   }}>
-                    Model #
+                    Model # *
                   </label>
                   <input
                     type="text"
@@ -562,7 +589,7 @@ export default function NewOrderPage() {
                     marginBottom: "6px",
                     color: "#e4e4e4"
                   }}>
-                    Voltage
+                    Voltage *
                   </label>
                   <input
                     type="text"
@@ -582,7 +609,7 @@ export default function NewOrderPage() {
                     marginBottom: "6px",
                     color: "#e4e4e4"
                   }}>
-                    Power
+                    Power *
                   </label>
                   <input
                     type="text"
@@ -626,7 +653,7 @@ export default function NewOrderPage() {
                     marginBottom: "6px",
                     color: "#e4e4e4"
                   }}>
-                    Price
+                    Price *
                   </label>
                   <input
                     type="text"
