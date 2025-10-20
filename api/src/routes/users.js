@@ -26,12 +26,34 @@ export function createUsersRouter() {
           name: true,
           role: true,
           isActive: true,
+          canBeSalesRep: true,
           lastLogin: true,
           createdAt: true
         },
         orderBy: { createdAt: 'desc' }
       });
       res.json(users);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Get sales reps only (for order form dropdown)
+  router.get('/sales-reps', async (req, res) => {
+    try {
+      const salesReps = await prisma.user.findMany({
+        where: {
+          isActive: true,
+          canBeSalesRep: true
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true
+        },
+        orderBy: { name: 'asc' }
+      });
+      res.json(salesReps);
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -48,6 +70,7 @@ export function createUsersRouter() {
           name: true,
           role: true,
           isActive: true,
+          canBeSalesRep: true,
           lastLogin: true,
           createdAt: true,
           updatedAt: true
@@ -87,7 +110,7 @@ export function createUsersRouter() {
         return res.status(403).json({ error: 'Admin access required' });
       }
 
-      const { email, name, password, role = 'AGENT' } = req.body;
+      const { email, name, password, role = 'AGENT', canBeSalesRep = true } = req.body;
       
       if (!email || !name || !password) {
         return res.status(400).json({ error: 'Email, name, and password are required' });
@@ -132,7 +155,8 @@ export function createUsersRouter() {
             name,
             password: hashedPassword,
             role: targetRole,
-            isActive: true
+            isActive: true,
+            canBeSalesRep: canBeSalesRep
           },
           select: {
             id: true,
@@ -140,6 +164,7 @@ export function createUsersRouter() {
             name: true,
             role: true,
             isActive: true,
+            canBeSalesRep: true,
             createdAt: true
           }
         });
@@ -155,7 +180,8 @@ export function createUsersRouter() {
               data: {
                 email: newUser.email,
                 name: newUser.name,
-                role: newUser.role
+                role: newUser.role,
+                canBeSalesRep: newUser.canBeSalesRep
               }
             }),
             performedByUserId: req.user.id,
@@ -197,7 +223,7 @@ export function createUsersRouter() {
         });
       }
       
-      const { name, email, role, isActive, password } = req.body;
+      const { name, email, role, isActive, canBeSalesRep, password } = req.body;
       const data = {};
       const changes = [];
       
@@ -216,6 +242,16 @@ export function createUsersRouter() {
           field: 'email',
           oldValue: original.email,
           newValue: data.email
+        });
+      }
+      
+      // Handle canBeSalesRep changes
+      if (canBeSalesRep !== undefined && canBeSalesRep !== original.canBeSalesRep) {
+        data.canBeSalesRep = canBeSalesRep;
+        changes.push({
+          field: 'canBeSalesRep',
+          oldValue: String(original.canBeSalesRep),
+          newValue: String(canBeSalesRep)
         });
       }
       
@@ -298,6 +334,7 @@ export function createUsersRouter() {
             name: true,
             role: true,
             isActive: true,
+            canBeSalesRep: true,
             updatedAt: true
           }
         });
