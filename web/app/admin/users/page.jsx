@@ -6,7 +6,7 @@ import Link from "next/link";
 import { 
   getRoleDisplayName, 
   getRoleBadgeColor,
-  getAssignableRoles,
+  getAssignableRoles as getLocalAssignableRoles,
   canEditRole,
   canDeactivateUser 
 } from "../../lib/roleUtils";
@@ -40,8 +40,17 @@ export default function UsersPage() {
     try {
       const user = JSON.parse(storedUser);
       setCurrentUser(user);
+      
+      // Set fallback roles immediately from local utility
+      const localRoles = getLocalAssignableRoles(user.role);
+      const rolesWithLabels = localRoles.map(role => ({
+        value: role,
+        label: getRoleDisplayName(role)
+      }));
+      setAssignableRoles(rolesWithLabels);
+      
       loadUsers();
-      loadAssignableRoles();
+      loadAssignableRoles(); // Try to get from API as well
     } catch (e) {
       console.error('Failed to parse user:', e);
       router.push('/login');
@@ -87,9 +96,13 @@ export default function UsersPage() {
       if (res.ok) {
         const roles = await res.json();
         setAssignableRoles(roles);
+      } else {
+        // Fallback already set in useEffect
+        console.log('Using local role utility for assignable roles');
       }
     } catch (e) {
-      console.error('Failed to load assignable roles:', e);
+      console.error('Failed to load assignable roles from API:', e);
+      // Fallback already set in useEffect
     }
   }
 
@@ -791,11 +804,21 @@ export default function UsersPage() {
                     opacity: (editingUser && currentUser?.id === editingUser.id) ? 0.6 : 1
                   }}
                 >
-                  {assignableRoles.map(role => (
-                    <option key={role.value} value={role.value}>
-                      {role.label}
-                    </option>
-                  ))}
+                  {assignableRoles.length > 0 ? (
+                    assignableRoles.map(role => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))
+                  ) : (
+                    // Fallback if assignableRoles is empty
+                    <>
+                      <option value="AGENT">Agent</option>
+                      <option value="ADMIN">Admin</option>
+                      <option value="ACCOUNTANT">Accountant</option>
+                      <option value="SUPER_ADMIN">Super Admin</option>
+                    </>
+                  )}
                 </select>
                 {editingUser && currentUser?.id === editingUser.id && (
                   <div style={{ 
