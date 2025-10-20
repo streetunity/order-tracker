@@ -3,13 +3,22 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { 
+  getRoleDisplayName, 
+  getRoleBadgeColor,
+  getAssignableRoles,
+  canEditRole,
+  canDeactivateUser 
+} from "../../lib/roleUtils";
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInactive, setShowInactive] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [assignableRoles, setAssignableRoles] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -21,11 +30,22 @@ export default function UsersPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
+    const storedUser = localStorage.getItem('user');
+    
+    if (!token || !storedUser) {
       router.push('/login');
       return;
     }
-    loadUsers();
+    
+    try {
+      const user = JSON.parse(storedUser);
+      setCurrentUser(user);
+      loadUsers();
+      loadAssignableRoles();
+    } catch (e) {
+      console.error('Failed to parse user:', e);
+      router.push('/login');
+    }
   }, []);
 
   async function loadUsers() {
@@ -55,6 +75,24 @@ export default function UsersPage() {
     }
   }
 
+  async function loadAssignableRoles() {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/users/roles/assignable', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (res.ok) {
+        const roles = await res.json();
+        setAssignableRoles(roles);
+      }
+    } catch (e) {
+      console.error('Failed to load assignable roles:', e);
+    }
+  }
+
   // Filter users based on showInactive toggle
   const filteredUsers = useMemo(() => {
     if (showInactive) {
@@ -62,6 +100,23 @@ export default function UsersPage() {
     }
     return users.filter(user => user.isActive); // Only show active users
   }, [users, showInactive]);
+
+  // Check if current user can perform actions on target user
+  const canEdit = (targetUser) => {
+    if (!currentUser) return false;
+    // Users can always edit themselves (name, email, password)
+    if (currentUser.id === targetUser.id) return true;
+    // Otherwise check role hierarchy
+    return canEditRole(currentUser.role, targetUser.role);
+  };
+
+  const canDeactivate = (targetUser) => {
+    if (!currentUser) return false;
+    // Cannot deactivate yourself
+    if (currentUser.id === targetUser.id) return false;
+    // Check role hierarchy
+    return canDeactivateUser(currentUser.role, targetUser.role);
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -104,6 +159,12 @@ export default function UsersPage() {
   }
 
   async function toggleUserStatus(user) {
+    // Check permission before allowing toggle
+    if (!canDeactivate(user) && user.isActive) {
+      setError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`);
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/users/${user.id}`, {
@@ -115,38 +176,48 @@ export default function UsersPage() {
         body: JSON.stringify({ isActive: !user.isActive })
       });
       
+      const data = await res.json();
+      
       if (!res.ok) {
-        throw new Error('Failed to update user status');
+        throw new Error(data.error || 'Failed to update user status');
       }
       
       await loadUsers();
     } catch (e) {
       console.error('Failed to toggle user status:', e);
-      setError('Failed to update user status');
+      setError(e.message || 'Failed to update user status');
     }
   }
 
-  async function deleteUser(userId) {
-    if (!confirm('Are you sure you want to deactivate this user?')) return;
+  async function deactivateUser(user) {
+    if (!canDeactivate(user)) {
+      setError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to deactivate ${user.name}?`)) return;
     
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ isActive: false })
       });
       
+      const data = await res.json();
+      
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to delete user');
+        throw new Error(data.error || 'Failed to deactivate user');
       }
       
       await loadUsers();
     } catch (e) {
-      console.error('Failed to delete user:', e);
-      alert(e.message);
+      console.error('Failed to deactivate user:', e);
+      setError(e.message || 'Failed to deactivate user');
     }
   }
 
@@ -155,7 +226,7 @@ export default function UsersPage() {
       name: '',
       email: '',
       password: '',
-      role: 'AGENT'
+      role: assignableRoles.length > 0 ? assignableRoles[assignableRoles.length - 1].value : 'AGENT'
     });
     setEditingUser(null);
     setError('');
@@ -163,6 +234,12 @@ export default function UsersPage() {
   }
 
   function openEditModal(user) {
+    // Check if user can be edited
+    if (!canEdit(user)) {
+      setError(`You cannot edit users with role ${getRoleDisplayName(user.role)}`);
+      return;
+    }
+
     setFormData({
       name: user.name,
       email: user.email,
@@ -213,6 +290,11 @@ export default function UsersPage() {
 
   // Count inactive users
   const inactiveCount = users.filter(u => !u.isActive).length;
+
+  // Get assignable role names for display
+  const assignableRoleNames = assignableRoles
+    .map(r => r.label)
+    .join(', ');
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: 16 }}>
@@ -281,6 +363,19 @@ export default function UsersPage() {
           color: "#fecaca"
         }}>
           {error}
+          <button
+            onClick={() => setError('')}
+            style={{
+              float: 'right',
+              background: 'none',
+              border: 'none',
+              color: '#fecaca',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -393,120 +488,152 @@ export default function UsersPage() {
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((user, index) => (
-                <tr key={user.id} style={{
-                  borderBottom: index < filteredUsers.length - 1 ? "1px solid #404040" : "none",
-                  opacity: !user.isActive ? 0.6 : 1
-                }}>
-                  <td style={{
-                    padding: "16px",
-                    color: "#e4e4e4",
-                    fontSize: "14px",
-                    fontWeight: "500"
+              filteredUsers.map((user, index) => {
+                const roleBadge = getRoleBadgeColor(user.role);
+                const canEditThisUser = canEdit(user);
+                const canDeactivateThisUser = canDeactivate(user);
+                const isSelf = currentUser?.id === user.id;
+
+                return (
+                  <tr key={user.id} style={{
+                    borderBottom: index < filteredUsers.length - 1 ? "1px solid #404040" : "none",
+                    opacity: !user.isActive ? 0.6 : 1
                   }}>
-                    {user.name}
-                    {!user.isActive && (
-                      <span style={{
-                        marginLeft: "8px",
-                        fontSize: "11px",
-                        color: "#f87171",
-                        fontWeight: "normal"
-                      }}>
-                        (Inactive)
-                      </span>
-                    )}
-                  </td>
-                  <td style={{
-                    padding: "16px",
-                    color: "#a0a0a0",
-                    fontSize: "14px"
-                  }}>
-                    {user.email}
-                  </td>
-                  <td style={{
-                    padding: "16px",
-                    fontSize: "14px"
-                  }}>
-                    <span style={{
-                      padding: "4px 8px",
-                      borderRadius: "9999px",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      backgroundColor: user.role === 'ADMIN' ? "#581c87" : "#404040",
-                      color: user.role === 'ADMIN' ? "#e9d5ff" : "#e4e4e4"
+                    <td style={{
+                      padding: "16px",
+                      color: "#e4e4e4",
+                      fontSize: "14px",
+                      fontWeight: "500"
                     }}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td style={{
-                    padding: "16px",
-                    fontSize: "14px"
-                  }}>
-                    <button
-                      onClick={() => toggleUserStatus(user)}
-                      style={{
+                      {user.name}
+                      {isSelf && (
+                        <span style={{
+                          marginLeft: "8px",
+                          fontSize: "11px",
+                          color: "#60a5fa",
+                          fontWeight: "normal"
+                        }}>
+                          (You)
+                        </span>
+                      )}
+                      {!user.isActive && (
+                        <span style={{
+                          marginLeft: "8px",
+                          fontSize: "11px",
+                          color: "#f87171",
+                          fontWeight: "normal"
+                        }}>
+                          (Inactive)
+                        </span>
+                      )}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      color: "#a0a0a0",
+                      fontSize: "14px"
+                    }}>
+                      {user.email}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      fontSize: "14px"
+                    }}>
+                      <span style={{
                         padding: "4px 8px",
                         borderRadius: "9999px",
                         fontSize: "12px",
                         fontWeight: "600",
-                        backgroundColor: user.isActive ? "#14532d" : "#7f1d1d",
-                        color: user.isActive ? "#86efac" : "#fecaca",
-                        border: "none",
-                        cursor: "pointer"
-                      }}
-                      title={user.isActive ? 'Click to deactivate' : 'Click to reactivate'}
-                    >
-                      {user.isActive ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td style={{
-                    padding: "16px",
-                    color: "#a0a0a0",
-                    fontSize: "14px"
-                  }}>
-                    {formatDate(user.lastLogin)}
-                  </td>
-                  <td style={{
-                    padding: "16px",
-                    color: "#a0a0a0",
-                    fontSize: "14px"
-                  }}>
-                    {formatDate(user.createdAt)}
-                  </td>
-                  <td style={{
-                    padding: "16px",
-                    textAlign: "right",
-                    fontSize: "14px"
-                  }}>
-                    <button
-                      onClick={() => openEditModal(user)}
-                      style={{
-                        color: "#60a5fa",
-                        marginRight: "12px",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        textDecoration: "underline"
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteUser(user.id)}
-                      style={{
-                        color: "#f87171",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        textDecoration: "underline"
-                      }}
-                      title={user.isActive ? 'Deactivate user' : 'User already inactive'}
-                    >
-                      {user.isActive ? 'Deactivate' : 'Inactive'}
-                    </button>
-                  </td>
-                </tr>
-              ))
+                        backgroundColor: roleBadge.bg,
+                        color: roleBadge.text
+                      }}>
+                        {getRoleDisplayName(user.role)}
+                      </span>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      fontSize: "14px"
+                    }}>
+                      <button
+                        onClick={() => toggleUserStatus(user)}
+                        disabled={user.isActive && !canDeactivateThisUser}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: "9999px",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          backgroundColor: user.isActive ? "#14532d" : "#7f1d1d",
+                          color: user.isActive ? "#86efac" : "#fecaca",
+                          border: "none",
+                          cursor: (user.isActive && !canDeactivateThisUser) ? "not-allowed" : "pointer",
+                          opacity: (user.isActive && !canDeactivateThisUser) ? 0.5 : 1
+                        }}
+                        title={
+                          user.isActive 
+                            ? (canDeactivateThisUser ? 'Click to deactivate' : 'Insufficient permissions')
+                            : 'Click to reactivate'
+                        }
+                      >
+                        {user.isActive ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      color: "#a0a0a0",
+                      fontSize: "14px"
+                    }}>
+                      {formatDate(user.lastLogin)}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      color: "#a0a0a0",
+                      fontSize: "14px"
+                    }}>
+                      {formatDate(user.createdAt)}
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      textAlign: "right",
+                      fontSize: "14px"
+                    }}>
+                      <button
+                        onClick={() => openEditModal(user)}
+                        disabled={!canEditThisUser}
+                        style={{
+                          color: canEditThisUser ? "#60a5fa" : "#6b7280",
+                          marginRight: "12px",
+                          background: "none",
+                          border: "none",
+                          cursor: canEditThisUser ? "pointer" : "not-allowed",
+                          textDecoration: canEditThisUser ? "underline" : "none",
+                          opacity: canEditThisUser ? 1 : 0.5
+                        }}
+                        title={canEditThisUser ? 'Edit user' : 'Insufficient permissions'}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deactivateUser(user)}
+                        disabled={!canDeactivateThisUser || !user.isActive}
+                        style={{
+                          color: (canDeactivateThisUser && user.isActive) ? "#f87171" : "#6b7280",
+                          background: "none",
+                          border: "none",
+                          cursor: (canDeactivateThisUser && user.isActive) ? "pointer" : "not-allowed",
+                          textDecoration: (canDeactivateThisUser && user.isActive) ? "underline" : "none",
+                          opacity: (canDeactivateThisUser && user.isActive) ? 1 : 0.5
+                        }}
+                        title={
+                          !user.isActive 
+                            ? 'User already inactive' 
+                            : (canDeactivateThisUser ? 'Deactivate user' : 'Insufficient permissions')
+                        }
+                      >
+                        {user.isActive ? 'Deactivate' : 'Inactive'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -521,7 +648,8 @@ export default function UsersPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "16px"
+          padding: "16px",
+          zIndex: 1000
         }}>
           <div style={{
             backgroundColor: "#2d2d2d",
@@ -650,6 +778,7 @@ export default function UsersPage() {
                 <select
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  disabled={editingUser && currentUser?.id === editingUser.id}
                   style={{
                     width: "100%",
                     padding: "8px 12px",
@@ -657,12 +786,35 @@ export default function UsersPage() {
                     borderRadius: "4px",
                     backgroundColor: "#383838",
                     color: "#e4e4e4",
-                    fontSize: "14px"
+                    fontSize: "14px",
+                    cursor: (editingUser && currentUser?.id === editingUser.id) ? "not-allowed" : "pointer",
+                    opacity: (editingUser && currentUser?.id === editingUser.id) ? 0.6 : 1
                   }}
                 >
-                  <option value="AGENT">Agent</option>
-                  <option value="ADMIN">Admin</option>
+                  {assignableRoles.map(role => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
                 </select>
+                {editingUser && currentUser?.id === editingUser.id && (
+                  <div style={{ 
+                    marginTop: "4px", 
+                    fontSize: "12px", 
+                    color: "#a0a0a0" 
+                  }}>
+                    You cannot change your own role
+                  </div>
+                )}
+                {assignableRoles.length > 0 && !(editingUser && currentUser?.id === editingUser.id) && (
+                  <div style={{ 
+                    marginTop: "4px", 
+                    fontSize: "12px", 
+                    color: "#a0a0a0" 
+                  }}>
+                    You can assign: {assignableRoleNames}
+                  </div>
+                )}
               </div>
               
               <div style={{
