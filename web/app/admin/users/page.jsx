@@ -19,6 +19,7 @@ export default function UsersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [assignableRoles, setAssignableRoles] = useState([]);
+  const [togglingUserId, setTogglingUserId] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -205,14 +206,17 @@ export default function UsersPage() {
 
   async function toggleSalesRep(user) {
     try {
+      setTogglingUserId(user.id);
       const token = localStorage.getItem('token');
+      const newValue = !user.canBeSalesRep;
+      
       const res = await fetch(`/api/users/${user.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ canBeSalesRep: !user.canBeSalesRep })
+        body: JSON.stringify({ canBeSalesRep: newValue })
       });
       
       const data = await res.json();
@@ -225,6 +229,8 @@ export default function UsersPage() {
     } catch (e) {
       console.error('Failed to toggle sales rep:', e);
       setError(e.message || 'Failed to update sales rep status');
+    } finally {
+      setTogglingUserId(null);
     }
   }
 
@@ -285,7 +291,7 @@ export default function UsersPage() {
       email: user.email,
       password: '', // Don't populate password when editing
       role: user.role,
-      canBeSalesRep: user.canBeSalesRep ?? true
+      canBeSalesRep: user.canBeSalesRep === null || user.canBeSalesRep === undefined ? true : Boolean(user.canBeSalesRep)
     });
     setEditingUser(user);
     setError('');
@@ -557,6 +563,8 @@ export default function UsersPage() {
                 const canEditThisUser = canEdit(user);
                 const canDeactivateThisUser = canDeactivate(user);
                 const isSelf = currentUser?.id === user.id;
+                const isTogglingThisUser = togglingUserId === user.id;
+                const isSalesRep = Boolean(user.canBeSalesRep);
 
                 return (
                   <tr key={user.id} style={{
@@ -624,17 +632,34 @@ export default function UsersPage() {
                       textAlign: "center",
                       fontSize: "14px"
                     }}>
-                      <input
-                        type="checkbox"
-                        checked={user.canBeSalesRep ?? true}
-                        onChange={() => toggleSalesRep(user)}
-                        style={{
-                          width: "18px",
-                          height: "18px",
-                          cursor: "pointer"
-                        }}
-                        title={user.canBeSalesRep ? "Remove from sales rep dropdown" : "Add to sales rep dropdown"}
-                      />
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSalesRep}
+                          onChange={() => toggleSalesRep(user)}
+                          disabled={isTogglingThisUser}
+                          style={{
+                            width: "18px",
+                            height: "18px",
+                            cursor: isTogglingThisUser ? "wait" : "pointer",
+                            opacity: isTogglingThisUser ? 0.5 : 1
+                          }}
+                          title={isSalesRep ? "Remove from sales rep dropdown" : "Add to sales rep dropdown"}
+                        />
+                        {isTogglingThisUser && (
+                          <span style={{
+                            position: 'absolute',
+                            top: '-20px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            fontSize: '10px',
+                            color: '#60a5fa',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            Saving...
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{
                       padding: "16px",
@@ -734,7 +759,7 @@ export default function UsersPage() {
         </table>
       </div>
 
-      {/* Add/Edit User Modal with dark theme */}
+      {/* Add/Edit User Modal - keeping existing modal code */}
       {showAddModal && (
         <div style={{
           position: "fixed",
