@@ -23,7 +23,8 @@ export default function UsersPage() {
     name: '',
     email: '',
     password: '',
-    role: 'AGENT'
+    role: 'AGENT',
+    canBeSalesRep: true
   });
   const [error, setError] = useState('');
   const router = useRouter();
@@ -202,6 +203,31 @@ export default function UsersPage() {
     }
   }
 
+  async function toggleSalesRep(user) {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ canBeSalesRep: !user.canBeSalesRep })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update sales rep status');
+      }
+      
+      await loadUsers();
+    } catch (e) {
+      console.error('Failed to toggle sales rep:', e);
+      setError(e.message || 'Failed to update sales rep status');
+    }
+  }
+
   async function deactivateUser(user) {
     if (!canDeactivate(user)) {
       setError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`);
@@ -239,7 +265,8 @@ export default function UsersPage() {
       name: '',
       email: '',
       password: '',
-      role: assignableRoles.length > 0 ? assignableRoles[assignableRoles.length - 1].value : 'AGENT'
+      role: assignableRoles.length > 0 ? assignableRoles[assignableRoles.length - 1].value : 'AGENT',
+      canBeSalesRep: true
     });
     setEditingUser(null);
     setError('');
@@ -257,7 +284,8 @@ export default function UsersPage() {
       name: user.name,
       email: user.email,
       password: '', // Don't populate password when editing
-      role: user.role
+      role: user.role,
+      canBeSalesRep: user.canBeSalesRep ?? true
     });
     setEditingUser(user);
     setError('');
@@ -271,7 +299,8 @@ export default function UsersPage() {
       name: '',
       email: '',
       password: '',
-      role: 'AGENT'
+      role: 'AGENT',
+      canBeSalesRep: true
     });
     setError('');
   }
@@ -440,6 +469,18 @@ export default function UsersPage() {
               </th>
               <th style={{
                 padding: "12px 16px",
+                textAlign: "center",
+                fontSize: "12px",
+                fontWeight: "500",
+                color: "#a0a0a0",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                borderBottom: "1px solid #404040"
+              }}>
+                Sales Rep
+              </th>
+              <th style={{
+                padding: "12px 16px",
                 textAlign: "left",
                 fontSize: "12px",
                 fontWeight: "500",
@@ -491,7 +532,7 @@ export default function UsersPage() {
           <tbody>
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan="7" style={{
+                <td colSpan="8" style={{
                   padding: "32px",
                   textAlign: "center",
                   color: "#a0a0a0",
@@ -561,6 +602,23 @@ export default function UsersPage() {
                       }}>
                         {getRoleDisplayName(user.role)}
                       </span>
+                    </td>
+                    <td style={{
+                      padding: "16px",
+                      textAlign: "center",
+                      fontSize: "14px"
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={user.canBeSalesRep ?? true}
+                        onChange={() => toggleSalesRep(user)}
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          cursor: "pointer"
+                        }}
+                        title={user.canBeSalesRep ? "Remove from sales rep dropdown" : "Add to sales rep dropdown"}
+                      />
                     </td>
                     <td style={{
                       padding: "16px",
@@ -838,6 +896,38 @@ export default function UsersPage() {
                     You can assign: {assignableRoleNames}
                   </div>
                 )}
+              </div>
+              
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#e4e4e4",
+                  cursor: "pointer"
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.canBeSalesRep}
+                    onChange={(e) => setFormData({ ...formData, canBeSalesRep: e.target.checked })}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      cursor: "pointer"
+                    }}
+                  />
+                  Show in Sales Rep dropdown
+                </label>
+                <div style={{ 
+                  marginTop: "4px", 
+                  marginLeft: "24px",
+                  fontSize: "12px", 
+                  color: "#a0a0a0" 
+                }}>
+                  When checked, this user will appear as an option in the "Sales Person" field when adding/editing orders
+                </div>
               </div>
               
               <div style={{
