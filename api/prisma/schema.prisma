@@ -162,8 +162,9 @@ model User {
   email             String                  @unique
   password          String
   name              String
-  role              String                  @default("AGENT") // "ADMIN" or "AGENT"
+  role              String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", or "AGENT"
   isActive          Boolean                 @default(true)
+  canBeSalesRep     Boolean                 @default(true)  // NEW: Whether user appears in sales rep dropdown
   lastLogin         DateTime?
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
