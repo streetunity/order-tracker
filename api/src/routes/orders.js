@@ -1,6 +1,7 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { newTrackingToken } from '../state.js';
+import { isAdminOrHigher } from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
 
@@ -21,14 +22,15 @@ export function createOrdersRouter() {
       console.log(`[AGENT FILTER] User: ${user.name}, Role: ${user.role}, Filtering orders by sku: ${user.name}`);
     }
     
-    // ADMIN users see all orders (no additional filtering)
+    // ADMIN and higher users see all orders (no additional filtering)
     
     return where;
   }
 
   // Helper to check if user can access specific order
   async function canAccessOrder(user, orderId) {
-    if (user.role === 'ADMIN') return true;
+    // Admins and higher can access all orders
+    if (isAdminOrHigher(user.role)) return true;
     
     const order = await prisma.order.findUnique({
       where: { id: orderId },
