@@ -30,9 +30,10 @@ export default function NewOrderPage() {
       modelNumber: "",
       voltage: "",
       power: "",
-      description: "",
+      notes: "",
       itemPrice: "",
-      privateItemNote: ""
+      privateItemNote: "",
+      hasExtendedShipping: false
     }
   ]);
 
@@ -110,9 +111,10 @@ export default function NewOrderPage() {
       modelNumber: "",
       voltage: "",
       power: "",
-      description: "",
+      notes: "",
       itemPrice: "",
-      privateItemNote: ""
+      privateItemNote: "",
+      hasExtendedShipping: false
     }]);
   }
 
@@ -178,26 +180,28 @@ export default function NewOrderPage() {
 
       const order = await orderRes.json();
 
-      // Add all items to the order
+      // Add all items to the order using the correct endpoint and field names
       for (const item of validItems) {
-        const itemRes = await fetch("/api/items", {
+        const itemData = {
+          productCode: item.name.trim(), // API expects productCode, not name
+          qty: item.qty.trim() ? parseInt(item.qty.trim()) : 1,
+          serialNumber: item.serialNumber.trim() || null,
+          modelNumber: item.modelNumber.trim() || null,
+          voltage: item.voltage.trim() || null,
+          laserWattage: item.power.trim() || null, // API expects laserWattage, not power
+          notes: item.notes.trim() || null,
+          itemPrice: item.itemPrice.trim() ? parseFloat(item.itemPrice.trim()) : null,
+          privateItemNote: item.privateItemNote.trim() || null,
+          hasExtendedShipping: item.hasExtendedShipping || false
+        };
+
+        const itemRes = await fetch(`/api/orders/${order.id}/items`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...getAuthHeaders()
           },
-          body: JSON.stringify({
-            orderId: order.id,
-            name: item.name.trim(),
-            qty: item.qty.trim() || null,
-            serialNumber: item.serialNumber.trim() || null,
-            modelNumber: item.modelNumber.trim() || null,
-            voltage: item.voltage.trim() || null,
-            power: item.power.trim() || null,
-            description: item.description.trim() || null,
-            itemPrice: item.itemPrice.trim() || null,
-            privateItemNote: item.privateItemNote.trim() || null
-          })
+          body: JSON.stringify(itemData)
         });
 
         if (!itemRes.ok) {
@@ -560,7 +564,7 @@ export default function NewOrderPage() {
                 </div>
               </div>
 
-              {/* Row 4: Notes (Description) */}
+              {/* Row 4: Notes */}
               <div style={{ marginBottom: "12px" }}>
                 <label style={{
                   display: "block",
@@ -573,16 +577,16 @@ export default function NewOrderPage() {
                 </label>
                 <textarea
                   className="input"
-                  value={item.description}
-                  onChange={(e) => updateItem(index, 'description', e.target.value)}
+                  value={item.notes}
+                  onChange={(e) => updateItem(index, 'notes', e.target.value)}
                   placeholder="Additional notes or description"
                   rows={2}
                   style={{ width: "100%", resize: "vertical" }}
                 />
               </div>
 
-              {/* Row 5: Price and Private Notes */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px" }}>
+              {/* Row 5: Price, Private Notes, and Extended Shipping */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "12px", alignItems: "end" }}>
                 <div>
                   <label style={{
                     display: "block",
@@ -621,6 +625,26 @@ export default function NewOrderPage() {
                     placeholder="Internal purchasing notes"
                     style={{ width: "100%" }}
                   />
+                </div>
+
+                <div style={{ paddingBottom: "8px" }}>
+                  <label style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    color: "#e4e4e4",
+                    userSelect: "none"
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={item.hasExtendedShipping}
+                      onChange={(e) => updateItem(index, 'hasExtendedShipping', e.target.checked)}
+                      style={{ cursor: "pointer" }}
+                    />
+                    Extended Shipping
+                  </label>
                 </div>
               </div>
             </div>
