@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node -e \"require('fs').writeFileSync('.next/prerender-manifest.json', JSON.stringify({version:4,routes:{},dynamicRoutes:{},preview:{previewModeId:'',previewModeSigningKey:'',previewModeEncryptionKey:''}}))\"",
     "start": "next start"
   },
   "dependencies": {
