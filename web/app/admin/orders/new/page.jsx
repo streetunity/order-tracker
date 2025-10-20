@@ -136,6 +136,11 @@ export default function NewOrderPage() {
       return;
     }
 
+    if (!formData.salesPerson) {
+      setError("Please select a sales person");
+      return;
+    }
+
     if (!formData.orderDate) {
       setError("Please enter an order date");
       return;
@@ -161,7 +166,7 @@ export default function NewOrderPage() {
         body: JSON.stringify({
           accountId: formData.accountId,
           poNumber: formData.poNumber.trim() || null,
-          sku: formData.salesPerson || null, // Sales person stored in sku field
+          sku: formData.salesPerson, // Sales person stored in sku field (now required)
           orderDate: formData.orderDate
         })
       });
@@ -353,15 +358,16 @@ export default function NewOrderPage() {
                 marginBottom: "8px",
                 color: "#e4e4e4"
               }}>
-                Sales Person
+                Sales Person *
               </label>
               <select
                 className="input"
                 value={formData.salesPerson}
                 onChange={(e) => setFormData({ ...formData, salesPerson: e.target.value })}
+                required
                 style={{ width: "100%" }}
               >
-                <option value="">Select sales person (optional)</option>
+                <option value="">Select sales person</option>
                 {users.map(u => (
                   <option key={u.id} value={u.name}>
                     {u.name}
