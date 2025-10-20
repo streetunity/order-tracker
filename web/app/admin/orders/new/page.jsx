@@ -18,6 +18,7 @@ export default function NewOrderPage() {
     accountId: "",
     poNumber: "",
     salesPerson: "",
+    customerDocsLink: "",
     orderDate: new Date().toISOString().split('T')[0]
   });
 
@@ -143,6 +144,11 @@ export default function NewOrderPage() {
       return;
     }
 
+    if (!formData.customerDocsLink) {
+      setError("Please enter a customer documents link");
+      return;
+    }
+
     if (!formData.orderDate) {
       setError("Please enter an order date");
       return;
@@ -169,6 +175,7 @@ export default function NewOrderPage() {
           accountId: formData.accountId,
           poNumber: formData.poNumber.trim() || null,
           sku: formData.salesPerson, // Sales person stored in sku field (now required)
+          customerDocsLink: formData.customerDocsLink.trim(),
           orderDate: formData.orderDate
         })
       });
@@ -378,6 +385,30 @@ export default function NewOrderPage() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: "500",
+                marginBottom: "8px",
+                color: "#e4e4e4"
+              }}>
+                Customer Documents Link *
+              </label>
+              <input
+                type="url"
+                className="input"
+                value={formData.customerDocsLink}
+                onChange={(e) => setFormData({ ...formData, customerDocsLink: e.target.value })}
+                placeholder="https://www.dropbox.com/..."
+                required
+                style={{ width: "100%" }}
+              />
+              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                Dropbox or other document link for customer files (visible to customer on tracking page)
+              </div>
             </div>
           </div>
         </div>
