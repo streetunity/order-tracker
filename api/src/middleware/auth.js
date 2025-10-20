@@ -1,6 +1,7 @@
 // api/src/middleware/auth.js
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { isSuperAdmin, isAccountantOrHigher, isAdminOrHigher } from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
@@ -64,7 +65,7 @@ async function getUserFromRequest(req) {
         id: 'system',
         email: 'system@admin',
         name: 'System Admin',
-        role: 'ADMIN',
+        role: 'SUPER_ADMIN', // System key gets SUPER_ADMIN for backward compatibility
         isActive: true
       };
     }
@@ -76,7 +77,7 @@ async function getUserFromRequest(req) {
   }
 }
 
-// Middleware: Require any authenticated user (admin or agent)
+// Middleware: Require any authenticated user
 export async function authGuard(req, res, next) {
   const user = await getUserFromRequest(req);
   
@@ -88,7 +89,7 @@ export async function authGuard(req, res, next) {
   next();
 }
 
-// Middleware: Require admin role
+// Middleware: Require admin role or higher (ADMIN, ACCOUNTANT, SUPER_ADMIN)
 export async function adminGuard(req, res, next) {
   const user = await getUserFromRequest(req);
   
@@ -96,7 +97,7 @@ export async function adminGuard(req, res, next) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   
-  if (user.role !== 'ADMIN') {
+  if (!isAdminOrHigher(user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
@@ -104,7 +105,46 @@ export async function adminGuard(req, res, next) {
   next();
 }
 
-// Middleware: Require admin role specifically for unlock
+// Middleware: Require Super Admin only
+export async function superAdminGuard(req, res, next) {
+  const user = await getUserFromRequest(req);
+  
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  if (!isSuperAdmin(user.role)) {
+    return res.status(403).json({ 
+      error: 'Super Admin access required',
+      role: user.role
+    });
+  }
+  
+  req.user = user;
+  next();
+}
+
+// Middleware: Require Accountant or Super Admin
+export async function accountantGuard(req, res, next) {
+  const user = await getUserFromRequest(req);
+  
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  if (!isAccountantOrHigher(user.role)) {
+    return res.status(403).json({ 
+      error: 'Accountant or Super Admin access required',
+      role: user.role
+    });
+  }
+  
+  req.user = user;
+  next();
+}
+
+// Middleware: Require admin role specifically for unlock (backward compatibility)
+// This now checks for ADMIN or higher
 export async function unlockGuard(req, res, next) {
   const user = await getUserFromRequest(req);
   
@@ -112,7 +152,7 @@ export async function unlockGuard(req, res, next) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   
-  if (user.role !== 'ADMIN') {
+  if (!isAdminOrHigher(user.role)) {
     return res.status(403).json({ 
       error: 'Only administrators can unlock orders',
       role: user.role
