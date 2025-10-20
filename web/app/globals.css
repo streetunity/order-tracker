@@ -52,13 +52,13 @@ input, select, textarea {
   appearance: none !important;          /* Remove all browser styling */
 }
 
-/* Checkbox styling */
+/* Checkbox styling - RED THEME */
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
-  border: 2px solid #60a5fa;
+  border: 2px solid #6b7280;
   border-radius: 4px;
   background-color: #1a1a1a !important;
   cursor: pointer;
@@ -69,13 +69,13 @@ input[type="checkbox"] {
 }
 
 input[type="checkbox"]:hover {
-  border-color: #93c5fd;
-  background-color: #1e293b !important;
+  border-color: #9ca3af;
+  background-color: #1e1e1e !important;
 }
 
 input[type="checkbox"]:checked {
-  background-color: #60a5fa !important;
-  border-color: #60a5fa;
+  background-color: #ef4444 !important;
+  border-color: #ef4444;
 }
 
 input[type="checkbox"]:checked::after {
@@ -123,7 +123,8 @@ input[type="url"],
 input[type="email"],
 input[type="password"],
 input[type="search"],
-input[type="tel"] {
+input[type="tel"],
+input[type="date"] {
   background: #2a2a2a !important;
   background-color: #2a2a2a !important;
   -webkit-appearance: none !important;
@@ -146,11 +147,11 @@ input:focus, select:focus, textarea:focus {
   appearance: none !important;
 }
 
-/* Checkbox focus - different from other inputs */
+/* Checkbox focus - use red accent */
 input[type="checkbox"]:focus {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-color: #60a5fa !important;
+  border-color: var(--accent) !important;
 }
 
 /* Remove number input spinners - WebKit browsers (Chrome, Safari, Edge) */
