@@ -339,7 +339,7 @@ export default function UsersPage() {
     .join(', ');
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: 16 }}>
+    <div style={{ maxWidth: "1400px", margin: "0 auto", padding: 16 }}>
       {/* Header matching customers page */}
       <h1 className="h1" style={{ margin: 0, marginBottom: 12 }}>User Management</h1>
       
@@ -428,7 +428,17 @@ export default function UsersPage() {
         border: "1px solid #404040",
         overflow: "hidden"
       }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "8%" }} />
+          </colgroup>
           <thead style={{ backgroundColor: "#383838" }}>
             <tr>
               <th style={{
@@ -436,7 +446,7 @@ export default function UsersPage() {
                 textAlign: "left",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -448,7 +458,7 @@ export default function UsersPage() {
                 textAlign: "left",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -460,7 +470,7 @@ export default function UsersPage() {
                 textAlign: "left",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -472,7 +482,7 @@ export default function UsersPage() {
                 textAlign: "center",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -484,7 +494,7 @@ export default function UsersPage() {
                 textAlign: "left",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -496,7 +506,7 @@ export default function UsersPage() {
                 textAlign: "left",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -508,7 +518,7 @@ export default function UsersPage() {
                 textAlign: "left",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -516,11 +526,11 @@ export default function UsersPage() {
                 Created
               </th>
               <th style={{
-                padding: "12px 16px",
+                padding: "12px 8px",
                 textAlign: "right",
                 fontSize: "12px",
                 fontWeight: "500",
-                color: "#a0a0a0",
+                color: "#ffffff",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
                 borderBottom: "1px solid #404040"
@@ -559,46 +569,52 @@ export default function UsersPage() {
                       fontSize: "14px",
                       fontWeight: "500"
                     }}>
-                      {user.name}
-                      {isSelf && (
-                        <span style={{
-                          marginLeft: "8px",
-                          fontSize: "11px",
-                          color: "#60a5fa",
-                          fontWeight: "normal"
-                        }}>
-                          (You)
-                        </span>
-                      )}
-                      {!user.isActive && (
-                        <span style={{
-                          marginLeft: "8px",
-                          fontSize: "11px",
-                          color: "#f87171",
-                          fontWeight: "normal"
-                        }}>
-                          (Inactive)
-                        </span>
-                      )}
+                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {user.name}
+                        {isSelf && (
+                          <span style={{
+                            marginLeft: "8px",
+                            fontSize: "11px",
+                            color: "#60a5fa",
+                            fontWeight: "normal"
+                          }}>
+                            (You)
+                          </span>
+                        )}
+                        {!user.isActive && (
+                          <span style={{
+                            marginLeft: "8px",
+                            fontSize: "11px",
+                            color: "#f87171",
+                            fontWeight: "normal"
+                          }}>
+                            (Inactive)
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{
                       padding: "16px",
                       color: "#a0a0a0",
                       fontSize: "14px"
                     }}>
-                      {user.email}
+                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {user.email}
+                      </div>
                     </td>
                     <td style={{
                       padding: "16px",
                       fontSize: "14px"
                     }}>
                       <span style={{
-                        padding: "4px 8px",
+                        padding: "4px 10px",
                         borderRadius: "9999px",
-                        fontSize: "12px",
+                        fontSize: "11px",
                         fontWeight: "600",
                         backgroundColor: roleBadge.bg,
-                        color: roleBadge.text
+                        color: roleBadge.text,
+                        whiteSpace: "nowrap",
+                        display: "inline-block"
                       }}>
                         {getRoleDisplayName(user.role)}
                       </span>
@@ -636,7 +652,8 @@ export default function UsersPage() {
                           color: user.isActive ? "#86efac" : "#fecaca",
                           border: "none",
                           cursor: (user.isActive && !canDeactivateThisUser) ? "not-allowed" : "pointer",
-                          opacity: (user.isActive && !canDeactivateThisUser) ? 0.5 : 1
+                          opacity: (user.isActive && !canDeactivateThisUser) ? 0.5 : 1,
+                          whiteSpace: "nowrap"
                         }}
                         title={
                           user.isActive 
@@ -650,57 +667,64 @@ export default function UsersPage() {
                     <td style={{
                       padding: "16px",
                       color: "#a0a0a0",
-                      fontSize: "14px"
+                      fontSize: "13px"
                     }}>
-                      {formatDate(user.lastLogin)}
+                      <div style={{ whiteSpace: "nowrap" }}>
+                        {formatDate(user.lastLogin)}
+                      </div>
                     </td>
                     <td style={{
                       padding: "16px",
                       color: "#a0a0a0",
-                      fontSize: "14px"
+                      fontSize: "13px"
                     }}>
-                      {formatDate(user.createdAt)}
+                      <div style={{ whiteSpace: "nowrap" }}>
+                        {formatDate(user.createdAt)}
+                      </div>
                     </td>
                     <td style={{
-                      padding: "16px",
+                      padding: "16px 8px",
                       textAlign: "right",
-                      fontSize: "14px"
+                      fontSize: "13px"
                     }}>
-                      <button
-                        onClick={() => openEditModal(user)}
-                        disabled={!canEditThisUser}
-                        style={{
-                          color: canEditThisUser ? "#60a5fa" : "#6b7280",
-                          marginRight: "12px",
-                          background: "none",
-                          border: "none",
-                          cursor: canEditThisUser ? "pointer" : "not-allowed",
-                          textDecoration: canEditThisUser ? "underline" : "none",
-                          opacity: canEditThisUser ? 1 : 0.5
-                        }}
-                        title={canEditThisUser ? 'Edit user' : 'Insufficient permissions'}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deactivateUser(user)}
-                        disabled={!canDeactivateThisUser || !user.isActive}
-                        style={{
-                          color: (canDeactivateThisUser && user.isActive) ? "#f87171" : "#6b7280",
-                          background: "none",
-                          border: "none",
-                          cursor: (canDeactivateThisUser && user.isActive) ? "pointer" : "not-allowed",
-                          textDecoration: (canDeactivateThisUser && user.isActive) ? "underline" : "none",
-                          opacity: (canDeactivateThisUser && user.isActive) ? 1 : 0.5
-                        }}
-                        title={
-                          !user.isActive 
-                            ? 'User already inactive' 
-                            : (canDeactivateThisUser ? 'Deactivate user' : 'Insufficient permissions')
-                        }
-                      >
-                        {user.isActive ? 'Deactivate' : 'Inactive'}
-                      </button>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", whiteSpace: "nowrap" }}>
+                        <button
+                          onClick={() => openEditModal(user)}
+                          disabled={!canEditThisUser}
+                          style={{
+                            color: canEditThisUser ? "#60a5fa" : "#6b7280",
+                            background: "none",
+                            border: "none",
+                            cursor: canEditThisUser ? "pointer" : "not-allowed",
+                            textDecoration: canEditThisUser ? "underline" : "none",
+                            opacity: canEditThisUser ? 1 : 0.5,
+                            padding: 0
+                          }}
+                          title={canEditThisUser ? 'Edit user' : 'Insufficient permissions'}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deactivateUser(user)}
+                          disabled={!canDeactivateThisUser || !user.isActive}
+                          style={{
+                            color: (canDeactivateThisUser && user.isActive) ? "#f87171" : "#6b7280",
+                            background: "none",
+                            border: "none",
+                            cursor: (canDeactivateThisUser && user.isActive) ? "pointer" : "not-allowed",
+                            textDecoration: (canDeactivateThisUser && user.isActive) ? "underline" : "none",
+                            opacity: (canDeactivateThisUser && user.isActive) ? 1 : 0.5,
+                            padding: 0
+                          }}
+                          title={
+                            !user.isActive 
+                              ? 'User already inactive' 
+                              : (canDeactivateThisUser ? 'Deactivate user' : 'Insufficient permissions')
+                          }
+                        >
+                          {user.isActive ? 'Deactivate' : 'Inactive'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
