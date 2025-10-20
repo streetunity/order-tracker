@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
+  // Removed 'output: standalone' - not needed for non-Docker deployments
+  // This fixes the missing prerender-manifest.json issue
   images: {
     unoptimized: true
   },
