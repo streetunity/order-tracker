@@ -17,7 +17,9 @@ export function createItemsRouter() {
         voltage: i?.voltage ? String(i.voltage).trim() : null,
         laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
         notes: i?.notes ? String(i.notes).trim() : null,
-        hasExtendedShipping: i?.hasExtendedShipping === true
+        hasExtendedShipping: i?.hasExtendedShipping === true,
+        itemPrice: i?.itemPrice ? parseFloat(i.itemPrice) : null,
+        privateItemNote: i?.privateItemNote ? String(i.privateItemNote).trim() : null
       }))
       .filter((i) => i.productCode.length > 0);
   }
@@ -74,7 +76,9 @@ export function createItemsRouter() {
               voltage: i.voltage,
               laserWattage: i.laserWattage || null,
               notes: i.notes,
-              hasExtendedShipping: i.hasExtendedShipping || false
+              hasExtendedShipping: i.hasExtendedShipping || false,
+              itemPrice: i.itemPrice,
+              privateItemNote: i.privateItemNote
             }
           });
           createdItems.push(row);
