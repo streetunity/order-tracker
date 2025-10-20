@@ -1,6 +1,15 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword, comparePassword, validatePassword } from '../utils/password.js';
+import { 
+  canCreateRole, 
+  canEditRole, 
+  canDeactivateUser,
+  isValidRole,
+  getRoleDisplayName,
+  getAssignableRoles,
+  isAdminOrHigher
+} from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
 
@@ -55,11 +64,26 @@ export function createUsersRouter() {
     }
   });
 
-  // Create new user (Admin only)
+  // Get assignable roles for current user
+  router.get('/roles/assignable', async (req, res) => {
+    try {
+      const roles = getAssignableRoles(req.user.role);
+      const rolesWithDisplayNames = roles.map(role => ({
+        value: role,
+        label: getRoleDisplayName(role),
+        canAssign: canCreateRole(req.user.role, role)
+      }));
+      res.json(rolesWithDisplayNames);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Create new user (Admin or higher)
   router.post('/', async (req, res) => {
     try {
-      // Check if requester is admin
-      if (req.user.role !== 'ADMIN') {
+      // Check if requester has admin privileges or higher
+      if (!isAdminOrHigher(req.user.role)) {
         return res.status(403).json({ error: 'Admin access required' });
       }
 
@@ -67,6 +91,19 @@ export function createUsersRouter() {
       
       if (!email || !name || !password) {
         return res.status(400).json({ error: 'Email, name, and password are required' });
+      }
+
+      // Validate role
+      const targetRole = role.toUpperCase();
+      if (!isValidRole(targetRole)) {
+        return res.status(400).json({ error: `Invalid role: ${role}` });
+      }
+
+      // Check if requester can create users with this role
+      if (!canCreateRole(req.user.role, targetRole)) {
+        return res.status(403).json({ 
+          error: `You cannot create users with role ${getRoleDisplayName(targetRole)}. You can only create: ${getAssignableRoles(req.user.role).map(getRoleDisplayName).join(', ')}`
+        });
       }
       
       // Validate password
@@ -94,7 +131,7 @@ export function createUsersRouter() {
             email: email.toLowerCase(),
             name,
             password: hashedPassword,
-            role: role.toUpperCase(),
+            role: targetRole,
             isActive: true
           },
           select: {
@@ -135,11 +172,11 @@ export function createUsersRouter() {
     }
   });
 
-  // Update user (Admin only)
+  // Update user (Admin or higher with role hierarchy)
   router.patch('/:id', async (req, res) => {
     try {
-      // Check if requester is admin
-      if (req.user.role !== 'ADMIN') {
+      // Check if requester has admin privileges or higher
+      if (!isAdminOrHigher(req.user.role)) {
         return res.status(403).json({ error: 'Admin access required' });
       }
 
@@ -149,6 +186,15 @@ export function createUsersRouter() {
       
       if (!original) {
         return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Check if requester can edit this user based on role hierarchy
+      // Exception: users can always edit themselves (except their role)
+      const isSelfEdit = req.params.id === req.user.id;
+      if (!isSelfEdit && !canEditRole(req.user.role, original.role)) {
+        return res.status(403).json({ 
+          error: `You cannot edit users with role ${getRoleDisplayName(original.role)}`
+        });
       }
       
       const { name, email, role, isActive, password } = req.body;
@@ -173,16 +219,49 @@ export function createUsersRouter() {
         });
       }
       
+      // Handle role changes with hierarchy checks
       if (role !== undefined && role.toUpperCase() !== original.role) {
-        data.role = role.toUpperCase();
+        const targetRole = role.toUpperCase();
+
+        // Users cannot change their own role
+        if (isSelfEdit) {
+          return res.status(403).json({ error: 'You cannot change your own role' });
+        }
+
+        // Validate role
+        if (!isValidRole(targetRole)) {
+          return res.status(400).json({ error: `Invalid role: ${role}` });
+        }
+
+        // Check if requester can assign this new role
+        if (!canCreateRole(req.user.role, targetRole)) {
+          return res.status(403).json({ 
+            error: `You cannot assign role ${getRoleDisplayName(targetRole)}. You can only assign: ${getAssignableRoles(req.user.role).map(getRoleDisplayName).join(', ')}`
+          });
+        }
+
+        data.role = targetRole;
         changes.push({
           field: 'role',
           oldValue: original.role,
-          newValue: data.role
+          newValue: targetRole
         });
       }
       
+      // Handle isActive changes (deactivation requires hierarchy check)
       if (isActive !== undefined && isActive !== original.isActive) {
+        // Users cannot deactivate themselves
+        if (isSelfEdit) {
+          return res.status(403).json({ error: 'You cannot deactivate your own account' });
+        }
+
+        // Check if requester can deactivate this user based on role hierarchy
+        if (!canDeactivateUser(req.user.role, original.role)) {
+          return res.status(403).json({ 
+            error: `You cannot deactivate users with role ${getRoleDisplayName(original.role)}`
+          });
+        }
+
         data.isActive = isActive;
         changes.push({
           field: 'isActive',
@@ -191,7 +270,7 @@ export function createUsersRouter() {
         });
       }
       
-      // Handle password update
+      // Handle password update (users can update their own password)
       if (password) {
         const passwordValidation = validatePassword(password);
         if (!passwordValidation.isValid) {
@@ -245,38 +324,14 @@ export function createUsersRouter() {
     }
   });
 
-  // Delete user (soft delete by deactivating) - Admin only
+  // Delete user (soft delete by deactivating) - Admin or higher with hierarchy check
   router.delete('/:id', async (req, res) => {
     try {
-      // Check if requester is admin
-      if (req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Admin access required' });
-      }
-
-      // Don't allow deleting yourself
-      if (req.params.id === req.user.id) {
-        return res.status(400).json({ error: 'Cannot delete your own account' });
-      }
-      
-      await prisma.$transaction(async (tx) => {
-        await tx.user.update({
-          where: { id: req.params.id },
-          data: { isActive: false }
-        });
-        
-        await tx.auditLog.create({
-          data: {
-            entityType: 'User',
-            entityId: req.params.id,
-            action: 'USER_DEACTIVATED',
-            metadata: JSON.stringify({ message: 'User account deactivated' }),
-            performedByUserId: req.user.id,
-            performedByName: req.user.name
-          }
-        });
+      // Prevent hard deletes - return error
+      return res.status(400).json({ 
+        error: 'Cannot permanently delete users. Use PATCH to deactivate instead.',
+        hint: 'Send PATCH /:id with { "isActive": false } to deactivate a user'
       });
-      
-      res.status(204).end();
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
