@@ -1,13 +1,10 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
-export function createAccountsRouter() {
+export function createAccountsRouter(prisma) {
   const router = express.Router();
 
   async function getAccessibleAccountIds(user) {
-    if (user.role === 'ADMIN') return null;
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'ACCOUNTANT') return null;
     const orders = await prisma.order.findMany({
       where: { sku: user.name },
       select: { accountId: true },
@@ -17,7 +14,7 @@ export function createAccountsRouter() {
   }
 
   async function canAccessAccount(user, accountId) {
-    if (user.role === 'ADMIN') return true;
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'ACCOUNTANT') return true;
     const order = await prisma.order.findFirst({
       where: { accountId: accountId, sku: user.name }
     });
@@ -38,6 +35,7 @@ export function createAccountsRouter() {
       });
       res.json(accounts);
     } catch (e) {
+      console.error('GET /accounts error:', e);
       res.status(500).json({ error: e.message });
     }
   });
@@ -50,11 +48,12 @@ export function createAccountsRouter() {
       }
       const account = await prisma.account.findUnique({
         where: { id: req.params.id },
-        include: { orders: req.user.role === 'ADMIN' ? true : { where: { sku: req.user.name } } }
+        include: { orders: req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN' || req.user.role === 'ACCOUNTANT' ? true : { where: { sku: req.user.name } } }
       });
       if (!account) return res.status(404).json({ error: 'Not found' });
       res.json(account);
     } catch (e) {
+      console.error('GET /accounts/:id error:', e);
       res.status(500).json({ error: e.message });
     }
   });
@@ -90,6 +89,7 @@ export function createAccountsRouter() {
       });
       res.status(201).json(account);
     } catch (e) {
+      console.error('POST /accounts error:', e);
       res.status(500).json({ error: e.message });
     }
   });
