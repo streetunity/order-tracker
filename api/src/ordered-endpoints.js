@@ -1,15 +1,16 @@
 // ordered-endpoints.js
-// Handles marking items as ordered/unordered with admin-only access
+// Handles marking items as ordered/unordered with admin-level access
+import { isAdminOrHigher } from './utils/roleHelpers.js';
 
-// Mark item as ordered (Admin only)
+// Mark item as ordered (Admin or higher)
 export async function markItemAsOrdered(req, res, prisma, authenticatedUser) {
   const { id, itemId } = req.params;
   
   try {
-    // Check if user is admin
-    if (authenticatedUser.role !== 'ADMIN') {
+    // Check if user is admin or higher (ADMIN, ACCOUNTANT, SUPER_ADMIN)
+    if (!isAdminOrHigher(authenticatedUser.role)) {
       return res.status(403).json({ 
-        error: "Only administrators can mark items as ordered" 
+        error: "Admin access or higher required to mark items as ordered" 
       });
     }
     
@@ -63,16 +64,16 @@ export async function markItemAsOrdered(req, res, prisma, authenticatedUser) {
   }
 }
 
-// Unmark item as ordered (Admin only, requires reason)
+// Unmark item as ordered (Admin or higher, requires reason)
 export async function unmarkItemAsOrdered(req, res, prisma, authenticatedUser) {
   const { id, itemId } = req.params;
   const { reason } = req.body;
   
   try {
-    // Check if user is admin
-    if (authenticatedUser.role !== 'ADMIN') {
+    // Check if user is admin or higher (ADMIN, ACCOUNTANT, SUPER_ADMIN)
+    if (!isAdminOrHigher(authenticatedUser.role)) {
       return res.status(403).json({ 
-        error: "Only administrators can unmark ordered items" 
+        error: "Admin access or higher required to unmark ordered items" 
       });
     }
     
