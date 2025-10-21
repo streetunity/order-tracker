@@ -1,5 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
+import { isAdminOrHigher } from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
 
@@ -34,8 +35,9 @@ export function createLocksRouter() {
 
   router.post('/:id/unlock', async (req, res) => {
     try {
-      if (req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Only administrators can unlock orders' });
+      // Check if user is admin or higher (ADMIN, ACCOUNTANT, SUPER_ADMIN)
+      if (!isAdminOrHigher(req.user.role)) {
+        return res.status(403).json({ error: 'Admin access or higher required to unlock orders' });
       }
       const { reason } = req.body || {};
       if (!reason || reason.trim().length < 10) {
