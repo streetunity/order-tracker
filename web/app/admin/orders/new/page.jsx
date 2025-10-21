@@ -13,6 +13,7 @@ export default function NewOrderPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [refreshingAccounts, setRefreshingAccounts] = useState(false);
   
   const [formData, setFormData] = useState({
     accountId: "",
@@ -46,6 +47,18 @@ export default function NewOrderPage() {
     loadData();
   }, [user]);
 
+  // Auto-reload accounts when window gains focus (user returns to tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user && !loading) {
+        loadAccounts();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user, loading]);
+
   async function loadData() {
     try {
       setLoading(true);
@@ -70,6 +83,15 @@ export default function NewOrderPage() {
     } catch (e) {
       console.error("Failed to load accounts:", e);
       setError("Failed to load customer accounts");
+    }
+  }
+
+  async function handleRefreshAccounts() {
+    setRefreshingAccounts(true);
+    try {
+      await loadAccounts();
+    } finally {
+      setRefreshingAccounts(false);
     }
   }
 
@@ -332,20 +354,39 @@ export default function NewOrderPage() {
               }}>
                 Customer *
               </label>
-              <select
-                className="input"
-                value={formData.accountId}
-                onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                required
-                style={{ width: "100%" }}
-              >
-                <option value="">Select a customer</option>
-                {accounts.map(account => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <select
+                  className="input"
+                  value={formData.accountId}
+                  onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+                  required
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Select a customer</option>
+                  {accounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleRefreshAccounts}
+                  disabled={refreshingAccounts}
+                  className="btn"
+                  style={{
+                    padding: "8px 12px",
+                    minWidth: "auto",
+                    fontSize: "14px"
+                  }}
+                  title="Refresh customer list"
+                >
+                  {refreshingAccounts ? "⟳" : "🔄"}
+                </button>
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                Don't see your customer? <Link href="/admin/customers/new" style={{ color: "#ef4444" }}>Create a new customer</Link> then click refresh
+              </div>
             </div>
 
             <div>
