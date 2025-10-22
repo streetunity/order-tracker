@@ -131,8 +131,6 @@ export default function CustomersPage() {
           
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
             <Link href="/admin/customers/new" className="btn primary">Add Customer</Link>
-            <Link href="/admin/orders" className="btn">Manage Orders</Link>
-            <Link href="/admin/board" className="btn">Back to Board</Link>
           </div>
 
           <input
