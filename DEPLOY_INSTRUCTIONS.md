@@ -17,18 +17,18 @@
 - api/src/routes/auth.js (4.3KB) - change-password endpoint
 - api/src/index.js (10.5KB) - auth routing updated
 
-## Manual Update Needed:
+## Manual Updates Needed (Files Too Large for GitHub API):
 
-### Users Page (33.9KB - too large for API):
-File: web/app/admin/users/page.jsx
+### 1. Users Page (33.9KB)
+**File:** `/var/www/order-tracker/web/app/admin/users/page.jsx`
 
+**Changes:**
 1. Add import at top (after other imports):
 ```javascript
 import TopNav from "@/components/TopNav";
 ```
 
-2. Replace the return statement wrapper:
-Change:
+2. Replace the return statement wrapper from:
 ```javascript
 return (
   <div style={{ maxWidth: "1400px", ...}}>
@@ -42,18 +42,64 @@ return (
     <div style={{ maxWidth: "1400px", ...}}>
 ```
 
-And add closing `</>` at the end before the final `);
-`
+And add closing `</>` at the very end before the final `);`
 
-3. Remove "Back to Board" button:
-Find and remove this line:
+3. Remove the "Back to Board" button - find and delete:
 ```javascript
 <Link href="/admin/board" className="btn" style={{ marginLeft: 8 }}>
   Back to Board
 </Link>
 ```
 
+---
+
+### 2. History/Audit Page (34KB)
+**File:** `/var/www/order-tracker/web/app/history/page.jsx`
+
+**Changes:**
+1. Add import at top (after other imports):
+```javascript
+import TopNav from "@/components/TopNav";
+```
+
+2. Replace the return statement wrapper from:
+```javascript
+return (
+  <div style={{ maxWidth: "1400px", ...}}>
+```
+
+To:
+```javascript
+return (
+  <>
+    <TopNav />
+    <div style={{ maxWidth: "1400px", ...}}>
+```
+
+And add closing `</>` at the very end before the final `);`
+
+3. Remove navigation buttons - find and delete these lines:
+```javascript
+<Link href="/admin/board" className="btn">Back to Board</Link>
+<Link href="/admin/customers" className="btn" style={{ marginLeft: 8 }}>Manage Customers</Link>
+<Link href="/admin/orders" className="btn" style={{ marginLeft: 8 }}>Manage Orders</Link>
+```
+
+---
+
 ## Deploy Command:
+
 ```bash
 cd /var/www/order-tracker && git pull origin aws-deployment && rm -rf web/.next && cd web && npm run build && cd .. && pm2 restart all && pm2 logs --lines 30
+```
+
+---
+
+## After Deployment:
+
+1. Pull changes with command above
+2. Manually edit the two large files (users page and history page)
+3. Run rebuild command:
+```bash
+cd /var/www/order-tracker && rm -rf web/.next && cd web && npm run build && pm2 restart order-tracker-frontend && pm2 logs --lines 20
 ```
