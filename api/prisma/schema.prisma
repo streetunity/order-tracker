@@ -28,6 +28,7 @@ model Order {
   orderDate       DateTime?           // NEW FIELD: Actual order date from customer
   customerDocsLink String?            // Customer Documents Link (Dropbox URL)
   internalNotes   String?             // Internal notes for the order
+  discount        Float?              @default(0) // Discount amount (stored as positive, calculated as negative)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   etaDate         DateTime?
