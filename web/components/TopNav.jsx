@@ -34,12 +34,12 @@ export default function TopNav() {
 
   async function loadNotificationCount() {
     try {
-      const res = await fetch("/api/notifications/count", {
+      const res = await fetch("/api/notifications/stats", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
-        setNotificationCount(data.count || 0);
+        setNotificationCount(data.unread || 0);
       }
     } catch (e) {
       console.error("Failed to load notification count:", e);
