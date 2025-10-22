@@ -1,11 +1,16 @@
 /* QuickActions Component Styles */
 
 .quick-actions {
+  position: sticky;
+  top: 60px; /* TopNav height */
+  z-index: 100;
   display: flex;
   gap: 8px;
   padding: 12px 24px;
-  background: rgba(45, 45, 45, 0.5);
+  background: rgba(45, 45, 45, 0.95);
+  backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
 }
 
 .action-btn {
