@@ -416,7 +416,7 @@ export function createUsersRouter() {
       }
       
       const user = await prisma.$transaction(async (tx) => {
-        const updated = await tx.user.update(({
+        const updated = await tx.user.update({
           where: { id: req.params.id },
           data,
           select: {
