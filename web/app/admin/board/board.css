@@ -62,7 +62,7 @@
 /* ---- Sticky header row for stage columns ---- */
 .stickyHeader {
   position: sticky !important;
-  top: 165px !important; /* 60px TopNav + ~105px unified container (accounting for borders/padding) */
+  top: 170px !important; /* Increased to prevent slight slide-behind during scroll */
   height: var(--stage-head-h);
   display: flex;
   align-items: center;
