@@ -21,7 +21,8 @@ export default function NewOrderPage() {
     poNumber: "",
     salesPerson: "",
     customerDocsLink: "",
-    orderDate: new Date().toISOString().split('T')[0]
+    orderDate: new Date().toISOString().split('T')[0],
+    discount: ""
   });
 
   // Items to be added with the order
@@ -211,6 +212,15 @@ export default function NewOrderPage() {
       }
     }
 
+    // Validate discount if provided
+    if (formData.discount && formData.discount.trim()) {
+      const discountValue = parseFloat(formData.discount.trim());
+      if (isNaN(discountValue) || discountValue < 0) {
+        setError("Discount must be a valid number (0 or greater)");
+        return;
+      }
+    }
+
     try {
       setSaving(true);
       
@@ -226,7 +236,8 @@ export default function NewOrderPage() {
           poNumber: formData.poNumber.trim() || null,
           sku: formData.salesPerson, // Sales person stored in sku field (now required)
           customerDocsLink: formData.customerDocsLink.trim(),
-          orderDate: formData.orderDate
+          orderDate: formData.orderDate,
+          discount: formData.discount && formData.discount.trim() ? parseFloat(formData.discount.trim()) : 0
         })
       });
 
@@ -677,14 +688,14 @@ export default function NewOrderPage() {
                       marginBottom: "6px",
                       color: "#e4e4e4"
                     }}>
-                      Price *
+                      Price * <span style={{ fontSize: "11px", color: "#9ca3af", fontWeight: "normal" }}>(usually retail price)</span>
                     </label>
                     <input
                       type="text"
                       className="input"
                       value={item.itemPrice}
                       onChange={(e) => updateItem(index, 'itemPrice', e.target.value)}
-                      placeholder="Item price"
+                      placeholder="0.00"
                       style={{ width: "100%" }}
                     />
                   </div>
@@ -731,6 +742,48 @@ export default function NewOrderPage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Discount Section */}
+          <div style={{
+            backgroundColor: "#2d2d2d",
+            border: "1px solid #404040",
+            borderRadius: "8px",
+            padding: "24px",
+            marginTop: "16px"
+          }}>
+            <h2 style={{ fontSize: "18px", marginBottom: "20px", color: "#e4e4e4" }}>Discount</h2>
+            
+            <div style={{ maxWidth: "300px" }}>
+              <label style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: "500",
+                marginBottom: "8px",
+                color: "#e4e4e4"
+              }}>
+                Discount Amount
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "18px", color: "#9ca3af" }}>$</span>
+                <input
+                  type="text"
+                  className="input"
+                  value={formData.discount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+                      setFormData({ ...formData, discount: value });
+                    }
+                  }}
+                  placeholder="0.00"
+                  style={{ width: "150px", textAlign: "right" }}
+                />
+              </div>
+              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+                Discount will be subtracted from order total when calculating commissions
+              </div>
+            </div>
           </div>
 
           {/* Submit Buttons */}
