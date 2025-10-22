@@ -23,6 +23,7 @@ import { createStagesRouter } from './routes/stages.js';
 import { createLocksRouter } from './routes/locks.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createPublicRouter } from './routes/public.js';
+import { createNotificationsRouter } from './routes/notifications.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -91,7 +92,7 @@ const cycleTimeReportsRouter = createCycleTimeReportsRouter(prisma);
 const settingsRouter = createSettingsRouter(prisma);
 const authRouter = createAuthRouter();
 const usersRouter = createUsersRouter();
-const accountsRouter = createAccountsRouter(prisma); // NOW PASSING PRISMA
+const accountsRouter = createAccountsRouter(prisma);
 const ordersRouter = createOrdersRouter(prisma);
 const itemsRouter = createItemsRouter();
 const measurementsRouter = createMeasurementsRouter();
@@ -99,6 +100,7 @@ const stagesRouter = createStagesRouter();
 const locksRouter = createLocksRouter();
 const auditRouter = createAuditRouter();
 const publicRouter = createPublicRouter();
+const notificationsRouter = createNotificationsRouter(prisma);
 
 // =============================
 // Mount Routes
@@ -163,6 +165,10 @@ app.use('/orders', authGuard, locksRouter);
 // Audit logs
 app.use('/audit', authGuard, auditRouter);
 app.use('/comprehensive-audit', authGuard, auditRouter);
+
+// Notifications API (auth required, role-filtered)
+app.use('/notifications', authGuard, notificationsRouter);
+console.log('✅ Notifications API loaded');
 
 // =============================
 // Sales by Month Report (special endpoint that wasn't modularized)
