@@ -46,11 +46,6 @@ export default function ReportsPage() {
       <main className="reports-container">
         <div className="reports-header">
           <h1>Reports & Analytics</h1>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <Link href="/admin/board" className="btn-back">
-              ← Back to Board
-            </Link>
-          </div>
         </div>
 
         {loading && <div className="loading">Loading reports...</div>}
