@@ -21,6 +21,11 @@ export default function AuditHistoryViewer() {
   const [activeTab, setActiveTab] = useState('universal'); // 'universal', 'orders', 'customers'
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Restore confirmation modal
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [pendingRestore, setPendingRestore] = useState(null);
+  const [performingRestore, setPerformingRestore] = useState(false);
+  
   const router = useRouter();
   const { user, getAuthHeaders, isAdmin } = useAuth();
 
@@ -113,24 +118,32 @@ export default function AuditHistoryViewer() {
     }
   }, [selectedEntity, user, isAdmin]);
 
-  async function handleRestore(log) {
+  function handleRestoreClick(log) {
     // Check if this is an archive action for an OrderItem
     const archiveChange = log.changes?.find(c => c.field === 'archivedAt');
     if (!archiveChange || archiveChange.newValue === 'null' || log.entityType !== 'OrderItem') {
-      console.log('Not an archive action or wrong entity type');
       return;
     }
 
-    const confirmRestore = window.confirm('Restore this item to the board?');
-    if (!confirmRestore) return;
+    // Get item details
+    const itemName = getItemName(log);
+    
+    setPendingRestore({
+      log,
+      itemId: log.entityId,
+      orderId: log.parentEntityId,
+      itemName
+    });
+    setShowRestoreConfirm(true);
+  }
+
+  async function executeRestore() {
+    if (!pendingRestore) return;
 
     try {
-      const itemId = log.entityId;
-      const orderId = log.parentEntityId;
+      setPerformingRestore(true);
       
-      console.log('Restoring item:', { itemId, orderId });
-      
-      const res = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
+      const res = await fetch(`/api/orders/${pendingRestore.orderId}/items/${pendingRestore.itemId}`, {
         method: 'PATCH',
         headers: {
           ...getAuthHeaders(),
@@ -142,13 +155,14 @@ export default function AuditHistoryViewer() {
       });
 
       if (res.ok) {
-        alert('Item restored successfully!');
         // Reload the appropriate logs
         if (activeTab === 'universal') {
-          loadUniversalChanges();
+          await loadUniversalChanges();
         } else if (selectedEntity) {
-          loadEntityLogs(selectedEntity.id);
+          await loadEntityLogs(selectedEntity.id);
         }
+        setShowRestoreConfirm(false);
+        setPendingRestore(null);
       } else {
         const error = await res.json();
         alert(`Failed to restore: ${error.error || 'Unknown error'}`);
@@ -156,7 +170,14 @@ export default function AuditHistoryViewer() {
     } catch (e) {
       console.error('Restore error:', e);
       alert('Failed to restore item');
+    } finally {
+      setPerformingRestore(false);
     }
+  }
+
+  function cancelRestore() {
+    setShowRestoreConfirm(false);
+    setPendingRestore(null);
   }
 
   function formatTimestamp(timestamp) {
@@ -212,13 +233,67 @@ export default function AuditHistoryViewer() {
     return archiveChange && archiveChange.oldValue === 'null' && archiveChange.newValue !== 'null';
   }
 
-  function getEntityName(log) {
-    // For Order logs, try to find the order
+  function getItemName(log) {
+    // Try to get from changes
+    if (log.changes) {
+      const productCodeChange = log.changes.find(c => c.field === 'productCode');
+      if (productCodeChange) {
+        return productCodeChange.newValue || productCodeChange.oldValue;
+      }
+    }
+    
+    // Try to get from metadata
+    if (log.metadata?.items && Array.isArray(log.metadata.items) && log.metadata.items.length > 0) {
+      return log.metadata.items[0].productCode;
+    }
+    
+    return 'Item';
+  }
+
+  function getItemDetails(log) {
+    let details = [];
+    
+    // Try to get productCode, serialNumber, modelNumber from changes
+    if (log.changes) {
+      const productCode = log.changes.find(c => c.field === 'productCode');
+      const serialNumber = log.changes.find(c => c.field === 'serialNumber');
+      const modelNumber = log.changes.find(c => c.field === 'modelNumber');
+      
+      if (productCode) {
+        details.push(`Product: ${productCode.newValue || productCode.oldValue}`);
+      }
+      if (modelNumber && modelNumber.newValue && modelNumber.newValue !== 'null') {
+        details.push(`Model: ${modelNumber.newValue}`);
+      }
+      if (serialNumber && serialNumber.newValue && serialNumber.newValue !== 'null') {
+        details.push(`S/N: ${serialNumber.newValue}`);
+      }
+    }
+    
+    // Try metadata
+    if (details.length === 0 && log.metadata?.items && Array.isArray(log.metadata.items) && log.metadata.items.length > 0) {
+      const item = log.metadata.items[0];
+      if (item.productCode) details.push(`Product: ${item.productCode}`);
+      if (item.serialNumber) details.push(`S/N: ${item.serialNumber}`);
+      if (item.modelNumber) details.push(`Model: ${item.modelNumber}`);
+    }
+    
+    return details.length > 0 ? details.join(' • ') : null;
+  }
+
+  function getEntityInfo(log) {
+    const info = {
+      title: '',
+      subtitle: ''
+    };
+    
+    // For Order logs
     if (log.entityType === 'Order' || log.parentEntityId) {
       const orderId = log.entityType === 'Order' ? log.entityId : log.parentEntityId;
       const order = orders.find(o => o.id === orderId);
       if (order) {
-        return `Order: ${order.poNumber || order.id.slice(0, 8)} - ${order.account?.name || 'Unknown'}`;
+        info.title = order.account?.name || 'Unknown Customer';
+        info.subtitle = order.sku || '';  // Sales rep in red
       }
     }
     
@@ -226,27 +301,32 @@ export default function AuditHistoryViewer() {
     if (log.entityType === 'Account') {
       const account = accounts.find(a => a.id === log.entityId);
       if (account) {
-        return `Customer: ${account.name}`;
+        info.title = account.name;
+        // Try to find sales rep from orders
+        const accountOrders = orders.filter(o => o.accountId === account.id);
+        if (accountOrders.length > 0 && accountOrders[0].sku) {
+          info.subtitle = accountOrders[0].sku;
+        }
       }
     }
     
-    // For OrderItem logs, get product code from metadata
-    if (log.entityType === 'OrderItem' && log.metadata?.items) {
-      const items = log.metadata.items;
-      if (Array.isArray(items) && items.length > 0) {
-        return `Item: ${items[0].productCode}`;
+    // For OrderItem logs - get item details
+    if (log.entityType === 'OrderItem') {
+      const itemDetails = getItemDetails(log);
+      if (itemDetails) {
+        info.title = itemDetails;
+      }
+      
+      // Also get the order/customer info
+      if (log.parentEntityId) {
+        const order = orders.find(o => o.id === log.parentEntityId);
+        if (order) {
+          info.subtitle = `${order.account?.name || 'Unknown'} • ${order.sku || ''}`;
+        }
       }
     }
     
-    // Fallback - try to get from changes
-    if (log.changes) {
-      const productCodeChange = log.changes.find(c => c.field === 'productCode');
-      if (productCodeChange) {
-        return `Item: ${productCodeChange.newValue || productCodeChange.oldValue}`;
-      }
-    }
-    
-    return null;
+    return info;
   }
 
   function renderChanges(changes) {
@@ -268,7 +348,7 @@ export default function AuditHistoryViewer() {
 
   function renderLogEntry(log) {
     const showRestore = isArchiveAction(log);
-    const entityName = getEntityName(log);
+    const entityInfo = getEntityInfo(log);
     
     return (
       <div key={log.id} className="log-entry">
@@ -285,9 +365,10 @@ export default function AuditHistoryViewer() {
           </div>
         </div>
         
-        {entityName && (
-          <div className="log-entity-name">
-            {entityName}
+        {(entityInfo.title || entityInfo.subtitle) && (
+          <div className="log-entity-info">
+            {entityInfo.title && <div className="entity-info-title">{entityInfo.title}</div>}
+            {entityInfo.subtitle && <div className="entity-info-subtitle">{entityInfo.subtitle}</div>}
           </div>
         )}
         
@@ -303,7 +384,7 @@ export default function AuditHistoryViewer() {
           <div className="log-actions">
             <button 
               className="btn-restore"
-              onClick={() => handleRestore(log)}
+              onClick={() => handleRestoreClick(log)}
             >
               🔄 Restore Item
             </button>
@@ -383,6 +464,50 @@ export default function AuditHistoryViewer() {
             </div>
           </div>
         </div>
+
+        {/* Restore Confirmation Dialog */}
+        {showRestoreConfirm && pendingRestore && (
+          <div className="confirm-overlay" onClick={cancelRestore}>
+            <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+              <h3>📦 Restore Item?</h3>
+              <p style={{ fontSize: '16px', marginBottom: '1rem' }}>
+                You are about to restore <strong>"{pendingRestore.itemName}"</strong>.
+              </p>
+              <div style={{ 
+                padding: '1rem', 
+                backgroundColor: 'rgba(255, 170, 0, 0.1)', 
+                border: '1px solid rgba(255, 170, 0, 0.3)',
+                borderRadius: '6px',
+                marginBottom: '1rem'
+              }}>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '14px' }}>
+                  <strong>What will happen:</strong>
+                </p>
+                <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '14px' }}>
+                  <li>The item will reappear on the board and kiosk view</li>
+                  <li>All item data will be preserved</li>
+                  <li>The item will continue through the production stages</li>
+                </ul>
+              </div>
+              <div className="confirm-actions">
+                <button 
+                  onClick={cancelRestore} 
+                  className="btn-cancel"
+                  disabled={performingRestore}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={executeRestore} 
+                  disabled={performingRestore}
+                  className="btn-confirm"
+                >
+                  {performingRestore ? 'Restoring...' : 'Yes, Restore Item'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -450,14 +575,20 @@ export default function AuditHistoryViewer() {
                     >
                       <div className="entity-name">
                         {activeTab === 'orders' 
-                          ? `${entity.poNumber || entity.id.slice(0, 8)}`
+                          ? entity.account?.name || 'Unknown Customer'
                           : entity.name
                         }
                       </div>
                       <div className="entity-details">
                         {activeTab === 'orders' 
-                          ? entity.account?.name || 'No customer'
-                          : entity.email || 'No email'
+                          ? entity.sku || 'No sales rep'
+                          : (() => {
+                              // Find sales rep for customer
+                              const customerOrders = orders.filter(o => o.accountId === entity.id);
+                              return customerOrders.length > 0 && customerOrders[0].sku 
+                                ? customerOrders[0].sku 
+                                : 'No sales rep';
+                            })()
                         }
                       </div>
                     </div>
@@ -485,15 +616,19 @@ export default function AuditHistoryViewer() {
                   <div className="audit-header">
                     <h2>
                       {activeTab === 'orders' 
-                        ? `Order: ${selectedEntity.poNumber || selectedEntity.id.slice(0, 8)}`
-                        : `Customer: ${selectedEntity.name}`
+                        ? selectedEntity.account?.name || 'Unknown Customer'
+                        : selectedEntity.name
                       }
                     </h2>
-                    {activeTab === 'orders' && selectedEntity.account && (
-                      <p style={{ fontSize: '14px', color: '#a0a0a0', margin: '5px 0 0 0' }}>
-                        {selectedEntity.account.name}
-                      </p>
-                    )}
+                    <p style={{ fontSize: '14px', color: '#ef4444', margin: '5px 0 0 0', fontWeight: '500' }}>
+                      {activeTab === 'orders' && selectedEntity.sku 
+                        ? selectedEntity.sku
+                        : activeTab === 'customers' && (() => {
+                            const customerOrders = orders.filter(o => o.accountId === selectedEntity.id);
+                            return customerOrders.length > 0 && customerOrders[0].sku ? customerOrders[0].sku : '';
+                          })()
+                      }
+                    </p>
                   </div>
                   {currentLogs.map(log => renderLogEntry(log))}
                 </>
@@ -502,6 +637,50 @@ export default function AuditHistoryViewer() {
           </div>
         </div>
       </div>
+
+      {/* Restore Confirmation Dialog */}
+      {showRestoreConfirm && pendingRestore && (
+        <div className="confirm-overlay" onClick={cancelRestore}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>📦 Restore Item?</h3>
+            <p style={{ fontSize: '16px', marginBottom: '1rem' }}>
+              You are about to restore <strong>"{pendingRestore.itemName}"</strong>.
+            </p>
+            <div style={{ 
+              padding: '1rem', 
+              backgroundColor: 'rgba(255, 170, 0, 0.1)', 
+              border: '1px solid rgba(255, 170, 0, 0.3)',
+              borderRadius: '6px',
+              marginBottom: '1rem'
+            }}>
+              <p style={{ margin: '0 0 0.5rem 0', fontSize: '14px' }}>
+                <strong>What will happen:</strong>
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '1.5rem', fontSize: '14px' }}>
+                <li>The item will reappear on the board and kiosk view</li>
+                <li>All item data will be preserved</li>
+                <li>The item will continue through the production stages</li>
+              </ul>
+            </div>
+            <div className="confirm-actions">
+              <button 
+                onClick={cancelRestore} 
+                className="btn-cancel"
+                disabled={performingRestore}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executeRestore} 
+                disabled={performingRestore}
+                className="btn-confirm"
+              >
+                {performingRestore ? 'Restoring...' : 'Yes, Restore Item'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
