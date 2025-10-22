@@ -79,6 +79,54 @@ export function createAuthRouter() {
     });
   });
 
+  // Change password
+  router.post('/change-password', async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'Current password and new password are required' });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: 'New password must be at least 6 characters' });
+      }
+
+      // Get user with password
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id }
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Verify current password
+      const isValid = await comparePassword(currentPassword, user.password);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Current password is incorrect' });
+      }
+
+      // Hash new password
+      const hashedPassword = await hashPassword(newPassword);
+
+      // Update password
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword }
+      });
+
+      res.json({ message: 'Password changed successfully' });
+    } catch (e) {
+      console.error('Change password error:', e);
+      res.status(500).json({ error: 'Failed to change password' });
+    }
+  });
+
   // Logout (client-side token removal, but we can track it)
   router.post('/logout', async (req, res) => {
     // Could implement token blacklist here if needed
