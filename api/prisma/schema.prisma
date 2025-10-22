@@ -172,6 +172,7 @@ model User {
   statusEvents      OrderStatusEvent[]
   itemStatusEvents  OrderItemStatusEvent[]
   auditLogs         AuditLog[]
+  notifications     Notification[]          // Notifications assigned to this user
 }
 
 // Stage threshold settings for reports
@@ -197,4 +198,49 @@ model SystemSetting {
   updatedBy       String?
   
   @@index([key])
+}
+
+// Notification system for alerts and updates
+model Notification {
+  id              String   @id @default(cuid())
+  
+  // Who this notification is for
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Notification type and category
+  type            String   // "COMMISSION", "ORDER_LATE", "STAGE_WARNING", "STAGE_CRITICAL", "ORDER_DELIVERED", etc.
+  category        String   // "COMMISSION", "OPERATIONAL", "ALERT", "INFO"
+  
+  // Notification content
+  title           String
+  message         String
+  
+  // Related entities (optional, for linking)
+  relatedOrderId    String?
+  relatedItemId     String?
+  relatedAccountId  String?
+  
+  // Metadata (JSON string for flexible data)
+  metadata        String?  // JSON: { "amount": 1500, "orderId": "xyz", "daysLate": 5, etc. }
+  
+  // State tracking
+  isRead          Boolean  @default(false)
+  readAt          DateTime?
+  isDismissed     Boolean  @default(false)
+  dismissedAt     DateTime?
+  
+  // Priority/severity
+  priority        String   @default("NORMAL") // "LOW", "NORMAL", "HIGH", "CRITICAL"
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime? // Optional: notifications can expire
+  
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@index([type])
+  @@index([category])
+  @@index([priority])
+  @@index([relatedOrderId])
 }
