@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import TopNav from '@/components/TopNav';
 import '../reports.css';
 
 export default function ThroughputPage() {
@@ -54,127 +55,110 @@ export default function ThroughputPage() {
   if (!user) return null;
 
   return (
-    <main className="reports-container">
-      {/* Navigation Bar */}
-      <nav className="top-nav">
-        <div className="nav-left">
-          <Link href="/admin/board" className="nav-link">Board</Link>
-          <Link href="/admin/orders/new" className="nav-link">Add Order</Link>
-          <Link href="/admin/kiosk" className="nav-link">Kiosk</Link>
-          <Link href="/admin/reports" className="nav-link active">Reports</Link>
-          <Link href="/admin/customers" className="nav-link">Customers</Link>
-          {user?.role === 'ADMIN' && (
-            <Link href="/admin/users" className="nav-link">Users</Link>
-          )}
+    <>
+      <TopNav />
+      <main className="reports-container">
+        <div className="reports-header">
+          <h1>Throughput Analysis</h1>
+          <Link href="/admin/reports" className="btn-back">
+            ← Back to Reports
+          </Link>
         </div>
-        <div className="nav-right">
-          <Link href="/admin/profile" className="nav-link">Profile</Link>
-          <button onClick={() => { localStorage.removeItem('token'); router.push('/login'); }} className="nav-link btn-logout">
-            Logout
+
+        <div className="filter-bar">
+          <div className="filter-group">
+            <label>From Date</label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div className="filter-group">
+            <label>To Date</label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+          <button className="btn-filter" onClick={loadData}>
+            Apply Filters
           </button>
         </div>
-      </nav>
 
-      <div className="reports-header">
-        <h1>Throughput Analysis</h1>
-        <Link href="/admin/reports" className="btn-back">
-          ← Back to Reports
-        </Link>
-      </div>
+        {error && <div className="error-box">{error}</div>}
+        {loading && <div className="loading">Loading...</div>}
 
-      <div className="filter-bar">
-        <div className="filter-group">
-          <label>From Date</label>
-          <input
-            type="date"
-            className="filter-input"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-        </div>
-        <div className="filter-group">
-          <label>To Date</label>
-          <input
-            type="date"
-            className="filter-input"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </div>
-        <button className="btn-filter" onClick={loadData}>
-          Apply Filters
-        </button>
-      </div>
-
-      {error && <div className="error-box">{error}</div>}
-      {loading && <div className="loading">Loading...</div>}
-
-      {!loading && data && (
-        <>
-          <div className="kpi-grid">
-            <div className="kpi-card accent">
-              <h3>Total Transitions</h3>
-              <div className="kpi-value">{data.kpis.totalTransitions}</div>
+        {!loading && data && (
+          <>
+            <div className="kpi-grid">
+              <div className="kpi-card accent">
+                <h3>Total Transitions</h3>
+                <div className="kpi-value">{data.kpis.totalTransitions}</div>
+              </div>
+              <div className="kpi-card">
+                <h3>Weeks Analyzed</h3>
+                <div className="kpi-value">{data.kpis.weekCount}</div>
+              </div>
             </div>
-            <div className="kpi-card">
-              <h3>Weeks Analyzed</h3>
-              <div className="kpi-value">{data.kpis.weekCount}</div>
-            </div>
-          </div>
 
-          <div className="report-section">
-            <h2>Stage Throughput Summary</h2>
-            <div className="data-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Stage</th>
-                    <th>Total Items</th>
-                    <th>% of Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((row, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 'bold' }}>{row.stage.replace(/_/g, ' ')}</td>
-                      <td style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{row.count}</td>
-                      <td>{row.percentage}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {data.series && data.series.length > 0 && (
             <div className="report-section">
-              <h2>Weekly Throughput Trends</h2>
+              <h2>Stage Throughput Summary</h2>
               <div className="data-table">
                 <table>
                   <thead>
                     <tr>
-                      <th>Week</th>
-                      {Object.keys(data.series[0]).filter(k => k !== 'week').map(stage => (
-                        <th key={stage}>{stage.replace(/_/g, ' ')}</th>
-                      ))}
+                      <th>Stage</th>
+                      <th>Total Items</th>
+                      <th>% of Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.series.slice(0, 10).map((row, i) => (
+                    {data.rows.map((row, i) => (
                       <tr key={i}>
-                        <td style={{ fontWeight: 'bold' }}>{row.week}</td>
-                        {Object.keys(row).filter(k => k !== 'week').map(stage => (
-                          <td key={stage}>{row[stage] || 0}</td>
-                        ))}
+                        <td style={{ fontWeight: 'bold' }}>{row.stage.replace(/_/g, ' ')}</td>
+                        <td style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{row.count}</td>
+                        <td>{row.percentage}%</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-          )}
-        </>
-      )}
-    </main>
+
+            {data.series && data.series.length > 0 && (
+              <div className="report-section">
+                <h2>Weekly Throughput Trends</h2>
+                <div className="data-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Week</th>
+                        {Object.keys(data.series[0]).filter(k => k !== 'week').map(stage => (
+                          <th key={stage}>{stage.replace(/_/g, ' ')}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.series.slice(0, 10).map((row, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 'bold' }}>{row.week}</td>
+                          {Object.keys(row).filter(k => k !== 'week').map(stage => (
+                            <td key={stage}>{row[stage] || 0}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </>
   );
 }
