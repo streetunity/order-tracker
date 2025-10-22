@@ -120,7 +120,7 @@ app.use('/public', publicRouter);
 // Most auth routes don't need authentication
 app.use('/auth', (req, res, next) => {
   // Apply authGuard only to specific routes
-  if (req.path === '/me' || req.path === '/logout') {
+  if (req.path === '/me' || req.path === '/logout' || req.path === '/change-password') {
     return authGuard(req, res, () => {
       authRouter(req, res, next);
     });
