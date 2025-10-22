@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import TopNav from "@/components/TopNav";
+import QuickActions from "@/components/QuickActions";
+import NotificationBar from "@/components/NotificationBar";
 import "./board.css";
 import { OrderedIndicator } from './OrderedIndicator';
 
@@ -36,16 +39,17 @@ const STAGE_LABELS = {
 };
 
 export default function AdminBoardPage() {
-  const { user, getAuthHeaders, isAdmin, logout } = useAuth();
+  const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [yearlyTotal, setYearlyTotal] = useState(null);
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [salesRepFilter, setSalesRepFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [copiedLink, setCopiedLink] = useState(null);
+  const [salesReps, setSalesReps] = useState([]);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -54,25 +58,8 @@ export default function AdminBoardPage() {
     }
   }, [user, router]);
 
-  
-async function loadYearlyTotal() {
-  if (!user) return;
-
-  try {
-    const res = await fetch("/api/orders/yearly-total", {
-      headers: getAuthHeaders()
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setYearlyTotal(data);
-    }
-  } catch (e) {
-    console.error("Failed to load yearly total:", e);
-  }
-}
-
-async function load() {
-    if (!user) return; // Don't try to load if not authenticated
+  async function load() {
+    if (!user) return;
     
     try {
       setLoading(true);
@@ -90,6 +77,10 @@ async function load() {
       }
       const data = await res.json();
       setOrders(Array.isArray(data) ? data : []);
+      
+      // Extract unique sales reps
+      const reps = [...new Set(data.filter(o => o.sku).map(o => o.sku))].sort();
+      setSalesReps(reps);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -100,51 +91,40 @@ async function load() {
   useEffect(() => {
     if (user) {
       load();
-      loadYearlyTotal(); // Now loads for both admins and agents
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Filter orders on the frontend based on stage filter - ITEM-LEVEL FILTERING
+  // Filter orders by sales rep and stage
   const filteredOrders = useMemo(() => {
+    let filtered = orders;
+    
+    // Filter by sales rep
+    if (salesRepFilter) {
+      filtered = filtered.filter(order => order.sku === salesRepFilter);
+    }
+    
+    // Filter by stage and archived status
     if (!stageFilter) {
-      // Even without a stage filter, we need to exclude orders with no active items
-      return orders.map(order => {
-        // Filter out archived items if showArchived is false
+      return filtered.map(order => {
         const activeItems = (order.items || []).filter(item => showArchived || !item.archivedAt);
-        
-        // Only include the order if it has active items
         if (activeItems.length === 0) return null;
-        
-        return {
-          ...order,
-          items: activeItems
-        };
+        return { ...order, items: activeItems };
       }).filter(Boolean);
     }
     
-    // Filter orders and their items to only show items in the selected stage
-    return orders.map(order => {
-      // Filter items to only those in the selected stage and not archived (unless showing archived)
+    return filtered.map(order => {
       const filteredItems = (order.items || []).filter(item => {
         const itemStage = item.currentStage || order.currentStage || "MANUFACTURING";
         return itemStage === stageFilter && (!item.archivedAt || showArchived);
       });
-      
-      // Only include the order if it has filtered items
       if (filteredItems.length === 0) return null;
-      
-      // Return order with only the filtered items
-      return {
-        ...order,
-        items: filteredItems
-      };
-    }).filter(Boolean); // Remove null entries
-  }, [orders, stageFilter, showArchived]);
+      return { ...order, items: filteredItems };
+    }).filter(Boolean);
+  }, [orders, stageFilter, salesRepFilter, showArchived]);
 
   const counts = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
-    // Use ALL orders for counts, not filtered ones
     for (const o of orders) {
       for (const it of o.items || []) {
         if (!showArchived && it.archivedAt) continue;
@@ -158,10 +138,7 @@ async function load() {
   async function changeItemStage(orderId, itemId, nextStage, opts = {}) {
     const res = await fetch(`/api/orders/${orderId}/items/${itemId}/stage`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...getAuthHeaders(),
-      },
+      headers: { "content-type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ nextStage, ...opts }),
     });
     if (!res.ok) {
@@ -173,10 +150,7 @@ async function load() {
   async function archiveItem(orderId, itemId, archived) {
     const res = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
       method: "PATCH",
-      headers: {
-        "content-type": "application/json",
-        ...getAuthHeaders(),
-      },
+      headers: { "content-type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ archivedAt: archived ? new Date().toISOString() : null }),
     });
     if (!res.ok) {
@@ -200,6 +174,7 @@ async function load() {
     const i = STAGES.indexOf(s);
     return i >= 0 && i < STAGES.length - 1 ? STAGES[i + 1] : null;
   }
+  
   function prevStageOf(s) {
     const i = STAGES.indexOf(s);
     return i > 0 ? STAGES[i - 1] : null;
@@ -207,7 +182,6 @@ async function load() {
 
   function copyToClipboard(token, orderId) {
     const url = `${window.location.origin}/t/${token}`;
-    
     const textArea = document.createElement("textarea");
     textArea.value = url;
     textArea.style.position = "fixed";
@@ -233,7 +207,6 @@ async function load() {
     const by = new Map();
     for (const o of filteredOrders) {
       if (!o.items || o.items.length === 0) continue;
-      
       const key = o.account?.id || o.accountId || o.id;
       if (!by.has(key))
         by.set(key, {
@@ -248,69 +221,13 @@ async function load() {
     );
   }, [filteredOrders]);
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
-    <main>
-      <div className="header">
-        <h1 className="h1">Orders Board</h1>
-        {yearlyTotal && (
-          <div style={{
-            marginLeft: "20px",
-            padding: "8px 16px",
-            backgroundColor: "#dc2626",
-            color: "white",
-            borderRadius: "6px",
-            fontSize: "14px",
-            fontWeight: "500"
-          }}>
-            {new Date().getFullYear()} Total: {yearlyTotal.formatted} Sales
-          </div>
-        )}
-        <nav className="headerNav">
-          <Link href="/admin/customers/new" className="btn">
-            Add Customer
-          </Link>
-          <Link href="/admin/orders/new" className="btn">
-            Add Order
-          </Link>
-          <Link href="/admin/customers" className="btn">
-            Manage Customers
-          </Link>
-          <Link href="/admin/orders" className="btn">
-            Manage Orders
-          </Link>
-           <Link href="/admin/reports" className="btn">
-            Reports
-          </Link>
-          <div style={{ 
-            display: 'flex', 
-            gap: '10px', 
-            alignItems: 'center',
-            marginLeft: '20px',
-            paddingLeft: '20px',
-            borderLeft: '1px solid #ddd'
-          }}>
-            <span style={{ fontSize: '14px', color: '#666' }}>
-              Welcome, {user?.name} ({user?.role})
-            </span>
-            {isAdmin && (
-              <Link href="/admin/users" className="btn">
-                Manage Users
-              </Link>
-            )}
-            <button 
-              onClick={logout} 
-              className="btn"
-              style={{ backgroundColor: '#dc2626', color: 'white' }}
-            >
-              Logout
-            </button>
-          </div>
-        </nav>
-      </div>
+    <>
+      <TopNav />
+      <QuickActions />
+      <NotificationBar />
 
       <div className="toolbar">
         <div className="tool">
@@ -318,188 +235,89 @@ async function load() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search Order Date / Sales Person / Account / Item / Serial #"
-            style={{ padding: "4px 8px", border: "1px solid #ddd", borderRadius: 6 }}
+            style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6, minWidth: "350px" }}
           />
-          <button className="btn" onClick={load}>
-            Apply
-          </button>
+          <button className="btn" onClick={load}>Apply</button>
         </div>
         <div className="tool">
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
-            style={{ padding: "4px 8px", border: "1px solid #ddd", borderRadius: 6 }}
+            style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
           >
             <option value="">All stages</option>
             {STAGES.map((s) => (
-              <option key={s} value={s}>
-                {STAGE_LABELS[s] ?? s.replace(/_/g, " ")}
-              </option>
+              <option key={s} value={s}>{STAGE_LABELS[s] ?? s.replace(/_/g, " ")}</option>
             ))}
           </select>
           {stageFilter && (
-            <button 
-              className="btn" 
-              onClick={() => setStageFilter("")}
-              style={{ marginLeft: "4px" }}
-            >
-              Clear
-            </button>
+            <button className="btn" onClick={() => setStageFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
+          )}
+        </div>
+        <div className="tool">
+          <select
+            value={salesRepFilter}
+            onChange={(e) => setSalesRepFilter(e.target.value)}
+            style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
+          >
+            <option value="">All Sales Reps</option>
+            {salesReps.map((rep) => (
+              <option key={rep} value={rep}>{rep}</option>
+            ))}
+          </select>
+          {salesRepFilter && (
+            <button className="btn" onClick={() => setSalesRepFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
           )}
         </div>
         <div className="tool">
           <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-            />
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Show archived
           </label>
         </div>
-        {isAdmin && (
-          <div className="tool">
-            <Link href="/history" className="btn">
-              Audit
-            </Link>
-          </div>
-        )}
         {!!err && <div className="errorBox">Failed to load: {err}</div>}
         {loading && <div className="loading">Loading…</div>}
-        {!loading && stageFilter && grouped.length === 0 && (
-          <div style={{ 
-            padding: "8px 12px", 
-            backgroundColor: "#fef3c7", 
-            border: "1px solid #f59e0b",
-            borderRadius: "6px",
-            color: "#92400e"
-          }}>
-            No items found in "{STAGE_LABELS[stageFilter] ?? stageFilter}". 
-            <button 
-              onClick={() => setStageFilter("")}
-              style={{
-                marginLeft: "8px",
-                textDecoration: "underline",
-                background: "none",
-                border: "none",
-                color: "#92400e",
-                cursor: "pointer"
-              }}
-            >
-              Clear filter
-            </button>
+        {!loading && (stageFilter || salesRepFilter) && grouped.length === 0 && (
+          <div style={{ padding: "8px 12px", backgroundColor: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "6px", color: "#92400e" }}>
+            No items found with current filters.
+            <button onClick={() => { setStageFilter(""); setSalesRepFilter(""); }} style={{ marginLeft: "8px", textDecoration: "underline", background: "none", border: "none", color: "#92400e", cursor: "pointer" }}>Clear all filters</button>
           </div>
         )}
       </div>
 
       <div className="stageBoard">
         <div className="stageCol stickyHeader stickyCol">
-          <div className="stageTitle">
-            Customer
-            {stageFilter && (
-              <span style={{ 
-                fontSize: "11px", 
-                fontWeight: "normal",
-                display: "block",
-                color: "#f59e0b"
-              }}>
-                (filtered)
-              </span>
-            )}
-          </div>
+          <div className="stageTitle">Customer{(stageFilter || salesRepFilter) && <span style={{ fontSize: "11px", fontWeight: "normal", display: "block", color: "#f59e0b" }}>(filtered)</span>}</div>
         </div>
         {STAGES.map((s) => (
           <div key={s} className="stageCol stickyHeader">
             <div className="stageTitle">
               {STAGE_LABELS[s] ?? s.replace(/_/g, " ")}
               <span className="count">({counts[s] ?? 0})</span>
-              {stageFilter === s && (
-                <span style={{ 
-                  fontSize: "11px", 
-                  fontWeight: "normal",
-                  display: "block",
-                  color: "#f59e0b"
-                }}>
-                  (active filter)
-                </span>
-              )}
+              {stageFilter === s && <span style={{ fontSize: "11px", fontWeight: "normal", display: "block", color: "#f59e0b" }}>(active filter)</span>}
             </div>
           </div>
         ))}
 
         {grouped.map((group) => {
           const hasLockedOrder = group.orders.some(o => o.isLocked);
-          
           return (
             <div className="customerRow" key={group.accountId || group.accountName}>
               <div className="stageCol stickyCol">
                 <div className="customerHeader">
                   <div className="customerName">
-                    {hasLockedOrder && (
-                      <span 
-                        style={{ 
-                          color: "#dc2626", 
-                          marginRight: "6px",
-                          fontSize: "16px",
-                          verticalAlign: "middle"
-                        }}
-                        title="Order is locked - item details cannot be edited"
-                      >
-                        🔒
-                      </span>
-                    )}
+                    {hasLockedOrder && <span style={{ color: "#dc2626", marginRight: "6px", fontSize: "16px", verticalAlign: "middle" }} title="Order is locked - item details cannot be edited">🔒</span>}
                     {group.accountName}
                     {group.orders?.[0] && (
-                      <>
-                        {" "}
-                        <Link
-                          className="link tiny"
-                          href={`/admin/orders/${group.orders[0].id}`}
-                          title={hasLockedOrder ? "Edit order (locked)" : "Edit order"}
-                        >
-                          ✎ Edit
-                        </Link>
-                      </>
+                      <> <Link className="link tiny" href={`/admin/orders/${group.orders[0].id}`} title={hasLockedOrder ? "Edit order (locked)" : "Edit order"}>✎ Edit</Link></>
                     )}
                   </div>
                   <div className="publicLinks">
                     {(group.orders || []).map((o) => (
                       <div key={o.id} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        {o.isLocked && (
-                          <span 
-                            style={{ 
-                              color: "#dc2626", 
-                              fontSize: "10px"
-                            }}
-                            title={`Locked${o.lockedAt ? ` on ${new Date(o.lockedAt).toLocaleDateString()}` : ''}`}
-                          >
-                            🔒
-                          </span>
-                        )}
-                        <a
-                          className="link tiny"
-                          href={`/t/${o.trackingToken}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Public tracking link"
-                        >
-                          Public link
-                        </a>
-                        <button
-                          onClick={() => copyToClipboard(o.trackingToken, o.id)}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: "2px",
-                            fontSize: "12px",
-                            color: copiedLink === o.id ? "#d1d5db" : "#9ca3af",
-                            transition: "color 0.2s"
-                          }}
-                          title={copiedLink === o.id ? "Copied!" : "Copy link to clipboard"}
-                        >
-                          {copiedLink === o.id ? "✓" : "📋"}
-                        </button>
+                        {o.isLocked && <span style={{ color: "#dc2626", fontSize: "10px" }} title={`Locked${o.lockedAt ? ` on ${new Date(o.lockedAt).toLocaleDateString()}` : ''}`}>🔒</span>}
+                        <a className="link tiny" href={`/t/${o.trackingToken}`} target="_blank" rel="noreferrer" title="Public tracking link">Public link</a>
+                        <button onClick={() => copyToClipboard(o.trackingToken, o.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", fontSize: "12px", color: copiedLink === o.id ? "#d1d5db" : "#9ca3af", transition: "color 0.2s" }} title={copiedLink === o.id ? "Copied!" : "Copy link to clipboard"}>{copiedLink === o.id ? "✓" : "📋"}</button>
                       </div>
                     ))}
                   </div>
@@ -507,16 +325,15 @@ async function load() {
               </div>
 
               {STAGES.map((stageKey) => {
-                const itemsInStage = (group.orders || [])
-                  .flatMap((o) =>
-                    (o.items || [])
-                      .filter((it) => {
-                        const s = it.currentStage || o.currentStage || "MANUFACTURING";
-                        if (!showArchived && it.archivedAt) return false;
-                        return s === stageKey;
-                      })
-                      .map((it) => ({ it, order: o }))
-                  );
+                const itemsInStage = (group.orders || []).flatMap((o) =>
+                  (o.items || [])
+                    .filter((it) => {
+                      const s = it.currentStage || o.currentStage || "MANUFACTURING";
+                      if (!showArchived && it.archivedAt) return false;
+                      return s === stageKey;
+                    })
+                    .map((it) => ({ it, order: o }))
+                );
 
                 return (
                   <div key={`${group.accountId}-${stageKey}`} className="stageCol">
@@ -539,177 +356,19 @@ async function load() {
                           if (isOrderLocked) tooltipText += "\n(Order Locked)";
                           
                           return (
-                            <div
-                              key={it.id}
-                              className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`}
-                              title={tooltipText}
-                              style={{
-                                borderColor: isOrderLocked ? "#dc2626" : undefined,
-                                borderWidth: isOrderLocked ? "2px" : undefined
-                              }}
-                            >
-                              <div className="itemTitle">
-                                {it.productCode || "Item"}
-                              </div>
-                              
+                            <div key={it.id} className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`} title={tooltipText} style={{ borderColor: isOrderLocked ? "#dc2626" : undefined, borderWidth: isOrderLocked ? "2px" : undefined }}>
+                              <div className="itemTitle">{it.productCode || "Item"}</div>
                               <div className="itemActions" style={{ gap: "2px" }}>
-                                <button
-                                  className="miniBtn"
-                                  aria-label="Move back"
-                                  disabled={!prev}
-                                  onClick={async () => {
-                                    if (!prev) return;
-                                    try {
-                                      await changeItemStage(order.id, it.id, prev, {
-                                        allowBackward: true,
-                                      });
-                                      await load();
-                                    } catch (e) {
-                                      alert(
-                                        `Failed to move back: ${
-                                          e instanceof Error ? e.message : e
-                                        }`
-                                      );
-                                    }
-                                  }}
-                                  title={
-                                    prev
-                                      ? `Move to ${STAGE_LABELS[prev] ?? prev}`
-                                      : "No previous stage"
-                                  }
-                                  style={{ fontSize: "10px", padding: "2px 4px" }}
-                                >
-                                  ◀
-                                </button>
-
-                                <button
-                                  className="miniBtn"
-                                  aria-label="Move forward"
-                                  disabled={!next}
-                                  onClick={async () => {
-                                    if (!next) return;
-                                    try {
-                                      await changeItemStage(order.id, it.id, next, {
-                                        allowFastForward: true,
-                                      });
-                                      await load();
-                                    } catch (e) {
-                                      alert(
-                                        `Failed to move forward: ${
-                                          e instanceof Error ? e.message : e
-                                        }`
-                                      );
-                                    }
-                                  }}
-                                  title={
-                                    next
-                                      ? `Move to ${STAGE_LABELS[next] ?? next}`
-                                      : "No next stage"
-                                  }
-                                  style={{ fontSize: "10px", padding: "2px 4px" }}
-                                >
-                                  ▶
-                                </button>
-
+                                <button className="miniBtn" aria-label="Move back" disabled={!prev} onClick={async () => { if (!prev) return; try { await changeItemStage(order.id, it.id, prev, { allowBackward: true }); await load(); } catch (e) { alert(`Failed to move back: ${e instanceof Error ? e.message : e}`); } }} title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>◀</button>
+                                <button className="miniBtn" aria-label="Move forward" disabled={!next} onClick={async () => { if (!next) return; try { await changeItemStage(order.id, it.id, next, { allowFastForward: true }); await load(); } catch (e) { alert(`Failed to move forward: ${e instanceof Error ? e.message : e}`); } }} title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>▶</button>
                                 {!isArchived ? (
-                                  <button
-                                    className="miniBtn danger"
-                                    aria-label="Archive"
-                                    onClick={async () => {
-                                      try {
-                                        await archiveItem(order.id, it.id, true);
-                                        await load();
-                                      } catch (e) {
-                                        alert(
-                                          `Failed to archive: ${
-                                            e instanceof Error ? e.message : e
-                                          }`
-                                        );
-                                      }
-                                    }}
-                                    title="Archive (hide from board)"
-                                    style={{ fontSize: "10px", padding: "2px 4px" }}
-                                  >
-                                    ✕
-                                  </button>
+                                  <button className="miniBtn danger" aria-label="Archive" onClick={async () => { try { await archiveItem(order.id, it.id, true); await load(); } catch (e) { alert(`Failed to archive: ${e instanceof Error ? e.message : e}`); } }} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px" }}>✕</button>
                                 ) : (
-                                  <button
-                                    className="miniBtn"
-                                    aria-label="Restore"
-                                    onClick={async () => {
-                                      try {
-                                        await archiveItem(order.id, it.id, false);
-                                        await load();
-                                      } catch (e) {
-                                        alert(
-                                          `Failed to restore: ${
-                                            e instanceof Error ? e.message : e
-                                          }`
-                                        );
-                                      }
-                                    }}
-                                    title="Restore (show on board)"
-                                    style={{ fontSize: "10px", padding: "2px 4px" }}
-                                  >
-                                    ↺
-                                  </button>
+                                  <button className="miniBtn" aria-label="Restore" onClick={async () => { try { await archiveItem(order.id, it.id, false); await load(); } catch (e) { alert(`Failed to restore: ${e instanceof Error ? e.message : e}`); } }} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px" }}>↺</button>
                                 )}
-
-                                <button
-                                  className="miniBtn danger"
-                                  aria-label="Delete item"
-                                  onClick={async () => {
-                                    if (isOrderLocked) {
-                                      alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
-                                      return;
-                                    }
-                                    if (!confirm("Delete this item permanently?")) return;
-                                    try {
-                                      await deleteItem(order.id, it.id);
-                                      await load();
-                                    } catch (e) {
-                                      alert(
-                                        `Failed to delete: ${
-                                          e instanceof Error ? e.message : e
-                                        }`
-                                      );
-                                    }
-                                  }}
-                                  title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"}
-                                  style={{
-                                    opacity: isOrderLocked ? 0.5 : 1,
-                                    cursor: isOrderLocked ? "not-allowed" : "pointer",
-                                    fontSize: "10px", 
-                                    padding: "2px 4px"
-                                  }}
-                                >
-                                  🗑
-                                </button>
-
-                                {it.isOrdered && (
-                                  <span style={{ width: '8px', display: 'inline-block' }}></span>
-                                )}
-
-                                {it.isOrdered && (
-                                  <span
-                                    title="Item ordered"
-                                    style={{
-                                      display: 'inline-block',
-                                      backgroundColor: '#16a34a',
-                                      color: 'white',
-                                      fontWeight: 'bold',
-                                      fontSize: '10px',
-                                      width: '16px',
-                                      height: '16px',
-                                      lineHeight: '16px',
-                                      textAlign: 'center',
-                                      borderRadius: '50%',
-                                      cursor: 'help'
-                                    }}
-                                  >
-                                    $
-                                  </span>
-                                )}
+                                <button className="miniBtn danger" aria-label="Delete item" onClick={async () => { if (isOrderLocked) { alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page."); return; } if (!confirm("Delete this item permanently?")) return; try { await deleteItem(order.id, it.id); await load(); } catch (e) { alert(`Failed to delete: ${e instanceof Error ? e.message : e}`); } }} title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"} style={{ opacity: isOrderLocked ? 0.5 : 1, cursor: isOrderLocked ? "not-allowed" : "pointer", fontSize: "10px", padding: "2px 4px" }}>🗑</button>
+                                {it.isOrdered && <span style={{ width: '8px', display: 'inline-block' }}></span>}
+                                {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>}
                               </div>
                             </div>
                           );
@@ -723,6 +382,6 @@ async function load() {
           );
         })}
       </div>
-    </main>
+    </>
   );
 }
