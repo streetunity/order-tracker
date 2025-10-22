@@ -55,6 +55,26 @@ export default function ThroughputPage() {
 
   return (
     <main className="reports-container">
+      {/* Navigation Bar */}
+      <nav className="top-nav">
+        <div className="nav-left">
+          <Link href="/admin/board" className="nav-link">Board</Link>
+          <Link href="/admin/orders/new" className="nav-link">Add Order</Link>
+          <Link href="/admin/kiosk" className="nav-link">Kiosk</Link>
+          <Link href="/admin/reports" className="nav-link active">Reports</Link>
+          <Link href="/admin/customers" className="nav-link">Customers</Link>
+          {user?.role === 'ADMIN' && (
+            <Link href="/admin/users" className="nav-link">Users</Link>
+          )}
+        </div>
+        <div className="nav-right">
+          <Link href="/admin/profile" className="nav-link">Profile</Link>
+          <button onClick={() => { localStorage.removeItem('token'); router.push('/login'); }} className="nav-link btn-logout">
+            Logout
+          </button>
+        </div>
+      </nav>
+
       <div className="reports-header">
         <h1>Throughput Analysis</h1>
         <Link href="/admin/reports" className="btn-back">
