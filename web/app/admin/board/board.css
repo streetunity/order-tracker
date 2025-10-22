@@ -4,7 +4,7 @@
 :root {
   --top-nav-h: 60px;        /* TopNav height */
   --quick-actions-h: 48px;  /* QuickActions height */
-  --toolbar-h: 36px;        /* Toolbar height */
+  --toolbar-h: 48px;        /* Toolbar height (increased from 36px for better visibility) */
   --stage-head-h: 48px;     /* Stage header row height */
   --sticky-top: calc(var(--top-nav-h) + var(--quick-actions-h) + var(--toolbar-h));
   --row-bg-even: rgba(255, 255, 255, 0.03);
@@ -15,14 +15,16 @@
 .toolbar {
   position: sticky;
   top: calc(var(--top-nav-h) + var(--quick-actions-h));
-  z-index: 99;
+  z-index: 100;
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 8px 24px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
-  background: var(--panel);
+  background: rgba(45, 45, 45, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
   min-height: var(--toolbar-h);
 }
 
@@ -56,7 +58,7 @@
   height: var(--stage-head-h);
   display: flex;
   align-items: center;
-  z-index: 20;
+  z-index: 90;
   border-bottom: 2px solid var(--border);
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
@@ -71,13 +73,13 @@
   position: sticky;
   left: 0;
   background: var(--panel);
-  z-index: 15;
+  z-index: 85;
   border-right: 2px solid var(--border);
   min-width: 200px;
 }
 
 .stickyHeader.stickyCol {
-  z-index: 25;
+  z-index: 95;
   background: #dc2626;
   background-image: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
 }
