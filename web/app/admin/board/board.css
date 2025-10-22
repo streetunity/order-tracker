@@ -16,7 +16,7 @@
 .stickyActionsToolbar {
   position: sticky;
   top: var(--top-nav-h);
-  z-index: 100;
+  z-index: 105; /* Higher than stage header (90) to prevent slide-behind */
   background: rgba(45, 45, 45, 0.95);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px rgba(0,0,0,.3);
