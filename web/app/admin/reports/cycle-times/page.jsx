@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import TopNav from '@/components/TopNav';
 import '../reports.css';
 
 export default function CycleTimesPage() {
@@ -57,139 +58,122 @@ export default function CycleTimesPage() {
   if (!user) return null;
 
   return (
-    <main className="reports-container">
-      {/* Navigation Bar */}
-      <nav className="top-nav">
-        <div className="nav-left">
-          <Link href="/admin/board" className="nav-link">Board</Link>
-          <Link href="/admin/orders/new" className="nav-link">Add Order</Link>
-          <Link href="/admin/kiosk" className="nav-link">Kiosk</Link>
-          <Link href="/admin/reports" className="nav-link active">Reports</Link>
-          <Link href="/admin/customers" className="nav-link">Customers</Link>
-          {user?.role === 'ADMIN' && (
-            <Link href="/admin/users" className="nav-link">Users</Link>
-          )}
+    <>
+      <TopNav />
+      <main className="reports-container">
+        <div className="reports-header">
+          <h1>Cycle Times</h1>
+          <Link href="/admin/reports" className="btn-back">
+            ← Back to Reports
+          </Link>
         </div>
-        <div className="nav-right">
-          <Link href="/admin/profile" className="nav-link">Profile</Link>
-          <button onClick={() => { localStorage.removeItem('token'); router.push('/login'); }} className="nav-link btn-logout">
-            Logout
+
+        {/* Filters */}
+        <div className="filter-bar">
+          <div className="filter-group">
+            <label>From Date</label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div className="filter-group">
+            <label>To Date</label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+          <button className="btn-filter" onClick={() => { setPage(1); loadData(); }}>
+            Apply Filters
           </button>
         </div>
-      </nav>
 
-      <div className="reports-header">
-        <h1>Cycle Times</h1>
-        <Link href="/admin/reports" className="btn-back">
-          ← Back to Reports
-        </Link>
-      </div>
+        {error && <div className="error-box">{error}</div>}
+        {loading && <div className="loading">Loading...</div>}
 
-      {/* Filters */}
-      <div className="filter-bar">
-        <div className="filter-group">
-          <label>From Date</label>
-          <input
-            type="date"
-            className="filter-input"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-        </div>
-        <div className="filter-group">
-          <label>To Date</label>
-          <input
-            type="date"
-            className="filter-input"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </div>
-        <button className="btn-filter" onClick={() => { setPage(1); loadData(); }}>
-          Apply Filters
-        </button>
-      </div>
-
-      {error && <div className="error-box">{error}</div>}
-      {loading && <div className="loading">Loading...</div>}
-
-      {!loading && data && (
-        <>
-          {/* KPIs */}
-          <div className="kpi-grid">
-            <div className="kpi-card">
-              <h3>Completed Orders</h3>
-              <div className="kpi-value">{data.kpis.completedOrders}</div>
-            </div>
-            <div className="kpi-card accent">
-              <h3>Median Cycle Time</h3>
-              <div className="kpi-value">{data.kpis.medianCycleTimeDays}d</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '5px' }}>
-                {data.kpis.medianFormatted}
+        {!loading && data && (
+          <>
+            {/* KPIs */}
+            <div className="kpi-grid">
+              <div className="kpi-card">
+                <h3>Completed Orders</h3>
+                <div className="kpi-value">{data.kpis.completedOrders}</div>
+              </div>
+              <div className="kpi-card accent">
+                <h3>Median Cycle Time</h3>
+                <div className="kpi-value">{data.kpis.medianCycleTimeDays}d</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '5px' }}>
+                  {data.kpis.medianFormatted}
+                </div>
+              </div>
+              <div className="kpi-card">
+                <h3>P90 Cycle Time</h3>
+                <div className="kpi-value">{data.kpis.p90CycleTimeDays}d</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '5px' }}>
+                  {data.kpis.p90Formatted}
+                </div>
               </div>
             </div>
-            <div className="kpi-card">
-              <h3>P90 Cycle Time</h3>
-              <div className="kpi-value">{data.kpis.p90CycleTimeDays}d</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '5px' }}>
-                {data.kpis.p90Formatted}
-              </div>
-            </div>
-          </div>
 
-          {/* Data Table */}
-          <div className="report-section">
-            <h2>Completed Orders</h2>
-            <div className="data-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>PO Number</th>
-                    <th>Customer</th>
-                    <th>Created By</th>
-                    <th>Completed</th>
-                    <th>Cycle Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.data.map((row, i) => (
-                    <tr key={i}>
-                      <td>{row.poNumber || 'N/A'}</td>
-                      <td>{row.accountName}</td>
-                      <td style={{ color: 'var(--text-dim)' }}>{row.createdBy}</td>
-                      <td style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
-                        {new Date(row.completedAt).toLocaleDateString()}
-                      </td>
-                      <td style={{ fontWeight: 'bold' }}>{row.cycleTimeFormatted}</td>
+            {/* Data Table */}
+            <div className="report-section">
+              <h2>Completed Orders</h2>
+              <div className="data-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>PO Number</th>
+                      <th>Customer</th>
+                      <th>Created By</th>
+                      <th>Completed</th>
+                      <th>Cycle Time</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            {/* Pagination */}
-            {data.rows.pagination && data.rows.pagination.totalPages > 1 && (
-              <div className="pagination">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Previous
-                </button>
-                <span>
-                  Page {page} of {data.rows.pagination.totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(p => p + 1)}
-                  disabled={!data.rows.pagination.hasMore}
-                >
-                  Next
-                </button>
+                  </thead>
+                  <tbody>
+                    {data.rows.data.map((row, i) => (
+                      <tr key={i}>
+                        <td>{row.poNumber || 'N/A'}</td>
+                        <td>{row.accountName}</td>
+                        <td style={{ color: 'var(--text-dim)' }}>{row.createdBy}</td>
+                        <td style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
+                          {new Date(row.completedAt).toLocaleDateString()}
+                        </td>
+                        <td style={{ fontWeight: 'bold' }}>{row.cycleTimeFormatted}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
-        </>
-      )}
-    </main>
+              
+              {/* Pagination */}
+              {data.rows.pagination && data.rows.pagination.totalPages > 1 && (
+                <div className="pagination">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Previous
+                  </button>
+                  <span>
+                    Page {page} of {data.rows.pagination.totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={!data.rows.pagination.hasMore}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </main>
+    </>
   );
 }
