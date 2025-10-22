@@ -226,63 +226,67 @@ export default function AdminBoardPage() {
   return (
     <>
       <TopNav />
-      <QuickActions />
       <NotificationBar />
-
-      <div className="toolbar">
-        <div className="tool">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Order Date / Sales Person / Account / Item / Serial #"
-            style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6, minWidth: "350px" }}
-          />
-          <button className="btn" onClick={load}>Apply</button>
-        </div>
-        <div className="tool">
-          <select
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
-          >
-            <option value="">All stages</option>
-            {STAGES.map((s) => (
-              <option key={s} value={s}>{STAGE_LABELS[s] ?? s.replace(/_/g, " ")}</option>
-            ))}
-          </select>
-          {stageFilter && (
-            <button className="btn" onClick={() => setStageFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
-          )}
-        </div>
-        <div className="tool">
-          <select
-            value={salesRepFilter}
-            onChange={(e) => setSalesRepFilter(e.target.value)}
-            style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
-          >
-            <option value="">All Sales Reps</option>
-            {salesReps.map((rep) => (
-              <option key={rep} value={rep}>{rep}</option>
-            ))}
-          </select>
-          {salesRepFilter && (
-            <button className="btn" onClick={() => setSalesRepFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
-          )}
-        </div>
-        <div className="tool">
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-            Show archived
-          </label>
-        </div>
-        {!!err && <div className="errorBox">Failed to load: {err}</div>}
-        {loading && <div className="loading">Loading…</div>}
-        {!loading && (stageFilter || salesRepFilter) && grouped.length === 0 && (
-          <div style={{ padding: "8px 12px", backgroundColor: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "6px", color: "#92400e" }}>
-            No items found with current filters.
-            <button onClick={() => { setStageFilter(""); setSalesRepFilter(""); }} style={{ marginLeft: "8px", textDecoration: "underline", background: "none", border: "none", color: "#92400e", cursor: "pointer" }}>Clear all filters</button>
+      
+      {/* Unified sticky container for QuickActions + Toolbar */}
+      <div className="stickyActionsToolbar">
+        <QuickActions />
+        
+        <div className="toolbar">
+          <div className="tool">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search Order Date / Sales Person / Account / Item / Serial #"
+              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6, minWidth: "350px" }}
+            />
+            <button className="btn" onClick={load}>Apply</button>
           </div>
-        )}
+          <div className="tool">
+            <select
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
+            >
+              <option value="">All stages</option>
+              {STAGES.map((s) => (
+                <option key={s} value={s}>{STAGE_LABELS[s] ?? s.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+            {stageFilter && (
+              <button className="btn" onClick={() => setStageFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
+            )}
+          </div>
+          <div className="tool">
+            <select
+              value={salesRepFilter}
+              onChange={(e) => setSalesRepFilter(e.target.value)}
+              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
+            >
+              <option value="">All Sales Reps</option>
+              {salesReps.map((rep) => (
+                <option key={rep} value={rep}>{rep}</option>
+              ))}
+            </select>
+            {salesRepFilter && (
+              <button className="btn" onClick={() => setSalesRepFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
+            )}
+          </div>
+          <div className="tool">
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+              Show archived
+            </label>
+          </div>
+          {!!err && <div className="errorBox">Failed to load: {err}</div>}
+          {loading && <div className="loading">Loading…</div>}
+          {!loading && (stageFilter || salesRepFilter) && grouped.length === 0 && (
+            <div style={{ padding: "8px 12px", backgroundColor: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "6px", color: "#92400e" }}>
+              No items found with current filters.
+              <button onClick={() => { setStageFilter(""); setSalesRepFilter(""); }} style={{ marginLeft: "8px", textDecoration: "underline", background: "none", border: "none", color: "#92400e", cursor: "pointer" }}>Clear all filters</button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="stageBoard">
