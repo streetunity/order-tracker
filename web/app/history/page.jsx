@@ -7,11 +7,19 @@ import TopNav from '@/components/TopNav';
 import './history.css';
 
 export default function AuditHistoryViewer() {
+  // State for all entities
+  const [orders, setOrders] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  
+  // State for logs
   const [universalLogs, setUniversalLogs] = useState([]);
-  const [ordersLogs, setOrdersLogs] = useState([]);
-  const [accountsLogs, setAccountsLogs] = useState([]);
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [entityLogs, setEntityLogs] = useState([]);
+  
   const [loading, setLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('universal'); // 'universal', 'orders', 'customers'
+  const [searchQuery, setSearchQuery] = useState('');
   
   const router = useRouter();
   const { user, getAuthHeaders, isAdmin } = useAuth();
@@ -24,6 +32,36 @@ export default function AuditHistoryViewer() {
       router.push('/admin/board');
     }
   }, [user, isAdmin, router]);
+
+  async function loadData() {
+    if (!user || !isAdmin) return;
+    
+    try {
+      // Load orders
+      const ordersRes = await fetch('/api/orders', {
+        headers: getAuthHeaders(),
+        cache: 'no-store',
+      });
+      
+      if (ordersRes.ok) {
+        const ordersData = await ordersRes.json();
+        setOrders(Array.isArray(ordersData) ? ordersData : []);
+      }
+
+      // Load accounts
+      const accountsRes = await fetch('/api/accounts', {
+        headers: getAuthHeaders(),
+        cache: 'no-store',
+      });
+      
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json();
+        setAccounts(Array.isArray(accountsData) ? accountsData : []);
+      }
+    } catch (e) {
+      console.error('Failed to load data:', e);
+    }
+  }
 
   async function loadUniversalChanges() {
     try {
@@ -41,61 +79,56 @@ export default function AuditHistoryViewer() {
     }
   }
 
-  async function loadOrdersChanges() {
+  async function loadEntityLogs(entityId) {
+    if (!user || !isAdmin) return;
+    
+    setLogsLoading(true);
     try {
-      const res = await fetch('/api/audit/by-type/Order?limit=50', {
+      const res = await fetch(`/api/audit/${entityId}`, {
         headers: getAuthHeaders(),
         cache: 'no-store',
       });
       
       if (res.ok) {
         const data = await res.json();
-        setOrdersLogs(Array.isArray(data) ? data : []);
+        setEntityLogs(Array.isArray(data) ? data : []);
       }
     } catch (e) {
-      console.error('Failed to load orders changes:', e);
-    }
-  }
-
-  async function loadAccountsChanges() {
-    try {
-      const res = await fetch('/api/audit/by-type/Account?limit=50', {
-        headers: getAuthHeaders(),
-        cache: 'no-store',
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        setAccountsLogs(Array.isArray(data) ? data : []);
-      }
-    } catch (e) {
-      console.error('Failed to load accounts changes:', e);
+      console.error('Failed to load entity logs:', e);
+    } finally {
+      setLogsLoading(false);
     }
   }
 
   useEffect(() => {
     if (user && isAdmin) {
       setLoading(true);
-      loadUniversalChanges().then(() => {
-        loadOrdersChanges();
-        loadAccountsChanges();
-      }).finally(() => setLoading(false));
+      Promise.all([loadData(), loadUniversalChanges()]).finally(() => setLoading(false));
     }
   }, [user, isAdmin]);
 
-  async function handleRestore(log) {
-    if (!log.metadata?.entity || log.action !== 'ORDERITEM_UPDATED') return;
-    
-    // Check if this is an archive action
-    const archiveChange = log.changes?.find(c => c.field === 'archivedAt');
-    if (!archiveChange || archiveChange.newValue === 'null') return;
+  useEffect(() => {
+    if (selectedEntity && user && isAdmin) {
+      loadEntityLogs(selectedEntity.id);
+    }
+  }, [selectedEntity, user, isAdmin]);
 
-    const confirm = window.confirm('Restore this item to the board?');
-    if (!confirm) return;
+  async function handleRestore(log) {
+    // Check if this is an archive action for an OrderItem
+    const archiveChange = log.changes?.find(c => c.field === 'archivedAt');
+    if (!archiveChange || archiveChange.newValue === 'null' || log.entityType !== 'OrderItem') {
+      console.log('Not an archive action or wrong entity type');
+      return;
+    }
+
+    const confirmRestore = window.confirm('Restore this item to the board?');
+    if (!confirmRestore) return;
 
     try {
       const itemId = log.entityId;
       const orderId = log.parentEntityId;
+      
+      console.log('Restoring item:', { itemId, orderId });
       
       const res = await fetch(`/api/orders/${orderId}/items/${itemId}`, {
         method: 'PATCH',
@@ -110,9 +143,12 @@ export default function AuditHistoryViewer() {
 
       if (res.ok) {
         alert('Item restored successfully!');
-        // Reload the logs
-        loadUniversalChanges();
-        loadOrdersChanges();
+        // Reload the appropriate logs
+        if (activeTab === 'universal') {
+          loadUniversalChanges();
+        } else if (selectedEntity) {
+          loadEntityLogs(selectedEntity.id);
+        }
       } else {
         const error = await res.json();
         alert(`Failed to restore: ${error.error || 'Unknown error'}`);
@@ -171,9 +207,46 @@ export default function AuditHistoryViewer() {
   }
 
   function isArchiveAction(log) {
-    if (log.action !== 'ORDERITEM_UPDATED') return false;
+    if (log.entityType !== 'OrderItem') return false;
     const archiveChange = log.changes?.find(c => c.field === 'archivedAt');
-    return archiveChange && archiveChange.newValue !== 'null';
+    return archiveChange && archiveChange.oldValue === 'null' && archiveChange.newValue !== 'null';
+  }
+
+  function getEntityName(log) {
+    // For Order logs, try to find the order
+    if (log.entityType === 'Order' || log.parentEntityId) {
+      const orderId = log.entityType === 'Order' ? log.entityId : log.parentEntityId;
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        return `Order: ${order.poNumber || order.id.slice(0, 8)} - ${order.account?.name || 'Unknown'}`;
+      }
+    }
+    
+    // For Account logs
+    if (log.entityType === 'Account') {
+      const account = accounts.find(a => a.id === log.entityId);
+      if (account) {
+        return `Customer: ${account.name}`;
+      }
+    }
+    
+    // For OrderItem logs, get product code from metadata
+    if (log.entityType === 'OrderItem' && log.metadata?.items) {
+      const items = log.metadata.items;
+      if (Array.isArray(items) && items.length > 0) {
+        return `Item: ${items[0].productCode}`;
+      }
+    }
+    
+    // Fallback - try to get from changes
+    if (log.changes) {
+      const productCodeChange = log.changes.find(c => c.field === 'productCode');
+      if (productCodeChange) {
+        return `Item: ${productCodeChange.newValue || productCodeChange.oldValue}`;
+      }
+    }
+    
+    return null;
   }
 
   function renderChanges(changes) {
@@ -195,6 +268,7 @@ export default function AuditHistoryViewer() {
 
   function renderLogEntry(log) {
     const showRestore = isArchiveAction(log);
+    const entityName = getEntityName(log);
     
     return (
       <div key={log.id} className="log-entry">
@@ -210,6 +284,12 @@ export default function AuditHistoryViewer() {
             {log.performedByName || 'System'}
           </div>
         </div>
+        
+        {entityName && (
+          <div className="log-entity-name">
+            {entityName}
+          </div>
+        )}
         
         {renderChanges(log.changes)}
         
@@ -233,6 +313,17 @@ export default function AuditHistoryViewer() {
     );
   }
 
+  // Filter entities based on search
+  const filteredAccounts = accounts.filter(acc => 
+    acc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    acc.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredOrders = orders.filter(order => 
+    order.poNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    order.account?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // Don't render until authentication is checked
   if (!user || !isAdmin) {
     return null;
@@ -246,15 +337,65 @@ export default function AuditHistoryViewer() {
     );
   }
 
-  const currentLogs = activeTab === 'universal' ? universalLogs : 
-                      activeTab === 'orders' ? ordersLogs : accountsLogs;
+  // Render for universal tab
+  if (activeTab === 'universal') {
+    return (
+      <>
+        <TopNav />
+        <div className="history-container">
+          <div className="history-content">
+            <div className="history-header">
+              <h1>Audit History</h1>
+              <p className="history-subtitle">
+                Track all changes and actions across the system
+              </p>
+            </div>
+
+            <div className="history-tabs">
+              <button
+                className={`tab ${activeTab === 'universal' ? 'active' : ''}`}
+                onClick={() => setActiveTab('universal')}
+              >
+                Recent Changes (20)
+              </button>
+              <button
+                className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
+                onClick={() => setActiveTab('orders')}
+              >
+                Orders
+              </button>
+              <button
+                className={`tab ${activeTab === 'customers' ? 'active' : ''}`}
+                onClick={() => setActiveTab('customers')}
+              >
+                Customers
+              </button>
+            </div>
+
+            <div className="logs-container">
+              {universalLogs.length === 0 ? (
+                <div className="no-logs">
+                  <p>No audit logs found.</p>
+                </div>
+              ) : (
+                universalLogs.map(log => renderLogEntry(log))
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Render for orders/customers tabs with sidebar
+  const currentEntities = activeTab === 'orders' ? filteredOrders : filteredAccounts;
+  const currentLogs = logsLoading ? [] : entityLogs;
 
   return (
     <>
       <TopNav />
       <div className="history-container">
         <div className="history-content">
-          {/* Header */}
           <div className="history-header">
             <h1>Audit History</h1>
             <p className="history-subtitle">
@@ -262,37 +403,102 @@ export default function AuditHistoryViewer() {
             </p>
           </div>
 
-          {/* Tabs */}
           <div className="history-tabs">
             <button
               className={`tab ${activeTab === 'universal' ? 'active' : ''}`}
-              onClick={() => setActiveTab('universal')}
+              onClick={() => { setActiveTab('universal'); setSelectedEntity(null); }}
             >
               Recent Changes (20)
             </button>
             <button
               className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
+              onClick={() => { setActiveTab('orders'); setSelectedEntity(null); }}
             >
               Orders
             </button>
             <button
               className={`tab ${activeTab === 'customers' ? 'active' : ''}`}
-              onClick={() => setActiveTab('customers')}
+              onClick={() => { setActiveTab('customers'); setSelectedEntity(null); }}
             >
               Customers
             </button>
           </div>
 
-          {/* Logs Display */}
-          <div className="logs-container">
-            {currentLogs.length === 0 ? (
-              <div className="no-logs">
-                <p>No audit logs found for this category.</p>
+          <div className="history-grid">
+            {/* Left Sidebar - Entity List */}
+            <div className="entity-list-sidebar">
+              <div className="entity-search">
+                <input
+                  type="text"
+                  placeholder={`Search ${activeTab}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-            ) : (
-              currentLogs.map(log => renderLogEntry(log))
-            )}
+
+              <div className="entity-list">
+                {currentEntities.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#a0a0a0', padding: '20px' }}>
+                    No {activeTab} found
+                  </div>
+                ) : (
+                  currentEntities.map(entity => (
+                    <div
+                      key={entity.id}
+                      className={`entity-card ${selectedEntity?.id === entity.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedEntity(entity)}
+                    >
+                      <div className="entity-name">
+                        {activeTab === 'orders' 
+                          ? `${entity.poNumber || entity.id.slice(0, 8)}`
+                          : entity.name
+                        }
+                      </div>
+                      <div className="entity-details">
+                        {activeTab === 'orders' 
+                          ? entity.account?.name || 'No customer'
+                          : entity.email || 'No email'
+                        }
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Right Panel - Audit Logs */}
+            <div className="audit-log-panel">
+              {!selectedEntity ? (
+                <div className="no-selection">
+                  <p>Select {activeTab === 'orders' ? 'an order' : 'a customer'} to view audit history</p>
+                </div>
+              ) : logsLoading ? (
+                <div className="logs-loading">
+                  Loading logs...
+                </div>
+              ) : currentLogs.length === 0 ? (
+                <div className="no-logs">
+                  <p>No audit logs found for this {activeTab === 'orders' ? 'order' : 'customer'}.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="audit-header">
+                    <h2>
+                      {activeTab === 'orders' 
+                        ? `Order: ${selectedEntity.poNumber || selectedEntity.id.slice(0, 8)}`
+                        : `Customer: ${selectedEntity.name}`
+                      }
+                    </h2>
+                    {activeTab === 'orders' && selectedEntity.account && (
+                      <p style={{ fontSize: '14px', color: '#a0a0a0', margin: '5px 0 0 0' }}>
+                        {selectedEntity.account.name}
+                      </p>
+                    )}
+                  </div>
+                  {currentLogs.map(log => renderLogEntry(log))}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
