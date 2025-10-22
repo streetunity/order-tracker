@@ -21,8 +21,7 @@
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px rgba(0,0,0,.3);
   border-bottom: 1px solid var(--border);
-  min-height: 96px; /* 48px QuickActions + 48px Toolbar */
-  max-height: 96px; /* Force exact height to prevent expansion */
+  /* Removed min/max height constraints - let it flow naturally */
 }
 
 /* ---- Toolbar (now inside unified container, no longer independently sticky) ---- */
@@ -34,8 +33,7 @@
   padding: 10px 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 13px;
-  min-height: 48px; /* Force exact toolbar height */
-  max-height: 48px; /* Prevent expansion */
+  min-height: 48px;
 }
 
 .tool {
@@ -64,7 +62,7 @@
 /* ---- Sticky header row for stage columns ---- */
 .stickyHeader {
   position: sticky !important;
-  top: 156px !important; /* 60px TopNav + 96px unified container = 156px - force exact positioning */
+  top: 165px !important; /* 60px TopNav + ~105px unified container (accounting for borders/padding) */
   height: var(--stage-head-h);
   display: flex;
   align-items: center;
