@@ -79,6 +79,48 @@ export function createAuthRouter() {
     });
   });
 
+  // Generate system token for cron jobs (admin only)
+  router.post('/generate-system-token', async (req, res) => {
+    try {
+      // Check if user is authenticated and is admin
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required to generate system token' });
+      }
+
+      // Verify admin credentials again for security
+      const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() }
+      });
+
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin user not found' });
+      }
+
+      const isValid = await comparePassword(password, user.password);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Generate a long-lived token (you can adjust expiry in auth.js if needed)
+      const token = generateToken(user);
+
+      res.json({
+        token,
+        message: 'System token generated successfully. Store this securely for cron jobs.',
+        warning: 'This token has admin privileges. Keep it safe!'
+      });
+    } catch (e) {
+      console.error('Generate system token error:', e);
+      res.status(500).json({ error: 'Failed to generate system token' });
+    }
+  });
+
   // Change password
   router.post('/change-password', async (req, res) => {
     try {
