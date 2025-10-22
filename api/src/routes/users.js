@@ -1,5 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 import { hashPassword, comparePassword, validatePassword } from '../utils/password.js';
 import { 
   canCreateRole, 
@@ -124,7 +125,7 @@ export function createUsersRouter() {
       }
 
       // Generate a secure random password
-      const systemPassword = require('crypto').randomBytes(32).toString('hex');
+      const systemPassword = crypto.randomBytes(32).toString('hex');
       const hashedPassword = await hashPassword(systemPassword);
 
       // Create the system user
