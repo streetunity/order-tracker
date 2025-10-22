@@ -6,25 +6,32 @@
   --quick-actions-h: 48px;  /* QuickActions height */
   --toolbar-h: 48px;        /* Toolbar height (increased from 36px for better visibility) */
   --stage-head-h: 48px;     /* Stage header row height */
-  --sticky-top: calc(var(--top-nav-h) + var(--quick-actions-h) + var(--toolbar-h));
+  --actions-toolbar-combined: calc(var(--quick-actions-h) + var(--toolbar-h)); /* Combined height of unified container */
+  --sticky-top: calc(var(--top-nav-h) + var(--actions-toolbar-combined));
   --row-bg-even: rgba(255, 255, 255, 0.03);
   --row-bg-odd: transparent;
 }
 
-/* ---- Toolbar (sticky under QuickActions and NotificationBar) ---- */
-.toolbar {
+/* ---- Unified sticky container for QuickActions + Toolbar ---- */
+.stickyActionsToolbar {
   position: sticky;
-  top: calc(var(--top-nav-h) + var(--quick-actions-h));
+  top: var(--top-nav-h);
   z-index: 100;
+  background: rgba(45, 45, 45, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- Toolbar (now inside unified container, no longer independently sticky) ---- */
+.toolbar {
+  /* Removed position: sticky and top - now contained within stickyActionsToolbar */
   display: flex;
   gap: 12px;
   align-items: center;
   padding: 10px 24px;
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 13px;
-  background: rgba(45, 45, 45, 0.95);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 8px rgba(0,0,0,.3);
   min-height: var(--toolbar-h);
 }
 
