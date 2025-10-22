@@ -102,6 +102,92 @@ export function createUsersRouter() {
     }
   });
 
+  // Create system user for cron jobs (One-time setup, admin only)
+  router.post('/create-system-user', async (req, res) => {
+    try {
+      // Must be admin
+      if (req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      // Check if system user already exists
+      const existing = await prisma.user.findUnique({
+        where: { email: 'system@ordertracker.internal' }
+      });
+
+      if (existing) {
+        return res.status(400).json({ 
+          error: 'System user already exists',
+          userId: existing.id,
+          hint: 'Use POST /auth/login with this user to get a token'
+        });
+      }
+
+      // Generate a secure random password
+      const systemPassword = require('crypto').randomBytes(32).toString('hex');
+      const hashedPassword = await hashPassword(systemPassword);
+
+      // Create the system user
+      const systemUser = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email: 'system@ordertracker.internal',
+            name: 'System (Cron Jobs)',
+            password: hashedPassword,
+            role: 'ADMIN',
+            isActive: true,
+            canBeSalesRep: false
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true
+          }
+        });
+
+        await tx.auditLog.create({
+          data: {
+            entityType: 'User',
+            entityId: user.id,
+            action: 'USER_CREATED',
+            metadata: JSON.stringify({
+              entity: 'User',
+              entityId: user.id,
+              data: {
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                purpose: 'System user for cron jobs'
+              }
+            }),
+            performedByUserId: req.user.id,
+            performedByName: req.user.name
+          }
+        });
+
+        return user;
+      });
+
+      res.json({
+        success: true,
+        systemUser: systemUser,
+        credentials: {
+          email: 'system@ordertracker.internal',
+          password: systemPassword
+        },
+        warning: 'SAVE THESE CREDENTIALS! You will need them to generate the token.',
+        nextSteps: [
+          '1. Save the password shown above',
+          '2. Use POST /auth/login with these credentials to get a token',
+          '3. Use that token in your cron job'
+        ]
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Create new user (Admin or higher)
   router.post('/', async (req, res) => {
     try {
@@ -212,6 +298,11 @@ export function createUsersRouter() {
       
       if (!original) {
         return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Prevent editing system user
+      if (original.email === 'system@ordertracker.internal') {
+        return res.status(403).json({ error: 'Cannot edit system user' });
       }
 
       // Check if requester can edit this user based on role hierarchy
@@ -364,6 +455,15 @@ export function createUsersRouter() {
   // Delete user (soft delete by deactivating) - Admin or higher with hierarchy check
   router.delete('/:id', async (req, res) => {
     try {
+      // Prevent deleting system user
+      const user = await prisma.user.findUnique({
+        where: { id: req.params.id }
+      });
+
+      if (user && user.email === 'system@ordertracker.internal') {
+        return res.status(403).json({ error: 'Cannot delete system user' });
+      }
+
       // Prevent hard deletes - return error
       return res.status(400).json({ 
         error: 'Cannot permanently delete users. Use PATCH to deactivate instead.',
