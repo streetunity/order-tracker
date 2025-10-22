@@ -365,6 +365,9 @@ export function createNotificationsRouter(prisma) {
       const notifications = [];
       const now = new Date();
 
+      // Final stages that shouldn't trigger notifications (items stay here indefinitely)
+      const FINAL_STAGES = ['COMPLETED', 'FOLLOW_UP'];
+
       // Process each order's items
       for (const order of orders) {
         // Determine which user to notify
@@ -382,6 +385,11 @@ export function createNotificationsRouter(prisma) {
         if (!notifyUserId) continue; // Skip if no user to notify
 
         for (const item of order.items) {
+          // Skip final stages - items can stay here indefinitely
+          if (FINAL_STAGES.includes(item.currentStage)) {
+            continue;
+          }
+
           const lastEvent = item.statusEvents[0];
           const stageEnteredAt = lastEvent ? new Date(lastEvent.createdAt) : new Date(item.createdAt);
           const daysInStage = Math.floor((now - stageEnteredAt) / (1000 * 60 * 60 * 24));
