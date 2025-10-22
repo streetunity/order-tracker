@@ -102,11 +102,11 @@ export function createUsersRouter() {
     }
   });
 
-  // Create system user for cron jobs (One-time setup, admin only)
+  // Create system user for cron jobs (One-time setup, admin or super_admin only)
   router.post('/create-system-user', async (req, res) => {
     try {
-      // Must be admin
-      if (req.user.role !== 'ADMIN') {
+      // Must be admin or super_admin
+      if (!isAdminOrHigher(req.user.role)) {
         return res.status(403).json({ error: 'Admin access required' });
       }
 
@@ -416,7 +416,7 @@ export function createUsersRouter() {
       }
       
       const user = await prisma.$transaction(async (tx) => {
-        const updated = await tx.user.update({
+        const updated = await tx.user.update(({
           where: { id: req.params.id },
           data,
           select: {
