@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import TopNav from '@/components/TopNav';
 import EntityList from '@/components/history/EntityList';
 import AuditLogViewer from '@/components/history/AuditLogViewer';
 import './history.css';
@@ -127,49 +128,41 @@ export default function AuditHistoryViewer() {
   }
 
   return (
-    <div className="history-container">
-      <div className="history-content">
-        {/* Header */}
-        <div className="history-header">
-          <h1>Audit History</h1>
-          <div className="history-nav-buttons">
-            <button onClick={() => router.push('/admin/board')}>
-              Back to Board
-            </button>
-            <button onClick={() => router.push('/admin/customers')}>
-              Manage Customers
-            </button>
-            <button onClick={() => router.push('/admin/orders')}>
-              Manage Orders
-            </button>
+    <>
+      <TopNav />
+      <div className="history-container">
+        <div className="history-content">
+          {/* Header */}
+          <div className="history-header">
+            <h1>Audit History</h1>
+          </div>
+
+          <div className="history-grid">
+            {/* Left Sidebar - Entity List */}
+            <EntityList
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              accounts={accounts}
+              orders={orders}
+              getCurrentEntities={getCurrentEntities}
+              selectedEntity={selectedEntity}
+              setSelectedEntity={setSelectedEntity}
+              setEntityType={setEntityType}
+            />
+
+            {/* Right Panel - Audit Logs */}
+            <AuditLogViewer
+              selectedEntity={selectedEntity}
+              entityType={entityType}
+              auditLogs={auditLogs}
+              logsLoading={logsLoading}
+              activeTab={activeTab}
+            />
           </div>
         </div>
-
-        <div className="history-grid">
-          {/* Left Sidebar - Entity List */}
-          <EntityList
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            accounts={accounts}
-            orders={orders}
-            getCurrentEntities={getCurrentEntities}
-            selectedEntity={selectedEntity}
-            setSelectedEntity={setSelectedEntity}
-            setEntityType={setEntityType}
-          />
-
-          {/* Right Panel - Audit Logs */}
-          <AuditLogViewer
-            selectedEntity={selectedEntity}
-            entityType={entityType}
-            auditLogs={auditLogs}
-            logsLoading={logsLoading}
-            activeTab={activeTab}
-          />
-        </div>
       </div>
-    </div>
+    </>
   );
 }
