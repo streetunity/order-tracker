@@ -329,6 +329,59 @@ export default function AuditHistoryViewer() {
     return info;
   }
 
+  function getFieldLabel(field) {
+    const labels = {
+      // Order fields
+      'poNumber': 'PO Number',
+      'sku': 'Sales Person',
+      'customerDocsLink': 'Customer Documents Link',
+      'orderDate': 'Order Date',
+      'discount': 'Discount',
+      'etaDate': 'ETA Date',
+      'shippingCarrier': 'Shipping Carrier',
+      'trackingNumber': 'Tracking Number',
+      'currentStage': 'Current Stage',
+      'isLocked': 'Lock Status',
+      'internalNotes': 'Internal Notes',
+      
+      // OrderItem fields
+      'productCode': 'Item Name',
+      'qty': 'Quantity',
+      'serialNumber': 'Serial Number',
+      'modelNumber': 'Model Number',
+      'voltage': 'Voltage',
+      'laserWattage': 'Power',
+      'notes': 'Notes',
+      'itemPrice': 'Price',
+      'privateItemNote': 'Private Item Note',
+      'hasExtendedShipping': 'Extended Shipping',
+      'isOrdered': 'Ordered Status',
+      'archivedAt': 'Archive Status',
+      'height': 'Height',
+      'width': 'Width',
+      'length': 'Length',
+      'weight': 'Weight',
+      'units': 'Units',
+      
+      // Account fields
+      'name': 'Name',
+      'email': 'Email',
+      'phone': 'Phone',
+      'address': 'Address',
+      'commissionPercentage': 'Commission %'
+    };
+    
+    return labels[field] || field;
+  }
+  
+  function formatValue(value) {
+    if (value === null || value === 'null') return '(empty)';
+    if (value === true || value === 'true') return 'Yes';
+    if (value === false || value === 'false') return 'No';
+    if (value === '') return '(blank)';
+    return value;
+  }
+
   function renderChanges(changes) {
     if (!changes || changes.length === 0) return null;
     
@@ -336,10 +389,10 @@ export default function AuditHistoryViewer() {
       <div className="log-changes">
         {changes.map((change, idx) => (
           <div key={idx} className="change-item">
-            <span className="change-field">{change.field}:</span>
-            <span className="change-old">{change.oldValue}</span>
+            <span className="change-field">{getFieldLabel(change.field)}:</span>
+            <span className="change-old">{formatValue(change.oldValue)}</span>
             <span className="change-arrow">→</span>
-            <span className="change-new">{change.newValue}</span>
+            <span className="change-new">{formatValue(change.newValue)}</span>
           </div>
         ))}
       </div>
