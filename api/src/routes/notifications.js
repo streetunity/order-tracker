@@ -96,59 +96,51 @@ export function createNotificationsRouter(prisma) {
    */
   router.get('/stats', authGuard, async (req, res) => {
     try {
-      const userId = req.user.role === 'AGENT' ? req.user.id : req.query.userId || req.user.id;
+      // Build where clauses based on role
+      const baseWhere = {
+        isDismissed: false,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } }
+        ]
+      };
+
+      // For agents, filter to their own notifications
+      // For admins, show all notifications unless they specify a userId
+      const isAgent = req.user.role === 'AGENT';
+      const filterUserId = isAgent ? req.user.id : req.query.userId;
+
+      if (filterUserId) {
+        baseWhere.userId = filterUserId;
+      }
 
       const [total, unread, byCategory, byPriority] = await Promise.all([
-        // Total active notifications
+        // Total active notifications (for agents: only theirs, for admins: all)
         prisma.notification.count({
-          where: {
-            userId,
-            isDismissed: false,
-            OR: [
-              { expiresAt: null },
-              { expiresAt: { gt: new Date() } }
-            ]
-          }
+          where: baseWhere
         }),
         
         // Unread count
         prisma.notification.count({
           where: {
-            userId,
-            isRead: false,
-            isDismissed: false,
-            OR: [
-              { expiresAt: null },
-              { expiresAt: { gt: new Date() } }
-            ]
+            ...baseWhere,
+            isRead: false
           }
         }),
         
         // By category
         prisma.notification.groupBy({
           by: ['category'],
-          where: {
-            userId,
-            isDismissed: false,
-            OR: [
-              { expiresAt: null },
-              { expiresAt: { gt: new Date() } }
-            ]
-          },
+          where: baseWhere,
           _count: true
         }),
         
-        // By priority
+        // By priority (only unread)
         prisma.notification.groupBy({
           by: ['priority'],
           where: {
-            userId,
-            isRead: false,
-            isDismissed: false,
-            OR: [
-              { expiresAt: null },
-              { expiresAt: { gt: new Date() } }
-            ]
+            ...baseWhere,
+            isRead: false
           },
           _count: true
         })
