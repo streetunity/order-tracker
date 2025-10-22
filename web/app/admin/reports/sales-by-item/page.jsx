@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import TopNav from '@/components/TopNav';
 import '../reports.css';
 
 export default function SalesByItemPage() {
@@ -60,96 +60,96 @@ export default function SalesByItemPage() {
   if (!user || !isAdmin) return null;
 
   return (
-    <main className="reports-container">
-      <div className="reports-header">
-        <h1>Sales by Product</h1>
-        <Link href="/admin/reports" className="btn-back">
-          ← Back to Reports
-        </Link>
-      </div>
-
-      <div className="filter-bar">
-        <div className="filter-group">
-          <label>From Date</label>
-          <input
-            type="date"
-            className="filter-input"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
+    <>
+      <TopNav />
+      <main className="reports-container">
+        <div className="reports-header">
+          <h1>Sales by Product</h1>
         </div>
-        <div className="filter-group">
-          <label>To Date</label>
-          <input
-            type="date"
-            className="filter-input"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </div>
-        <div className="filter-group">
-          <label>Top N Products</label>
-          <input
-            type="number"
-            className="filter-input"
-            value={topN}
-            onChange={(e) => setTopN(e.target.value)}
-            min="1"
-            max="50"
-          />
-        </div>
-        <button className="btn-filter" onClick={loadData}>
-          Apply Filters
-        </button>
-      </div>
 
-      {error && <div className="error-box">{error}</div>}
-      {loading && <div className="loading">Loading...</div>}
-
-      {!loading && data && (
-        <>
-          <div className="kpi-grid">
-            <div className="kpi-card accent">
-              <h3>Grand Total</h3>
-              <div className="kpi-value">{data.kpis.grandTotalFormatted}</div>
-            </div>
-            <div className="kpi-card">
-              <h3>Unique Products</h3>
-              <div className="kpi-value">{data.kpis.uniqueProducts}</div>
-            </div>
+        <div className="filter-bar">
+          <div className="filter-group">
+            <label>From Date</label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
           </div>
+          <div className="filter-group">
+            <label>To Date</label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+          <div className="filter-group">
+            <label>Top N Products</label>
+            <input
+              type="number"
+              className="filter-input"
+              value={topN}
+              onChange={(e) => setTopN(e.target.value)}
+              min="1"
+              max="50"
+            />
+          </div>
+          <button className="btn-filter" onClick={loadData}>
+            Apply Filters
+          </button>
+        </div>
 
-          <div className="report-section">
-            <h2>Top Products by Revenue</h2>
-            <div className="data-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Product Code</th>
-                    <th>Total Sales</th>
-                    <th>Count</th>
-                    <th>Avg Price</th>
-                    <th>% of Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.series.map((row, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 'bold' }}>{row.productCode}</td>
-                      <td style={{ color: 'var(--accent)', fontWeight: 'bold' }}>
-                        {row.totalFormatted}
-                      </td>
-                      <td>{row.count}</td>
-                      <td>{row.avgPriceFormatted}</td>
-                      <td>{row.percentOfTotal}%</td>
+        {error && <div className="error-box">{error}</div>}
+        {loading && <div className="loading">Loading...</div>}
+
+        {!loading && data && (
+          <>
+            <div className="kpi-grid">
+              <div className="kpi-card accent">
+                <h3>Grand Total</h3>
+                <div className="kpi-value">{data.kpis.grandTotalFormatted}</div>
+              </div>
+              <div className="kpi-card">
+                <h3>Unique Products</h3>
+                <div className="kpi-value">{data.kpis.uniqueProducts}</div>
+              </div>
+            </div>
+
+            <div className="report-section">
+              <h2>Top Products by Revenue</h2>
+              <div className="data-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Product Code</th>
+                      <th>Total Sales</th>
+                      <th>Count</th>
+                      <th>Avg Price</th>
+                      <th>% of Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.series.map((row, i) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 'bold' }}>{row.productCode}</td>
+                        <td style={{ color: 'var(--accent)', fontWeight: 'bold' }}>
+                          {row.totalFormatted}
+                        </td>
+                        <td>{row.count}</td>
+                        <td>{row.avgPriceFormatted}</td>
+                        <td>{row.percentOfTotal}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </>
-      )}
-    </main>
+          </>
+        )}
+      </main>
+    </>
   );
 }
