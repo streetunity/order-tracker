@@ -38,28 +38,6 @@
   color: #e4e4e4;
 }
 
-.history-nav-buttons {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.history-nav-buttons button {
-  padding: 8px 16px;
-  background-color: #383838;
-  color: #e4e4e4;
-  border: 1px solid #404040;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.history-nav-buttons button:hover {
-  background-color: #404040;
-}
-
 /* Grid Layout */
 .history-grid {
   display: grid;
