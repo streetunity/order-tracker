@@ -6,13 +6,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import "./notifications.css";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000';
+
 export default function NotificationsPage() {
   const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
   const [notifications, setNotifications] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all"); // all, unread, commission, operational
+  const [filter, setFilter] = useState("all");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export default function NotificationsPage() {
       if (filter === "operational") params.set("category", "OPERATIONAL");
       params.set("limit", "100");
 
-      const res = await fetch(`/api/notifications?${params.toString()}`, {
+      const res = await fetch(`${API_BASE}/notifications?${params.toString()}`, {
         headers: getAuthHeaders(),
       });
 
@@ -54,7 +56,7 @@ export default function NotificationsPage() {
 
   async function loadStats() {
     try {
-      const res = await fetch("/api/notifications/stats", {
+      const res = await fetch(`${API_BASE}/notifications/stats`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -68,7 +70,7 @@ export default function NotificationsPage() {
 
   async function markAsRead(id) {
     try {
-      const res = await fetch(`/api/notifications/${id}/read`, {
+      const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
         method: "PATCH",
         headers: getAuthHeaders(),
       });
@@ -83,7 +85,7 @@ export default function NotificationsPage() {
 
   async function markAllAsRead() {
     try {
-      const res = await fetch("/api/notifications/read-all", {
+      const res = await fetch(`${API_BASE}/notifications/read-all`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -98,7 +100,7 @@ export default function NotificationsPage() {
 
   async function dismissNotification(id) {
     try {
-      const res = await fetch(`/api/notifications/${id}/dismiss`, {
+      const res = await fetch(`${API_BASE}/notifications/${id}/dismiss`, {
         method: "PATCH",
         headers: getAuthHeaders(),
       });
@@ -130,9 +132,9 @@ export default function NotificationsPage() {
     switch (priority) {
       case "CRITICAL": return "#dc2626";
       case "HIGH": return "#f59e0b";
-      case "NORMAL": return "#3b82f6";
+      case "NORMAL": return "#ef4444";
       case "LOW": return "#6b7280";
-      default: return "#3b82f6";
+      default: return "#ef4444";
     }
   }
 
