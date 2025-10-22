@@ -1,0 +1,8 @@
+Add this import at the top of users page:
+import TopNav from "@/components/TopNav";
+
+And wrap the return statement with:
+<>
+  <TopNav />
+  {existing content}
+</>
