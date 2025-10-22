@@ -5,20 +5,53 @@ export function createAccountsRouter(prisma) {
 
   async function getAccessibleAccountIds(user) {
     if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'ACCOUNTANT') return null;
+    
+    // For agents: Get accounts they have orders for
     const orders = await prisma.order.findMany({
       where: { sku: user.name },
       select: { accountId: true },
       distinct: ['accountId']
     });
-    return orders.map(o => o.accountId);
+    const accountsFromOrders = orders.map(o => o.accountId);
+    
+    // ALSO get accounts they created themselves (from audit log)
+    const accountsCreatedByAgent = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'Account',
+        action: 'ACCOUNT_CREATED',
+        performedByUserId: user.id
+      },
+      select: { entityId: true },
+      distinct: ['entityId']
+    });
+    const accountsCreated = accountsCreatedByAgent.map(log => log.entityId);
+    
+    // Combine both lists (remove duplicates with Set)
+    const allAccessibleAccounts = [...new Set([...accountsFromOrders, ...accountsCreated])];
+    
+    return allAccessibleAccounts;
   }
 
   async function canAccessAccount(user, accountId) {
     if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'ACCOUNTANT') return true;
+    
+    // Check if they have an order for this account
     const order = await prisma.order.findFirst({
       where: { accountId: accountId, sku: user.name }
     });
-    return !!order;
+    if (order) return true;
+    
+    // Check if they created this account
+    const createdLog = await prisma.auditLog.findFirst({
+      where: {
+        entityType: 'Account',
+        entityId: accountId,
+        action: 'ACCOUNT_CREATED',
+        performedByUserId: user.id
+      }
+    });
+    
+    return !!createdLog;
   }
 
   router.get('/', async (req, res) => {
@@ -169,7 +202,7 @@ export function createAccountsRouter(prisma) {
       }
       const account = await prisma.account.findUnique({
         where: { id: req.params.id },
-        include: { orders: { select: { id: true, poNumber: true, createdAt: true }, ...(req.user.role === 'AGENT' ? { where: { sku: req.user.name } } : {}) } }
+        include: { orders: { select: { id: true, poNumber: true, createdAt: true }, ...(req.user.role === 'AGENT' ? { where: { sku: user.name } } : {}) } }
       });
       if (!account) return res.status(404).json({ error: 'Account not found' });
       if (account.orders && account.orders.length > 0) {
