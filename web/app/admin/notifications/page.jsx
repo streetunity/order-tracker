@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import "./notifications.css";
@@ -268,13 +269,13 @@ export default function NotificationsPage() {
 
                   <div className="notification-actions">
                     {notif.relatedOrderId && (
-                      <a
+                      <Link
                         href={`/admin/orders/${notif.relatedOrderId}`}
                         className="action-link"
                         onClick={(e) => e.stopPropagation()}
                       >
                         View Order →
-                      </a>
+                      </Link>
                     )}
                     {!notif.isDismissed && (
                       <button
