@@ -51,6 +51,12 @@ export default function AdminBoardPage() {
   const [copiedLink, setCopiedLink] = useState(null);
   const [salesReps, setSalesReps] = useState([]);
 
+  // Confirmation dialog states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [performingAction, setPerformingAction] = useState(false);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!user) {
@@ -169,6 +175,64 @@ export default function AdminBoardPage() {
       throw new Error(body.error || `HTTP ${res.status}`);
     }
   }
+
+  // Handle archive button click
+  const handleArchiveClick = (orderId, itemId, itemName, isArchived) => {
+    setPendingAction({
+      type: 'archive',
+      orderId,
+      itemId,
+      itemName,
+      isArchived
+    });
+    setShowArchiveConfirm(true);
+  };
+
+  // Handle delete button click
+  const handleDeleteClick = (orderId, itemId, itemName, isOrderLocked) => {
+    if (isOrderLocked) {
+      alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
+      return;
+    }
+    setPendingAction({
+      type: 'delete',
+      orderId,
+      itemId,
+      itemName
+    });
+    setShowDeleteConfirm(true);
+  };
+
+  // Execute the pending action
+  const executePendingAction = async () => {
+    if (!pendingAction) return;
+
+    try {
+      setPerformingAction(true);
+      
+      if (pendingAction.type === 'delete') {
+        await deleteItem(pendingAction.orderId, pendingAction.itemId);
+      } else if (pendingAction.type === 'archive') {
+        await archiveItem(pendingAction.orderId, pendingAction.itemId, !pendingAction.isArchived);
+      }
+      
+      await load();
+      setShowDeleteConfirm(false);
+      setShowArchiveConfirm(false);
+      setPendingAction(null);
+    } catch (e) {
+      alert(`Failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setPerformingAction(false);
+    }
+  };
+
+  // Cancel the pending action
+  const cancelPendingAction = () => {
+    setShowDeleteConfirm(false);
+    setShowArchiveConfirm(false);
+    setPendingAction(null);
+  };
 
   function nextStageOf(s) {
     const i = STAGES.indexOf(s);
@@ -366,11 +430,11 @@ export default function AdminBoardPage() {
                                 <button className="miniBtn" aria-label="Move back" disabled={!prev} onClick={async () => { if (!prev) return; try { await changeItemStage(order.id, it.id, prev, { allowBackward: true }); await load(); } catch (e) { alert(`Failed to move back: ${e instanceof Error ? e.message : e}`); } }} title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>◀</button>
                                 <button className="miniBtn" aria-label="Move forward" disabled={!next} onClick={async () => { if (!next) return; try { await changeItemStage(order.id, it.id, next, { allowFastForward: true }); await load(); } catch (e) { alert(`Failed to move forward: ${e instanceof Error ? e.message : e}`); } }} title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>▶</button>
                                 {!isArchived ? (
-                                  <button className="miniBtn danger" aria-label="Archive" onClick={async () => { if (!confirm(`Archive "${it.productCode || "this item"}"? It will be hidden from the board and kiosk view.`)) return; try { await archiveItem(order.id, it.id, true); await load(); } catch (e) { alert(`Failed to archive: ${e instanceof Error ? e.message : e}`); } }} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px" }}>✕</button>
+                                  <button className="miniBtn danger" aria-label="Archive" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", false)} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px" }}>✕</button>
                                 ) : (
-                                  <button className="miniBtn" aria-label="Restore" onClick={async () => { try { await archiveItem(order.id, it.id, false); await load(); } catch (e) { alert(`Failed to restore: ${e instanceof Error ? e.message : e}`); } }} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px" }}>↺</button>
+                                  <button className="miniBtn" aria-label="Restore" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", true)} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px" }}>↺</button>
                                 )}
-                                <button className="miniBtn danger" aria-label="Delete item" onClick={async () => { if (isOrderLocked) { alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page."); return; } if (!confirm("Delete this item permanently?")) return; try { await deleteItem(order.id, it.id); await load(); } catch (e) { alert(`Failed to delete: ${e instanceof Error ? e.message : e}`); } }} title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"} style={{ opacity: isOrderLocked ? 0.5 : 1, cursor: isOrderLocked ? "not-allowed" : "pointer", fontSize: "10px", padding: "2px 4px" }}>🗑</button>
+                                <button className="miniBtn danger" aria-label="Delete item" onClick={() => handleDeleteClick(order.id, it.id, it.productCode || "this item", isOrderLocked)} title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"} style={{ opacity: isOrderLocked ? 0.5 : 1, cursor: isOrderLocked ? "not-allowed" : "pointer", fontSize: "10px", padding: "2px 4px" }}>🗑</button>
                                 {it.isOrdered && <span style={{ width: '8px', display: 'inline-block' }}></span>}
                                 {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>}
                               </div>
@@ -386,6 +450,120 @@ export default function AdminBoardPage() {
           );
         })}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && pendingAction && (
+        <div className="confirm-overlay" onClick={cancelPendingAction}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>⚠️ Delete Item Permanently?</h3>
+            <p style={{ fontSize: "16px", marginBottom: "1rem" }}>
+              You are about to permanently delete <strong>"{pendingAction.itemName}"</strong>.
+            </p>
+            <div style={{ 
+              padding: "1rem", 
+              backgroundColor: "rgba(239, 68, 68, 0.1)", 
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              borderRadius: "6px",
+              marginBottom: "1rem"
+            }}>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#ef4444" }}>
+                <strong>Warning:</strong>
+              </p>
+              <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px" }}>
+                <li>This action cannot be undone</li>
+                <li>The item will be completely removed from the system</li>
+                <li>All item data (serial numbers, notes, measurements) will be lost</li>
+              </ul>
+            </div>
+            <p style={{ marginTop: "1rem", color: "var(--text-dim)", fontSize: "14px" }}>
+              <strong>Alternative:</strong> Consider archiving the item instead. Archived items are hidden from the board but can be restored later by clicking "Show archived items".
+            </p>
+            <div className="confirm-actions">
+              <button 
+                onClick={cancelPendingAction} 
+                className="btn-cancel"
+                disabled={performingAction}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executePendingAction} 
+                disabled={performingAction}
+                className="btn-confirm"
+                style={{ backgroundColor: "#ef4444" }}
+              >
+                {performingAction ? "Deleting..." : "Yes, Delete Permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Archive/Restore Confirmation Dialog */}
+      {showArchiveConfirm && pendingAction && (
+        <div className="confirm-overlay" onClick={cancelPendingAction}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>{pendingAction.isArchived ? "📦 Restore Item?" : "📦 Archive Item?"}</h3>
+            <p style={{ fontSize: "16px", marginBottom: "1rem" }}>
+              {pendingAction.isArchived 
+                ? <>You are about to restore <strong>"{pendingAction.itemName}"</strong>.</>
+                : <>You are about to archive <strong>"{pendingAction.itemName}"</strong>.</>
+              }
+            </p>
+            <div style={{ 
+              padding: "1rem", 
+              backgroundColor: "rgba(255, 170, 0, 0.1)", 
+              border: "1px solid rgba(255, 170, 0, 0.3)",
+              borderRadius: "6px",
+              marginBottom: "1rem"
+            }}>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px" }}>
+                <strong>What will happen:</strong>
+              </p>
+              <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px" }}>
+                {pendingAction.isArchived ? (
+                  <>
+                    <li>The item will reappear on the board and kiosk view</li>
+                    <li>All item data will be preserved</li>
+                    <li>The item will continue through the production stages</li>
+                  </>
+                ) : (
+                  <>
+                    <li>The item will be hidden from the board and kiosk view</li>
+                    <li>All item data will be preserved</li>
+                    <li>You can restore it later by clicking "Show archived items"</li>
+                  </>
+                )}
+              </ul>
+            </div>
+            <p style={{ marginTop: "1rem", color: "var(--text-dim)", fontSize: "14px" }}>
+              {!pendingAction.isArchived && (
+                <><strong>Note:</strong> This does not delete the item. You can bring it back anytime.</>
+              )}
+            </p>
+            <div className="confirm-actions">
+              <button 
+                onClick={cancelPendingAction} 
+                className="btn-cancel"
+                disabled={performingAction}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executePendingAction} 
+                disabled={performingAction}
+                className="btn-confirm"
+                style={{ backgroundColor: "var(--accent)" }}
+              >
+                {performingAction 
+                  ? (pendingAction.isArchived ? "Restoring..." : "Archiving...") 
+                  : (pendingAction.isArchived ? "Yes, Restore Item" : "Yes, Archive Item")
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
