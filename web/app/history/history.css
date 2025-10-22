@@ -147,7 +147,8 @@
 
 .entity-details {
   font-size: 12px;
-  color: #a0a0a0;
+  color: #ef4444;
+  font-weight: 500;
 }
 
 /* Audit Log Panel */
@@ -294,16 +295,26 @@
   text-align: right;
 }
 
-/* Entity Name Display */
-.log-entity-name {
+/* Entity Info Display */
+.log-entity-info {
   background-color: #2d2d2d;
   border-left: 3px solid #3b82f6;
-  padding: 8px 12px;
+  padding: 10px 12px;
   margin: 10px 0;
   border-radius: 4px;
-  font-size: 13px;
+}
+
+.entity-info-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e4e4e4;
+  margin-bottom: 4px;
+}
+
+.entity-info-subtitle {
+  font-size: 12px;
+  color: #ef4444;
   font-weight: 500;
-  color: #3b82f6;
 }
 
 /* Changes */
@@ -400,6 +411,109 @@
 
 .btn-restore:active {
   transform: translateY(0);
+}
+
+/* Confirmation Dialog Styles (matching board.css) */
+.confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.confirm-dialog {
+  background: #2d2d2d;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirm-dialog h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #e4e4e4;
+  margin-bottom: 1rem;
+}
+
+.confirm-dialog p {
+  color: #a0a0a0;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+}
+
+.btn-cancel {
+  background: #1a1a1a;
+  color: #e4e4e4;
+  border: 1px solid #404040;
+  padding: 0.5rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #383838;
+}
+
+.btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-confirm {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: opacity 0.2s;
+}
+
+.btn-confirm:hover {
+  opacity: 0.9;
+}
+
+.btn-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Scrollbar Styling */
