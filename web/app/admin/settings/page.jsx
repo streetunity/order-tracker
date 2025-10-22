@@ -17,7 +17,7 @@ const ETA_STAGES = [
 ];
 
 export default function SettingsPage() {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, getAuthHeaders, isAdminOrHigher } = useAuth();
   const router = useRouter();
   const [thresholds, setThresholds] = useState([]);
   const [systemSettings, setSystemSettings] = useState({});
@@ -65,12 +65,13 @@ export default function SettingsPage() {
       router.push('/login');
       return;
     }
-    if (user.role !== 'ADMIN') {
+    // Use role hierarchy check instead of hardcoded ADMIN check
+    if (!isAdminOrHigher) {
       router.push('/admin/board');
       return;
     }
     loadSettings();
-  }, [user, router]);
+  }, [user, router, isAdminOrHigher]);
 
   const loadSettings = async () => {
     try {
@@ -294,7 +295,7 @@ export default function SettingsPage() {
     setHasUnsavedThresholdChanges(true);
   };
 
-  if (!user || user.role !== 'ADMIN') return null;
+  if (!user || !isAdminOrHigher) return null;
   
   const { warningTotal, criticalTotal, averageTotal, extendedTotal } = calculateETATotals();
 
