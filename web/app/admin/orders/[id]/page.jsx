@@ -40,6 +40,9 @@ export default function EditOrderPage({ params }) {
   const [orderDate, setOrderDate] = useState("");
   const [isSavingOrderDate, setIsSavingOrderDate] = useState(false);
 
+  const [discount, setDiscount] = useState("");
+  const [isSavingDiscount, setIsSavingDiscount] = useState(false);
+
   // Track item edits
   const [itemEdits, setItemEdits] = useState({});
 
@@ -65,6 +68,7 @@ export default function EditOrderPage({ params }) {
       setInternalNotes(orderData.internalNotes || "");
       setInternalNotesChanged(false);
       setItemEdits({});  // Clear item edits after load
+      setDiscount(orderData.discount ? String(orderData.discount) : "");
       
       if (orderData.orderDate) {
         const date = new Date(orderData.orderDate);
@@ -202,6 +206,45 @@ export default function EditOrderPage({ params }) {
       }
     } finally {
       setIsSavingOrderDate(false);
+    }
+  }
+
+  async function saveDiscount() {
+    const currentDiscount = order?.discount ? String(order.discount) : "";
+    if (discount === currentDiscount) {
+      return;
+    }
+    
+    try {
+      setIsSavingDiscount(true);
+      const discountValue = discount.trim() === "" ? 0 : parseFloat(discount);
+      
+      if (isNaN(discountValue) || discountValue < 0) {
+        alert("Please enter a valid discount amount (0 or greater)");
+        setDiscount(currentDiscount);
+        return;
+      }
+      
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ discount: discountValue })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      setOrder(prev => ({ ...prev, discount: discountValue }));
+    } catch (err) {
+      alert(`Failed to update discount: ${err.message}`);
+      setDiscount(currentDiscount);
+    } finally {
+      setIsSavingDiscount(false);
     }
   }
 
@@ -906,6 +949,39 @@ export default function EditOrderPage({ params }) {
           </section>
 
           <section style={{ marginTop: 32 }}>
+            <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Discount</h2>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: "18px", color: "#9ca3af" }}>$</span>
+              <input
+                className="input"
+                type="text"
+                value={discount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+                    setDiscount(value);
+                  }
+                }}
+                onBlur={saveDiscount}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
+                  }
+                }}
+                placeholder="0.00"
+                style={{ width: "120px", textAlign: "right" }}
+                disabled={isSavingDiscount}
+              />
+              {isSavingDiscount && (
+                <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
+              )}
+            </div>
+            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+              Discount amount will be subtracted from order total when calculating commissions. Press Enter or click outside to save.
+            </div>
+          </section>
+
+          <section style={{ marginTop: 32 }}>
             <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Internal Notes</h2>
             {order.isLocked && (
               <div style={{ 
@@ -1393,13 +1469,14 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
                 </div>
                 <div style={{ width: "120px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
+                    <span style={{ fontSize: "14px", color: "#9ca3af" }} title="usually retail price">$</span>
                     <input
                       className="input"
                       type="text"
                       value={itemPrice}
                       onChange={handlePriceChange}
                       placeholder="0.00"
+                      title="usually retail price"
                       style={{ 
                         width: "90px", 
                         textAlign: "right"
