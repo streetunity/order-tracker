@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import TopNav from '@/components/TopNav';
@@ -65,6 +66,9 @@ export default function SalesByItemPage() {
       <main className="reports-container">
         <div className="reports-header">
           <h1>Sales by Product</h1>
+          <Link href="/admin/reports" className="btn-back">
+            ← Back to Reports
+          </Link>
         </div>
 
         <div className="filter-bar">
