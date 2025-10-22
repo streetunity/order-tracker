@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import TopNav from '@/components/TopNav';
@@ -103,6 +104,9 @@ export default function SalesByMonthPage() {
       <main className="reports-container">
         <div className="reports-header">
           <h1>Orders by Month</h1>
+          <Link href="/admin/reports" className="btn-back">
+            ← Back to Reports
+          </Link>
         </div>
 
         <div className="filter-bar">
