@@ -38,7 +38,7 @@ export function createAuthRouter() {
       }
       
       // Update last login
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: user.id },
         data: { lastLogin: new Date() }
       });
@@ -46,14 +46,16 @@ export function createAuthRouter() {
       // Generate token
       const token = generateToken(user);
       
-      // Return user data and token
+      // Return user data and token (including createdAt and lastLogin)
       res.json({
         token,
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          role: updatedUser.role,
+          createdAt: updatedUser.createdAt,
+          lastLogin: updatedUser.lastLogin
         }
       });
     } catch (e) {
@@ -69,12 +71,31 @@ export function createAuthRouter() {
       return res.status(401).json({ error: 'Not authenticated' });
     }
     
+    // Fetch fresh user data including createdAt and lastLogin
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        lastLogin: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
     res.json({
       user: {
-        id: req.user.id,
-        email: req.user.email,
-        name: req.user.name,
-        role: req.user.role
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin
       }
     });
   });
@@ -176,17 +197,36 @@ export function createAuthRouter() {
   });
 
   // Check authentication status  
-  router.get('/check', (req, res) => {
+  router.get('/check', async (req, res) => {
     // This endpoint can be called without auth
     // The middleware should add req.user if a valid token is present
     if (req.user) {
+      // Fetch fresh user data including createdAt and lastLogin
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          createdAt: true,
+          lastLogin: true
+        }
+      });
+      
+      if (!user) {
+        return res.json({ authenticated: false });
+      }
+      
       res.json({
         authenticated: true,
         user: {
-          id: req.user.id,
-          email: req.user.email,
-          name: req.user.name,
-          role: req.user.role
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin
         }
       });
     } else {
