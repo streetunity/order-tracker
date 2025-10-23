@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function ViewItemModal({ item, order, onClose, onUpdate }) {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, getAuthHeaders, isAdmin } = useAuth();
   const [editedItem, setEditedItem] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const [showUnlockDialog, setShowUnlockDialog] = useState(false);
+  const [unlockReason, setUnlockReason] = useState("");
   const [lockingOrder, setLockingOrder] = useState(false);
 
   const isManufacturer = user?.role === "MANUFACTURER";
@@ -104,15 +106,19 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
 
   const handleLockToggle = () => {
     if (isOrderLocked) {
-      // Unlock immediately without confirmation
-      performLockToggle();
+      // Show unlock dialog with reason requirement
+      if (!isAdmin) {
+        alert("Only administrators can unlock orders.");
+        return;
+      }
+      setShowUnlockDialog(true);
     } else {
-      // Show confirmation for locking
+      // Show lock confirmation
       setShowLockConfirm(true);
     }
   };
 
-  const performLockToggle = async () => {
+  const performLock = async () => {
     try {
       setLockingOrder(true);
       setError("");
@@ -123,7 +129,10 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
           "Content-Type": "application/json",
           ...getAuthHeaders()
         },
-        body: JSON.stringify({ locked: !isOrderLocked })
+        body: JSON.stringify({ 
+          locked: true,
+          reason: "Order locked for data integrity"
+        })
       });
 
       if (!res.ok) {
@@ -139,9 +148,49 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       setShowLockConfirm(false);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to lock/unlock order");
+      setError(e instanceof Error ? e.message : "Failed to lock order");
       setLockingOrder(false);
       setShowLockConfirm(false);
+    }
+  };
+
+  const performUnlock = async () => {
+    if (unlockReason.trim().length < 10) {
+      alert("Please provide a reason with at least 10 characters");
+      return;
+    }
+
+    try {
+      setLockingOrder(true);
+      setError("");
+
+      const res = await fetch(`/api/orders/${order.id}/unlock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ 
+          reason: unlockReason
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      // Refresh the board
+      if (onUpdate) {
+        await onUpdate();
+      }
+      
+      setShowUnlockDialog(false);
+      setUnlockReason("");
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to unlock order");
+      setLockingOrder(false);
     }
   };
 
@@ -414,7 +463,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                   disabled={saving || lockingOrder}
                   className="btn-lock"
                   style={{
-                    background: isOrderLocked ? "#16a34a" : "#dc2626",
+                    background: "#dc2626",
                     color: "white",
                     border: "none",
                     padding: "0.5rem 1rem",
@@ -471,7 +520,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
 
       {/* Lock Confirmation Dialog */}
       {showLockConfirm && (
-        <div className="confirm-overlay" onClick={() => setShowLockConfirm(false)} style={{ zIndex: 1100 }}>
+        <div className="confirm-overlay" onClick={() => !lockingOrder && setShowLockConfirm(false)} style={{ zIndex: 1100 }}>
           <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
             <h3>🔒 Lock Order?</h3>
             <p style={{ fontSize: "16px", marginBottom: "1rem" }}>
@@ -502,12 +551,62 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                 Cancel
               </button>
               <button 
-                onClick={performLockToggle} 
+                onClick={performLock} 
                 disabled={lockingOrder}
                 className="btn-confirm"
                 style={{ backgroundColor: "#dc2626" }}
               >
                 {lockingOrder ? "Locking..." : "Lock Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unlock Reason Dialog */}
+      {showUnlockDialog && isAdmin && (
+        <div className="confirm-overlay" onClick={() => !lockingOrder && setShowUnlockDialog(false)} style={{ zIndex: 1100 }}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>🔓 Unlock Order</h3>
+            <p style={{ fontSize: "16px", marginBottom: "1rem", color: "var(--text-dim)" }}>
+              Please provide a reason for unlocking this order. This will be logged in the audit trail.
+            </p>
+            <textarea
+              value={unlockReason}
+              onChange={(e) => setUnlockReason(e.target.value)}
+              placeholder="Enter reason for unlocking (minimum 10 characters)"
+              style={{
+                width: "100%",
+                minHeight: "100px",
+                padding: "12px",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                marginBottom: "16px",
+                fontSize: "14px",
+                fontFamily: "inherit",
+                backgroundColor: "var(--input-bg)",
+                color: "var(--text)",
+                resize: "vertical"
+              }}
+            />
+            <div className="confirm-actions">
+              <button 
+                onClick={() => {
+                  setShowUnlockDialog(false);
+                  setUnlockReason("");
+                }} 
+                className="btn-cancel"
+                disabled={lockingOrder}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={performUnlock} 
+                disabled={lockingOrder || unlockReason.trim().length < 10}
+                className="btn-confirm"
+                style={{ backgroundColor: "#dc2626" }}
+              >
+                {lockingOrder ? "Unlocking..." : "Unlock Order"}
               </button>
             </div>
           </div>
