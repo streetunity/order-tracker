@@ -21,13 +21,25 @@ export function createAuditRouter() {
         take: limit
       });
 
+      // Fetch OrderItem details for logs that reference OrderItems
+      const orderItemIds = logs
+        .filter(log => log.entityType === 'OrderItem' && log.entityId)
+        .map(log => log.entityId);
+      
+      const orderItems = orderItemIds.length > 0 ? await prisma.orderItem.findMany({
+        where: { id: { in: orderItemIds } },
+        select: { id: true, productCode: true, modelNumber: true }
+      }) : [];
+      
+      const orderItemMap = Object.fromEntries(orderItems.map(item => [item.id, item]));
+
       const formattedLogs = logs.map(log => {
         let changes = []; 
         let metadata = {};
         try { if (log.changes) changes = JSON.parse(log.changes); } catch {}
         try { if (log.metadata) metadata = JSON.parse(log.metadata); } catch {}
         
-        return {
+        const result = {
           id: log.id, 
           timestamp: log.createdAt, 
           entityType: log.entityType,
@@ -40,6 +52,13 @@ export function createAuditRouter() {
           performedByName: log.performedByName,
           performedBy: log.performedBy
         };
+        
+        // Add OrderItem details if available
+        if (log.entityType === 'OrderItem' && log.entityId && orderItemMap[log.entityId]) {
+          result.orderItem = orderItemMap[log.entityId];
+        }
+        
+        return result;
       });
 
       res.json(formattedLogs);
@@ -66,13 +85,25 @@ export function createAuditRouter() {
         take: limit
       });
 
+      // Fetch OrderItem details for logs that reference OrderItems
+      const orderItemIds = logs
+        .filter(log => log.entityType === 'OrderItem' && log.entityId)
+        .map(log => log.entityId);
+      
+      const orderItems = orderItemIds.length > 0 ? await prisma.orderItem.findMany({
+        where: { id: { in: orderItemIds } },
+        select: { id: true, productCode: true, modelNumber: true }
+      }) : [];
+      
+      const orderItemMap = Object.fromEntries(orderItems.map(item => [item.id, item]));
+
       const formattedLogs = logs.map(log => {
         let changes = []; 
         let metadata = {};
         try { if (log.changes) changes = JSON.parse(log.changes); } catch {}
         try { if (log.metadata) metadata = JSON.parse(log.metadata); } catch {}
         
-        return {
+        const result = {
           id: log.id, 
           timestamp: log.createdAt, 
           entityType: log.entityType,
@@ -85,6 +116,13 @@ export function createAuditRouter() {
           performedByName: log.performedByName,
           performedBy: log.performedBy
         };
+        
+        // Add OrderItem details if available
+        if (log.entityType === 'OrderItem' && log.entityId && orderItemMap[log.entityId]) {
+          result.orderItem = orderItemMap[log.entityId];
+        }
+        
+        return result;
       });
 
       res.json(formattedLogs);
@@ -112,13 +150,25 @@ export function createAuditRouter() {
         orderBy: { createdAt: 'desc' }
       });
 
+      // Fetch OrderItem details for logs that reference OrderItems
+      const orderItemIds = logs
+        .filter(log => log.entityType === 'OrderItem' && log.entityId)
+        .map(log => log.entityId);
+      
+      const orderItems = orderItemIds.length > 0 ? await prisma.orderItem.findMany({
+        where: { id: { in: orderItemIds } },
+        select: { id: true, productCode: true, modelNumber: true }
+      }) : [];
+      
+      const orderItemMap = Object.fromEntries(orderItems.map(item => [item.id, item]));
+
       const formattedLogs = logs.map(log => {
         let changes = []; 
         let metadata = {};
         try { if (log.changes) changes = JSON.parse(log.changes); } catch {}
         try { if (log.metadata) metadata = JSON.parse(log.metadata); } catch {}
         
-        return {
+        const result = {
           id: log.id, 
           timestamp: log.createdAt, 
           entityType: log.entityType,
@@ -131,6 +181,13 @@ export function createAuditRouter() {
           performedByName: log.performedByName,
           performedBy: log.performedBy
         };
+        
+        // Add OrderItem details if available
+        if (log.entityType === 'OrderItem' && log.entityId && orderItemMap[log.entityId]) {
+          result.orderItem = orderItemMap[log.entityId];
+        }
+        
+        return result;
       });
 
       res.json(formattedLogs);
