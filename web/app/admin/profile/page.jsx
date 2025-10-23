@@ -1,43 +1,298 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
+  
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState({ type: "", text: "" });
+  const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (!user) {
       router.push("/login");
+    } else {
+      setName(user.name || "");
+      setEmail(user.email || "");
     }
   }, [user, router]);
+
+  useEffect(() => {
+    if (user) {
+      const nameChanged = name !== (user.name || "");
+      const emailChanged = email !== (user.email || "");
+      setHasChanges(nameChanged || emailChanged);
+    }
+  }, [name, email, user]);
+
+  async function handleSave() {
+    if (!hasChanges) return;
+    
+    try {
+      setSaving(true);
+      setMessage({ type: "", text: "" });
+      
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase()
+        })
+      });
+      
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setMessage({ 
+          type: "success", 
+          text: "Profile updated successfully! Please refresh the page to see changes in the navigation."
+        });
+        setHasChanges(false);
+        
+        // Update the user context
+        window.location.reload();
+      } else {
+        const error = await res.json();
+        setMessage({ 
+          type: "error", 
+          text: error.error || "Failed to update profile"
+        });
+      }
+    } catch (e) {
+      setMessage({ 
+        type: "error", 
+        text: "Failed to update profile. Please try again."
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (!user) return null;
 
   return (
     <>
       <TopNav />
-      <div style={{ maxWidth: "800px", margin: "0 auto", padding: "40px 24px" }}>
+      <div style={{ maxWidth: "600px", margin: "0 auto", padding: "40px 24px" }}>
         <div style={{
-          background: "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%)",
-          border: "1px solid rgba(239, 68, 68, 0.3)",
-          borderRadius: "12px",
-          padding: "40px",
-          textAlign: "center"
+          marginBottom: "32px"
         }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>👤</div>
-          <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#ef4444", marginBottom: "12px" }}>
+          <h1 style={{ 
+            fontSize: "28px", 
+            fontWeight: "700", 
+            color: "var(--text)",
+            marginBottom: "8px" 
+          }}>
             My Profile
           </h1>
-          <p style={{ fontSize: "16px", color: "rgba(255, 255, 255, 0.7)", marginBottom: "8px" }}>
-            This feature is coming soon!
+          <p style={{ 
+            fontSize: "14px", 
+            color: "var(--text-dim)" 
+          }}>
+            Update your personal information
           </p>
-          <p style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.5)" }}>
-            You'll be able to view and edit your profile information here.
-          </p>
+        </div>
+
+        <div style={{
+          backgroundColor: "var(--panel)",
+          border: "1px solid var(--border)",
+          borderRadius: "8px",
+          padding: "24px"
+        }}>
+          {/* Profile Icon */}
+          <div style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "32px"
+          }}>
+            <div style={{
+              width: "80px",
+              height: "80px",
+              borderRadius: "50%",
+              backgroundColor: "var(--accent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "32px",
+              fontWeight: "600",
+              color: "#fff"
+            }}>
+              {user.name ? (
+                user.name.split(" ").length >= 2
+                  ? user.name.split(" ")[0][0] + user.name.split(" ")[1][0]
+                  : user.name.substring(0, 2)
+              ).toUpperCase() : "??"}
+            </div>
+          </div>
+
+          {/* Role Badge */}
+          <div style={{
+            textAlign: "center",
+            marginBottom: "32px"
+          }}>
+            <span style={{
+              display: "inline-block",
+              padding: "6px 12px",
+              backgroundColor: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid var(--accent)",
+              borderRadius: "6px",
+              color: "var(--accent)",
+              fontSize: "12px",
+              fontWeight: "600",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}>
+              {user.role}
+            </span>
+          </div>
+
+          {/* Message */}
+          {message.text && (
+            <div style={{
+              padding: "12px 16px",
+              marginBottom: "24px",
+              backgroundColor: message.type === "success" 
+                ? "rgba(34, 197, 94, 0.1)" 
+                : "rgba(239, 68, 68, 0.1)",
+              border: `1px solid ${message.type === "success" ? "#22c55e" : "var(--accent)"}`,
+              borderRadius: "6px",
+              color: message.type === "success" ? "#22c55e" : "var(--accent)",
+              fontSize: "14px"
+            }}>
+              {message.text}
+            </div>
+          )}
+
+          {/* Name Field */}
+          <div style={{ marginBottom: "24px" }}>
+            <label style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: "500",
+              color: "var(--text)",
+              marginBottom: "8px"
+            }}>
+              Name
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter your name"
+              style={{
+                width: "100%",
+                padding: "12px",
+                fontSize: "14px"
+              }}
+            />
+          </div>
+
+          {/* Email Field */}
+          <div style={{ marginBottom: "32px" }}>
+            <label style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: "500",
+              color: "var(--text)",
+              marginBottom: "8px"
+            }}>
+              Email
+            </label>
+            <input
+              type="email"
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              style={{
+                width: "100%",
+                padding: "12px",
+                fontSize: "14px"
+              }}
+            />
+          </div>
+
+          {/* Save Button */}
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || saving}
+            style={{
+              width: "100%",
+              padding: "12px 24px",
+              backgroundColor: hasChanges && !saving ? "var(--accent)" : "var(--border)",
+              color: hasChanges && !saving ? "#fff" : "var(--text-dim)",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: hasChanges && !saving ? "pointer" : "not-allowed",
+              transition: "all 0.2s"
+            }}
+          >
+            {saving ? "Saving..." : hasChanges ? "Save Changes" : "No Changes"}
+          </button>
+
+          {/* Account Info */}
+          <div style={{
+            marginTop: "32px",
+            paddingTop: "24px",
+            borderTop: "1px solid var(--border)"
+          }}>
+            <div style={{
+              fontSize: "12px",
+              color: "var(--text-dim)",
+              marginBottom: "8px"
+            }}>
+              Account created: {new Date(user.createdAt).toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric"
+              })}
+            </div>
+            {user.lastLogin && (
+              <div style={{
+                fontSize: "12px",
+                color: "var(--text-dim)"
+              }}>
+                Last login: {new Date(user.lastLogin).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit"
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Additional Actions */}
+        <div style={{
+          marginTop: "24px",
+          textAlign: "center"
+        }}>
+          <a 
+            href="/admin/change-password"
+            style={{
+              color: "var(--accent)",
+              fontSize: "14px",
+              textDecoration: "none",
+              fontWeight: "500"
+            }}
+          >
+            Change Password →
+          </a>
         </div>
       </div>
     </>
