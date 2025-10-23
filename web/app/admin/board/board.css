@@ -62,13 +62,18 @@
 /* ---- Sticky header row for stage columns ---- */
 .stickyHeader {
   position: sticky !important;
-  top: 170px !important; /* Increased to prevent slight slide-behind during scroll */
+  top: 170px !important; /* Default: TopNav (60px) + QuickActions (48px) + Toolbar (48px) + padding (14px) */
   height: var(--stage-head-h);
   display: flex;
   align-items: center;
   z-index: 90 !important;
   border-bottom: 2px solid var(--border);
   box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+
+/* Adjust sticky positioning when QuickActions is hidden (manufacturers) */
+.boardContainer.manufacturer-view .stickyHeader {
+  top: 122px !important; /* TopNav (60px) + Toolbar (48px) + padding (14px) */
 }
 
 .stageCol.stickyHeader {
