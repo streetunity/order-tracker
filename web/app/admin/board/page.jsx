@@ -291,7 +291,7 @@ export default function AdminBoardPage() {
   if (!user) return null;
 
   return (
-    <>
+    <div className={`boardContainer ${isManufacturer ? 'manufacturer-view' : ''}`}>
       <TopNav />
       <NotificationBar />
       
@@ -576,6 +576,6 @@ export default function AdminBoardPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
