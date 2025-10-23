@@ -313,7 +313,7 @@ export function createItemsRouter() {
       }
       
       // Check if trying to edit regular fields on a locked order
-      const editFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 'laserWattage', 'notes'];
+      const editFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 'laserWattage', 'notes', 'manufacturerId'];
       
       const hasEditFieldChanges = editFields.some(field => {
         if (!req.body.hasOwnProperty(field)) return false;
@@ -321,6 +321,11 @@ export function createItemsRouter() {
         if (field === 'qty') {
           const newQty = Number(req.body[field]);
           return newQty !== item.qty;
+        }
+        
+        if (field === 'manufacturerId') {
+          const newManufacturerId = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
+          return newManufacturerId !== item.manufacturerId;
         }
         
         const currentVal = item[field] || null;
@@ -389,6 +394,22 @@ export function createItemsRouter() {
               newValue: newValue || 'null'
             });
           }
+        }
+      }
+
+      // Handle manufacturerId (editable field but blocked when order is locked)
+      if (req.body.hasOwnProperty('manufacturerId')) {
+        const newManufacturerId = (req.body.manufacturerId === '' || req.body.manufacturerId === null)
+          ? null
+          : String(req.body.manufacturerId).trim();
+
+        if (newManufacturerId !== item.manufacturerId) {
+          data.manufacturerId = newManufacturerId;
+          changes.push({
+            field: 'manufacturerId',
+            oldValue: item.manufacturerId || 'null',
+            newValue: newManufacturerId || 'null'
+          });
         }
       }
 

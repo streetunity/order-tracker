@@ -9,6 +9,7 @@ export default function NotificationBar() {
   const { getAuthHeaders } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [showAll, setShowAll] = useState(false);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
 
   useEffect(() => {
     fetchNotifications();
@@ -43,12 +44,55 @@ export default function NotificationBar() {
     }
   }
 
+  async function markAllAsRead() {
+    if (notifications.length === 0) return;
+    
+    try {
+      setIsMarkingAllRead(true);
+      const res = await fetch("/api/notifications/mark-all-read", {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      
+      if (res.ok) {
+        setNotifications([]);
+      } else {
+        console.error("Failed to mark all as read");
+      }
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  }
+
   if (notifications.length === 0) return null;
 
   const displayedNotifications = showAll ? notifications : notifications.slice(0, 3);
 
   return (
     <div className="notification-bar">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", paddingRight: "8px" }}>
+        <div style={{ fontSize: "14px", fontWeight: "600", color: "#374151" }}>
+          {notifications.length} unread notification{notifications.length !== 1 ? 's' : ''}
+        </div>
+        <button
+          onClick={markAllAsRead}
+          disabled={isMarkingAllRead}
+          style={{
+            padding: "4px 12px",
+            fontSize: "12px",
+            backgroundColor: "#3b82f6",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: isMarkingAllRead ? "not-allowed" : "pointer",
+            opacity: isMarkingAllRead ? 0.6 : 1
+          }}
+        >
+          {isMarkingAllRead ? "Marking..." : "Mark all as read"}
+        </button>
+      </div>
       {displayedNotifications.map((notification) => (
         <div key={notification.id} className="notification-item">
           <div className="notification-content">
