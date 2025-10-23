@@ -153,12 +153,20 @@ export function createItemsRouter() {
     }
   });
 
-  // Update item - MANUFACTURER CAN ONLY UPDATE ASSIGNED ITEMS (limited fields)
+  // Update item - COMPLETELY BLOCKED FOR MANUFACTURERS (they can only change stages)
   router.patch('/:orderId/items/:itemId', async (req, res) => {
     try {
       const { orderId, itemId } = req.params;
       
-      // Check if user has access to this item
+      // MANUFACTURERS: Cannot edit items at all - only stage changes allowed via dedicated endpoint
+      if (isManufacturer(req.user.role)) {
+        console.log(`[ACCESS DENIED] Manufacturer ${req.user.name} tried to edit item ${itemId} - manufacturers can only change stages`);
+        return res.status(403).json({ 
+          error: 'Access denied. Manufacturers can only change item stages, not edit item details.' 
+        });
+      }
+      
+      // Check if user has access to this item (for non-manufacturers)
       const hasAccess = await canAccessItem(req.user, itemId);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only edit items assigned to you.' });
@@ -204,75 +212,6 @@ export function createItemsRouter() {
       const data = {};
       const changes = [];
       
-      // MANUFACTURERS: Can only edit containers (nothing else)
-      if (isManufacturer(req.user.role)) {
-        // Manufacturers can ONLY edit containers
-        if (req.body.hasOwnProperty('containers')) {
-          const newContainers = typeof req.body.containers === 'string' 
-            ? req.body.containers 
-            : JSON.stringify(req.body.containers);
-            
-          if (newContainers !== item.containers) {
-            data.containers = newContainers;
-            changes.push({
-              field: 'containers',
-              oldValue: item.containers || '[]',
-              newValue: newContainers
-            });
-          }
-        }
-
-        // Block all other field edits for manufacturers
-        const restrictedFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 
-                                  'laserWattage', 'notes', 'itemPrice', 'privateItemNote', 
-                                  'hasExtendedShipping', 'archivedAt', 'height', 'width', 
-                                  'length', 'weight', 'measurementUnit', 'weightUnit', 'currentStage'];
-        
-        const attemptedRestrictedEdit = restrictedFields.some(field => req.body.hasOwnProperty(field));
-        
-        if (attemptedRestrictedEdit) {
-          console.log(`[ACCESS DENIED] Manufacturer ${req.user.name} tried to edit restricted fields on item ${itemId}`);
-          return res.status(403).json({ 
-            error: 'Access denied. Manufacturers can only edit container information.' 
-          });
-        }
-
-        // Process the container update if there are changes
-        if (Object.keys(data).length === 0) {
-          return res.json(item);
-        }
-
-        const updated = await prisma.$transaction(async (tx) => {
-          const updatedItem = await tx.orderItem.update({ 
-            where: { id: itemId }, 
-            data 
-          });
-          
-          if (changes.length > 0) {
-            await tx.auditLog.create({
-              data: {
-                entityType: 'Container',
-                entityId: itemId,
-                parentEntityId: orderId,
-                action: 'CONTAINERS_UPDATED',
-                changes: JSON.stringify(changes),
-                metadata: JSON.stringify({
-                  message: 'Containers updated by manufacturer',
-                  updatedFields: changes.map(c => c.field).join(', ')
-                }),
-                performedByUserId: req.user.id,
-                performedByName: req.user.name
-              }
-            });
-          }
-          
-          return updatedItem;
-        });
-        
-        return res.json(updated);
-      }
-
-      // NON-MANUFACTURERS: Full edit access (existing logic)
       // Archive/restore is allowed even when locked
       if (req.body.archivedAt !== undefined) {
         const newArchived = req.body.archivedAt ? new Date(req.body.archivedAt) : null;
@@ -644,7 +583,7 @@ export function createItemsRouter() {
     await unmarkItemAsOrdered(req, res, prisma, req.user);
   });
 
-  // Item stage change - MANUFACTURER CAN ONLY MOVE ASSIGNED ITEMS
+  // Item stage change - MANUFACTURER CAN ONLY MOVE ASSIGNED ITEMS (THIS IS THE ONLY THING THEY CAN DO)
   router.post('/:orderId/items/:itemId/stage', async (req, res) => {
     try {
       const { itemId } = req.params;
