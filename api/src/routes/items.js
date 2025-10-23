@@ -1,11 +1,46 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { markItemAsOrdered, unmarkItemAsOrdered } from '../ordered-endpoints.js';
+import { isManufacturer, isAdminOrHigher } from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
 
 export function createItemsRouter() {
   const router = express.Router();
+
+  // Helper to check if user can access a specific item
+  async function canAccessItem(user, itemId) {
+    // Admins and higher can access all items
+    if (isAdminOrHigher(user.role)) return true;
+    
+    // Manufacturers: Check if item is assigned to them
+    if (isManufacturer(user.role)) {
+      if (!user.manufacturer || !user.manufacturer.id) return false;
+      
+      const item = await prisma.orderItem.findUnique({
+        where: { id: itemId },
+        select: { manufacturerId: true }
+      });
+      
+      if (!item) return false;
+      const hasAccess = item.manufacturerId === user.manufacturer.id;
+      
+      if (!hasAccess) {
+        console.log(`[ACCESS DENIED] Manufacturer ${user.name} tried to access item ${itemId} not assigned to them`);
+      }
+      
+      return hasAccess;
+    }
+    
+    // Agents: Check if item's order belongs to them
+    const item = await prisma.orderItem.findUnique({
+      where: { id: itemId },
+      include: { order: { select: { sku: true } } }
+    });
+    
+    if (!item) return false;
+    return item.order.sku === user.name;
+  }
 
   function normalizeIncomingItems(items) {
     return (Array.isArray(items) ? items : [])
@@ -24,9 +59,14 @@ export function createItemsRouter() {
       .filter((i) => i.productCode.length > 0);
   }
 
-  // Create items
+  // Create items - BLOCKED FOR MANUFACTURERS
   router.post('/:orderId/items', async (req, res) => {
     try {
+      // Block manufacturers from creating items
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot create new items.' });
+      }
+
       const orderId = String(req.params.orderId);
       const order = await prisma.order.findUnique({ 
         where: { id: orderId }, 
@@ -113,10 +153,17 @@ export function createItemsRouter() {
     }
   });
 
-  // Update item
+  // Update item - MANUFACTURER CAN ONLY UPDATE ASSIGNED ITEMS (limited fields)
   router.patch('/:orderId/items/:itemId', async (req, res) => {
     try {
       const { orderId, itemId } = req.params;
+      
+      // Check if user has access to this item
+      const hasAccess = await canAccessItem(req.user, itemId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only edit items assigned to you.' });
+      }
+
       const item = await prisma.orderItem.findUnique({ 
         where: { id: itemId }, 
         select: { 
@@ -140,7 +187,8 @@ export function createItemsRouter() {
           itemPrice: true,
           privateItemNote: true,
           hasExtendedShipping: true,
-          containers: true
+          containers: true,
+          manufacturerId: true
         } 
       });
       
@@ -156,6 +204,75 @@ export function createItemsRouter() {
       const data = {};
       const changes = [];
       
+      // MANUFACTURERS: Can only edit containers (nothing else)
+      if (isManufacturer(req.user.role)) {
+        // Manufacturers can ONLY edit containers
+        if (req.body.hasOwnProperty('containers')) {
+          const newContainers = typeof req.body.containers === 'string' 
+            ? req.body.containers 
+            : JSON.stringify(req.body.containers);
+            
+          if (newContainers !== item.containers) {
+            data.containers = newContainers;
+            changes.push({
+              field: 'containers',
+              oldValue: item.containers || '[]',
+              newValue: newContainers
+            });
+          }
+        }
+
+        // Block all other field edits for manufacturers
+        const restrictedFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 
+                                  'laserWattage', 'notes', 'itemPrice', 'privateItemNote', 
+                                  'hasExtendedShipping', 'archivedAt', 'height', 'width', 
+                                  'length', 'weight', 'measurementUnit', 'weightUnit', 'currentStage'];
+        
+        const attemptedRestrictedEdit = restrictedFields.some(field => req.body.hasOwnProperty(field));
+        
+        if (attemptedRestrictedEdit) {
+          console.log(`[ACCESS DENIED] Manufacturer ${req.user.name} tried to edit restricted fields on item ${itemId}`);
+          return res.status(403).json({ 
+            error: 'Access denied. Manufacturers can only edit container information.' 
+          });
+        }
+
+        // Process the container update if there are changes
+        if (Object.keys(data).length === 0) {
+          return res.json(item);
+        }
+
+        const updated = await prisma.$transaction(async (tx) => {
+          const updatedItem = await tx.orderItem.update({ 
+            where: { id: itemId }, 
+            data 
+          });
+          
+          if (changes.length > 0) {
+            await tx.auditLog.create({
+              data: {
+                entityType: 'Container',
+                entityId: itemId,
+                parentEntityId: orderId,
+                action: 'CONTAINERS_UPDATED',
+                changes: JSON.stringify(changes),
+                metadata: JSON.stringify({
+                  message: 'Containers updated by manufacturer',
+                  updatedFields: changes.map(c => c.field).join(', ')
+                }),
+                performedByUserId: req.user.id,
+                performedByName: req.user.name
+              }
+            });
+          }
+          
+          return updatedItem;
+        });
+        
+        return res.json(updated);
+      }
+
+      // NON-MANUFACTURERS: Full edit access (existing logic)
       // Archive/restore is allowed even when locked
       if (req.body.archivedAt !== undefined) {
         const newArchived = req.body.archivedAt ? new Date(req.body.archivedAt) : null;
@@ -434,10 +551,22 @@ export function createItemsRouter() {
     }
   });
 
-  // Delete item
+  // Delete item - BLOCKED FOR MANUFACTURERS
   router.delete('/:orderId/items/:itemId', async (req, res) => {
     try {
+      // Block manufacturers from deleting items
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot delete items.' });
+      }
+
       const { orderId, itemId } = req.params;
+      
+      // Check access for non-manufacturers
+      const hasAccess = await canAccessItem(req.user, itemId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only delete items assigned to you.' });
+      }
+
       const item = await prisma.orderItem.findUnique({ 
         where: { id: itemId }, 
         select: { id: true, orderId: true, productCode: true } 
@@ -495,19 +624,38 @@ export function createItemsRouter() {
     }
   });
 
-  // Mark item as ordered
+  // Mark item as ordered - BLOCKED FOR MANUFACTURERS
   router.post('/:orderId/items/:itemId/ordered', async (req, res) => {
+    // Block manufacturers
+    if (isManufacturer(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied. Manufacturers cannot mark items as ordered.' });
+    }
+
     await markItemAsOrdered(req, res, prisma, req.user);
   });
 
-  // Unmark item as ordered
+  // Unmark item as ordered - BLOCKED FOR MANUFACTURERS
   router.post('/:orderId/items/:itemId/unordered', async (req, res) => {
+    // Block manufacturers
+    if (isManufacturer(req.user.role)) {
+      return res.status(403).json({ error: 'Access denied. Manufacturers cannot unmark items as ordered.' });
+    }
+
     await unmarkItemAsOrdered(req, res, prisma, req.user);
   });
 
-  // Item stage change
+  // Item stage change - MANUFACTURER CAN ONLY MOVE ASSIGNED ITEMS
   router.post('/:orderId/items/:itemId/stage', async (req, res) => {
     try {
+      const { itemId } = req.params;
+      
+      // Check if user has access to this item
+      const hasAccess = await canAccessItem(req.user, itemId);
+      if (!hasAccess) {
+        console.log(`[ACCESS DENIED] User ${req.user.name} (${req.user.role}) tried to change stage for item ${itemId}`);
+        return res.status(403).json({ error: 'Access denied. You can only change stages for items assigned to you.' });
+      }
+
       const { nextStage, note, allowFastForward = false, allowBackward = false } = req.body || {};
       const { STAGES, canAdvance } = await import('../state.js');
 
@@ -516,7 +664,7 @@ export function createItemsRouter() {
 
       const item = await prisma.orderItem.findUnique({
         where: { id: req.params.itemId },
-        include: { order: true }
+        include: { order: true, manufacturer: true }
       });
       
       if (!item || item.orderId !== req.params.orderId) {
@@ -539,6 +687,8 @@ export function createItemsRouter() {
           where: { id: item.id },
           data: { currentStage: nextStage }
         });
+        
+        console.log(`[STAGE CHANGE] User ${req.user.name} (${req.user.role}) moved item ${itemId} from ${currentStage} to ${nextStage}`);
         
         return tx.orderItemStatusEvent.create({
           data: {
