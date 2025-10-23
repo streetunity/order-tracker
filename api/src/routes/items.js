@@ -153,23 +153,32 @@ export function createItemsRouter() {
     }
   });
 
-  // Update item - COMPLETELY BLOCKED FOR MANUFACTURERS (they can only change stages)
+  // Update item - MANUFACTURERS CAN ONLY EDIT SERIAL NUMBER
   router.patch('/:orderId/items/:itemId', async (req, res) => {
     try {
       const { orderId, itemId } = req.params;
       
-      // MANUFACTURERS: Cannot edit items at all - only stage changes allowed via dedicated endpoint
-      if (isManufacturer(req.user.role)) {
-        console.log(`[ACCESS DENIED] Manufacturer ${req.user.name} tried to edit item ${itemId} - manufacturers can only change stages`);
-        return res.status(403).json({ 
-          error: 'Access denied. Manufacturers can only change item stages, not edit item details.' 
-        });
-      }
-      
-      // Check if user has access to this item (for non-manufacturers)
+      // Check if user has access to this item
       const hasAccess = await canAccessItem(req.user, itemId);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only edit items assigned to you.' });
+      }
+      
+      // MANUFACTURERS: Can ONLY edit serial number
+      if (isManufacturer(req.user.role)) {
+        // Check if they're trying to edit anything OTHER than serialNumber
+        const requestedFields = Object.keys(req.body);
+        const nonSerialFields = requestedFields.filter(f => f !== 'serialNumber');
+        
+        if (nonSerialFields.length > 0) {
+          console.log(`[ACCESS DENIED] Manufacturer ${req.user.name} tried to edit fields other than serialNumber: ${nonSerialFields.join(', ')}`);
+          return res.status(403).json({ 
+            error: 'Access denied. Manufacturers can only edit the serial number field.' 
+          });
+        }
+        
+        // If they're only editing serialNumber, allow it to proceed
+        console.log(`[ALLOWED] Manufacturer ${req.user.name} editing serial number for item ${itemId}`);
       }
 
       const item = await prisma.orderItem.findUnique({ 
@@ -212,8 +221,8 @@ export function createItemsRouter() {
       const data = {};
       const changes = [];
       
-      // Archive/restore is allowed even when locked
-      if (req.body.archivedAt !== undefined) {
+      // Archive/restore is allowed even when locked (but NOT for manufacturers)
+      if (req.body.archivedAt !== undefined && !isManufacturer(req.user.role)) {
         const newArchived = req.body.archivedAt ? new Date(req.body.archivedAt) : null;
         const oldArchived = item.archivedAt;
         
@@ -230,8 +239,8 @@ export function createItemsRouter() {
         }
       }
       
-      // Containers are allowed even when locked (always editable)
-      if (req.body.hasOwnProperty('containers')) {
+      // Containers are allowed even when locked (but NOT for manufacturers)
+      if (req.body.hasOwnProperty('containers') && !isManufacturer(req.user.role)) {
         const newContainers = typeof req.body.containers === 'string' 
           ? req.body.containers 
           : JSON.stringify(req.body.containers);
@@ -246,11 +255,11 @@ export function createItemsRouter() {
         }
       }
       
-      // Measurements are allowed even when locked
+      // Measurements are allowed even when locked (but NOT for manufacturers)
       const measurementFields = ['height', 'width', 'length', 'weight', 'measurementUnit', 'weightUnit'];
       const hasMeasurementFields = measurementFields.some(field => req.body.hasOwnProperty(field));
       
-      if (hasMeasurementFields) {
+      if (hasMeasurementFields && !isManufacturer(req.user.role)) {
         // Process measurement fields
         if (req.body.hasOwnProperty('height') && req.body.height !== item.height) {
           data.height = req.body.height;
@@ -312,161 +321,180 @@ export function createItemsRouter() {
         }
       }
       
-      // Check if trying to edit regular fields on a locked order
-      const editFields = ['productCode', 'qty', 'serialNumber', 'modelNumber', 'voltage', 'laserWattage', 'notes', 'manufacturerId'];
-      
-      const hasEditFieldChanges = editFields.some(field => {
-        if (!req.body.hasOwnProperty(field)) return false;
+      // Serial number is ALWAYS editable by everyone (even manufacturers, even when locked)
+      if (req.body.hasOwnProperty('serialNumber')) {
+        const newSerialNumber = (req.body.serialNumber === '' || req.body.serialNumber === null)
+          ? null
+          : String(req.body.serialNumber).trim();
         
-        if (field === 'qty') {
-          const newQty = Number(req.body[field]);
-          return newQty !== item.qty;
-        }
-        
-        if (field === 'manufacturerId') {
-          const newManufacturerId = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
-          return newManufacturerId !== item.manufacturerId;
-        }
-        
-        const currentVal = item[field] || null;
-        const newVal = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
-        return newVal !== currentVal;
-      });
-
-      if (hasEditFieldChanges && order.isLocked) {
-        await prisma.auditLog.create({
-          data: {
-            entityType: 'Order',
-            entityId: orderId,
-            parentEntityId: orderId,
-            action: 'EDIT_ATTEMPTED_WHILE_LOCKED',
-            metadata: JSON.stringify({ message: 'Tried to edit item details' }),
-            performedByUserId: req.user.id,
-            performedByName: req.user.name
-          }
-        });
-        return res.status(403).json({ 
-          error: 'Cannot edit item details in a locked order. Please unlock it first. Use /measurements endpoint for dimension updates.' 
-        });
-      }
-      
-      // Process all other fields (only if not locked)
-      if (req.body.hasOwnProperty('productCode') && typeof req.body.productCode === 'string') {
-        const newCode = req.body.productCode.trim();
-        if (newCode !== item.productCode) {
-          data.productCode = newCode;
+        if (newSerialNumber !== item.serialNumber) {
+          data.serialNumber = newSerialNumber;
           changes.push({
-            field: 'productCode',
-            oldValue: item.productCode,
-            newValue: newCode
+            field: 'serialNumber',
+            oldValue: item.serialNumber || 'null',
+            newValue: newSerialNumber || 'null'
           });
         }
       }
       
-      if (req.body.hasOwnProperty('qty')) {
-        const q = Number(req.body.qty);
-        if (!Number.isFinite(q) || q <= 0) {
-          return res.status(400).json({ error: 'qty must be a positive number' });
-        }
-        if (q !== item.qty) {
-          data.qty = q;
-          changes.push({
-            field: 'qty',
-            oldValue: String(item.qty),
-            newValue: String(q)
-          });
-        }
-      }
-      
-      // Process other string fields
-      const stringFields = ['serialNumber', 'modelNumber', 'voltage', 'laserWattage', 'notes'];
-      for (const field of stringFields) {
-        if (req.body.hasOwnProperty(field)) {
-          const newValue = (req.body[field] === '' || req.body[field] === null) 
-            ? null 
-            : String(req.body[field]).trim();
+      // For non-manufacturers, process remaining fields
+      if (!isManufacturer(req.user.role)) {
+        // Check if trying to edit regular fields on a locked order
+        const editFields = ['productCode', 'qty', 'modelNumber', 'voltage', 'laserWattage', 'notes', 'manufacturerId'];
+        
+        const hasEditFieldChanges = editFields.some(field => {
+          if (!req.body.hasOwnProperty(field)) return false;
           
-          if (newValue !== item[field]) {
-            data[field] = newValue;
+          if (field === 'qty') {
+            const newQty = Number(req.body[field]);
+            return newQty !== item.qty;
+          }
+          
+          if (field === 'manufacturerId') {
+            const newManufacturerId = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
+            return newManufacturerId !== item.manufacturerId;
+          }
+          
+          const currentVal = item[field] || null;
+          const newVal = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
+          return newVal !== currentVal;
+        });
+
+        if (hasEditFieldChanges && order.isLocked) {
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'Order',
+              entityId: orderId,
+              parentEntityId: orderId,
+              action: 'EDIT_ATTEMPTED_WHILE_LOCKED',
+              metadata: JSON.stringify({ message: 'Tried to edit item details' }),
+              performedByUserId: req.user.id,
+              performedByName: req.user.name
+            }
+          });
+          return res.status(403).json({ 
+            error: 'Cannot edit item details in a locked order. Please unlock it first. Use /measurements endpoint for dimension updates.' 
+          });
+        }
+        
+        // Process all other fields (only if not locked)
+        if (req.body.hasOwnProperty('productCode') && typeof req.body.productCode === 'string') {
+          const newCode = req.body.productCode.trim();
+          if (newCode !== item.productCode) {
+            data.productCode = newCode;
             changes.push({
-              field,
-              oldValue: item[field] || 'null',
-              newValue: newValue || 'null'
+              field: 'productCode',
+              oldValue: item.productCode,
+              newValue: newCode
             });
           }
         }
-      }
-
-      // Handle manufacturerId (editable field but blocked when order is locked)
-      if (req.body.hasOwnProperty('manufacturerId')) {
-        const newManufacturerId = (req.body.manufacturerId === '' || req.body.manufacturerId === null)
-          ? null
-          : String(req.body.manufacturerId).trim();
-
-        if (newManufacturerId !== item.manufacturerId) {
-          data.manufacturerId = newManufacturerId;
-          changes.push({
-            field: 'manufacturerId',
-            oldValue: item.manufacturerId || 'null',
-            newValue: newManufacturerId || 'null'
-          });
+        
+        if (req.body.hasOwnProperty('qty')) {
+          const q = Number(req.body.qty);
+          if (!Number.isFinite(q) || q <= 0) {
+            return res.status(400).json({ error: 'qty must be a positive number' });
+          }
+          if (q !== item.qty) {
+            data.qty = q;
+            changes.push({
+              field: 'qty',
+              oldValue: String(item.qty),
+              newValue: String(q)
+            });
+          }
         }
-      }
-
-      // Handle itemPrice and privateItemNote (admin-only fields allowed even on locked orders)
-      if (req.body.hasOwnProperty('itemPrice')) {
-        const newPrice = (req.body.itemPrice === '' || req.body.itemPrice === null)
-          ? null
-          : parseFloat(req.body.itemPrice);
-
-        if (newPrice !== item.itemPrice) {
-          data.itemPrice = newPrice;
-          changes.push({
-            field: 'itemPrice',
-            oldValue: item.itemPrice ? String(item.itemPrice) : 'null',
-            newValue: newPrice ? String(newPrice) : 'null'
-          });
+        
+        // Process other string fields (excluding serialNumber which was handled above)
+        const stringFields = ['modelNumber', 'voltage', 'laserWattage', 'notes'];
+        for (const field of stringFields) {
+          if (req.body.hasOwnProperty(field)) {
+            const newValue = (req.body[field] === '' || req.body[field] === null) 
+              ? null 
+              : String(req.body[field]).trim();
+            
+            if (newValue !== item[field]) {
+              data[field] = newValue;
+              changes.push({
+                field,
+                oldValue: item[field] || 'null',
+                newValue: newValue || 'null'
+              });
+            }
+          }
         }
-      }
 
-      if (req.body.hasOwnProperty('privateItemNote')) {
-        const newPrivateNote = (req.body.privateItemNote === '' || req.body.privateItemNote === null)
-          ? null
-          : String(req.body.privateItemNote).trim();
+        // Handle manufacturerId (editable field but blocked when order is locked)
+        if (req.body.hasOwnProperty('manufacturerId')) {
+          const newManufacturerId = (req.body.manufacturerId === '' || req.body.manufacturerId === null)
+            ? null
+            : String(req.body.manufacturerId).trim();
 
-        if (newPrivateNote !== item.privateItemNote) {
-          data.privateItemNote = newPrivateNote;
-          changes.push({
-            field: 'privateItemNote',
-            oldValue: item.privateItemNote || 'null',
-            newValue: newPrivateNote || 'null'
-          });
+          if (newManufacturerId !== item.manufacturerId) {
+            data.manufacturerId = newManufacturerId;
+            changes.push({
+              field: 'manufacturerId',
+              oldValue: item.manufacturerId || 'null',
+              newValue: newManufacturerId || 'null'
+            });
+          }
         }
-      }
 
-      // Handle hasExtendedShipping (allowed even on locked orders - all users can edit)
-      if (req.body.hasOwnProperty('hasExtendedShipping')) {
-        const newExtendedShipping = req.body.hasExtendedShipping === true;
+        // Handle itemPrice and privateItemNote (admin-only fields allowed even on locked orders)
+        if (req.body.hasOwnProperty('itemPrice')) {
+          const newPrice = (req.body.itemPrice === '' || req.body.itemPrice === null)
+            ? null
+            : parseFloat(req.body.itemPrice);
 
-        if (newExtendedShipping !== (item.hasExtendedShipping || false)) {
-          data.hasExtendedShipping = newExtendedShipping;
-          changes.push({
-            field: 'hasExtendedShipping',
-            oldValue: String(item.hasExtendedShipping || false),
-            newValue: String(newExtendedShipping)
-          });
+          if (newPrice !== item.itemPrice) {
+            data.itemPrice = newPrice;
+            changes.push({
+              field: 'itemPrice',
+              oldValue: item.itemPrice ? String(item.itemPrice) : 'null',
+              newValue: newPrice ? String(newPrice) : 'null'
+            });
+          }
         }
-      }
-      
-      if (req.body.hasOwnProperty('currentStage')) {
-        const newStage = req.body.currentStage;
-        if (newStage !== item.currentStage) {
-          data.currentStage = newStage;
-          changes.push({
-            field: 'currentStage',
-            oldValue: item.currentStage || 'null',
-            newValue: newStage || 'null'
-          });
+
+        if (req.body.hasOwnProperty('privateItemNote')) {
+          const newPrivateNote = (req.body.privateItemNote === '' || req.body.privateItemNote === null)
+            ? null
+            : String(req.body.privateItemNote).trim();
+
+          if (newPrivateNote !== item.privateItemNote) {
+            data.privateItemNote = newPrivateNote;
+            changes.push({
+              field: 'privateItemNote',
+              oldValue: item.privateItemNote || 'null',
+              newValue: newPrivateNote || 'null'
+            });
+          }
+        }
+
+        // Handle hasExtendedShipping (allowed even on locked orders - all users can edit)
+        if (req.body.hasOwnProperty('hasExtendedShipping')) {
+          const newExtendedShipping = req.body.hasExtendedShipping === true;
+
+          if (newExtendedShipping !== (item.hasExtendedShipping || false)) {
+            data.hasExtendedShipping = newExtendedShipping;
+            changes.push({
+              field: 'hasExtendedShipping',
+              oldValue: String(item.hasExtendedShipping || false),
+              newValue: String(newExtendedShipping)
+            });
+          }
+        }
+        
+        if (req.body.hasOwnProperty('currentStage')) {
+          const newStage = req.body.currentStage;
+          if (newStage !== item.currentStage) {
+            data.currentStage = newStage;
+            changes.push({
+              field: 'currentStage',
+              oldValue: item.currentStage || 'null',
+              newValue: newStage || 'null'
+            });
+          }
         }
       }
       
@@ -483,17 +511,19 @@ export function createItemsRouter() {
         if (changes.length > 0) {
           const isContainerUpdate = changes.some(c => c.field === 'containers');
           const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
+          const isSerialNumberOnly = changes.length === 1 && changes[0].field === 'serialNumber';
           
           await tx.auditLog.create({
             data: {
               entityType: isContainerUpdate ? 'Container' : (isMeasurementUpdate ? 'Measurement' : 'OrderItem'),
               entityId: itemId,
               parentEntityId: orderId,
-              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : 'ORDERITEM_UPDATED'),
+              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : (isSerialNumberOnly ? 'SERIAL_NUMBER_UPDATED' : 'ORDERITEM_UPDATED')),
               changes: JSON.stringify(changes),
-              metadata: (isContainerUpdate || isMeasurementUpdate) ? JSON.stringify({
-                message: isContainerUpdate ? 'Containers updated' : 'Measurements updated via item endpoint',
-                updatedFields: changes.map(c => c.field).join(', ')
+              metadata: (isContainerUpdate || isMeasurementUpdate || isSerialNumberOnly) ? JSON.stringify({
+                message: isContainerUpdate ? 'Containers updated' : (isMeasurementUpdate ? 'Measurements updated via item endpoint' : 'Serial number updated'),
+                updatedFields: changes.map(c => c.field).join(', '),
+                updatedByRole: req.user.role
               }) : null,
               performedByUserId: req.user.id,
               performedByName: req.user.name
