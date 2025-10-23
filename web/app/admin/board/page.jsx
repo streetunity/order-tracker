@@ -9,6 +9,7 @@ import QuickActions from "@/components/QuickActions";
 import NotificationBar from "@/components/NotificationBar";
 import "./board.css";
 import { OrderedIndicator } from './OrderedIndicator';
+import { ViewItemModal } from './ViewItemModal';
 
 // Stage keys from API (do not change)
 const STAGES = [
@@ -56,6 +57,9 @@ export default function AdminBoardPage() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [performingAction, setPerformingAction] = useState(false);
+
+  // View item modal states
+  const [viewItemModal, setViewItemModal] = useState({ show: false, item: null, order: null });
 
   // Check if user is manufacturer
   const isManufacturer = user?.role === "MANUFACTURER";
@@ -178,6 +182,16 @@ export default function AdminBoardPage() {
       throw new Error(body.error || `HTTP ${res.status}`);
     }
   }
+
+  // Handle view item button click
+  const handleViewItem = (item, order) => {
+    setViewItemModal({ show: true, item, order });
+  };
+
+  // Close view item modal
+  const closeViewItemModal = () => {
+    setViewItemModal({ show: false, item: null, order: null });
+  };
 
   // Handle archive button click
   const handleArchiveClick = (orderId, itemId, itemName, isArchived) => {
@@ -452,6 +466,17 @@ export default function AdminBoardPage() {
                                 
                                 {it.isOrdered && <span style={{ width: '8px', display: 'inline-block' }}></span>}
                                 {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>}
+                                
+                                {/* VIEW ITEM BUTTON - Far right */}
+                                <button 
+                                  className="miniBtn view" 
+                                  aria-label="View item details" 
+                                  onClick={() => handleViewItem(it, order)} 
+                                  title="View item details"
+                                  style={{ fontSize: "10px", padding: "2px 6px" }}
+                                >
+                                  🔍
+                                </button>
                               </div>
                             </div>
                           );
@@ -465,6 +490,16 @@ export default function AdminBoardPage() {
           );
         })}
       </div>
+
+      {/* View Item Modal */}
+      {viewItemModal.show && (
+        <ViewItemModal
+          item={viewItemModal.item}
+          order={viewItemModal.order}
+          onClose={closeViewItemModal}
+          onUpdate={load}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && pendingAction && (
