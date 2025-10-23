@@ -132,10 +132,10 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
           <div style={{
             padding: "12px",
             marginBottom: "16px",
-            backgroundColor: "#eff6ff",
-            border: "1px solid #93c5fd",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fca5a5",
             borderRadius: "6px",
-            color: "#1e40af",
+            color: "#dc2626",
             fontSize: "13px"
           }}>
             ℹ️ <strong>Manufacturer view.</strong> You can only edit the serial number field.
@@ -209,7 +209,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
           </div>
 
           <div className="form-field">
-            <label>Laser Wattage (Optional)</label>
+            <label>Power</label>
             <input
               type="text"
               value={editedItem.laserWattage}
