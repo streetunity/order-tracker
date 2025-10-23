@@ -146,8 +146,8 @@ console.log('✅ Settings API loaded');
 // User management (admin only)
 app.use('/users', adminGuard, usersRouter);
 
-// Manufacturer management (admin only)
-app.use('/api/manufacturers', authGuard, adminGuard, manufacturersRouter);
+// Manufacturer management (admin only) - FIXED ROUTE PATH
+app.use('/manufacturers', authGuard, adminGuard, manufacturersRouter);
 console.log('✅ Manufacturers API loaded');
 
 // Account management (auth required)
