@@ -836,7 +836,7 @@ export default function EditOrderPage({ params }) {
                       <th style={{ width: "25px", textAlign: "center" }}></th>
                       <th style={{ width: "320px" }}>Item name</th>
                       <th style={{ width: "50px" }}>Qty</th>
-                      <th style={{ width: "230px" }}>Serial #</th>
+                      <th style={{ width: "230px" }}>Model #</th>
                       <th style={{ width: "90px" }}>Ordered</th>
                       <th style={{ width: "200px" }}>Manufacturer</th>
                       <th style={{ width: "130px" }}>Actions</th>
@@ -895,12 +895,12 @@ export default function EditOrderPage({ params }) {
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Serial #</label>
+                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Model # *</label>
                       <input
                         className="input"
-                        placeholder="Optional"
-                        value={newItem.serialNumber}
-                        onChange={e => setNewItem(v => ({ ...v, serialNumber: e.target.value }))}
+                        placeholder="Model number"
+                        value={newItem.modelNumber}
+                        onChange={e => setNewItem(v => ({ ...v, modelNumber: e.target.value }))}
                         style={{ width: "130px" }}
                       />
                     </div>
@@ -915,31 +915,20 @@ export default function EditOrderPage({ params }) {
                         <option value="">Select...</option>
                         {manufacturers.map(mfg => (
                           <option key={mfg.id} value={mfg.id}>{mfg.name}</option>
-                        ))}
-                      </select>
+                        ))}\n                      </select>
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Model #</label>
+                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Voltage *</label>
                       <input
                         className="input"
-                        placeholder="Optional"
-                        value={newItem.modelNumber}
-                        onChange={e => setNewItem(v => ({ ...v, modelNumber: e.target.value }))}
-                        style={{ width: "130px" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Voltage</label>
-                      <input
-                        className="input"
-                        placeholder="Optional"
+                        placeholder="e.g., 120V"
                         value={newItem.voltage}
                         onChange={e => setNewItem(v => ({ ...v, voltage: e.target.value }))}
                         style={{ width: "90px" }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Power</label>
+                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Power *</label>
                       <input
                         className="input"
                         placeholder="HP / Wattage"
@@ -949,7 +938,17 @@ export default function EditOrderPage({ params }) {
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Notes</label>
+                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Serial #</label>
+                      <input
+                        className="input"
+                        placeholder="Optional"
+                        value={newItem.serialNumber}
+                        onChange={e => setNewItem(v => ({ ...v, serialNumber: e.target.value }))}
+                        style={{ width: "130px" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Public Notes</label>
                       <input
                         className="input"
                         placeholder="Optional notes"
@@ -1306,7 +1305,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
 
   return (
     <>
-      {/* Line 1: Star column, Item name, Qty, Serial #, Ordered, Manufacturer, Actions */}
+      {/* Line 1: Star column, Item name, Qty, Model #, Ordered, Manufacturer, Actions */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
@@ -1339,9 +1338,9 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         <td>
           <input 
             className="input" 
-            value={serialNumber} 
-            onChange={e => onFieldChange('serialNumber', e.target.value)} 
-            placeholder="Optional"
+            value={modelNumber} 
+            onChange={e => onFieldChange('modelNumber', e.target.value)} 
+            placeholder="Model #"
             disabled={isLocked}
             style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
           />
@@ -1430,7 +1429,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         </td>
       </tr>
       
-      {/* Line 2: Voltage, Power, Notes */}
+      {/* Line 2: Model #, Voltage, Power, Serial #, Public Notes */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
@@ -1438,29 +1437,51 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         <td colSpan="7" style={{ padding: "4px 8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "45px" }}>Voltage:</label>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "55px" }}>Model # *:</label>
+              <input 
+                className="input" 
+                value={modelNumber} 
+                onChange={e => onFieldChange('modelNumber', e.target.value)} 
+                placeholder="Required"
+                disabled={isLocked}
+                style={{ width: "100px", opacity: isLocked ? 0.6 : 1 }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "55px" }}>Voltage *:</label>
               <input 
                 className="input" 
                 value={voltage} 
                 onChange={e => onFieldChange('voltage', e.target.value)} 
-                placeholder="Optional"
+                placeholder="Required"
                 disabled={isLocked}
                 style={{ width: "70px", opacity: isLocked ? 0.6 : 1 }}
               />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "40px" }}>Power:</label>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "50px" }}>Power *:</label>
               <input 
                 className="input" 
                 value={laserWattage} 
                 onChange={e => onFieldChange('laserWattage', e.target.value)} 
-                placeholder="HP / Wattage"
+                placeholder="Required"
                 disabled={isLocked}
                 style={{ width: "90px", opacity: isLocked ? 0.6 : 1 }}
               />
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "55px" }}>Serial #:</label>
+              <input 
+                className="input" 
+                value={serialNumber} 
+                onChange={e => onFieldChange('serialNumber', e.target.value)} 
+                placeholder="Optional"
+                disabled={isLocked}
+                style={{ width: "100px", opacity: isLocked ? 0.6 : 1 }}
+              />
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px", flex: 1 }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "40px" }}>Notes:</label>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "75px" }}>Public Notes:</label>
               <input 
                 className="input" 
                 value={notes} 
