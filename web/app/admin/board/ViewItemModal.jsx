@@ -60,13 +60,24 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       setSaving(true);
       setError("");
 
+      // For manufacturers, ONLY send serialNumber field
+      let dataToSend;
+      if (isManufacturer) {
+        dataToSend = {
+          serialNumber: editedItem.serialNumber
+        };
+      } else {
+        // For non-manufacturers, send all edited fields
+        dataToSend = editedItem;
+      }
+
       const res = await fetch(`/api/orders/${order.id}/items/${item.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders()
         },
-        body: JSON.stringify(editedItem)
+        body: JSON.stringify(dataToSend)
       });
 
       if (!res.ok) {
@@ -303,6 +314,12 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   );
 
   function hasChanges() {
+    // For manufacturers, only check if serial number changed
+    if (isManufacturer) {
+      return editedItem.serialNumber !== (item.serialNumber || "");
+    }
+    
+    // For non-manufacturers, check all fields
     return (
       editedItem.qty !== item.qty ||
       editedItem.productCode !== (item.productCode || "") ||
