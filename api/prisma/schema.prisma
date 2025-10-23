@@ -56,7 +56,10 @@ model OrderItem {
   voltage        String?
   laserWattage   String?  // Laser Source Wattage
   notes          String?
-  manufacturer   String?  // NEW FIELD: Manufacturer name for this item
+  
+  // MANUFACTURER FIELD - References Manufacturer model
+  manufacturerId String?
+  manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id])
   
   // PRICE AND PRIVATE NOTE FIELDS
   itemPrice      Float?   // Price for this item (total, not per unit)
@@ -90,6 +93,8 @@ model OrderItem {
   order          Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   statusEvents   OrderItemStatusEvent[]
   measurementLogs MeasurementAuditLog[]
+  
+  @@index([manufacturerId])
 }
 
 model OrderStatusEvent {
@@ -117,7 +122,7 @@ model OrderItemStatusEvent {
 // Flexible audit log table that can handle any entity type
 model AuditLog {
   id                String   @id @default(cuid())
-  entityType        String   // "Order", "Account", "User", "OrderItem"
+  entityType        String   // "Order", "Account", "User", "OrderItem", "Manufacturer"
   entityId          String   // ID of the entity being audited
   parentEntityId    String?  // Optional: orderId for OrderItems, etc.
   action            String   // "CREATED", "UPDATED", "DELETED", "LOCKED", "ITEM_ORDERED", "ITEM_UNORDERED", etc.
@@ -164,7 +169,7 @@ model User {
   email             String                  @unique
   password          String
   name              String
-  role              String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", or "AGENT"
+  role              String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", or "MANUFACTURER"
   isActive          Boolean                 @default(true)
   canBeSalesRep     Boolean                 @default(true)  // NEW: Whether user appears in sales rep dropdown
   lastLogin         DateTime?
@@ -175,6 +180,24 @@ model User {
   itemStatusEvents  OrderItemStatusEvent[]
   auditLogs         AuditLog[]
   notifications     Notification[]          // Notifications assigned to this user
+  manufacturer      Manufacturer?           // Link to manufacturer profile if role is MANUFACTURER
+}
+
+// Manufacturer model - represents companies that manufacture items
+model Manufacturer {
+  id          String      @id @default(cuid())
+  name        String      @unique  // Company name
+  userId      String?     @unique  // Optional: Link to User account for login
+  user        User?       @relation(fields: [userId], references: [id])
+  isActive    Boolean     @default(true)
+  contactInfo String?     // Contact details
+  notes       String?     // Internal notes about the manufacturer
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[] // Items assigned to this manufacturer
+  
+  @@index([name])
+  @@index([isActive])
 }
 
 // Stage threshold settings for reports
