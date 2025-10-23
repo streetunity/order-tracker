@@ -503,12 +503,25 @@
   cursor: not-allowed;
 }
 
-/* ---- View Item Modal Styles ---- */
+/* ---- View Item Modal Styles (Original Width) ---- */
 .view-item-modal {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
   max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.2s ease-out;
+}
+
+/* ---- View Item Modal Styles (Wide Version - 2x Width) ---- */
+.view-item-modal-wide {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 1200px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
@@ -557,6 +570,26 @@
 
 .view-item-body {
   padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Wide modal body with two columns */
+.view-item-body-wide {
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.view-item-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.view-item-right-col {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -614,6 +647,13 @@
   border-color: rgba(107, 114, 128, 0.2);
 }
 
+.form-field textarea.field-readonly {
+  background: rgba(107, 114, 128, 0.1);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  border-color: rgba(107, 114, 128, 0.2);
+}
+
 .form-field input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -664,6 +704,16 @@
   .itemTitle {
     font-size: 10px;
   }
+  
+  /* Stack columns vertically on smaller screens for wide modal */
+  .view-item-body-wide {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  
+  .view-item-modal-wide {
+    max-width: 95%;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -695,14 +745,20 @@
     min-width: 1340px;
   }
   
-  .view-item-modal {
+  .view-item-modal,
+  .view-item-modal-wide {
     max-width: 95%;
     margin: 1rem;
   }
   
   .view-item-header,
   .view-item-body,
+  .view-item-body-wide,
   .view-item-footer {
     padding: 1rem;
+  }
+  
+  .view-item-body-wide {
+    grid-template-columns: 1fr;
   }
 }
