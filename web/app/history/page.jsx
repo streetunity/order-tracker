@@ -251,34 +251,37 @@ export default function AuditHistoryViewer() {
   }
 
   function getItemDetails(log) {
-    let details = [];
+    let productCode = null;
+    let modelNumber = null;
     
-    // Try to get productCode, serialNumber, modelNumber from changes
+    // Try to get from changes first
     if (log.changes) {
-      const productCode = log.changes.find(c => c.field === 'productCode');
-      const serialNumber = log.changes.find(c => c.field === 'serialNumber');
-      const modelNumber = log.changes.find(c => c.field === 'modelNumber');
+      const productCodeChange = log.changes.find(c => c.field === 'productCode');
+      const modelNumberChange = log.changes.find(c => c.field === 'modelNumber');
       
-      if (productCode) {
-        details.push(`Product: ${productCode.newValue || productCode.oldValue}`);
+      if (productCodeChange) {
+        productCode = productCodeChange.newValue || productCodeChange.oldValue;
       }
-      if (modelNumber && modelNumber.newValue && modelNumber.newValue !== 'null') {
-        details.push(`Model: ${modelNumber.newValue}`);
-      }
-      if (serialNumber && serialNumber.newValue && serialNumber.newValue !== 'null') {
-        details.push(`S/N: ${serialNumber.newValue}`);
+      if (modelNumberChange) {
+        modelNumber = modelNumberChange.newValue || modelNumberChange.oldValue;
       }
     }
     
-    // Try metadata
-    if (details.length === 0 && log.metadata?.items && Array.isArray(log.metadata.items) && log.metadata.items.length > 0) {
+    // Try metadata if changes didn't have it
+    if (!productCode && log.metadata?.items && Array.isArray(log.metadata.items) && log.metadata.items.length > 0) {
       const item = log.metadata.items[0];
-      if (item.productCode) details.push(`Product: ${item.productCode}`);
-      if (item.serialNumber) details.push(`S/N: ${item.serialNumber}`);
-      if (item.modelNumber) details.push(`Model: ${item.modelNumber}`);
+      productCode = item.productCode;
+      modelNumber = item.modelNumber;
     }
     
-    return details.length > 0 ? details.join(' • ') : null;
+    // Format the display
+    if (productCode && modelNumber && modelNumber !== 'null' && modelNumber !== '') {
+      return `${productCode} • Model: ${modelNumber}`;
+    } else if (productCode) {
+      return productCode;
+    }
+    
+    return null;
   }
 
   function getEntityInfo(log) {
@@ -288,9 +291,8 @@ export default function AuditHistoryViewer() {
     };
     
     // For Order logs
-    if (log.entityType === 'Order' || log.parentEntityId) {
-      const orderId = log.entityType === 'Order' ? log.entityId : log.parentEntityId;
-      const order = orders.find(o => o.id === orderId);
+    if (log.entityType === 'Order' && !log.parentEntityId) {
+      const order = orders.find(o => o.id === log.entityId);
       if (order) {
         info.title = order.account?.name || 'Unknown Customer';
         info.subtitle = order.sku || '';  // Sales rep in red
@@ -310,14 +312,14 @@ export default function AuditHistoryViewer() {
       }
     }
     
-    // For OrderItem logs - get item details
+    // For OrderItem logs - show item name and model number FIRST
     if (log.entityType === 'OrderItem') {
       const itemDetails = getItemDetails(log);
       if (itemDetails) {
-        info.title = itemDetails;
+        info.title = itemDetails;  // Item name • Model: XXX
       }
       
-      // Also get the order/customer info
+      // Then show customer and sales rep below
       if (log.parentEntityId) {
         const order = orders.find(o => o.id === log.parentEntityId);
         if (order) {
@@ -410,7 +412,6 @@ export default function AuditHistoryViewer() {
             <span className={`log-badge ${getActionBadgeClass(log.action)}`}>
               {getActionLabel(log.action)}
             </span>
-            <span className="log-entity-type">{log.entityType}</span>
             <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>
           </div>
           <div className="log-user">
