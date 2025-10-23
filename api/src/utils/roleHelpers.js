@@ -2,37 +2,41 @@
  * Role Hierarchy Helper Functions
  * 
  * Hierarchy:
- * SUPER_ADMIN (Level 4) - Full system access
- * ACCOUNTANT (Level 3) - Financial management
- * ADMIN (Level 2) - Standard admin
- * AGENT (Level 1) - Basic user
+ * SUPER_ADMIN (Level 5) - Full system access
+ * ACCOUNTANT (Level 4) - Financial management
+ * ADMIN (Level 3) - Standard admin
+ * AGENT (Level 2) - Basic user
+ * MANUFACTURER (Level 1) - External manufacturer access
  */
 
 export const ROLES = {
   SUPER_ADMIN: 'SUPER_ADMIN',
   ACCOUNTANT: 'ACCOUNTANT',
   ADMIN: 'ADMIN',
-  AGENT: 'AGENT'
+  AGENT: 'AGENT',
+  MANUFACTURER: 'MANUFACTURER'
 };
 
 export const ROLE_LEVELS = {
-  SUPER_ADMIN: 4,
-  ACCOUNTANT: 3,
-  ADMIN: 2,
-  AGENT: 1
+  SUPER_ADMIN: 5,
+  ACCOUNTANT: 4,
+  ADMIN: 3,
+  AGENT: 2,
+  MANUFACTURER: 1
 };
 
 export const ROLE_DISPLAY_NAMES = {
   SUPER_ADMIN: 'Super Admin',
   ACCOUNTANT: 'Accountant',
   ADMIN: 'Admin',
-  AGENT: 'Agent'
+  AGENT: 'Agent',
+  MANUFACTURER: 'Manufacturer'
 };
 
 /**
  * Get the hierarchy level for a role
  * @param {string} role - Role name
- * @returns {number} - Level (1-4)
+ * @returns {number} - Level (1-5)
  */
 export function getRoleLevel(role) {
   return ROLE_LEVELS[role] || 0;
@@ -148,4 +152,13 @@ export function isAccountantOrHigher(role) {
  */
 export function isAdminOrHigher(role) {
   return getRoleLevel(role) >= ROLE_LEVELS.ADMIN;
+}
+
+/**
+ * Check if user is Manufacturer role
+ * @param {string} role - User role
+ * @returns {boolean}
+ */
+export function isManufacturer(role) {
+  return role === ROLES.MANUFACTURER;
 }
