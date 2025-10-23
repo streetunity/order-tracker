@@ -1429,7 +1429,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         </td>
       </tr>
       
-      {/* Line 2: Voltage, Power, Serial #, Price */}
+      {/* Line 2: Voltage, Power, Serial #, Price - PRICE FIELD NOW ACCESSIBLE TO ALL USERS */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
@@ -1469,24 +1469,22 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
                 style={{ width: "230px", opacity: isLocked ? 0.6 : 1 }}
               />
             </div>
-            {isAdmin && (
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
-                <label style={{ fontSize: "11px", color: "#9ca3af" }}>Price:</label>
-                <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
-                <input
-                  className="input"
-                  type="text"
-                  value={itemPrice}
-                  onChange={handlePriceChange}
-                  placeholder="0.00"
-                  title="usually retail price"
-                  style={{ 
-                    width: "100px", 
-                    textAlign: "right"
-                  }}
-                />
-              </div>
-            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
+              <label style={{ fontSize: "11px", color: "#9ca3af" }}>Price:</label>
+              <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
+              <input
+                className="input"
+                type="text"
+                value={itemPrice}
+                onChange={handlePriceChange}
+                placeholder="0.00"
+                title="usually retail price"
+                style={{ 
+                  width: "100px", 
+                  textAlign: "right"
+                }}
+              />
+            </div>
           </div>
         </td>
       </tr>
