@@ -1,21 +1,37 @@
 import express from 'express';
 import { newTrackingToken } from '../state.js';
-import { isAdminOrHigher } from '../utils/roleHelpers.js';
+import { isAdminOrHigher, isManufacturer } from '../utils/roleHelpers.js';
 
 export function createOrdersRouter(prisma) {
   const router = express.Router();
 
   // Helper to build role-based where clause for orders
-  function buildRoleBasedWhere(user, additionalWhere = {}) {
+  async function buildRoleBasedWhere(user, additionalWhere = {}) {
     const where = { ...additionalWhere };
     
-    // If user is an AGENT, only show orders where sku (sales person) matches their name
-    if (user.role === 'AGENT') {
-      // CRITICAL: Filter to only show orders assigned to this agent
-      // Agent can only see orders where the sku field (sales person) matches their name exactly
-      where.sku = user.name;
+    // MANUFACTURERS: Only see orders that have items assigned to their manufacturer
+    if (isManufacturer(user.role)) {
+      if (!user.manufacturer || !user.manufacturer.id) {
+        // No manufacturer profile = no access
+        console.log(`[MANUFACTURER FILTER] User ${user.name} has no manufacturer profile - blocking all orders`);
+        where.id = 'impossible-id-no-matches'; // Force no results
+        return where;
+      }
       
-      // Log for debugging
+      // Only show orders that have at least one item assigned to this manufacturer
+      where.items = {
+        some: {
+          manufacturerId: user.manufacturer.id
+        }
+      };
+      
+      console.log(`[MANUFACTURER FILTER] User: ${user.name}, Manufacturer ID: ${user.manufacturer.id}, Filtering orders by assigned items`);
+      return where;
+    }
+    
+    // AGENTS: Only show orders where sku (sales person) matches their name
+    if (user.role === 'AGENT') {
+      where.sku = user.name;
       console.log(`[AGENT FILTER] User: ${user.name}, Role: ${user.role}, Filtering orders by sku: ${user.name}`);
     }
     
@@ -29,6 +45,33 @@ export function createOrdersRouter(prisma) {
     // Admins and higher can access all orders
     if (isAdminOrHigher(user.role)) return true;
     
+    // Manufacturers: Check if they have any items in this order
+    if (isManufacturer(user.role)) {
+      if (!user.manufacturer || !user.manufacturer.id) return false;
+      
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            where: {
+              manufacturerId: user.manufacturer.id
+            },
+            select: { id: true }
+          }
+        }
+      });
+      
+      if (!order) return false;
+      const hasAccess = order.items.length > 0;
+      
+      if (!hasAccess) {
+        console.log(`[ACCESS DENIED] Manufacturer ${user.name} tried to access order ${orderId} with no assigned items`);
+      }
+      
+      return hasAccess;
+    }
+    
+    // Agents: Check if order's sales person matches their name
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: { sku: true }
@@ -36,7 +79,6 @@ export function createOrdersRouter(prisma) {
     
     if (!order) return false;
     
-    // Agent can only access if order's sales person matches their name
     const hasAccess = order.sku === user.name;
     
     if (!hasAccess) {
@@ -46,10 +88,9 @@ export function createOrdersRouter(prisma) {
     return hasAccess;
   }
 
-  // Helper to calculate ETA - should use actual settings from database
+  // Helper to calculate ETA
   async function calculateETADate(orderDate = new Date()) {
     try {
-      // Get the actual stage thresholds from settings
       const settings = await prisma.settings.findMany({
         where: {
           key: {
@@ -58,7 +99,6 @@ export function createOrdersRouter(prisma) {
         }
       });
 
-      // Parse settings into a map
       const thresholds = {};
       settings.forEach(setting => {
         const match = setting.key.match(/stage_threshold_(.+)_(warning|critical)/);
@@ -70,8 +110,6 @@ export function createOrdersRouter(prisma) {
         }
       });
 
-      // Calculate using averages of actual settings values
-      // Only include stages up to DELIVERED (exclude post-delivery stages)
       const stageDurations = {
         MANUFACTURING: thresholds.MANUFACTURING ? 
           (thresholds.MANUFACTURING.warning + thresholds.MANUFACTURING.critical) / 2 : 35,
@@ -89,7 +127,6 @@ export function createOrdersRouter(prisma) {
           (thresholds.DELIVERED.warning + thresholds.DELIVERED.critical) / 2 : 4.5
       };
       
-      // Total should be around 96.5 days with default values
       const totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
       
       const eta = new Date(orderDate);
@@ -97,8 +134,7 @@ export function createOrdersRouter(prisma) {
       return eta;
     } catch (error) {
       console.error('Error calculating ETA from settings:', error);
-      // Fallback to hardcoded defaults if settings not available
-      const totalDays = 96.5; // Standard ETA total
+      const totalDays = 96.5;
       const eta = new Date(orderDate);
       eta.setDate(eta.getDate() + Math.round(totalDays));
       return eta;
@@ -119,7 +155,7 @@ export function createOrdersRouter(prisma) {
       .filter((i) => i.productCode.length > 0);
   }
 
-  // List orders - ROLE-FILTERED
+  // List orders - ROLE-FILTERED (including manufacturers)
   router.get('/', async (req, res) => {
     try {
       const { stage, accountId, search } = req.query;
@@ -137,14 +173,19 @@ export function createOrdersRouter(prisma) {
         ];
       }
 
-      // Apply role-based filtering - CRITICAL FOR AGENT SECURITY
-      const where = buildRoleBasedWhere(req.user, baseWhere);
+      // Apply role-based filtering
+      const where = await buildRoleBasedWhere(req.user, baseWhere);
 
       const orders = await prisma.order.findMany({
         where,
         include: {
           account: true,
-          items: { include: { statusEvents: { orderBy: { createdAt: 'asc' } } } },
+          items: { 
+            include: { 
+              statusEvents: { orderBy: { createdAt: 'asc' } },
+              manufacturer: true // Include manufacturer info
+            } 
+          },
           statusEvents: { orderBy: { createdAt: 'asc' } },
           createdBy: {
             select: { id: true, name: true, email: true }
@@ -153,31 +194,37 @@ export function createOrdersRouter(prisma) {
         orderBy: [{ createdAt: 'desc' }]
       });
 
-      // Additional safety check - filter out any orders that shouldn't be visible to agents
-      const filteredOrders = orders.filter(order => {
-        if (req.user.role === 'AGENT') {
-          return order.sku === req.user.name;
-        }
-        return true;
-      });
+      // For manufacturers, filter items to only show assigned ones
+      let filteredOrders = orders;
+      if (isManufacturer(req.user.role) && req.user.manufacturer) {
+        filteredOrders = orders.map(order => ({
+          ...order,
+          items: order.items.filter(item => item.manufacturerId === req.user.manufacturer.id)
+        })).filter(order => order.items.length > 0); // Remove orders with no assigned items
+      }
 
       console.log(`[GET /orders] User: ${req.user.name} (${req.user.role}) - Returned ${filteredOrders.length} orders`);
 
       res.json(filteredOrders);
     } catch (e) {
+      console.error('GET /orders error:', e);
       res.status(500).json({ error: e.message });
     }
   });
 
-  // Get yearly total - ROLE-FILTERED (both admins and agents can access)
+  // Get yearly total - BLOCKED FOR MANUFACTURERS
   router.get('/yearly-total', async (req, res) => {
     try {
+      // Block manufacturers from seeing sales totals
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot view sales totals.' });
+      }
+
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
       const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
 
-      // Apply role-based filtering
-      const where = buildRoleBasedWhere(req.user, {
+      const where = await buildRoleBasedWhere(req.user, {
         createdAt: {
           gte: yearStart,
           lte: yearEnd
@@ -217,7 +264,7 @@ export function createOrdersRouter(prisma) {
         formatted: formatted,
         orderCount: orders.length,
         itemCount: orders.reduce((sum, o) => sum + o.items.length, 0),
-        userRole: req.user?.role // Include for debugging
+        userRole: req.user?.role
       });
     } catch (e) {
       console.error('Yearly total error:', e);
@@ -228,7 +275,6 @@ export function createOrdersRouter(prisma) {
   // Get single order - ROLE-FILTERED
   router.get('/:id', async (req, res) => {
     try {
-      // Check access permission
       const hasAccess = await canAccessOrder(req.user, req.params.id);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only view orders assigned to you.' });
@@ -238,7 +284,12 @@ export function createOrdersRouter(prisma) {
         where: { id: req.params.id },
         include: {
           account: true,
-          items: { include: { statusEvents: { orderBy: { createdAt: 'asc' } } } },
+          items: { 
+            include: { 
+              statusEvents: { orderBy: { createdAt: 'asc' } },
+              manufacturer: true
+            } 
+          },
           statusEvents: { orderBy: { createdAt: 'asc' } },
           createdBy: {
             select: { id: true, name: true, email: true }
@@ -247,6 +298,11 @@ export function createOrdersRouter(prisma) {
       });
       
       if (!order) return res.status(404).json({ error: 'Not found' });
+      
+      // For manufacturers, filter items to only show assigned ones
+      if (isManufacturer(req.user.role) && req.user.manufacturer) {
+        order.items = order.items.filter(item => item.manufacturerId === req.user.manufacturer.id);
+      }
       
       const auditLogs = await prisma.auditLog.findMany({
         where: {
@@ -270,9 +326,14 @@ export function createOrdersRouter(prisma) {
     }
   });
 
-  // Create order
+  // Create order - BLOCKED FOR MANUFACTURERS
   router.post('/', async (req, res) => {
     try {
+      // Block manufacturers from creating orders
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot create orders.' });
+      }
+
       const { accountId, poNumber, sku, items = [], customerDocsLink, orderDate } = req.body || {};
       if (!accountId) return res.status(400).json({ error: 'accountId required' });
 
@@ -336,10 +397,14 @@ export function createOrdersRouter(prisma) {
     }
   });
 
-  // Update order - ROLE-FILTERED
+  // Update order - BLOCKED FOR MANUFACTURERS
   router.patch('/:id', async (req, res) => {
     try {
-      // Check access permission
+      // Block manufacturers from editing orders
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot edit orders.' });
+      }
+
       const hasAccess = await canAccessOrder(req.user, req.params.id);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only edit orders assigned to you.' });
@@ -355,7 +420,6 @@ export function createOrdersRouter(prisma) {
       
       const { customerDocsLink, internalNotes, orderDate } = req.body || {};
       
-      // Handle customerDocsLink update (allowed even when locked)
       if (customerDocsLink !== undefined && customerDocsLink !== original.customerDocsLink) {
         const updatedOrder = await prisma.order.update({
           where: { id: req.params.id },
@@ -401,7 +465,6 @@ export function createOrdersRouter(prisma) {
       const data = {};
       const changes = [];
       
-      // Handle field updates...
       if (poNumber !== undefined && poNumber !== original.poNumber) {
         data.poNumber = poNumber;
         changes.push({
@@ -529,10 +592,14 @@ export function createOrdersRouter(prisma) {
     }
   });
 
-  // Delete order - ROLE-FILTERED
+  // Delete order - BLOCKED FOR MANUFACTURERS
   router.delete('/:id', async (req, res) => {
     try {
-      // Check access permission
+      // Block manufacturers from deleting orders
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot delete orders.' });
+      }
+
       const hasAccess = await canAccessOrder(req.user, req.params.id);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only delete orders assigned to you.' });
@@ -582,12 +649,16 @@ export function createOrdersRouter(prisma) {
     }
   });
 
-  // Update internal notes - ROLE-FILTERED
+  // Update internal notes - BLOCKED FOR MANUFACTURERS
   router.patch('/:id/internal-notes', async (req, res) => {
     try {
+      // Block manufacturers
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot edit internal notes.' });
+      }
+
       const orderId = req.params.id;
       
-      // Check access permission
       const hasAccess = await canAccessOrder(req.user, orderId);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only edit orders assigned to you.' });
