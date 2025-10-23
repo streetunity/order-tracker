@@ -804,15 +804,15 @@ export default function EditOrderPage({ params }) {
                 </div>
               )}
               <div style={{ overflowX: "auto" }}>
-                <table className="table" style={{ minWidth: "1300px", tableLayout: "fixed" }}>
+                <table className="table" style={{ minWidth: "1045px", tableLayout: "fixed" }}>
                   <thead>
                     <tr>
                       <th style={{ width: "25px", textAlign: "center" }}></th>
-                      <th style={{ width: "200px" }}>Item name</th>
+                      <th style={{ width: "320px" }}>Item name</th>
                       <th style={{ width: "50px" }}>Qty</th>
-                      <th style={{ width: "140px" }}>Serial #</th>
+                      <th style={{ width: "230px" }}>Serial #</th>
                       <th style={{ width: "90px" }}>Ordered</th>
-                      <th style={{ width: "auto" }}>Manufacturer</th>
+                      <th style={{ width: "200px" }}>Manufacturer</th>
                       <th style={{ width: "130px" }}>Actions</th>
                     </tr>
                   </thead>
