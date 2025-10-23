@@ -804,20 +804,16 @@ export default function EditOrderPage({ params }) {
                 <table className="table" style={{ minWidth: "1150px", tableLayout: "fixed" }}>
                   <thead>
                     <tr>
-                      <th style={{ width: "150px" }}>Item name</th>
+                      <th style={{ width: "280px" }}>Item name</th>
                       <th style={{ width: "50px" }}>Qty</th>
-                      <th style={{ width: "100px" }}>Serial #</th>
-                      <th style={{ width: "100px" }}>Model #</th>
-                      <th style={{ width: "70px" }}>Voltage</th>
-                      <th style={{ width: "90px" }}>Power</th>
+                      <th style={{ width: "200px" }}>Serial #</th>
                       <th style={{ width: "100px" }}>Ordered</th>
-                      <th style={{ width: "180px" }}>Notes</th>
                       <th style={{ width: "160px" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(order.items || []).length === 0 ? (
-                      <tr><td colSpan={9} style={{ color: "#6b7280" }}>No items yet.</td></tr>
+                      <tr><td colSpan={5} style={{ color: "#6b7280" }}>No items yet.</td></tr>
                     ) : (
                       order.items.map((it) => (
                         <EditableRow
@@ -1263,6 +1259,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
 
   return (
     <>
+      {/* Line 1: Item name, Qty, Serial # */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
@@ -1274,7 +1271,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
               value={name} 
               onChange={e => onFieldChange('productCode', e.target.value)} 
               disabled={isLocked}
-              style={{ width: "125px", opacity: isLocked ? 0.6 : 1 }}
+              style={{ width: "260px", opacity: isLocked ? 0.6 : 1 }}
             />
             {hasExtendedShipping && (
               <span style={{ color: "var(--success)", fontSize: "16px" }} title="Extended Shipping">⭐</span>
@@ -1299,37 +1296,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
             onChange={e => onFieldChange('serialNumber', e.target.value)} 
             placeholder="Optional"
             disabled={isLocked}
-            style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
-          />
-        </td>
-        <td>
-          <input 
-            className="input" 
-            value={modelNumber} 
-            onChange={e => onFieldChange('modelNumber', e.target.value)} 
-            placeholder="Optional"
-            disabled={isLocked}
-            style={{ width: "95px", opacity: isLocked ? 0.6 : 1 }}
-          />
-        </td>
-        <td>
-          <input 
-            className="input" 
-            value={voltage} 
-            onChange={e => onFieldChange('voltage', e.target.value)} 
-            placeholder="Optional"
-            disabled={isLocked}
-            style={{ width: "65px", opacity: isLocked ? 0.6 : 1 }}
-          />
-        </td>
-        <td>
-          <input 
-            className="input" 
-            value={laserWattage} 
-            onChange={e => onFieldChange('laserWattage', e.target.value)} 
-            placeholder="HP / Wattage"
-            disabled={isLocked}
-            style={{ width: "85px", opacity: isLocked ? 0.6 : 1 }}
+            style={{ width: "195px", opacity: isLocked ? 0.6 : 1 }}
           />
         </td>
         <td>
@@ -1351,16 +1318,6 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
           ) : (
             <span style={{ color: "#6b7280", fontSize: "12px" }}>—</span>
           )}
-        </td>
-        <td>
-          <input 
-            className="input" 
-            value={notes} 
-            onChange={e => onFieldChange('notes', e.target.value)} 
-            placeholder="Optional"
-            disabled={isLocked}
-            style={{ width: "175px", opacity: isLocked ? 0.6 : 1 }}
-          />
         </td>
         <td style={{ paddingLeft: "8px" }}>
           <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", justifyContent: "flex-start" }}>
@@ -1411,12 +1368,58 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
           </div>
         </td>
       </tr>
+      
+      {/* Line 2: Voltage, Power, Notes */}
+      <tr style={{ 
+        backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
+        ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
+      }}>
+        <td colSpan="5" style={{ padding: "4px 8px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "45px" }}>Voltage:</label>
+              <input 
+                className="input" 
+                value={voltage} 
+                onChange={e => onFieldChange('voltage', e.target.value)} 
+                placeholder="Optional"
+                disabled={isLocked}
+                style={{ width: "70px", opacity: isLocked ? 0.6 : 1 }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "40px" }}>Power:</label>
+              <input 
+                className="input" 
+                value={laserWattage} 
+                onChange={e => onFieldChange('laserWattage', e.target.value)} 
+                placeholder="HP / Wattage"
+                disabled={isLocked}
+                style={{ width: "90px", opacity: isLocked ? 0.6 : 1 }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", flex: 1 }}>
+              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "40px" }}>Notes:</label>
+              <input 
+                className="input" 
+                value={notes} 
+                onChange={e => onFieldChange('notes', e.target.value)} 
+                placeholder="Optional"
+                disabled={isLocked}
+                style={{ flex: 1, opacity: isLocked ? 0.6 : 1 }}
+              />
+            </div>
+          </div>
+        </td>
+      </tr>
+      
+      {/* Line 3: Extended Shipping checkbox, Purchasing notes (admin), Price (admin) */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", 
         borderBottom: "2px solid #404040",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
-        <td colSpan="9" style={{ padding: "8px" }}>
+        <td colSpan="5" style={{ padding: "8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input
