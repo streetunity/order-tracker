@@ -6,6 +6,70 @@ export function createNotificationsRouter(prisma) {
   const router = Router();
 
   /**
+   * Debug endpoint to check notification userIds vs current user
+   */
+  router.get('/debug', async (req, res) => {
+    try {
+      const currentUserId = req.user.id;
+      const currentUserIdType = typeof currentUserId;
+      
+      // Get all notifications for debugging
+      const allNotifications = await prisma.notification.findMany({
+        select: {
+          id: true,
+          userId: true,
+          isRead: true,
+          title: true
+        },
+        take: 50
+      });
+
+      // Get unread count with current userId
+      const unreadCount = await prisma.notification.count({
+        where: {
+          userId: currentUserId,
+          isRead: false
+        }
+      });
+
+      // Try converting userId to string
+      const unreadCountString = await prisma.notification.count({
+        where: {
+          userId: String(currentUserId),
+          isRead: false
+        }
+      });
+
+      // Get unique userIds from notifications
+      const uniqueUserIds = [...new Set(allNotifications.map(n => n.userId))];
+
+      res.json({
+        currentUser: {
+          id: currentUserId,
+          type: currentUserIdType,
+          name: req.user.name,
+          role: req.user.role
+        },
+        unreadCount,
+        unreadCountString,
+        uniqueUserIds,
+        notificationSample: allNotifications.slice(0, 10).map(n => ({
+          id: n.id,
+          userId: n.userId,
+          userIdType: typeof n.userId,
+          isRead: n.isRead,
+          matches: n.userId === currentUserId,
+          matchesString: n.userId === String(currentUserId),
+          title: n.title
+        }))
+      });
+    } catch (error) {
+      console.error('Debug error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * Get user's notifications (role-filtered)
    * Agents only see their own notifications
    * Admins can see all notifications or filter by userId
@@ -26,11 +90,11 @@ export function createNotificationsRouter(prisma) {
       // Role-based filtering
       if (req.user.role === 'AGENT') {
         // Agents only see their own notifications
-        where.userId = req.user.id;
+        where.userId = String(req.user.id);
       } else if (req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN') {
         // Admins can filter by userId or see all
         if (userId) {
-          where.userId = userId;
+          where.userId = String(userId);
         }
         // If no userId specified, they see all
       }
@@ -98,7 +162,7 @@ export function createNotificationsRouter(prisma) {
   router.get('/unread', async (req, res) => {
     try {
       const where = {
-        userId: req.user.id,
+        userId: String(req.user.id),
         isRead: false,
         isDismissed: false,
         OR: [
@@ -151,7 +215,7 @@ export function createNotificationsRouter(prisma) {
       // For agents, filter to their own notifications
       // For admins, show all notifications unless they specify a userId
       const isAgent = req.user.role === 'AGENT';
-      const filterUserId = isAgent ? req.user.id : req.query.userId;
+      const filterUserId = isAgent ? String(req.user.id) : (req.query.userId ? String(req.query.userId) : null);
 
       if (filterUserId) {
         baseWhere.userId = filterUserId;
@@ -223,7 +287,7 @@ export function createNotificationsRouter(prisma) {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
-      if (req.user.role === 'AGENT' && notification.userId !== req.user.id) {
+      if (req.user.role === 'AGENT' && notification.userId !== String(req.user.id)) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -248,8 +312,19 @@ export function createNotificationsRouter(prisma) {
   router.post('/read-all', async (req, res) => {
     try {
       console.log('[NOTIFICATIONS] Mark all as read called by user:', req.user.id, req.user.name);
+      console.log('[NOTIFICATIONS] User ID type:', typeof req.user.id);
       
-      const userId = req.user.id;
+      const userId = String(req.user.id); // Ensure string type
+
+      // First check how many unread notifications exist
+      const unreadBefore = await prisma.notification.count({
+        where: {
+          userId,
+          isRead: false
+        }
+      });
+
+      console.log('[NOTIFICATIONS] Found', unreadBefore, 'unread notifications for userId:', userId);
 
       const result = await prisma.notification.updateMany({
         where: {
@@ -281,8 +356,19 @@ export function createNotificationsRouter(prisma) {
   router.post('/mark-all-read', async (req, res) => {
     try {
       console.log('[NOTIFICATIONS] Mark all as read (alias) called by user:', req.user.id, req.user.name);
+      console.log('[NOTIFICATIONS] User ID type:', typeof req.user.id);
       
-      const userId = req.user.id;
+      const userId = String(req.user.id); // Ensure string type
+
+      // First check how many unread notifications exist
+      const unreadBefore = await prisma.notification.count({
+        where: {
+          userId,
+          isRead: false
+        }
+      });
+
+      console.log('[NOTIFICATIONS] Found', unreadBefore, 'unread notifications for userId:', userId);
 
       const result = await prisma.notification.updateMany({
         where: {
@@ -323,7 +409,7 @@ export function createNotificationsRouter(prisma) {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
-      if (req.user.role === 'AGENT' && notification.userId !== req.user.id) {
+      if (req.user.role === 'AGENT' && notification.userId !== String(req.user.id)) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -370,7 +456,7 @@ export function createNotificationsRouter(prisma) {
 
       const notification = await prisma.notification.create({
         data: {
-          userId,
+          userId: String(userId),
           type,
           category,
           title,
@@ -409,7 +495,7 @@ export function createNotificationsRouter(prisma) {
       // Build order filter
       const orderWhere = {};
       if (userId) {
-        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const user = await prisma.user.findUnique({ where: { id: String(userId) } });
         if (user && user.role === 'AGENT') {
           orderWhere.sku = user.name; // Filter by sales person
         }
@@ -443,14 +529,14 @@ export function createNotificationsRouter(prisma) {
       // Process each order's items
       for (const order of orders) {
         // Determine which user to notify
-        let notifyUserId = userId;
+        let notifyUserId = userId ? String(userId) : null;
         if (!notifyUserId && order.sku) {
           // Find user by sales rep name
           const salesRep = await prisma.user.findFirst({
             where: { name: order.sku, isActive: true }
           });
           if (salesRep) {
-            notifyUserId = salesRep.id;
+            notifyUserId = String(salesRep.id);
           }
         }
 
