@@ -24,6 +24,7 @@ import { createLocksRouter } from './routes/locks.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createPublicRouter } from './routes/public.js';
 import { createNotificationsRouter } from './routes/notifications.js';
+import { createManufacturersRouter } from './routes/manufacturers.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -101,6 +102,7 @@ const locksRouter = createLocksRouter();
 const auditRouter = createAuditRouter();
 const publicRouter = createPublicRouter();
 const notificationsRouter = createNotificationsRouter(prisma);
+const manufacturersRouter = createManufacturersRouter(prisma);
 
 // =============================
 // Mount Routes
@@ -143,6 +145,10 @@ console.log('✅ Settings API loaded');
 
 // User management (admin only)
 app.use('/users', adminGuard, usersRouter);
+
+// Manufacturer management (admin only)
+app.use('/api/manufacturers', authGuard, adminGuard, manufacturersRouter);
+console.log('✅ Manufacturers API loaded');
 
 // Account management (auth required)
 app.use('/accounts', authGuard, accountsRouter);
