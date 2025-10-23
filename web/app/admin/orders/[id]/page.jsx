@@ -21,7 +21,8 @@ export default function EditOrderPage({ params }) {
     voltage: "", 
     laserWattage: "", 
     notes: "",
-    hasExtendedShipping: false
+    hasExtendedShipping: false,
+    manufacturer: ""
   });
   const [saving, setSaving] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
@@ -443,6 +444,7 @@ export default function EditOrderPage({ params }) {
     const laserWattage = newItem.laserWattage.trim();
     const notes = newItem.notes.trim();
     const hasExtendedShipping = newItem.hasExtendedShipping || false;
+    const manufacturer = newItem.manufacturer.trim();
     
     if (!productCode) return alert("Item name is required");
     if (!Number.isFinite(qty) || qty <= 0) return alert("Quantity must be a positive number");
@@ -464,6 +466,7 @@ export default function EditOrderPage({ params }) {
           laserWattage: laserWattage || null,
           notes,
           hasExtendedShipping,
+          manufacturer,
           containers: []
         }),
       });
@@ -473,7 +476,7 @@ export default function EditOrderPage({ params }) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       
-      setNewItem({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "", hasExtendedShipping: false });
+      setNewItem({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "", hasExtendedShipping: false, manufacturer: "" });
       await load();
     } catch (e) {
       alert(`Failed to add item: ${e.message}`);
@@ -801,20 +804,21 @@ export default function EditOrderPage({ params }) {
                 </div>
               )}
               <div style={{ overflowX: "auto" }}>
-                <table className="table" style={{ minWidth: "1150px", tableLayout: "fixed" }}>
+                <table className="table" style={{ minWidth: "1300px", tableLayout: "fixed" }}>
                   <thead>
                     <tr>
                       <th style={{ width: "25px", textAlign: "center" }}></th>
-                      <th style={{ width: "260px" }}>Item name</th>
+                      <th style={{ width: "200px" }}>Item name</th>
                       <th style={{ width: "50px" }}>Qty</th>
-                      <th style={{ width: "185px" }}>Serial #</th>
-                      <th style={{ width: "100px" }}>Ordered</th>
-                      <th style={{ width: "160px" }}>Actions</th>
+                      <th style={{ width: "140px" }}>Serial #</th>
+                      <th style={{ width: "90px" }}>Ordered</th>
+                      <th style={{ width: "auto" }}>Manufacturer</th>
+                      <th style={{ width: "130px" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(order.items || []).length === 0 ? (
-                      <tr><td colSpan={6} style={{ color: "#6b7280" }}>No items yet.</td></tr>
+                      <tr><td colSpan={7} style={{ color: "#6b7280" }}>No items yet.</td></tr>
                     ) : (
                       order.items.map((it) => (
                         <EditableRow
@@ -870,6 +874,16 @@ export default function EditOrderPage({ params }) {
                         placeholder="Optional"
                         value={newItem.serialNumber}
                         onChange={e => setNewItem(v => ({ ...v, serialNumber: e.target.value }))}
+                        style={{ width: "130px" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Manufacturer</label>
+                      <input
+                        className="input"
+                        placeholder="Optional"
+                        value={newItem.manufacturer}
+                        onChange={e => setNewItem(v => ({ ...v, manufacturer: e.target.value }))}
                         style={{ width: "130px" }}
                       />
                     </div>
@@ -1239,6 +1253,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
   const name = getValue('productCode') || "";
   const qty = getValue('qty') || 1;
   const serialNumber = getValue('serialNumber') || "";
+  const manufacturer = getValue('manufacturer') || "";
   const modelNumber = getValue('modelNumber') || "";
   const voltage = getValue('voltage') || "";
   const laserWattage = getValue('laserWattage') || "";
@@ -1260,7 +1275,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
 
   return (
     <>
-      {/* Line 1: Star column, Item name, Qty, Serial # */}
+      {/* Line 1: Star column, Item name, Qty, Serial #, Ordered, Manufacturer, Actions */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
@@ -1320,6 +1335,16 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
             <span style={{ color: "#6b7280", fontSize: "12px" }}>—</span>
           )}
         </td>
+        <td>
+          <input 
+            className="input" 
+            value={manufacturer} 
+            onChange={e => onFieldChange('manufacturer', e.target.value)} 
+            placeholder="Optional"
+            disabled={isLocked}
+            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
+          />
+        </td>
         <td style={{ paddingLeft: "8px" }}>
           <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", justifyContent: "flex-start" }}>
             <button 
@@ -1375,7 +1400,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
-        <td colSpan="6" style={{ padding: "4px 8px" }}>
+        <td colSpan="7" style={{ padding: "4px 8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "45px" }}>Voltage:</label>
@@ -1420,7 +1445,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         borderBottom: "2px solid #404040",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
-        <td colSpan="6" style={{ padding: "8px" }}>
+        <td colSpan="7" style={{ padding: "8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input
