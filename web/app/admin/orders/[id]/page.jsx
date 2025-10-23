@@ -1346,20 +1346,6 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
           />
         </td>
         <td>
-          <select
-            className="input"
-            value={manufacturerId}
-            onChange={e => onFieldChange('manufacturerId', e.target.value)}
-            disabled={isLocked}
-            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
-          >
-            <option value="">Select...</option>
-            {manufacturers.map(mfg => (
-              <option key={mfg.id} value={mfg.id}>{mfg.name}</option>
-            ))}
-          </select>
-        </td>
-        <td>
           {isOrdered ? (
             <div style={{ 
               color: "#059669", 
@@ -1378,6 +1364,20 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
           ) : (
             <span style={{ color: "#6b7280", fontSize: "12px" }}>—</span>
           )}
+        </td>
+        <td>
+          <select
+            className="input"
+            value={manufacturerId}
+            onChange={e => onFieldChange('manufacturerId', e.target.value)}
+            disabled={isLocked}
+            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
+          >
+            <option value="">Select...</option>
+            {manufacturers.map(mfg => (
+              <option key={mfg.id} value={mfg.id}>{mfg.name}</option>
+            ))}
+          </select>
         </td>
         <td style={{ paddingLeft: "8px" }}>
           <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", justifyContent: "flex-start" }}>
