@@ -102,8 +102,17 @@ export default function UsersPage() {
     }
   }
 
-  const filteredUsers = useMemo(() => {
-    return showInactive ? users : users.filter(user => user.isActive);
+  // Separate users into regular users and manufacturers
+  const { regularUsers, manufacturerUsers } = useMemo(() => {
+    const filtered = showInactive ? users : users.filter(user => user.isActive);
+    
+    const regular = filtered.filter(user => user.role !== 'MANUFACTURER');
+    const manufacturers = filtered.filter(user => user.role === 'MANUFACTURER');
+    
+    return {
+      regularUsers: regular,
+      manufacturerUsers: manufacturers
+    };
   }, [users, showInactive]);
 
   const canEdit = (targetUser) => {
@@ -305,14 +314,28 @@ export default function UsersPage() {
           </div>
         )}
 
+        {/* Regular Users Table */}
         <UserTable 
-          users={filteredUsers}
+          users={regularUsers}
           currentUser={currentUser}
           onEdit={openEditModal}
           onDeactivate={deactivateUser}
           onToggleSalesRep={toggleSalesRep}
           togglingUserId={togglingUserId}
           showInactive={showInactive}
+          sectionTitle="System Users"
+        />
+
+        {/* Manufacturer Accounts Table */}
+        <UserTable 
+          users={manufacturerUsers}
+          currentUser={currentUser}
+          onEdit={openEditModal}
+          onDeactivate={deactivateUser}
+          onToggleSalesRep={toggleSalesRep}
+          togglingUserId={togglingUserId}
+          showInactive={showInactive}
+          sectionTitle="Manufacturer Accounts"
         />
 
         <UserModal
