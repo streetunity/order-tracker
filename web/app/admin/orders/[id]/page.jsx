@@ -804,16 +804,17 @@ export default function EditOrderPage({ params }) {
                 <table className="table" style={{ minWidth: "1150px", tableLayout: "fixed" }}>
                   <thead>
                     <tr>
-                      <th style={{ width: "280px" }}>Item name</th>
+                      <th style={{ width: "25px", textAlign: "center" }}></th>
+                      <th style={{ width: "260px" }}>Item name</th>
                       <th style={{ width: "50px" }}>Qty</th>
-                      <th style={{ width: "200px" }}>Serial #</th>
+                      <th style={{ width: "185px" }}>Serial #</th>
                       <th style={{ width: "100px" }}>Ordered</th>
                       <th style={{ width: "160px" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(order.items || []).length === 0 ? (
-                      <tr><td colSpan={5} style={{ color: "#6b7280" }}>No items yet.</td></tr>
+                      <tr><td colSpan={6} style={{ color: "#6b7280" }}>No items yet.</td></tr>
                     ) : (
                       order.items.map((it) => (
                         <EditableRow
@@ -1259,24 +1260,24 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
 
   return (
     <>
-      {/* Line 1: Item name, Qty, Serial # */}
+      {/* Line 1: Star column, Item name, Qty, Serial # */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
+        <td style={{ textAlign: "center", padding: "8px 3px" }}>
+          {hasExtendedShipping && (
+            <span style={{ color: "var(--success)", fontSize: "16px" }} title="Extended Shipping">⭐</span>
+          )}
+        </td>
         <td>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            <input 
-              className="input" 
-              value={name} 
-              onChange={e => onFieldChange('productCode', e.target.value)} 
-              disabled={isLocked}
-              style={{ width: "260px", opacity: isLocked ? 0.6 : 1 }}
-            />
-            {hasExtendedShipping && (
-              <span style={{ color: "var(--success)", fontSize: "16px" }} title="Extended Shipping">⭐</span>
-            )}
-          </div>
+          <input 
+            className="input" 
+            value={name} 
+            onChange={e => onFieldChange('productCode', e.target.value)} 
+            disabled={isLocked}
+            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
+          />
         </td>
         <td>
           <input 
@@ -1285,7 +1286,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
             min={1} 
             value={qty} 
             onChange={e => onFieldChange('qty', Number(e.target.value))} 
-            style={{ width: "45px", opacity: isLocked ? 0.6 : 1 }} 
+            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }} 
             disabled={isLocked}
           />
         </td>
@@ -1296,7 +1297,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
             onChange={e => onFieldChange('serialNumber', e.target.value)} 
             placeholder="Optional"
             disabled={isLocked}
-            style={{ width: "195px", opacity: isLocked ? 0.6 : 1 }}
+            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
           />
         </td>
         <td>
@@ -1374,7 +1375,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
-        <td colSpan="5" style={{ padding: "4px 8px" }}>
+        <td colSpan="6" style={{ padding: "4px 8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "45px" }}>Voltage:</label>
@@ -1419,7 +1420,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         borderBottom: "2px solid #404040",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
-        <td colSpan="5" style={{ padding: "8px" }}>
+        <td colSpan="6" style={{ padding: "8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input
