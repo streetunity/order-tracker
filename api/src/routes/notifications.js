@@ -132,7 +132,7 @@ export function createNotificationsRouter(prisma) {
   /**
    * Get user's notifications (role-filtered)
    * Agents only see their own notifications
-   * Admins can see all notifications or filter by userId
+   * Admins see only THEIR OWN notifications (not all notifications)
    */
   router.get('/', async (req, res) => {
     try {
@@ -140,24 +140,13 @@ export function createNotificationsRouter(prisma) {
         unreadOnly = 'false', 
         category, 
         priority,
-        limit = '50',
-        userId // Admin can filter by userId
+        limit = '50'
       } = req.query;
 
-      // Build where clause based on role
-      const where = {};
-
-      // Role-based filtering
-      if (req.user.role === 'AGENT') {
-        // Agents only see their own notifications
-        where.userId = String(req.user.id);
-      } else if (req.user.role === 'ADMIN' || req.user.role === 'SUPER_ADMIN') {
-        // Admins can filter by userId or see all
-        if (userId) {
-          where.userId = String(userId);
-        }
-        // If no userId specified, they see all
-      }
+      // ALL users (including admins) only see their own notifications
+      const where = {
+        userId: String(req.user.id)
+      };
 
       // Additional filters
       if (unreadOnly === 'true') {
@@ -259,12 +248,13 @@ export function createNotificationsRouter(prisma) {
   });
 
   /**
-   * Get notification statistics for user
+   * Get notification statistics for user (THEIR OWN stats only)
    */
   router.get('/stats', async (req, res) => {
     try {
-      // Build where clauses based on role
+      // Build where clauses - EVERYONE only sees their own notifications
       const baseWhere = {
+        userId: String(req.user.id),
         isDismissed: false,
         OR: [
           { expiresAt: null },
@@ -272,17 +262,8 @@ export function createNotificationsRouter(prisma) {
         ]
       };
 
-      // For agents, filter to their own notifications
-      // For admins, show all notifications unless they specify a userId
-      const isAgent = req.user.role === 'AGENT';
-      const filterUserId = isAgent ? String(req.user.id) : (req.query.userId ? String(req.query.userId) : null);
-
-      if (filterUserId) {
-        baseWhere.userId = filterUserId;
-      }
-
       const [total, unread, byCategory, byPriority] = await Promise.all([
-        // Total active notifications (for agents: only theirs, for admins: all)
+        // Total active notifications for this user
         prisma.notification.count({
           where: baseWhere
         }),
@@ -338,7 +319,7 @@ export function createNotificationsRouter(prisma) {
     try {
       const { id } = req.params;
 
-      // Verify ownership or admin
+      // Verify ownership
       const notification = await prisma.notification.findUnique({
         where: { id }
       });
@@ -347,7 +328,7 @@ export function createNotificationsRouter(prisma) {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
-      if (req.user.role === 'AGENT' && notification.userId !== String(req.user.id)) {
+      if (notification.userId !== String(req.user.id)) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -460,7 +441,7 @@ export function createNotificationsRouter(prisma) {
     try {
       const { id } = req.params;
 
-      // Verify ownership or admin
+      // Verify ownership
       const notification = await prisma.notification.findUnique({
         where: { id }
       });
@@ -469,7 +450,7 @@ export function createNotificationsRouter(prisma) {
         return res.status(404).json({ error: 'Notification not found' });
       }
 
-      if (req.user.role === 'AGENT' && notification.userId !== String(req.user.id)) {
+      if (notification.userId !== String(req.user.id)) {
         return res.status(403).json({ error: 'Not authorized' });
       }
 
@@ -540,10 +521,22 @@ export function createNotificationsRouter(prisma) {
   /**
    * Generate operational notifications (admin only)
    * Scans for late orders, stage warnings, etc. and creates notifications
+   * Creates individual notifications for all admins AND the sales rep
    */
   router.post('/generate-operational', adminGuard, async (req, res) => {
     try {
       const { userId } = req.body; // Optional: generate for specific user
+
+      // Get all active admins who should receive operational notifications
+      const admins = await prisma.user.findMany({
+        where: {
+          isActive: true,
+          role: { in: ['ADMIN', 'SUPER_ADMIN'] }
+        },
+        select: { id: true, name: true, role: true }
+      });
+
+      console.log(`[NOTIFICATIONS] Found ${admins.length} active admins to notify:`, admins.map(a => a.name).join(', '));
 
       // Get stage thresholds
       const thresholds = await prisma.stageThreshold.findMany();
@@ -588,19 +581,13 @@ export function createNotificationsRouter(prisma) {
 
       // Process each order's items
       for (const order of orders) {
-        // Determine which user to notify
-        let notifyUserId = userId ? String(userId) : null;
-        if (!notifyUserId && order.sku) {
-          // Find user by sales rep name
-          const salesRep = await prisma.user.findFirst({
+        // Find sales rep for this order
+        let salesRep = null;
+        if (order.sku) {
+          salesRep = await prisma.user.findFirst({
             where: { name: order.sku, isActive: true }
           });
-          if (salesRep) {
-            notifyUserId = String(salesRep.id);
-          }
         }
-
-        if (!notifyUserId) continue; // Skip if no user to notify
 
         for (const item of order.items) {
           // Skip final stages - items can stay here indefinitely
@@ -629,44 +616,55 @@ export function createNotificationsRouter(prisma) {
             continue; // Not late enough to notify
           }
 
-          // Check if notification already exists for this item
-          const existing = await prisma.notification.findFirst({
-            where: {
-              userId: notifyUserId,
-              type,
-              relatedItemId: item.id,
-              createdAt: {
-                gte: new Date(now - 24 * 60 * 60 * 1000) // Within last 24 hours
+          // Build list of users to notify (all admins + sales rep if different)
+          const usersToNotify = [...admins];
+          if (salesRep && !admins.find(a => a.id === salesRep.id)) {
+            usersToNotify.push(salesRep);
+          }
+
+          // Create notification for EACH user
+          for (const user of usersToNotify) {
+            // Check if notification already exists for this user + item combo
+            const existing = await prisma.notification.findFirst({
+              where: {
+                userId: String(user.id),
+                type,
+                relatedItemId: item.id,
+                createdAt: {
+                  gte: new Date(now - 24 * 60 * 60 * 1000) // Within last 24 hours
+                }
               }
-            }
-          });
+            });
 
-          if (existing) continue; // Don't duplicate recent notifications
+            if (existing) continue; // Don't duplicate recent notifications
 
-          // Create notification
-          const notification = await prisma.notification.create({
-            data: {
-              userId: notifyUserId,
-              type,
-              category: 'OPERATIONAL',
-              title: `Item ${priority === 'CRITICAL' ? 'Critical' : 'Warning'}: ${item.productCode}`,
-              message: `Item ${item.productCode} in order ${order.poNumber || order.id} has been in ${item.currentStage} stage for ${daysInStage} days`,
-              relatedOrderId: order.id,
-              relatedItemId: item.id,
-              metadata: JSON.stringify({
-                daysInStage,
-                stage: item.currentStage,
-                warningDays: threshold.warningDays,
-                criticalDays: threshold.criticalDays,
-                customerName: order.account?.name
-              }),
-              priority
-            }
-          });
+            // Create individual notification for this user
+            const notification = await prisma.notification.create({
+              data: {
+                userId: String(user.id),
+                type,
+                category: 'OPERATIONAL',
+                title: `Item ${priority === 'CRITICAL' ? 'Critical' : 'Warning'}: ${item.productCode}`,
+                message: `Item ${item.productCode} in order ${order.poNumber || order.id} has been in ${item.currentStage} stage for ${daysInStage} days`,
+                relatedOrderId: order.id,
+                relatedItemId: item.id,
+                metadata: JSON.stringify({
+                  daysInStage,
+                  stage: item.currentStage,
+                  warningDays: threshold.warningDays,
+                  criticalDays: threshold.criticalDays,
+                  customerName: order.account?.name
+                }),
+                priority
+              }
+            });
 
-          notifications.push(notification);
+            notifications.push(notification);
+          }
         }
       }
+
+      console.log(`[NOTIFICATIONS] Created ${notifications.length} individual notifications`);
 
       res.json({
         message: `Generated ${notifications.length} operational notifications`,
