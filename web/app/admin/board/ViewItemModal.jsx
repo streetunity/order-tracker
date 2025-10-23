@@ -12,6 +12,15 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const isManufacturer = user?.role === "MANUFACTURER";
   const isOrderLocked = order?.isLocked || false;
   
+  // Format ordered date if it exists
+  const orderedDate = item?.orderedAt 
+    ? new Date(item.orderedAt).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      })
+    : null;
+  
   // Manufacturers can only edit serial number
   // Admin/Agents can edit all fields if order is not locked
   const canEditField = (fieldName) => {
@@ -37,7 +46,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       modelNumber: item?.modelNumber || "",
       serialNumber: item?.serialNumber || "",
       voltage: item?.voltage || "",
-      laserWattage: item?.laserWattage || ""
+      laserWattage: item?.laserWattage || "",
+      notes: item?.notes || ""
     });
   }, [item]);
 
@@ -143,16 +153,42 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
         )}
 
         <div className="view-item-body">
-          <div className="form-field">
-            <label>Quantity</label>
-            <input
-              type="number"
-              min="1"
-              value={editedItem.qty}
-              onChange={(e) => handleInputChange("qty", parseInt(e.target.value) || 1)}
-              disabled={!canEditField("qty") || saving}
-              className={canEditField("qty") ? "" : "field-readonly"}
-            />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
+            <div className="form-field">
+              <label>Quantity</label>
+              <input
+                type="number"
+                min="1"
+                value={editedItem.qty}
+                onChange={(e) => handleInputChange("qty", parseInt(e.target.value) || 1)}
+                disabled={!canEditField("qty") || saving}
+                className={canEditField("qty") ? "" : "field-readonly"}
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Ordered Date</label>
+              <div style={{
+                padding: "10px 12px",
+                background: item?.isOrdered ? "rgba(5, 150, 105, 0.1)" : "rgba(107, 114, 128, 0.1)",
+                border: `1px solid ${item?.isOrdered ? "#059669" : "rgba(107, 114, 128, 0.2)"}`,
+                borderRadius: "6px",
+                color: item?.isOrdered ? "#059669" : "#6b7280",
+                fontSize: "14px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                {item?.isOrdered ? (
+                  <>
+                    <span>✓</span>
+                    <span>{orderedDate}</span>
+                  </>
+                ) : (
+                  <span style={{ fontStyle: "italic" }}>Not ordered yet</span>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="form-field">
@@ -219,6 +255,29 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
               placeholder="e.g., 100W"
             />
           </div>
+
+          <div className="form-field">
+            <label>Public Notes</label>
+            <textarea
+              value={editedItem.notes}
+              onChange={(e) => handleInputChange("notes", e.target.value)}
+              disabled={!canEditField("notes") || saving}
+              className={canEditField("notes") ? "" : "field-readonly"}
+              placeholder="Add any public notes about this item..."
+              rows={8}
+              style={{
+                padding: "10px 12px",
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                color: "var(--text)",
+                fontSize: "14px",
+                fontFamily: "inherit",
+                resize: "vertical",
+                minHeight: "120px"
+              }}
+            />
+          </div>
         </div>
 
         <div className="view-item-footer">
@@ -250,7 +309,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       editedItem.modelNumber !== (item.modelNumber || "") ||
       editedItem.serialNumber !== (item.serialNumber || "") ||
       editedItem.voltage !== (item.voltage || "") ||
-      editedItem.laserWattage !== (item.laserWattage || "")
+      editedItem.laserWattage !== (item.laserWattage || "") ||
+      editedItem.notes !== (item.notes || "")
     );
   }
 }
