@@ -2,31 +2,35 @@
  * Frontend Role Hierarchy Helper Functions
  * 
  * Hierarchy:
- * SUPER_ADMIN (Level 4) - Full system access
- * ACCOUNTANT (Level 3) - Financial management
- * ADMIN (Level 2) - Standard admin
- * AGENT (Level 1) - Basic user
+ * SUPER_ADMIN (Level 5) - Full system access
+ * ACCOUNTANT (Level 4) - Financial management
+ * ADMIN (Level 3) - Standard admin
+ * AGENT (Level 2) - Basic user
+ * MANUFACTURER (Level 1) - External manufacturer access
  */
 
 export const ROLES = {
   SUPER_ADMIN: 'SUPER_ADMIN',
   ACCOUNTANT: 'ACCOUNTANT',
   ADMIN: 'ADMIN',
-  AGENT: 'AGENT'
+  AGENT: 'AGENT',
+  MANUFACTURER: 'MANUFACTURER'
 };
 
 export const ROLE_LEVELS = {
-  SUPER_ADMIN: 4,
-  ACCOUNTANT: 3,
-  ADMIN: 2,
-  AGENT: 1
+  SUPER_ADMIN: 5,
+  ACCOUNTANT: 4,
+  ADMIN: 3,
+  AGENT: 2,
+  MANUFACTURER: 1
 };
 
 export const ROLE_DISPLAY_NAMES = {
   SUPER_ADMIN: 'Super Admin',
   ACCOUNTANT: 'Accountant',
   ADMIN: 'Admin',
-  AGENT: 'Agent'
+  AGENT: 'Agent',
+  MANUFACTURER: 'Manufacturer'
 };
 
 /**
@@ -121,6 +125,13 @@ export function isAdminOrHigher(role) {
 }
 
 /**
+ * Check if user is Manufacturer role
+ */
+export function isManufacturer(role) {
+  return role === ROLES.MANUFACTURER;
+}
+
+/**
  * Get badge color based on role
  */
 export function getRoleBadgeColor(role) {
@@ -133,6 +144,8 @@ export function getRoleBadgeColor(role) {
       return { bg: '#581c87', text: '#e9d5ff' }; // Purple
     case ROLES.AGENT:
       return { bg: '#404040', text: '#e4e4e4' }; // Gray
+    case ROLES.MANUFACTURER:
+      return { bg: '#6b21a8', text: '#e9d5ff' }; // Purple for manufacturer
     default:
       return { bg: '#404040', text: '#e4e4e4' }; // Default gray
   }
