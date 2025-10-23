@@ -57,6 +57,9 @@ export default function AdminBoardPage() {
   const [pendingAction, setPendingAction] = useState(null);
   const [performingAction, setPerformingAction] = useState(false);
 
+  // Check if user is manufacturer
+  const isManufacturer = user?.role === "MANUFACTURER";
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!user) {
@@ -294,7 +297,8 @@ export default function AdminBoardPage() {
       
       {/* Unified sticky container for QuickActions + Toolbar */}
       <div className="stickyActionsToolbar">
-        <QuickActions />
+        {/* HIDE QUICKACTIONS FOR MANUFACTURERS */}
+        {!isManufacturer && <QuickActions />}
         
         <div className="toolbar">
           <div className="tool">
@@ -376,7 +380,8 @@ export default function AdminBoardPage() {
                   <div className="customerName">
                     {hasLockedOrder && <span style={{ color: "#dc2626", marginRight: "6px", fontSize: "16px", verticalAlign: "middle" }} title="Order is locked - item details cannot be edited">🔒</span>}
                     {group.accountName}
-                    {group.orders?.[0] && (
+                    {/* HIDE EDIT LINK FOR MANUFACTURERS */}
+                    {!isManufacturer && group.orders?.[0] && (
                       <> <Link className="link tiny" href={`/admin/orders/${group.orders[0].id}`} title={hasLockedOrder ? "Edit order (locked)" : "Edit order"}>✎ Edit</Link></>
                     )}
                   </div>
@@ -429,12 +434,19 @@ export default function AdminBoardPage() {
                               <div className="itemActions" style={{ gap: "2px" }}>
                                 <button className="miniBtn" aria-label="Move back" disabled={!prev} onClick={async () => { if (!prev) return; try { await changeItemStage(order.id, it.id, prev, { allowBackward: true }); await load(); } catch (e) { alert(`Failed to move back: ${e instanceof Error ? e.message : e}`); } }} title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>◀</button>
                                 <button className="miniBtn" aria-label="Move forward" disabled={!next} onClick={async () => { if (!next) return; try { await changeItemStage(order.id, it.id, next, { allowFastForward: true }); await load(); } catch (e) { alert(`Failed to move forward: ${e instanceof Error ? e.message : e}`); } }} title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>▶</button>
-                                {!isArchived ? (
-                                  <button className="miniBtn danger" aria-label="Archive" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", false)} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px" }}>✕</button>
-                                ) : (
-                                  <button className="miniBtn" aria-label="Restore" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", true)} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px" }}>↺</button>
+                                
+                                {/* HIDE ARCHIVE AND DELETE BUTTONS FOR MANUFACTURERS */}
+                                {!isManufacturer && (
+                                  <>
+                                    {!isArchived ? (
+                                      <button className="miniBtn danger" aria-label="Archive" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", false)} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px" }}>✕</button>
+                                    ) : (
+                                      <button className="miniBtn" aria-label="Restore" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", true)} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px" }}>↺</button>
+                                    )}
+                                    <button className="miniBtn danger" aria-label="Delete item" onClick={() => handleDeleteClick(order.id, it.id, it.productCode || "this item", isOrderLocked)} title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"} style={{ opacity: isOrderLocked ? 0.5 : 1, cursor: isOrderLocked ? "not-allowed" : "pointer", fontSize: "10px", padding: "2px 4px" }}>🗑</button>
+                                  </>
                                 )}
-                                <button className="miniBtn danger" aria-label="Delete item" onClick={() => handleDeleteClick(order.id, it.id, it.productCode || "this item", isOrderLocked)} title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"} style={{ opacity: isOrderLocked ? 0.5 : 1, cursor: isOrderLocked ? "not-allowed" : "pointer", fontSize: "10px", padding: "2px 4px" }}>🗑</button>
+                                
                                 {it.isOrdered && <span style={{ width: '8px', display: 'inline-block' }}></span>}
                                 {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>}
                               </div>
