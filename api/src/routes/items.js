@@ -205,7 +205,10 @@ export function createItemsRouter() {
           privateItemNote: true,
           hasExtendedShipping: true,
           containers: true,
-          manufacturerId: true
+          manufacturerId: true,
+          isOrdered: true,
+          orderedAt: true,
+          orderedBy: true
         } 
       });
       
@@ -484,6 +487,56 @@ export function createItemsRouter() {
             });
           }
         }
+
+        // Handle isOrdered and orderedAt (allowed even on locked orders)
+        if (req.body.hasOwnProperty('isOrdered')) {
+          const newIsOrdered = req.body.isOrdered === true;
+          
+          // If marking as ordered, also set orderedAt and orderedBy if not already set
+          if (newIsOrdered && !item.isOrdered) {
+            data.isOrdered = true;
+            data.orderedAt = req.body.orderedAt ? new Date(req.body.orderedAt) : new Date();
+            data.orderedBy = req.user.name;
+            
+            changes.push({
+              field: 'isOrdered',
+              oldValue: 'false',
+              newValue: 'true'
+            });
+            changes.push({
+              field: 'orderedAt',
+              oldValue: 'null',
+              newValue: data.orderedAt.toISOString()
+            });
+            changes.push({
+              field: 'orderedBy',
+              oldValue: 'null',
+              newValue: req.user.name
+            });
+          }
+          // If unmarking as ordered, clear the orderedAt and orderedBy fields
+          else if (!newIsOrdered && item.isOrdered) {
+            data.isOrdered = false;
+            data.orderedAt = null;
+            data.orderedBy = null;
+            
+            changes.push({
+              field: 'isOrdered',
+              oldValue: 'true',
+              newValue: 'false'
+            });
+            changes.push({
+              field: 'orderedAt',
+              oldValue: item.orderedAt ? item.orderedAt.toISOString() : 'null',
+              newValue: 'null'
+            });
+            changes.push({
+              field: 'orderedBy',
+              oldValue: item.orderedBy || 'null',
+              newValue: 'null'
+            });
+          }
+        }
         
         if (req.body.hasOwnProperty('currentStage')) {
           const newStage = req.body.currentStage;
@@ -512,16 +565,17 @@ export function createItemsRouter() {
           const isContainerUpdate = changes.some(c => c.field === 'containers');
           const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
           const isSerialNumberOnly = changes.length === 1 && changes[0].field === 'serialNumber';
+          const isOrderedUpdate = changes.some(c => ['isOrdered', 'orderedAt', 'orderedBy'].includes(c.field));
           
           await tx.auditLog.create({
             data: {
               entityType: isContainerUpdate ? 'Container' : (isMeasurementUpdate ? 'Measurement' : 'OrderItem'),
               entityId: itemId,
               parentEntityId: orderId,
-              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : (isSerialNumberOnly ? 'SERIAL_NUMBER_UPDATED' : 'ORDERITEM_UPDATED')),
+              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : (isSerialNumberOnly ? 'SERIAL_NUMBER_UPDATED' : (isOrderedUpdate ? 'ITEM_ORDERED' : 'ORDERITEM_UPDATED'))),
               changes: JSON.stringify(changes),
-              metadata: (isContainerUpdate || isMeasurementUpdate || isSerialNumberOnly) ? JSON.stringify({
-                message: isContainerUpdate ? 'Containers updated' : (isMeasurementUpdate ? 'Measurements updated via item endpoint' : 'Serial number updated'),
+              metadata: (isContainerUpdate || isMeasurementUpdate || isSerialNumberOnly || isOrderedUpdate) ? JSON.stringify({
+                message: isContainerUpdate ? 'Containers updated' : (isMeasurementUpdate ? 'Measurements updated via item endpoint' : (isSerialNumberOnly ? 'Serial number updated' : (isOrderedUpdate ? 'Item marked as ordered' : 'Item updated'))),
                 updatedFields: changes.map(c => c.field).join(', '),
                 updatedByRole: req.user.role
               }) : null,
