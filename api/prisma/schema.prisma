@@ -56,6 +56,7 @@ model OrderItem {
   voltage        String?
   laserWattage   String?  // Laser Source Wattage
   notes          String?
+  manufacturer   String?  // NEW FIELD: Manufacturer name for this item
   
   // PRICE AND PRIVATE NOTE FIELDS
   itemPrice      Float?   // Price for this item (total, not per unit)
