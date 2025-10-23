@@ -51,9 +51,17 @@ export default function EditOrderPage({ params }) {
   // Manufacturers list for dropdown
   const [manufacturers, setManufacturers] = useState([]);
 
+  // Block manufacturers from accessing edit order page
   useEffect(() => {
     if (!user) {
       router.push("/login");
+      return;
+    }
+    
+    // MANUFACTURERS CANNOT ACCESS THIS PAGE
+    if (user.role === "MANUFACTURER") {
+      alert("Access denied. Manufacturers can only move items between stages on the board.");
+      router.push("/admin/board");
     }
   }, [user, router]);
 
@@ -519,10 +527,6 @@ export default function EditOrderPage({ params }) {
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 600 }}>Edit Order</h1>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Link href="/admin/orders" className="btn">Back to Orders</Link>
-            <Link href="/admin/board" className="btn">Back to Board</Link>
-          </div>
         </div>
 
         {loading ? <div className="status">Loading…</div> : err ? (
