@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 
 // Import middleware
-import { authGuard, adminGuard, unlockGuard, optionalAuth } from './middleware/auth.js';
+import { authGuard, adminGuard, unlockGuard, optionalAuth, nonManufacturerGuard } from './middleware/auth.js';
 
 // Import route creators
 import { createReportsRouter } from './routes/reports.js';
@@ -133,10 +133,10 @@ app.use('/auth', (req, res, next) => {
   authRouter(req, res, next);
 });
 
-// Reports modules (all require auth)
-app.use('/reports', authGuard, reportsRouter);
-app.use('/reports', authGuard, operationalReportsRouter);
-app.use('/reports', authGuard, cycleTimeReportsRouter);
+// Reports modules (auth required, manufacturers blocked)
+app.use('/reports', authGuard, nonManufacturerGuard, reportsRouter);
+app.use('/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
+app.use('/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
 console.log('✅ Reports modules loaded');
 
 // Settings API (admin only)
@@ -150,27 +150,27 @@ app.use('/users', adminGuard, usersRouter);
 app.use('/manufacturers', adminGuard, manufacturersRouter);
 console.log('✅ Manufacturers API loaded');
 
-// Account management (auth required)
-app.use('/accounts', authGuard, accountsRouter);
+// Account management (auth required, manufacturers blocked)
+app.use('/accounts', authGuard, nonManufacturerGuard, accountsRouter);
 
-// Order management (auth required)
+// Order management (auth required - manufacturers get filtered access)
 app.use('/orders', authGuard, ordersRouter);
 
-// Item management - routes are nested under orders
+// Item management - routes are nested under orders (manufacturers get filtered access)
 app.use('/orders', authGuard, itemsRouter);
 
-// Measurement endpoints
+// Measurement endpoints (manufacturers can update measurements)
 app.use('/orders', authGuard, measurementsRouter);
 
-// Stage management
+// Stage management (manufacturers get filtered access)
 app.use('/orders', authGuard, stagesRouter);
 
-// Lock/unlock functionality
+// Lock/unlock functionality (manufacturers blocked)
 app.use('/orders', authGuard, locksRouter);
 
-// Audit logs
-app.use('/audit', authGuard, auditRouter);
-app.use('/comprehensive-audit', authGuard, auditRouter);
+// Audit logs (manufacturers blocked)
+app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
+app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
 // Notifications API (auth required, role-filtered)
 app.use('/notifications', authGuard, notificationsRouter);
@@ -179,7 +179,7 @@ console.log('✅ Notifications API loaded');
 // =============================
 // Sales by Month Report (special endpoint that wasn't modularized)
 // =============================
-app.get('/api/reports/sales-by-month', authGuard, async (req, res) => {
+app.get('/api/reports/sales-by-month', authGuard, nonManufacturerGuard, async (req, res) => {
   try {
     const now = new Date();
     const monthParam = req.query.month ? parseInt(String(req.query.month), 10) : (now.getMonth() + 1);
