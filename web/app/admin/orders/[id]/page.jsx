@@ -1429,24 +1429,13 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
         </td>
       </tr>
       
-      {/* Line 2: Model #, Voltage, Power, Serial #, Public Notes */}
+      {/* Line 2: Voltage, Power, Serial #, Public Notes */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
         <td colSpan="7" style={{ padding: "4px 8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "55px" }}>Model # *:</label>
-              <input 
-                className="input" 
-                value={modelNumber} 
-                onChange={e => onFieldChange('modelNumber', e.target.value)} 
-                placeholder="Required"
-                disabled={isLocked}
-                style={{ width: "100px", opacity: isLocked ? 0.6 : 1 }}
-              />
-            </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "55px" }}>Voltage *:</label>
               <input 
@@ -1455,7 +1444,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
                 onChange={e => onFieldChange('voltage', e.target.value)} 
                 placeholder="Required"
                 disabled={isLocked}
-                style={{ width: "70px", opacity: isLocked ? 0.6 : 1 }}
+                style={{ width: "90px", opacity: isLocked ? 0.6 : 1 }}
               />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1466,7 +1455,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
                 onChange={e => onFieldChange('laserWattage', e.target.value)} 
                 placeholder="Required"
                 disabled={isLocked}
-                style={{ width: "90px", opacity: isLocked ? 0.6 : 1 }}
+                style={{ width: "110px", opacity: isLocked ? 0.6 : 1 }}
               />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1477,7 +1466,7 @@ function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, 
                 onChange={e => onFieldChange('serialNumber', e.target.value)} 
                 placeholder="Optional"
                 disabled={isLocked}
-                style={{ width: "100px", opacity: isLocked ? 0.6 : 1 }}
+                style={{ width: "150px", opacity: isLocked ? 0.6 : 1 }}
               />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "4px", flex: 1 }}>
