@@ -247,10 +247,13 @@ export default function AuditHistoryViewer() {
       return log.metadata.items[0].productCode;
     }
     
-    return 'Item';
+    return null;
   }
 
-  function getItemDetails(log) {
+  function getItemHeaderInfo(log) {
+    // Only for OrderItem logs
+    if (log.entityType !== 'OrderItem') return null;
+    
     let productCode = null;
     let modelNumber = null;
     
@@ -312,18 +315,13 @@ export default function AuditHistoryViewer() {
       }
     }
     
-    // For OrderItem logs - show item name and model number FIRST
+    // For OrderItem logs - show customer and sales rep
     if (log.entityType === 'OrderItem') {
-      const itemDetails = getItemDetails(log);
-      if (itemDetails) {
-        info.title = itemDetails;  // Item name • Model: XXX
-      }
-      
-      // Then show customer and sales rep below
       if (log.parentEntityId) {
         const order = orders.find(o => o.id === log.parentEntityId);
         if (order) {
-          info.subtitle = `${order.account?.name || 'Unknown'} • ${order.sku || ''}`;
+          info.title = order.account?.name || 'Unknown Customer';
+          info.subtitle = order.sku || '';
         }
       }
     }
@@ -404,6 +402,7 @@ export default function AuditHistoryViewer() {
   function renderLogEntry(log) {
     const showRestore = isArchiveAction(log);
     const entityInfo = getEntityInfo(log);
+    const itemHeaderInfo = getItemHeaderInfo(log);
     
     return (
       <div key={log.id} className="log-entry">
@@ -412,6 +411,9 @@ export default function AuditHistoryViewer() {
             <span className={`log-badge ${getActionBadgeClass(log.action)}`}>
               {getActionLabel(log.action)}
             </span>
+            {itemHeaderInfo && (
+              <span className="log-item-info">{itemHeaderInfo}</span>
+            )}
             <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>
           </div>
           <div className="log-user">
