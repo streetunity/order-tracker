@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
@@ -316,7 +317,7 @@ export default function ProfilePage() {
           marginTop: "24px",
           textAlign: "center"
         }}>
-          <a 
+          <Link 
             href="/admin/change-password"
             style={{
               color: "var(--accent)",
@@ -326,7 +327,7 @@ export default function ProfilePage() {
             }}
           >
             Change Password →
-          </a>
+          </Link>
         </div>
       </div>
     </>
