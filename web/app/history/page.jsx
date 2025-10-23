@@ -234,7 +234,12 @@ export default function AuditHistoryViewer() {
   }
 
   function getItemName(log) {
-    // Try to get from changes
+    // PRIORITY 1: Check if backend provided orderItem data
+    if (log.orderItem?.productCode) {
+      return log.orderItem.productCode;
+    }
+    
+    // PRIORITY 2: Try to get from changes
     if (log.changes) {
       const productCodeChange = log.changes.find(c => c.field === 'productCode');
       if (productCodeChange) {
@@ -242,7 +247,7 @@ export default function AuditHistoryViewer() {
       }
     }
     
-    // Try to get from metadata
+    // PRIORITY 3: Try to get from metadata
     if (log.metadata?.items && Array.isArray(log.metadata.items) && log.metadata.items.length > 0) {
       return log.metadata.items[0].productCode;
     }
@@ -257,8 +262,14 @@ export default function AuditHistoryViewer() {
     let productCode = null;
     let modelNumber = null;
     
-    // Try to get from changes first
-    if (log.changes) {
+    // PRIORITY 1: Check if backend provided orderItem data (THIS IS THE KEY FIX!)
+    if (log.orderItem) {
+      productCode = log.orderItem.productCode || null;
+      modelNumber = log.orderItem.modelNumber || null;
+    }
+    
+    // PRIORITY 2: Try to get from changes (fallback if orderItem not provided)
+    if (!productCode && log.changes) {
       const productCodeChange = log.changes.find(c => c.field === 'productCode');
       const modelNumberChange = log.changes.find(c => c.field === 'modelNumber');
       
@@ -270,7 +281,7 @@ export default function AuditHistoryViewer() {
       }
     }
     
-    // Try metadata if changes didn't have it
+    // PRIORITY 3: Try metadata if other sources didn't have it (last resort)
     if (!productCode && log.metadata?.items && Array.isArray(log.metadata.items) && log.metadata.items.length > 0) {
       const item = log.metadata.items[0];
       productCode = item.productCode;
