@@ -92,6 +92,49 @@ export function createNotificationsRouter(prisma) {
   });
 
   /**
+   * Get unread notifications for current user
+   * Simpler endpoint used by the notification bar
+   */
+  router.get('/unread', authGuard, async (req, res) => {
+    try {
+      const where = {
+        userId: req.user.id,
+        isRead: false,
+        isDismissed: false,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } }
+        ]
+      };
+
+      const notifications = await prisma.notification.findMany({
+        where,
+        orderBy: [
+          { priority: 'desc' },
+          { createdAt: 'desc' }
+        ],
+        take: 50 // Limit to prevent performance issues
+      });
+
+      // Parse metadata and format for frontend
+      const formatted = notifications.map(n => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        message: n.message,
+        relatedId: n.relatedOrderId || n.relatedItemId || n.relatedAccountId,
+        createdAt: n.createdAt,
+        priority: n.priority
+      }));
+
+      res.json(formatted);
+    } catch (error) {
+      console.error('Get unread notifications error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
    * Get notification statistics for user
    */
   router.get('/stats', authGuard, async (req, res) => {
@@ -200,9 +243,38 @@ export function createNotificationsRouter(prisma) {
   });
 
   /**
-   * Mark all notifications as read for user
+   * Mark all notifications as read for user (POST /read-all)
    */
   router.post('/read-all', authGuard, async (req, res) => {
+    try {
+      const userId = req.user.id;
+
+      const result = await prisma.notification.updateMany({
+        where: {
+          userId,
+          isRead: false
+        },
+        data: {
+          isRead: true,
+          readAt: new Date()
+        }
+      });
+
+      res.json({ 
+        message: 'All notifications marked as read',
+        count: result.count 
+      });
+    } catch (error) {
+      console.error('Mark all read error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * Mark all notifications as read for user (POST /mark-all-read)
+   * Alias endpoint for frontend compatibility
+   */
+  router.post('/mark-all-read', authGuard, async (req, res) => {
     try {
       const userId = req.user.id;
 
