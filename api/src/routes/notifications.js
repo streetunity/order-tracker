@@ -1,6 +1,6 @@
 // api/src/routes/notifications.js
 import { Router } from 'express';
-import { authGuard, adminGuard } from '../middleware/auth.js';
+import { adminGuard } from '../middleware/auth.js';
 
 export function createNotificationsRouter(prisma) {
   const router = Router();
@@ -10,7 +10,7 @@ export function createNotificationsRouter(prisma) {
    * Agents only see their own notifications
    * Admins can see all notifications or filter by userId
    */
-  router.get('/', authGuard, async (req, res) => {
+  router.get('/', async (req, res) => {
     try {
       const { 
         unreadOnly = 'false', 
@@ -95,7 +95,7 @@ export function createNotificationsRouter(prisma) {
    * Get unread notifications for current user
    * Simpler endpoint used by the notification bar
    */
-  router.get('/unread', authGuard, async (req, res) => {
+  router.get('/unread', async (req, res) => {
     try {
       const where = {
         userId: req.user.id,
@@ -137,7 +137,7 @@ export function createNotificationsRouter(prisma) {
   /**
    * Get notification statistics for user
    */
-  router.get('/stats', authGuard, async (req, res) => {
+  router.get('/stats', async (req, res) => {
     try {
       // Build where clauses based on role
       const baseWhere = {
@@ -210,7 +210,7 @@ export function createNotificationsRouter(prisma) {
   /**
    * Mark notification as read
    */
-  router.patch('/:id/read', authGuard, async (req, res) => {
+  router.patch('/:id/read', async (req, res) => {
     try {
       const { id } = req.params;
 
@@ -245,8 +245,10 @@ export function createNotificationsRouter(prisma) {
   /**
    * Mark all notifications as read for user (POST /read-all)
    */
-  router.post('/read-all', authGuard, async (req, res) => {
+  router.post('/read-all', async (req, res) => {
     try {
+      console.log('[NOTIFICATIONS] Mark all as read called by user:', req.user.id, req.user.name);
+      
       const userId = req.user.id;
 
       const result = await prisma.notification.updateMany({
@@ -259,6 +261,8 @@ export function createNotificationsRouter(prisma) {
           readAt: new Date()
         }
       });
+
+      console.log('[NOTIFICATIONS] Marked', result.count, 'notifications as read for user:', userId);
 
       res.json({ 
         message: 'All notifications marked as read',
@@ -274,8 +278,10 @@ export function createNotificationsRouter(prisma) {
    * Mark all notifications as read for user (POST /mark-all-read)
    * Alias endpoint for frontend compatibility
    */
-  router.post('/mark-all-read', authGuard, async (req, res) => {
+  router.post('/mark-all-read', async (req, res) => {
     try {
+      console.log('[NOTIFICATIONS] Mark all as read (alias) called by user:', req.user.id, req.user.name);
+      
       const userId = req.user.id;
 
       const result = await prisma.notification.updateMany({
@@ -288,6 +294,8 @@ export function createNotificationsRouter(prisma) {
           readAt: new Date()
         }
       });
+
+      console.log('[NOTIFICATIONS] Marked', result.count, 'notifications as read for user:', userId);
 
       res.json({ 
         message: 'All notifications marked as read',
@@ -302,7 +310,7 @@ export function createNotificationsRouter(prisma) {
   /**
    * Dismiss notification
    */
-  router.patch('/:id/dismiss', authGuard, async (req, res) => {
+  router.patch('/:id/dismiss', async (req, res) => {
     try {
       const { id } = req.params;
 
