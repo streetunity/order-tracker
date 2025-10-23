@@ -15,6 +15,9 @@ export default function ProfilePage() {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [hasChanges, setHasChanges] = useState(false);
 
+  // Check if user is manufacturer
+  const isManufacturer = user?.role === "MANUFACTURER";
+
   useEffect(() => {
     if (!user) {
       router.push("/login");
@@ -39,16 +42,23 @@ export default function ProfilePage() {
       setSaving(true);
       setMessage({ type: "", text: "" });
       
+      // Prepare update payload
+      const updateData = {
+        email: email.trim().toLowerCase()
+      };
+      
+      // Only include name if user is not a manufacturer
+      if (!isManufacturer) {
+        updateData.name = name.trim();
+      }
+      
       const res = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders()
         },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim().toLowerCase()
-        })
+        body: JSON.stringify(updateData)
       });
       
       if (res.ok) {
@@ -75,6 +85,35 @@ export default function ProfilePage() {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Helper function to safely format date
+  function formatDate(dateValue, includeTime = false) {
+    if (!dateValue) return "N/A";
+    
+    try {
+      const date = new Date(dateValue);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return "N/A";
+      }
+      
+      const options = {
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      };
+      
+      if (includeTime) {
+        options.hour = "numeric";
+        options.minute = "2-digit";
+      }
+      
+      return date.toLocaleDateString("en-US", options);
+    } catch (e) {
+      return "N/A";
     }
   }
 
@@ -173,7 +212,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* Name Field */}
+          {/* Name Field - Disabled for Manufacturers */}
           <div style={{ marginBottom: "24px" }}>
             <label style={{
               display: "block",
@@ -182,19 +221,24 @@ export default function ProfilePage() {
               color: "var(--text)",
               marginBottom: "8px"
             }}>
-              Name
+              Name {isManufacturer && <span style={{ fontSize: "12px", color: "var(--text-dim)", fontWeight: "normal" }}>(Cannot be changed - used for order filtering)</span>}
             </label>
             <input
               type="text"
               className="input"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => !isManufacturer && setName(e.target.value)}
               placeholder="Enter your name"
+              disabled={isManufacturer}
               style={{
                 width: "100%",
                 padding: "12px",
-                fontSize: "14px"
+                fontSize: "14px",
+                cursor: isManufacturer ? "not-allowed" : "text",
+                opacity: isManufacturer ? 0.6 : 1,
+                backgroundColor: isManufacturer ? "var(--bg)" : "var(--input-bg)"
               }}
+              title={isManufacturer ? "Name cannot be changed for manufacturers as it is used for order filtering" : ""}
             />
           </div>
 
@@ -254,24 +298,14 @@ export default function ProfilePage() {
               color: "var(--text-dim)",
               marginBottom: "8px"
             }}>
-              Account created: {new Date(user.createdAt).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric"
-              })}
+              Account created: {formatDate(user.createdAt)}
             </div>
             {user.lastLogin && (
               <div style={{
                 fontSize: "12px",
                 color: "var(--text-dim)"
               }}>
-                Last login: {new Date(user.lastLogin).toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit"
-                })}
+                Last login: {formatDate(user.lastLogin, true)}
               </div>
             )}
           </div>
