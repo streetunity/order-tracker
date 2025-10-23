@@ -97,7 +97,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
         await onUpdate();
       }
       
-      onClose();
+      // Don't close the modal - let user close it manually
+      setSaving(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save changes");
       setSaving(false);
@@ -226,7 +227,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
         await onUpdate();
       }
       
-      onClose();
+      // Don't close the modal - let user close it manually
+      setSaving(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to mark as ordered");
       setSaving(false);
