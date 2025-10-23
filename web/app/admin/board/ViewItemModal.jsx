@@ -8,6 +8,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const [editedItem, setEditedItem] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const [lockingOrder, setLockingOrder] = useState(false);
 
   const isManufacturer = user?.role === "MANUFACTURER";
   const isOrderLocked = order?.isLocked || false;
@@ -47,7 +49,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       serialNumber: item?.serialNumber || "",
       voltage: item?.voltage || "",
       laserWattage: item?.laserWattage || "",
-      notes: item?.notes || ""
+      notes: item?.notes || "",
+      privateItemNote: item?.privateItemNote || ""
     });
   }, [item]);
 
@@ -99,218 +102,418 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     }
   };
 
+  const handleLockToggle = () => {
+    if (isOrderLocked) {
+      // Unlock immediately without confirmation
+      performLockToggle();
+    } else {
+      // Show confirmation for locking
+      setShowLockConfirm(true);
+    }
+  };
+
+  const performLockToggle = async () => {
+    try {
+      setLockingOrder(true);
+      setError("");
+
+      const res = await fetch(`/api/orders/${order.id}/lock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ locked: !isOrderLocked })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      // Refresh the board
+      if (onUpdate) {
+        await onUpdate();
+      }
+      
+      setShowLockConfirm(false);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to lock/unlock order");
+      setLockingOrder(false);
+      setShowLockConfirm(false);
+    }
+  };
+
   const handleClose = () => {
-    if (saving) return; // Prevent closing while saving
+    if (saving || lockingOrder) return; // Prevent closing while saving
     onClose();
+  };
+
+  const handleMarkOrdered = async () => {
+    try {
+      setSaving(true);
+      setError("");
+
+      const res = await fetch(`/api/orders/${order.id}/items/${item.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ 
+          isOrdered: true,
+          orderedAt: new Date().toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      // Refresh the board
+      if (onUpdate) {
+        await onUpdate();
+      }
+      
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to mark as ordered");
+      setSaving(false);
+    }
   };
 
   if (!item) return null;
 
   return (
-    <div className="confirm-overlay" onClick={handleClose}>
-      <div className="view-item-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="view-item-header">
-          <h3>🔍 Item Details</h3>
-          <button 
-            className="close-button" 
-            onClick={handleClose}
-            disabled={saving}
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-
-        {error && (
-          <div style={{
-            padding: "12px",
-            marginBottom: "16px",
-            backgroundColor: "#fef2f2",
-            border: "1px solid #fca5a5",
-            borderRadius: "6px",
-            color: "#dc2626",
-            fontSize: "14px"
-          }}>
-            {error}
+    <>
+      <div className="confirm-overlay" onClick={handleClose}>
+        <div className="view-item-modal-wide" onClick={(e) => e.stopPropagation()}>
+          <div className="view-item-header">
+            <h3>🔍 Item Details</h3>
+            <button 
+              className="close-button" 
+              onClick={handleClose}
+              disabled={saving || lockingOrder}
+              aria-label="Close"
+            >
+              ✕
+            </button>
           </div>
-        )}
 
-        {isOrderLocked && !isManufacturer && (
-          <div style={{
-            padding: "12px",
-            marginBottom: "16px",
-            backgroundColor: "#fef3c7",
-            border: "1px solid #fbbf24",
-            borderRadius: "6px",
-            color: "#92400e",
-            fontSize: "13px"
-          }}>
-            🔒 <strong>Order is locked.</strong> Only serial number can be edited. Unlock the order to edit other fields.
-          </div>
-        )}
+          {error && (
+            <div style={{
+              padding: "12px",
+              margin: "0 1.5rem",
+              marginTop: "1rem",
+              backgroundColor: "#fef2f2",
+              border: "1px solid #fca5a5",
+              borderRadius: "6px",
+              color: "#dc2626",
+              fontSize: "14px"
+            }}>
+              {error}
+            </div>
+          )}
 
-        {isManufacturer && (
-          <div style={{
-            padding: "12px",
-            marginBottom: "16px",
-            backgroundColor: "#fef2f2",
-            border: "1px solid #fca5a5",
-            borderRadius: "6px",
-            color: "#dc2626",
-            fontSize: "13px"
-          }}>
-            ℹ️ <strong>Manufacturer view.</strong> You can only edit the serial number field.
-          </div>
-        )}
+          {isOrderLocked && !isManufacturer && (
+            <div style={{
+              padding: "12px",
+              margin: "0 1.5rem",
+              marginTop: "1rem",
+              backgroundColor: "#fef3c7",
+              border: "1px solid #fbbf24",
+              borderRadius: "6px",
+              color: "#92400e",
+              fontSize: "13px"
+            }}>
+              🔒 <strong>Order is locked.</strong> Only serial number can be edited. Unlock the order to edit other fields.
+            </div>
+          )}
 
-        <div className="view-item-body">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
-            <div className="form-field">
-              <label>Quantity</label>
-              <input
-                type="number"
-                min="1"
-                value={editedItem.qty}
-                onChange={(e) => handleInputChange("qty", parseInt(e.target.value) || 1)}
-                disabled={!canEditField("qty") || saving}
-                className={canEditField("qty") ? "" : "field-readonly"}
-              />
+          {isManufacturer && (
+            <div style={{
+              padding: "12px",
+              margin: "0 1.5rem",
+              marginTop: "1rem",
+              backgroundColor: "#fef2f2",
+              border: "1px solid #fca5a5",
+              borderRadius: "6px",
+              color: "#dc2626",
+              fontSize: "13px"
+            }}>
+              ℹ️ <strong>Manufacturer view.</strong> You can edit the serial number and view financial notes.
+            </div>
+          )}
+
+          <div className="view-item-body-wide">
+            {/* Left column - Item details */}
+            <div className="view-item-left-col">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
+                <div className="form-field">
+                  <label>Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editedItem.qty}
+                    onChange={(e) => handleInputChange("qty", parseInt(e.target.value) || 1)}
+                    disabled={!canEditField("qty") || saving}
+                    className={canEditField("qty") ? "" : "field-readonly"}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>Ordered Date</label>
+                  <div style={{
+                    padding: "10px 12px",
+                    background: item?.isOrdered ? "rgba(5, 150, 105, 0.1)" : "rgba(107, 114, 128, 0.1)",
+                    border: `1px solid ${item?.isOrdered ? "#059669" : "rgba(107, 114, 128, 0.2)"}`,
+                    borderRadius: "6px",
+                    color: item?.isOrdered ? "#059669" : "#6b7280",
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}>
+                    {item?.isOrdered ? (
+                      <>
+                        <span>✓</span>
+                        <span>{orderedDate}</span>
+                      </>
+                    ) : (
+                      <span style={{ fontStyle: "italic" }}>Not ordered yet</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-field">
+                <label>Item Name / Product Code</label>
+                <input
+                  type="text"
+                  value={editedItem.productCode}
+                  onChange={(e) => handleInputChange("productCode", e.target.value)}
+                  disabled={!canEditField("productCode") || saving}
+                  className={canEditField("productCode") ? "" : "field-readonly"}
+                  placeholder="e.g., Laser Cutter XL-2000"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Model Number</label>
+                <input
+                  type="text"
+                  value={editedItem.modelNumber}
+                  onChange={(e) => handleInputChange("modelNumber", e.target.value)}
+                  disabled={!canEditField("modelNumber") || saving}
+                  className={canEditField("modelNumber") ? "" : "field-readonly"}
+                  placeholder="e.g., XL-2000-PRO"
+                />
+              </div>
+
+              <div className="form-field serial-number-field">
+                <label>
+                  Serial Number
+                  {canEditField("serialNumber") && (
+                    <span className="field-badge editable">Always Editable</span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={editedItem.serialNumber}
+                  onChange={(e) => handleInputChange("serialNumber", e.target.value)}
+                  disabled={!canEditField("serialNumber") || saving}
+                  className={canEditField("serialNumber") ? "" : "field-readonly"}
+                  placeholder="e.g., SN123456789"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Voltage / Power</label>
+                <input
+                  type="text"
+                  value={editedItem.voltage}
+                  onChange={(e) => handleInputChange("voltage", e.target.value)}
+                  disabled={!canEditField("voltage") || saving}
+                  className={canEditField("voltage") ? "" : "field-readonly"}
+                  placeholder="e.g., 220V or 110V"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Power</label>
+                <input
+                  type="text"
+                  value={editedItem.laserWattage}
+                  onChange={(e) => handleInputChange("laserWattage", e.target.value)}
+                  disabled={!canEditField("laserWattage") || saving}
+                  className={canEditField("laserWattage") ? "" : "field-readonly"}
+                  placeholder="e.g., 100W"
+                />
+              </div>
             </div>
 
-            <div className="form-field">
-              <label>Ordered Date</label>
-              <div style={{
-                padding: "10px 12px",
-                background: item?.isOrdered ? "rgba(5, 150, 105, 0.1)" : "rgba(107, 114, 128, 0.1)",
-                border: `1px solid ${item?.isOrdered ? "#059669" : "rgba(107, 114, 128, 0.2)"}`,
-                borderRadius: "6px",
-                color: item?.isOrdered ? "#059669" : "#6b7280",
-                fontSize: "14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px"
-              }}>
-                {item?.isOrdered ? (
-                  <>
-                    <span>✓</span>
-                    <span>{orderedDate}</span>
-                  </>
-                ) : (
-                  <span style={{ fontStyle: "italic" }}>Not ordered yet</span>
-                )}
+            {/* Right column - Notes */}
+            <div className="view-item-right-col">
+              <div className="form-field">
+                <label>Public Notes</label>
+                <textarea
+                  value={editedItem.notes}
+                  onChange={(e) => handleInputChange("notes", e.target.value)}
+                  disabled={!canEditField("notes") || saving}
+                  className={canEditField("notes") ? "" : "field-readonly"}
+                  placeholder="Add any public notes about this item..."
+                  rows={8}
+                  style={{
+                    padding: "10px 12px",
+                    background: "var(--input-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "6px",
+                    color: "var(--text)",
+                    fontSize: "14px",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                    minHeight: "180px",
+                    height: "180px"
+                  }}
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Financial Notes (Internal)</label>
+                <textarea
+                  value={editedItem.privateItemNote}
+                  onChange={(e) => handleInputChange("privateItemNote", e.target.value)}
+                  disabled={isManufacturer ? true : (!canEditField("privateItemNote") || saving)}
+                  className={isManufacturer || !canEditField("privateItemNote") ? "field-readonly" : ""}
+                  placeholder="Internal financial notes (manufacturers can view but not edit)..."
+                  rows={8}
+                  style={{
+                    padding: "10px 12px",
+                    background: "var(--input-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "6px",
+                    color: "var(--text)",
+                    fontSize: "14px",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                    minHeight: "180px",
+                    height: "180px"
+                  }}
+                />
               </div>
             </div>
           </div>
 
-          <div className="form-field">
-            <label>Item Name / Product Code</label>
-            <input
-              type="text"
-              value={editedItem.productCode}
-              onChange={(e) => handleInputChange("productCode", e.target.value)}
-              disabled={!canEditField("productCode") || saving}
-              className={canEditField("productCode") ? "" : "field-readonly"}
-              placeholder="e.g., Laser Cutter XL-2000"
-            />
-          </div>
-
-          <div className="form-field">
-            <label>Model Number</label>
-            <input
-              type="text"
-              value={editedItem.modelNumber}
-              onChange={(e) => handleInputChange("modelNumber", e.target.value)}
-              disabled={!canEditField("modelNumber") || saving}
-              className={canEditField("modelNumber") ? "" : "field-readonly"}
-              placeholder="e.g., XL-2000-PRO"
-            />
-          </div>
-
-          <div className="form-field serial-number-field">
-            <label>
-              Serial Number
-              {canEditField("serialNumber") && (
-                <span className="field-badge editable">Always Editable</span>
+          <div className="view-item-footer">
+            <div style={{ display: "flex", gap: "0.5rem", marginRight: "auto" }}>
+              {!isManufacturer && (
+                <button
+                  onClick={handleLockToggle}
+                  disabled={saving || lockingOrder}
+                  className="btn-lock"
+                  style={{
+                    background: isOrderLocked ? "#16a34a" : "#dc2626",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    transition: "opacity 0.2s"
+                  }}
+                >
+                  {lockingOrder ? "..." : (isOrderLocked ? "🔓 Unlock Order" : "🔒 Lock Order")}
+                </button>
               )}
-            </label>
-            <input
-              type="text"
-              value={editedItem.serialNumber}
-              onChange={(e) => handleInputChange("serialNumber", e.target.value)}
-              disabled={!canEditField("serialNumber") || saving}
-              className={canEditField("serialNumber") ? "" : "field-readonly"}
-              placeholder="e.g., SN123456789"
-            />
-          </div>
+              
+              {!isManufacturer && !item?.isOrdered && (
+                <button
+                  onClick={handleMarkOrdered}
+                  disabled={saving}
+                  className="btn-ordered"
+                  style={{
+                    background: "#16a34a",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    transition: "opacity 0.2s"
+                  }}
+                >
+                  {saving ? "..." : "$ Mark as Ordered"}
+                </button>
+              )}
+            </div>
 
-          <div className="form-field">
-            <label>Voltage / Power</label>
-            <input
-              type="text"
-              value={editedItem.voltage}
-              onChange={(e) => handleInputChange("voltage", e.target.value)}
-              disabled={!canEditField("voltage") || saving}
-              className={canEditField("voltage") ? "" : "field-readonly"}
-              placeholder="e.g., 220V or 110V"
-            />
-          </div>
-
-          <div className="form-field">
-            <label>Power</label>
-            <input
-              type="text"
-              value={editedItem.laserWattage}
-              onChange={(e) => handleInputChange("laserWattage", e.target.value)}
-              disabled={!canEditField("laserWattage") || saving}
-              className={canEditField("laserWattage") ? "" : "field-readonly"}
-              placeholder="e.g., 100W"
-            />
-          </div>
-
-          <div className="form-field">
-            <label>Public Notes</label>
-            <textarea
-              value={editedItem.notes}
-              onChange={(e) => handleInputChange("notes", e.target.value)}
-              disabled={!canEditField("notes") || saving}
-              className={canEditField("notes") ? "" : "field-readonly"}
-              placeholder="Add any public notes about this item..."
-              rows={8}
-              style={{
-                padding: "10px 12px",
-                background: "var(--input-bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "6px",
-                color: "var(--text)",
-                fontSize: "14px",
-                fontFamily: "inherit",
-                resize: "vertical",
-                minHeight: "120px"
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="view-item-footer">
-          <button
-            onClick={handleClose}
-            disabled={saving}
-            className="btn-cancel"
-          >
-            {hasChanges() ? "Cancel" : "Close"}
-          </button>
-          {hasChanges() && (
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn-confirm"
+              onClick={handleClose}
+              disabled={saving || lockingOrder}
+              className="btn-cancel"
             >
-              {saving ? "Saving..." : "Save Changes"}
+              {hasChanges() ? "Cancel" : "Close"}
             </button>
-          )}
+            {hasChanges() && (
+              <button
+                onClick={handleSave}
+                disabled={saving || lockingOrder}
+                className="btn-confirm"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Lock Confirmation Dialog */}
+      {showLockConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowLockConfirm(false)} style={{ zIndex: 1100 }}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>🔒 Lock Order?</h3>
+            <p style={{ fontSize: "16px", marginBottom: "1rem" }}>
+              Are you sure you've finished editing <strong>ALL items</strong> on this order?
+            </p>
+            <div style={{ 
+              padding: "1rem", 
+              backgroundColor: "rgba(255, 170, 0, 0.1)", 
+              border: "1px solid rgba(255, 170, 0, 0.3)",
+              borderRadius: "6px",
+              marginBottom: "1rem"
+            }}>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px" }}>
+                <strong>What will happen:</strong>
+              </p>
+              <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px" }}>
+                <li>Most item details will become read-only</li>
+                <li>Only serial numbers will remain editable</li>
+                <li>You can unlock the order later if needed</li>
+              </ul>
+            </div>
+            <div className="confirm-actions">
+              <button 
+                onClick={() => setShowLockConfirm(false)} 
+                className="btn-cancel"
+                disabled={lockingOrder}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={performLockToggle} 
+                disabled={lockingOrder}
+                className="btn-confirm"
+                style={{ backgroundColor: "#dc2626" }}
+              >
+                {lockingOrder ? "Locking..." : "Lock Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 
   function hasChanges() {
@@ -327,7 +530,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       editedItem.serialNumber !== (item.serialNumber || "") ||
       editedItem.voltage !== (item.voltage || "") ||
       editedItem.laserWattage !== (item.laserWattage || "") ||
-      editedItem.notes !== (item.notes || "")
+      editedItem.notes !== (item.notes || "") ||
+      editedItem.privateItemNote !== (item.privateItemNote || "")
     );
   }
 }
