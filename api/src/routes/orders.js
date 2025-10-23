@@ -549,6 +549,22 @@ export function createOrdersRouter(prisma) {
         }
       }
       
+      // Handle discount field
+      const { discount } = req.body || {};
+      if (discount !== undefined) {
+        const discountValue = typeof discount === 'number' ? discount : parseFloat(discount);
+        const originalDiscount = original.discount || 0;
+        
+        if (!isNaN(discountValue) && discountValue !== originalDiscount) {
+          data.discount = discountValue;
+          changes.push({
+            field: 'discount',
+            oldValue: String(originalDiscount),
+            newValue: String(discountValue)
+          });
+        }
+      }
+      
       if (internalNotes !== undefined && internalNotes !== original.internalNotes) {
         data.internalNotes = internalNotes;
         changes.push({
