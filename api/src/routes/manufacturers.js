@@ -32,7 +32,8 @@ export function createManufacturersRouter(prisma) {
       res.json(manufacturers);
     } catch (error) {
       console.error('Error fetching manufacturers:', error);
-      res.status(500).json({ error: 'Failed to fetch manufacturers' });
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to fetch manufacturers', details: error.message });
     }
   });
 
@@ -55,7 +56,8 @@ export function createManufacturersRouter(prisma) {
       res.json(manufacturers);
     } catch (error) {
       console.error('Error fetching active manufacturers:', error);
-      res.status(500).json({ error: 'Failed to fetch active manufacturers' });
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to fetch active manufacturers', details: error.message });
     }
   });
 
@@ -91,25 +93,33 @@ export function createManufacturersRouter(prisma) {
       res.json(manufacturer);
     } catch (error) {
       console.error('Error fetching manufacturer:', error);
-      res.status(500).json({ error: 'Failed to fetch manufacturer' });
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to fetch manufacturer', details: error.message });
     }
   });
 
   // POST /manufacturers - Create new manufacturer
   router.post('/', async (req, res) => {
+    console.log('=== CREATE MANUFACTURER REQUEST ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request user:', req.user);
+    
     try {
       const { name, contactInfo, notes, createUserAccount, email, password } = req.body;
 
+      console.log('Step 1: Validating name...');
       if (!name || !name.trim()) {
+        console.log('ERROR: Name is missing or empty');
         return res.status(400).json({ error: 'Manufacturer name is required' });
       }
 
-      // Check if manufacturer name already exists
+      console.log('Step 2: Checking for existing manufacturer...');
       const existing = await prisma.manufacturer.findUnique({
         where: { name: name.trim() }
       });
 
       if (existing) {
+        console.log('ERROR: Manufacturer already exists:', existing);
         return res.status(400).json({ error: 'A manufacturer with this name already exists' });
       }
 
@@ -117,24 +127,30 @@ export function createManufacturersRouter(prisma) {
 
       // If creating user account, validate and create user
       if (createUserAccount) {
+        console.log('Step 3: Creating user account...');
         if (!email || !email.trim()) {
+          console.log('ERROR: Email is missing');
           return res.status(400).json({ error: 'Email is required when creating a user account' });
         }
         if (!password || password.length < 8) {
+          console.log('ERROR: Password too short');
           return res.status(400).json({ error: 'Password must be at least 8 characters' });
         }
 
-        // Check if email already exists
+        console.log('Step 3a: Checking for existing user...');
         const existingUser = await prisma.user.findUnique({
           where: { email: email.trim().toLowerCase() }
         });
 
         if (existingUser) {
+          console.log('ERROR: User already exists:', existingUser.email);
           return res.status(400).json({ error: 'A user with this email already exists' });
         }
 
-        // Create user account
+        console.log('Step 3b: Hashing password...');
         const hashedPassword = await bcrypt.hash(password, 10);
+        
+        console.log('Step 3c: Creating user in database...');
         const user = await prisma.user.create({
           data: {
             email: email.trim().toLowerCase(),
@@ -146,10 +162,13 @@ export function createManufacturersRouter(prisma) {
           }
         });
 
+        console.log('User created successfully:', user.id);
         userId = user.id;
+      } else {
+        console.log('Step 3: Skipping user account creation');
       }
 
-      // Create manufacturer
+      console.log('Step 4: Creating manufacturer...');
       const manufacturer = await prisma.manufacturer.create({
         data: {
           name: name.trim(),
@@ -170,14 +189,16 @@ export function createManufacturersRouter(prisma) {
         }
       });
 
-      // Log audit trail
+      console.log('Manufacturer created successfully:', manufacturer.id);
+
+      console.log('Step 5: Creating audit log...');
       await prisma.auditLog.create({
         data: {
           entityType: 'Manufacturer',
           entityId: manufacturer.id,
           action: 'CREATED',
-          performedByUserId: req.user?.id,
-          performedByName: req.user?.name,
+          performedByUserId: req.user?.id || null,
+          performedByName: req.user?.name || 'Unknown',
           metadata: JSON.stringify({
             manufacturerName: manufacturer.name,
             hasUserAccount: !!userId
@@ -185,10 +206,20 @@ export function createManufacturersRouter(prisma) {
         }
       });
 
+      console.log('Audit log created successfully');
+      console.log('=== CREATE MANUFACTURER SUCCESS ===');
       res.status(201).json(manufacturer);
     } catch (error) {
-      console.error('Error creating manufacturer:', error);
-      res.status(500).json({ error: 'Failed to create manufacturer' });
+      console.error('=== CREATE MANUFACTURER ERROR ===');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      console.error('Error name:', error.name);
+      console.error('Full error:', error);
+      res.status(500).json({ 
+        error: 'Failed to create manufacturer',
+        details: error.message,
+        code: error.code 
+      });
     }
   });
 
@@ -252,8 +283,8 @@ export function createManufacturersRouter(prisma) {
           entityType: 'Manufacturer',
           entityId: id,
           action: 'UPDATED',
-          performedByUserId: req.user?.id,
-          performedByName: req.user?.name,
+          performedByUserId: req.user?.id || null,
+          performedByName: req.user?.name || 'Unknown',
           changes: JSON.stringify(updates)
         }
       });
@@ -261,7 +292,8 @@ export function createManufacturersRouter(prisma) {
       res.json(manufacturer);
     } catch (error) {
       console.error('Error updating manufacturer:', error);
-      res.status(500).json({ error: 'Failed to update manufacturer' });
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to update manufacturer', details: error.message });
     }
   });
 
@@ -312,8 +344,8 @@ export function createManufacturersRouter(prisma) {
           entityType: 'Manufacturer',
           entityId: id,
           action: 'DELETED',
-          performedByUserId: req.user?.id,
-          performedByName: req.user?.name,
+          performedByUserId: req.user?.id || null,
+          performedByName: req.user?.name || 'Unknown',
           metadata: JSON.stringify({
             manufacturerName: manufacturer.name
           })
@@ -323,7 +355,8 @@ export function createManufacturersRouter(prisma) {
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting manufacturer:', error);
-      res.status(500).json({ error: 'Failed to delete manufacturer' });
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to delete manufacturer', details: error.message });
     }
   });
 
