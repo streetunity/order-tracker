@@ -385,15 +385,18 @@ export default function AdminBoardPage() {
                       <> <Link className="link tiny" href={`/admin/orders/${group.orders[0].id}`} title={hasLockedOrder ? "Edit order (locked)" : "Edit order"}>✎ Edit</Link></>
                     )}
                   </div>
-                  <div className="publicLinks">
-                    {(group.orders || []).map((o) => (
-                      <div key={o.id} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        {o.isLocked && <span style={{ color: "#dc2626", fontSize: "10px" }} title={`Locked${o.lockedAt ? ` on ${new Date(o.lockedAt).toLocaleDateString()}` : ''}`}>🔒</span>}
-                        <a className="link tiny" href={`/t/${o.trackingToken}`} target="_blank" rel="noreferrer" title="Public tracking link">Public link</a>
-                        <button onClick={() => copyToClipboard(o.trackingToken, o.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", fontSize: "12px", color: copiedLink === o.id ? "#d1d5db" : "#9ca3af", transition: "color 0.2s" }} title={copiedLink === o.id ? "Copied!" : "Copy link to clipboard"}>{copiedLink === o.id ? "✓" : "📋"}</button>
-                      </div>
-                    ))}
-                  </div>
+                  {/* HIDE PUBLIC LINKS FOR MANUFACTURERS */}
+                  {!isManufacturer && (
+                    <div className="publicLinks">
+                      {(group.orders || []).map((o) => (
+                        <div key={o.id} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          {o.isLocked && <span style={{ color: "#dc2626", fontSize: "10px" }} title={`Locked${o.lockedAt ? ` on ${new Date(o.lockedAt).toLocaleDateString()}` : ''}`}>🔒</span>}
+                          <a className="link tiny" href={`/t/${o.trackingToken}`} target="_blank" rel="noreferrer" title="Public tracking link">Public link</a>
+                          <button onClick={() => copyToClipboard(o.trackingToken, o.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", fontSize: "12px", color: copiedLink === o.id ? "#d1d5db" : "#9ca3af", transition: "color 0.2s" }} title={copiedLink === o.id ? "Copied!" : "Copy link to clipboard"}>{copiedLink === o.id ? "✓" : "📋"}</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
