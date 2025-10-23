@@ -1,7 +1,7 @@
 // api/src/middleware/auth.js
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
-import { isSuperAdmin, isAccountantOrHigher, isAdminOrHigher } from '../utils/roleHelpers.js';
+import { isSuperAdmin, isAccountantOrHigher, isAdminOrHigher, isManufacturer } from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
@@ -39,7 +39,7 @@ async function getUserFromRequest(req) {
       const decoded = verifyToken(token);
       
       if (decoded) {
-        // Get fresh user data from database
+        // Get fresh user data from database, including manufacturer link
         const user = await prisma.user.findUnique({
           where: { id: decoded.id },
           select: {
@@ -47,7 +47,13 @@ async function getUserFromRequest(req) {
             email: true,
             name: true,
             role: true,
-            isActive: true
+            isActive: true,
+            manufacturer: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
           }
         });
         
@@ -89,12 +95,16 @@ export async function authGuard(req, res, next) {
   next();
 }
 
-// Middleware: Require admin role or higher (ADMIN, ACCOUNTANT, SUPER_ADMIN)
+// Middleware: Require admin role or higher (ADMIN, ACCOUNTANT, SUPER_ADMIN) - blocks MANUFACTURER
 export async function adminGuard(req, res, next) {
   const user = await getUserFromRequest(req);
   
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  if (isManufacturer(user.role)) {
+    return res.status(403).json({ error: 'Access denied. Manufacturers cannot access this resource.' });
   }
   
   if (!isAdminOrHigher(user.role)) {
@@ -155,6 +165,25 @@ export async function unlockGuard(req, res, next) {
   if (!isAdminOrHigher(user.role)) {
     return res.status(403).json({ 
       error: 'Only administrators can unlock orders',
+      role: user.role
+    });
+  }
+  
+  req.user = user;
+  next();
+}
+
+// Middleware: Block manufacturers specifically
+export async function nonManufacturerGuard(req, res, next) {
+  const user = await getUserFromRequest(req);
+  
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  if (isManufacturer(user.role)) {
+    return res.status(403).json({ 
+      error: 'Access denied. This resource is not available to manufacturer accounts.',
       role: user.role
     });
   }
