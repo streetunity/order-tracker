@@ -13,27 +13,33 @@ export function createNotificationsRouter(prisma) {
       const currentUserId = req.user.id;
       const currentUserIdType = typeof currentUserId;
       
-      // Get all notifications for debugging
+      // Get ALL notifications (not filtered by user)
       const allNotifications = await prisma.notification.findMany({
         select: {
           id: true,
           userId: true,
           isRead: true,
-          title: true
+          title: true,
+          createdAt: true
         },
-        take: 50
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 100
       });
 
-      // Get unread count with current userId
-      const unreadCount = await prisma.notification.count({
-        where: {
-          userId: currentUserId,
-          isRead: false
+      // Get all users for reference
+      const allUsers = await prisma.user.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true
         }
       });
 
-      // Try converting userId to string
-      const unreadCountString = await prisma.notification.count({
+      // Get unread count with current userId (as string)
+      const unreadCount = await prisma.notification.count({
         where: {
           userId: String(currentUserId),
           isRead: false
@@ -43,28 +49,82 @@ export function createNotificationsRouter(prisma) {
       // Get unique userIds from notifications
       const uniqueUserIds = [...new Set(allNotifications.map(n => n.userId))];
 
+      // Find notifications that might be for the current user but with wrong ID
+      const possibleMatches = allNotifications.filter(n => {
+        return n.userId !== String(currentUserId) && n.isRead === false;
+      });
+
       res.json({
         currentUser: {
           id: currentUserId,
+          idAsString: String(currentUserId),
           type: currentUserIdType,
           name: req.user.name,
+          email: req.user.email,
           role: req.user.role
         },
-        unreadCount,
-        unreadCountString,
+        counts: {
+          totalNotifications: allNotifications.length,
+          unreadForCurrentUser: unreadCount,
+          totalUsers: allUsers.length
+        },
         uniqueUserIds,
-        notificationSample: allNotifications.slice(0, 10).map(n => ({
-          id: n.id,
-          userId: n.userId,
-          userIdType: typeof n.userId,
-          isRead: n.isRead,
-          matches: n.userId === currentUserId,
-          matchesString: n.userId === String(currentUserId),
-          title: n.title
-        }))
+        allUsers: allUsers.map(u => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          notificationCount: allNotifications.filter(n => n.userId === u.id).length,
+          unreadCount: allNotifications.filter(n => n.userId === u.id && !n.isRead).length
+        })),
+        recentNotifications: allNotifications.slice(0, 20).map(n => {
+          const user = allUsers.find(u => u.id === n.userId);
+          return {
+            id: n.id,
+            userId: n.userId,
+            userIdType: typeof n.userId,
+            userName: user?.name || 'Unknown',
+            isRead: n.isRead,
+            matchesCurrentUser: n.userId === String(currentUserId),
+            title: n.title,
+            createdAt: n.createdAt
+          };
+        })
       });
     } catch (error) {
       console.error('Debug error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * Fix orphaned notifications - reassign to current user (admin only)
+   */
+  router.post('/fix-user-ids', adminGuard, async (req, res) => {
+    try {
+      const { fromUserId, toUserId } = req.body;
+      
+      if (!fromUserId || !toUserId) {
+        return res.status(400).json({ 
+          error: 'Missing required fields: fromUserId, toUserId' 
+        });
+      }
+
+      const result = await prisma.notification.updateMany({
+        where: {
+          userId: String(fromUserId)
+        },
+        data: {
+          userId: String(toUserId)
+        }
+      });
+
+      res.json({
+        message: `Reassigned ${result.count} notifications from ${fromUserId} to ${toUserId}`,
+        count: result.count
+      });
+    } catch (error) {
+      console.error('Fix user IDs error:', error);
       res.status(500).json({ error: error.message });
     }
   });
