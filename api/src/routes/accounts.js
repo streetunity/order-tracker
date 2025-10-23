@@ -1,9 +1,13 @@
 import express from 'express';
+import { isManufacturer } from '../utils/roleHelpers.js';
 
 export function createAccountsRouter(prisma) {
   const router = express.Router();
 
   async function getAccessibleAccountIds(user) {
+    // Manufacturers have no access to accounts
+    if (isManufacturer(user.role)) return [];
+    
     if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'ACCOUNTANT') return null;
     
     // For agents: Get accounts they have orders for
@@ -33,6 +37,9 @@ export function createAccountsRouter(prisma) {
   }
 
   async function canAccessAccount(user, accountId) {
+    // Manufacturers have no access to accounts
+    if (isManufacturer(user.role)) return false;
+    
     if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'ACCOUNTANT') return true;
     
     // Check if they have an order for this account
@@ -56,6 +63,11 @@ export function createAccountsRouter(prisma) {
 
   router.get('/', async (req, res) => {
     try {
+      // Block manufacturers
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot access customer accounts.' });
+      }
+      
       const accessibleAccountIds = await getAccessibleAccountIds(req.user);
       const where = {};
       if (accessibleAccountIds !== null) {
@@ -93,6 +105,11 @@ export function createAccountsRouter(prisma) {
 
   router.post('/', async (req, res) => {
     try {
+      // Block manufacturers
+      if (isManufacturer(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. Manufacturers cannot create customer accounts.' });
+      }
+      
       const { name, email, address, phone, machineVoltage, notes } = req.body || {};
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'name required' });
