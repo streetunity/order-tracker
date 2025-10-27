@@ -144,14 +144,15 @@ export function createNotificationsRouter(prisma) {
       } = req.query;
 
       // ALL users (including admins) only see their own notifications
+      // ALWAYS exclude dismissed notifications from the main list
       const where = {
-        userId: String(req.user.id)
+        userId: String(req.user.id),
+        isDismissed: false  // FIXED: Always exclude dismissed notifications
       };
 
       // Additional filters
       if (unreadOnly === 'true') {
         where.isRead = false;
-        where.isDismissed = false;
       }
 
       if (category) {
@@ -196,7 +197,7 @@ export function createNotificationsRouter(prisma) {
       res.json({
         notifications: notificationsWithMetadata,
         total: notifications.length,
-        unreadCount: notifications.filter(n => !n.isRead && !n.isDismissed).length
+        unreadCount: notifications.filter(n => !n.isRead).length
       });
     } catch (error) {
       console.error('Get notifications error:', error);
@@ -361,7 +362,8 @@ export function createNotificationsRouter(prisma) {
       const unreadBefore = await prisma.notification.count({
         where: {
           userId,
-          isRead: false
+          isRead: false,
+          isDismissed: false  // Only count non-dismissed
         }
       });
 
@@ -370,7 +372,8 @@ export function createNotificationsRouter(prisma) {
       const result = await prisma.notification.updateMany({
         where: {
           userId,
-          isRead: false
+          isRead: false,
+          isDismissed: false  // Only mark non-dismissed as read
         },
         data: {
           isRead: true,
@@ -405,7 +408,8 @@ export function createNotificationsRouter(prisma) {
       const unreadBefore = await prisma.notification.count({
         where: {
           userId,
-          isRead: false
+          isRead: false,
+          isDismissed: false  // Only count non-dismissed
         }
       });
 
@@ -414,7 +418,8 @@ export function createNotificationsRouter(prisma) {
       const result = await prisma.notification.updateMany({
         where: {
           userId,
-          isRead: false
+          isRead: false,
+          isDismissed: false  // Only mark non-dismissed as read
         },
         data: {
           isRead: true,
