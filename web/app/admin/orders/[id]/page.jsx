@@ -45,6 +45,11 @@ export default function EditOrderPage({ params }) {
   const [discount, setDiscount] = useState("");
   const [isSavingDiscount, setIsSavingDiscount] = useState(false);
 
+  // Sales agent state
+  const [salesAgent, setSalesAgent] = useState("");
+  const [salesAgents, setSalesAgents] = useState([]);
+  const [isSavingSalesAgent, setIsSavingSalesAgent] = useState(false);
+
   // Track item edits
   const [itemEdits, setItemEdits] = useState({});
 
@@ -84,6 +89,25 @@ export default function EditOrderPage({ params }) {
     loadManufacturers();
   }, [user]);
 
+  // Load sales agents for dropdown
+  useEffect(() => {
+    async function loadSalesAgents() {
+      if (!user) return;
+      try {
+        const res = await fetch('/api/users/sales-reps', {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSalesAgents(data);
+        }
+      } catch (e) {
+        console.error('Failed to load sales agents:', e);
+      }
+    }
+    loadSalesAgents();
+  }, [user]);
+
   async function load() {
     if (!user) return;
     
@@ -101,6 +125,7 @@ export default function EditOrderPage({ params }) {
       setInternalNotesChanged(false);
       setItemEdits({});  // Clear item edits after load
       setDiscount(orderData.discount ? String(orderData.discount) : "");
+      setSalesAgent(orderData.sku || ""); // Load sales agent from sku field
       
       if (orderData.orderDate) {
         const date = new Date(orderData.orderDate);
@@ -238,6 +263,38 @@ export default function EditOrderPage({ params }) {
       }
     } finally {
       setIsSavingOrderDate(false);
+    }
+  }
+
+  async function saveSalesAgent() {
+    const currentSalesAgent = order?.sku || "";
+    if (salesAgent === currentSalesAgent) {
+      return;
+    }
+    
+    try {
+      setIsSavingSalesAgent(true);
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ sku: salesAgent }) // Sales agent is stored in sku field
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      setOrder(prev => ({ ...prev, sku: salesAgent }));
+      alert("Sales agent updated successfully");
+    } catch (err) {
+      alert(`Failed to update sales agent: ${err.message}`);
+      setSalesAgent(currentSalesAgent);
+    } finally {
+      setIsSavingSalesAgent(false);
     }
   }
 
@@ -670,26 +727,35 @@ export default function EditOrderPage({ params }) {
                     </div>
                   </div>
                 )}
-                {order.sku && (
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
-                      Sales Person
-                    </label>
-                    <div style={{ 
-                      padding: "8px 12px",
-                      backgroundColor: "#1a1a1a",
-                      border: "1px solid #404040",
-                      borderRadius: "4px",
-                      fontSize: "14px",
-                      color: "#e4e4e4"
-                    }}>
-                      {order.sku}
-                    </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
+                    Sales Person
+                  </label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <select
+                      className="input"
+                      value={salesAgent}
+                      onChange={(e) => setSalesAgent(e.target.value)}
+                      onBlur={saveSalesAgent}
+                      style={{ 
+                        width: "200px",
+                        padding: "8px 12px"
+                      }}
+                      disabled={isSavingSalesAgent}
+                    >
+                      <option value="">Select sales person...</option>
+                      {salesAgents.map(agent => (
+                        <option key={agent.id} value={agent.name}>{agent.name}</option>
+                      ))}
+                    </select>
+                    {isSavingSalesAgent && (
+                      <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
               <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "8px" }}>
-                The order date is used for ETA calculations and sales reports. Change it if it was entered incorrectly. Press Tab or click outside to save.
+                The order date is used for ETA calculations and sales reports. The sales person can be changed by selecting from the dropdown. Press Tab or click outside to save.
               </div>
             </section>
 
@@ -915,7 +981,8 @@ export default function EditOrderPage({ params }) {
                         <option value="">Select...</option>
                         {manufacturers.map(mfg => (
                           <option key={mfg.id} value={mfg.id}>{mfg.name}</option>
-                        ))}\n                      </select>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Voltage *</label>
