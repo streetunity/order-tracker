@@ -207,7 +207,7 @@ export default function PublicTrackingPage() {
         )}
       </div>
 
-      {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
+      {(order.etaDate || order.shippingCarrier || order.trackingNumber || order.onsiteInstallationDate) && (
         <div style={{ 
           padding: "20px",
           backgroundColor: "#2d2d2d",
@@ -220,24 +220,42 @@ export default function PublicTrackingPage() {
           <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#e4e4e4", marginBottom: "12px" }}>
             Shipping Information
           </h3>
-          {order.etaDate && (
-            <div style={{ marginBottom: "8px" }}>
-              <strong style={{ color: "#ef4444" }}>ETA:</strong>
-              <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{new Date(order.etaDate).toLocaleDateString()}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+            <div style={{ flex: 1 }}>
+              {order.etaDate && (
+                <div style={{ marginBottom: "8px" }}>
+                  <strong style={{ color: "#ef4444" }}>ETA:</strong>
+                  <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{new Date(order.etaDate).toLocaleDateString()}</span>
+                </div>
+              )}
+              {order.shippingCarrier && (
+                <div style={{ marginBottom: "8px" }}>
+                  <strong style={{ color: "#ef4444" }}>Carrier:</strong>
+                  <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{order.shippingCarrier}</span>
+                </div>
+              )}
+              {order.trackingNumber && (
+                <div>
+                  <strong style={{ color: "#ef4444" }}>Tracking:</strong>
+                  <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{order.trackingNumber}</span>
+                </div>
+              )}
             </div>
-          )}
-          {order.shippingCarrier && (
-            <div style={{ marginBottom: "8px" }}>
-              <strong style={{ color: "#ef4444" }}>Carrier:</strong>
-              <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{order.shippingCarrier}</span>
-            </div>
-          )}
-          {order.trackingNumber && (
-            <div>
-              <strong style={{ color: "#ef4444" }}>Tracking:</strong>
-              <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{order.trackingNumber}</span>
-            </div>
-          )}
+            {order.onsiteInstallationDate && (
+              <div style={{ 
+                paddingLeft: "20px",
+                borderLeft: "1px solid #404040",
+                minWidth: "200px"
+              }}>
+                <div>
+                  <strong style={{ color: "#ef4444" }}>Onsite Installation Date:</strong>
+                  <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "16px", fontWeight: "500" }}>
+                    {new Date(order.onsiteInstallationDate).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
