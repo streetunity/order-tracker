@@ -11,6 +11,7 @@ export default function NewOrderPage() {
   const { user, getAuthHeaders } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [users, setUsers] = useState([]);
+  const [manufacturers, setManufacturers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -32,6 +33,7 @@ export default function NewOrderPage() {
       qty: "",
       serialNumber: "",
       modelNumber: "",
+      manufacturerId: "",
       voltage: "",
       power: "",
       notes: "",
@@ -64,7 +66,7 @@ export default function NewOrderPage() {
   async function loadData() {
     try {
       setLoading(true);
-      await Promise.all([loadAccounts(), loadUsers()]);
+      await Promise.all([loadAccounts(), loadUsers(), loadManufacturers()]);
     } catch (e) {
       setError("Failed to load data: " + e.message);
     } finally {
@@ -85,6 +87,22 @@ export default function NewOrderPage() {
     } catch (e) {
       console.error("Failed to load accounts:", e);
       setError("Failed to load customer accounts");
+    }
+  }
+
+  async function loadManufacturers() {
+    if (!user) return;
+    
+    try {
+      const res = await fetch("/api/manufacturers/active", {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setManufacturers(data);
+      }
+    } catch (e) {
+      console.error("Failed to load manufacturers:", e);
     }
   }
 
@@ -134,6 +152,7 @@ export default function NewOrderPage() {
       qty: "",
       serialNumber: "",
       modelNumber: "",
+      manufacturerId: "",
       voltage: "",
       power: "",
       notes: "",
@@ -255,6 +274,7 @@ export default function NewOrderPage() {
           qty: item.qty.trim() ? parseInt(item.qty.trim()) : 1,
           serialNumber: item.serialNumber.trim() || null,
           modelNumber: item.modelNumber.trim(),
+          manufacturerId: item.manufacturerId || null,
           voltage: item.voltage.trim(),
           laserWattage: item.power.trim(), // API expects laserWattage, not power
           notes: item.notes.trim() || null,
@@ -571,8 +591,8 @@ export default function NewOrderPage() {
                   </div>
                 </div>
 
-                {/* Row 2: Serial # and Model # */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                {/* Row 2: Serial #, Model #, and Manufacturer */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
                   <div>
                     <label style={{
                       display: "block",
@@ -611,6 +631,29 @@ export default function NewOrderPage() {
                       placeholder="Model number"
                       style={{ width: "100%" }}
                     />
+                  </div>
+
+                  <div>
+                    <label style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      marginBottom: "6px",
+                      color: "#e4e4e4"
+                    }}>
+                      Manufacturer
+                    </label>
+                    <select
+                      className="input"
+                      value={item.manufacturerId}
+                      onChange={(e) => updateItem(index, 'manufacturerId', e.target.value)}
+                      style={{ width: "100%" }}
+                    >
+                      <option value="">Select...</option>
+                      {manufacturers.map(mfg => (
+                        <option key={mfg.id} value={mfg.id}>{mfg.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
