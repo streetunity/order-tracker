@@ -10,6 +10,7 @@ generator client {
 model Account {
   id             String   @id @default(cuid())
   name           String
+  contactName    String?  // Contact person's name
   email          String?
   address        String?
   phone          String?
