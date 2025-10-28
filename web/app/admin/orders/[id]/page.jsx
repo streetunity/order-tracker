@@ -42,6 +42,9 @@ export default function EditOrderPage({ params }) {
   const [orderDate, setOrderDate] = useState("");
   const [isSavingOrderDate, setIsSavingOrderDate] = useState(false);
 
+  const [onsiteInstallationDate, setOnsiteInstallationDate] = useState("");
+  const [isSavingInstallationDate, setIsSavingInstallationDate] = useState(false);
+
   const [discount, setDiscount] = useState("");
   const [isSavingDiscount, setIsSavingDiscount] = useState(false);
 
@@ -133,6 +136,14 @@ export default function EditOrderPage({ params }) {
         setOrderDate(formatted);
       } else {
         setOrderDate("");
+      }
+      
+      if (orderData.onsiteInstallationDate) {
+        const date = new Date(orderData.onsiteInstallationDate);
+        const formatted = date.toISOString().split('T')[0];
+        setOnsiteInstallationDate(formatted);
+      } else {
+        setOnsiteInstallationDate("");
       }
       
       setErr("");
@@ -263,6 +274,43 @@ export default function EditOrderPage({ params }) {
       }
     } finally {
       setIsSavingOrderDate(false);
+    }
+  }
+
+  async function saveOnsiteInstallationDate() {
+    const currentInstallationDate = order?.onsiteInstallationDate ? new Date(order.onsiteInstallationDate).toISOString().split('T')[0] : "";
+    if (onsiteInstallationDate === currentInstallationDate) {
+      return;
+    }
+    
+    try {
+      setIsSavingInstallationDate(true);
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ onsiteInstallationDate: onsiteInstallationDate || null })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      setOrder(prev => ({ ...prev, onsiteInstallationDate: onsiteInstallationDate || null }));
+      alert("Onsite installation date updated successfully");
+    } catch (err) {
+      alert(`Failed to update installation date: ${err.message}`);
+      if (order?.onsiteInstallationDate) {
+        const date = new Date(order.onsiteInstallationDate);
+        setOnsiteInstallationDate(date.toISOString().split('T')[0]);
+      } else {
+        setOnsiteInstallationDate("");
+      }
+    } finally {
+      setIsSavingInstallationDate(false);
     }
   }
 
@@ -811,39 +859,73 @@ export default function EditOrderPage({ params }) {
                 </div>
               )}
               
-              {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
-                  {order.etaDate && (
-                    <div>
-                      <strong style={{ color: "#ef4444", fontSize: "12px" }}>ETA:</strong>
-                      <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
-                        {new Date(order.etaDate).toLocaleDateString()}
-                        {hasExtendedShipping && (
-                          <span style={{ fontSize: "11px", color: "var(--success)", marginLeft: "8px" }}>
-                            (Extended)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {order.shippingCarrier && (
-                    <div>
-                      <strong style={{ color: "#ef4444", fontSize: "12px" }}>Carrier:</strong>
-                      <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
-                        {order.shippingCarrier}
-                      </div>
-                    </div>
-                  )}
-                  {order.trackingNumber && (
-                    <div>
-                      <strong style={{ color: "#ef4444", fontSize: "12px" }}>Tracking Number:</strong>
-                      <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
-                        {order.trackingNumber}
-                      </div>
+              <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
+                <div style={{ flex: 1 }}>
+                  {(order.etaDate || order.shippingCarrier || order.trackingNumber) && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+                      {order.etaDate && (
+                        <div>
+                          <strong style={{ color: "#ef4444", fontSize: "12px" }}>ETA:</strong>
+                          <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
+                            {new Date(order.etaDate).toLocaleDateString()}
+                            {hasExtendedShipping && (
+                              <span style={{ fontSize: "11px", color: "var(--success)", marginLeft: "8px" }}>
+                                (Extended)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {order.shippingCarrier && (
+                        <div>
+                          <strong style={{ color: "#ef4444", fontSize: "12px" }}>Carrier:</strong>
+                          <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
+                            {order.shippingCarrier}
+                          </div>
+                        </div>
+                      )}
+                      {order.trackingNumber && (
+                        <div>
+                          <strong style={{ color: "#ef4444", fontSize: "12px" }}>Tracking Number:</strong>
+                          <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "14px" }}>
+                            {order.trackingNumber}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+                
+                <div style={{ 
+                  minWidth: "200px",
+                  paddingLeft: "24px",
+                  borderLeft: "1px solid #404040"
+                }}>
+                  <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#ef4444", fontWeight: "500" }}>
+                    Onsite Installation Date
+                  </label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input
+                      type="date"
+                      value={onsiteInstallationDate}
+                      onChange={(e) => setOnsiteInstallationDate(e.target.value)}
+                      onBlur={saveOnsiteInstallationDate}
+                      className="input"
+                      style={{ 
+                        width: "160px",
+                        padding: "6px 10px"
+                      }}
+                      disabled={isSavingInstallationDate}
+                    />
+                    {isSavingInstallationDate && (
+                      <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px" }}>
+                    Date when installation will occur onsite
+                  </div>
+                </div>
+              </div>
             </section>
 
             <section style={{ marginTop: 8 }}>
