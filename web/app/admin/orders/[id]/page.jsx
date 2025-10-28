@@ -6,6 +6,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import MeasurementSection from "@/components/MeasurementSection";
 
+// Import modularized components
+import UnlockDialog from "./components/UnlockDialog";
+import UnorderDialog from "./components/UnorderDialog";
+import ItemsTable from "./components/ItemsTable";
+import OrderInformation from "./components/OrderInformation";
+import InternalNotesSection from "./components/InternalNotesSection";
+
+// Import API services
+import { orderApi, itemApi } from "./services/orderApi";
+
 export default function EditOrderPage({ params }) {
   const { id } = params;
   const { user, getAuthHeaders, isAdmin } = useAuth();
@@ -13,17 +23,6 @@ export default function EditOrderPage({ params }) {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [newItem, setNewItem] = useState({ 
-    productCode: "", 
-    qty: 1, 
-    serialNumber: "", 
-    modelNumber: "", 
-    voltage: "", 
-    laserWattage: "", 
-    notes: "",
-    hasExtendedShipping: false,
-    manufacturerId: ""
-  });
   const [saving, setSaving] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
@@ -48,15 +47,11 @@ export default function EditOrderPage({ params }) {
   const [discount, setDiscount] = useState("");
   const [isSavingDiscount, setIsSavingDiscount] = useState(false);
 
-  // Sales agent state
   const [salesAgent, setSalesAgent] = useState("");
   const [salesAgents, setSalesAgents] = useState([]);
   const [isSavingSalesAgent, setIsSavingSalesAgent] = useState(false);
 
-  // Track item edits
   const [itemEdits, setItemEdits] = useState({});
-
-  // Manufacturers list for dropdown
   const [manufacturers, setManufacturers] = useState([]);
 
   // Block manufacturers from accessing edit order page
@@ -66,49 +61,28 @@ export default function EditOrderPage({ params }) {
       return;
     }
     
-    // MANUFACTURERS CANNOT ACCESS THIS PAGE
     if (user.role === "MANUFACTURER") {
       alert("Access denied. Manufacturers can only move items between stages on the board.");
       router.push("/admin/board");
     }
   }, [user, router]);
 
-  // Load manufacturers for dropdown
+  // Load manufacturers and sales agents
   useEffect(() => {
-    async function loadManufacturers() {
+    async function loadData() {
       if (!user) return;
       try {
-        const res = await fetch('/api/manufacturers/active', {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setManufacturers(data);
-        }
+        const [mfgData, agentsData] = await Promise.all([
+          orderApi.getManufacturers(getAuthHeaders),
+          orderApi.getSalesAgents(getAuthHeaders)
+        ]);
+        setManufacturers(mfgData);
+        setSalesAgents(agentsData);
       } catch (e) {
-        console.error('Failed to load manufacturers:', e);
+        console.error('Failed to load data:', e);
       }
     }
-    loadManufacturers();
-  }, [user]);
-
-  // Load sales agents for dropdown
-  useEffect(() => {
-    async function loadSalesAgents() {
-      if (!user) return;
-      try {
-        const res = await fetch('/api/users/sales-reps', {
-          headers: getAuthHeaders()
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSalesAgents(data);
-        }
-      } catch (e) {
-        console.error('Failed to load sales agents:', e);
-      }
-    }
-    loadSalesAgents();
+    loadData();
   }, [user]);
 
   async function load() {
@@ -116,19 +90,14 @@ export default function EditOrderPage({ params }) {
     
     try {
       setLoading(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, { 
-        cache: "no-store",
-        headers: getAuthHeaders()
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const orderData = await res.json();
+      const orderData = await orderApi.getOrder(id, getAuthHeaders);
       setOrder(orderData);
       setCustomerDocsLink(orderData.customerDocsLink || "");
       setInternalNotes(orderData.internalNotes || "");
       setInternalNotesChanged(false);
-      setItemEdits({});  // Clear item edits after load
+      setItemEdits({});
       setDiscount(orderData.discount ? String(orderData.discount) : "");
-      setSalesAgent(orderData.sku || ""); // Load sales agent from sku field
+      setSalesAgent(orderData.sku || "");
       
       if (orderData.orderDate) {
         const date = new Date(orderData.orderDate);
@@ -160,10 +129,18 @@ export default function EditOrderPage({ params }) {
     }
   }, [id, user]);
 
-  const hasUnsavedChanges = Object.keys(itemEdits).length > 0;
+  function updateItemEdit(itemId, field, value) {
+    setItemEdits(prev => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] || {}),
+        [field]: value
+      }
+    }));
+  }
 
   async function saveAllChanges() {
-    if (!hasUnsavedChanges) return;
+    if (!Object.keys(itemEdits).length) return;
     
     try {
       setSaving(true);
@@ -171,19 +148,7 @@ export default function EditOrderPage({ params }) {
       
       for (const [itemId, changes] of Object.entries(itemEdits)) {
         try {
-          const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
-            method: "PATCH",
-            headers: { 
-              "content-type": "application/json",
-              ...getAuthHeaders()
-            },
-            body: JSON.stringify(changes),
-          });
-          
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || `HTTP ${res.status}`);
-          }
+          await itemApi.updateItem(id, itemId, changes, getAuthHeaders);
         } catch (e) {
           errors.push(`Item ${itemId}: ${e.message}`);
         }
@@ -201,33 +166,10 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  function updateItemEdit(itemId, field, value) {
-    setItemEdits(prev => ({
-      ...prev,
-      [itemId]: {
-        ...(prev[itemId] || {}),
-        [field]: value
-      }
-    }));
-  }
-
   async function saveInternalNotes() {
     try {
       setInternalNotesSaving(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/internal-notes`, {
-        method: "PATCH",
-        headers: { 
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ internalNotes }),
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await orderApi.updateInternalNotes(id, internalNotes, getAuthHeaders);
       setInternalNotesChanged(false);
       alert("Internal notes saved successfully");
     } catch (e) {
@@ -244,26 +186,11 @@ export default function EditOrderPage({ params }) {
     }
     
     const currentOrderDate = order?.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : "";
-    if (orderDate === currentOrderDate) {
-      return;
-    }
+    if (orderDate === currentOrderDate) return;
     
     try {
       setIsSavingOrderDate(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ orderDate: orderDate })
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await orderApi.updateOrder(id, { orderDate }, getAuthHeaders);
       setOrder(prev => ({ ...prev, orderDate: orderDate }));
       alert("Order date updated successfully");
     } catch (err) {
@@ -279,26 +206,11 @@ export default function EditOrderPage({ params }) {
 
   async function saveOnsiteInstallationDate() {
     const currentInstallationDate = order?.onsiteInstallationDate ? new Date(order.onsiteInstallationDate).toISOString().split('T')[0] : "";
-    if (onsiteInstallationDate === currentInstallationDate) {
-      return;
-    }
+    if (onsiteInstallationDate === currentInstallationDate) return;
     
     try {
       setIsSavingInstallationDate(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ onsiteInstallationDate: onsiteInstallationDate || null })
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await orderApi.updateOrder(id, { onsiteInstallationDate: onsiteInstallationDate || null }, getAuthHeaders);
       setOrder(prev => ({ ...prev, onsiteInstallationDate: onsiteInstallationDate || null }));
       alert("Onsite installation date updated successfully");
     } catch (err) {
@@ -316,26 +228,11 @@ export default function EditOrderPage({ params }) {
 
   async function saveSalesAgent() {
     const currentSalesAgent = order?.sku || "";
-    if (salesAgent === currentSalesAgent) {
-      return;
-    }
+    if (salesAgent === currentSalesAgent) return;
     
     try {
       setIsSavingSalesAgent(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ sku: salesAgent }) // Sales agent is stored in sku field
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await orderApi.updateOrder(id, { sku: salesAgent }, getAuthHeaders);
       setOrder(prev => ({ ...prev, sku: salesAgent }));
       alert("Sales agent updated successfully");
     } catch (err) {
@@ -348,9 +245,7 @@ export default function EditOrderPage({ params }) {
 
   async function saveDiscount() {
     const currentDiscount = order?.discount ? String(order.discount) : "";
-    if (discount === currentDiscount) {
-      return;
-    }
+    if (discount === currentDiscount) return;
     
     try {
       setIsSavingDiscount(true);
@@ -362,20 +257,7 @@ export default function EditOrderPage({ params }) {
         return;
       }
       
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ discount: discountValue })
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await orderApi.updateOrder(id, { discount: discountValue }, getAuthHeaders);
       setOrder(prev => ({ ...prev, discount: discountValue }));
     } catch (err) {
       alert(`Failed to update discount: ${err.message}`);
@@ -385,91 +267,12 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  async function markItemOrdered(itemId) {
-    if (!isAdmin) {
-      alert("Only administrators can mark items as ordered.");
-      return;
-    }
-    
-    try {
-      setSaving(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/ordered`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        }
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
-      await load();
-    } catch (e) {
-      alert(`Failed to mark item as ordered: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function unmarkItemOrdered() {
-    if (!isAdmin) {
-      alert("Only administrators can unmark items as ordered.");
-      return;
-    }
-    
-    if (!unorderReason || unorderReason.trim().length < 10) {
-      alert("Please provide a reason with at least 10 characters");
-      return;
-    }
-    
-    try {
-      setSaving(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(unorderingItemId)}/unordered`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ reason: unorderReason.trim() })
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
-      setShowUnorderDialog(false);
-      setUnorderReason("");
-      setUnorderingItemId(null);
-      await load();
-    } catch (e) {
-      alert(`Failed to unmark item as ordered: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function saveCustomerDocsLink() {
-    if (customerDocsLink === (order?.customerDocsLink || "")) {
-      return;
-    }
+    if (customerDocsLink === (order?.customerDocsLink || "")) return;
     
     try {
       setIsSavingDocsLink(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ customerDocsLink: customerDocsLink })
-      });
-      
-      if (!res.ok) throw new Error("Failed to update");
-      
+      await orderApi.updateOrder(id, { customerDocsLink }, getAuthHeaders);
       setOrder(prev => ({ ...prev, customerDocsLink: customerDocsLink }));
     } catch (err) {
       alert("Failed to update documents link");
@@ -482,22 +285,7 @@ export default function EditOrderPage({ params }) {
   async function lockOrder() {
     try {
       setLockLoading(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/lock`, {
-        method: "POST",
-        headers: { 
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ 
-          reason: "Order locked for data integrity"
-        })
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await orderApi.lockOrder(id, "Order locked for data integrity", getAuthHeaders);
       await load();
       alert("Order has been locked. No changes to item details can be made until unlocked.");
     } catch (e) {
@@ -520,22 +308,7 @@ export default function EditOrderPage({ params }) {
     
     try {
       setLockLoading(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/unlock`, {
-        method: "POST",
-        headers: { 
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ 
-          reason: unlockReason
-        })
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await orderApi.unlockOrder(id, unlockReason, getAuthHeaders);
       setShowUnlockDialog(false);
       setUnlockReason("");
       await load();
@@ -547,20 +320,53 @@ export default function EditOrderPage({ params }) {
     }
   }
 
+  async function markItemOrdered(itemId) {
+    if (!isAdmin) {
+      alert("Only administrators can mark items as ordered.");
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      await itemApi.markItemOrdered(id, itemId, getAuthHeaders);
+      await load();
+    } catch (e) {
+      alert(`Failed to mark item as ordered: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function unmarkItemOrdered() {
+    if (!isAdmin) {
+      alert("Only administrators can unmark items as ordered.");
+      return;
+    }
+    
+    if (!unorderReason || unorderReason.trim().length < 10) {
+      alert("Please provide a reason with at least 10 characters");
+      return;
+    }
+    
+    try {
+      setSaving(true);
+      await itemApi.unmarkItemOrdered(id, unorderingItemId, unorderReason, getAuthHeaders);
+      setShowUnorderDialog(false);
+      setUnorderReason("");
+      setUnorderingItemId(null);
+      await load();
+    } catch (e) {
+      alert(`Failed to unmark item as ordered: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function deleteItem(itemId) {
     if (!confirm("Permanently delete this item? This cannot be undone.")) return;
     try {
       setSaving(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, {
-        method: "DELETE",
-        headers: getAuthHeaders()
-      });
-      
-      if (!res.ok && res.status !== 204) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
+      await itemApi.deleteItem(id, itemId, getAuthHeaders);
       await load();
     } catch (e) {
       alert(`Failed to delete item: ${e.message}`);
@@ -569,52 +375,15 @@ export default function EditOrderPage({ params }) {
     }
   }
 
-  async function addItem(e) {
-    e.preventDefault();
-    const productCode = newItem.productCode.trim();
-    const qty = Number(newItem.qty || 1);
-    const serialNumber = newItem.serialNumber.trim();
-    const modelNumber = newItem.modelNumber.trim();
-    const voltage = newItem.voltage.trim();
-    const laserWattage = newItem.laserWattage.trim();
-    const notes = newItem.notes.trim();
-    const hasExtendedShipping = newItem.hasExtendedShipping || false;
-    const manufacturerId = newItem.manufacturerId || null;
-    
-    if (!productCode) return alert("Item name is required");
-    if (!Number.isFinite(qty) || qty <= 0) return alert("Quantity must be a positive number");
-    
+  async function addItem(item) {
     try {
       setSaving(true);
-      const res = await fetch(`/api/orders/${encodeURIComponent(id)}/items`, {
-        method: "POST",
-        headers: { 
-          "content-type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ 
-          productCode, 
-          qty, 
-          serialNumber, 
-          modelNumber, 
-          voltage, 
-          laserWattage: laserWattage || null,
-          notes,
-          hasExtendedShipping,
-          manufacturerId,
-          containers: []
-        }),
-      });
-      
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      
-      setNewItem({ productCode: "", qty: 1, serialNumber: "", modelNumber: "", voltage: "", laserWattage: "", notes: "", hasExtendedShipping: false, manufacturerId: "" });
+      await itemApi.addItem(id, item, getAuthHeaders);
       await load();
+      return true;
     } catch (e) {
       alert(`Failed to add item: ${e.message}`);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -733,79 +502,18 @@ export default function EditOrderPage({ params }) {
               </div>
             </section>
 
-            <section style={{ marginTop: 16, marginBottom: 16 }}>
-              <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Order Information</h3>
-              <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
-                    Order Date *
-                  </label>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <input
-                      type="date"
-                      value={orderDate}
-                      onChange={(e) => setOrderDate(e.target.value)}
-                      onBlur={saveOrderDate}
-                      className="input"
-                      style={{ 
-                        width: "150px",
-                        padding: "8px 12px"
-                      }}
-                      disabled={isSavingOrderDate}
-                    />
-                    {isSavingOrderDate && (
-                      <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
-                    )}
-                  </div>
-                </div>
-                {order.poNumber && (
-                  <div>
-                    <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
-                      PO Number
-                    </label>
-                    <div style={{ 
-                      padding: "8px 12px",
-                      backgroundColor: "#1a1a1a",
-                      border: "1px solid #404040",
-                      borderRadius: "4px",
-                      fontSize: "14px",
-                      color: "#e4e4e4"
-                    }}>
-                      {order.poNumber}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
-                    Sales Person
-                  </label>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <select
-                      className="input"
-                      value={salesAgent}
-                      onChange={(e) => setSalesAgent(e.target.value)}
-                      onBlur={saveSalesAgent}
-                      style={{ 
-                        width: "200px",
-                        padding: "8px 12px"
-                      }}
-                      disabled={isSavingSalesAgent}
-                    >
-                      <option value="">Select sales person...</option>
-                      {salesAgents.map(agent => (
-                        <option key={agent.id} value={agent.name}>{agent.name}</option>
-                      ))}
-                    </select>
-                    {isSavingSalesAgent && (
-                      <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "8px" }}>
-                The order date is used for ETA calculations and sales reports. The sales person can be changed by selecting from the dropdown. Press Tab or click outside to save.
-              </div>
-            </section>
+            <OrderInformation
+              order={order}
+              orderDate={orderDate}
+              setOrderDate={setOrderDate}
+              salesAgent={salesAgent}
+              setSalesAgent={setSalesAgent}
+              salesAgents={salesAgents}
+              onSaveOrderDate={saveOrderDate}
+              onSaveSalesAgent={saveSalesAgent}
+              isSavingOrderDate={isSavingOrderDate}
+              isSavingSalesAgent={isSavingSalesAgent}
+            />
 
             <section style={{ marginTop: 16, marginBottom: 16 }}>
               <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Customer Documents Link</h3>
@@ -928,201 +636,23 @@ export default function EditOrderPage({ params }) {
               </div>
             </section>
 
-            <section style={{ marginTop: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <h2 style={{ margin: 0, fontSize: 16 }}>Items</h2>
-                {hasUnsavedChanges && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{
-                      padding: "8px 16px",
-                      backgroundColor: "#fef3c7",
-                      border: "2px solid #f59e0b",
-                      borderRadius: "6px",
-                      color: "#92400e",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px"
-                    }}>
-                      <span style={{ fontSize: "18px" }}>⚠️</span>
-                      You have unsaved changes to {Object.keys(itemEdits).length} item{Object.keys(itemEdits).length > 1 ? 's' : ''}
-                    </div>
-                    <button
-                      className="btn primary"
-                      onClick={saveAllChanges}
-                      disabled={saving}
-                      style={{
-                        backgroundColor: "#dc2626",
-                        color: "#fff",
-                        border: "none",
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        padding: "10px 20px",
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
-                      }}
-                    >
-                      {saving ? "Saving..." : "💾 Save All Changes"}
-                    </button>
-                  </div>
-                )}
-              </div>
-              {order.isLocked && (
-                <div style={{ 
-                  fontSize: "12px", 
-                  color: "#dc2626", 
-                  marginBottom: "8px",
-                  fontStyle: "italic"
-                }}>
-                  Note: Item editing is disabled while order is locked. Extended shipping and admin fields (price/purchasing notes) remain editable.
-                </div>
-              )}
-              <div style={{ overflowX: "auto" }}>
-                <table className="table" style={{ minWidth: "1045px", tableLayout: "fixed" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: "25px", textAlign: "center" }}></th>
-                      <th style={{ width: "320px" }}>Item name</th>
-                      <th style={{ width: "50px" }}>Qty</th>
-                      <th style={{ width: "230px" }}>Model #</th>
-                      <th style={{ width: "90px" }}>Ordered</th>
-                      <th style={{ width: "200px" }}>Manufacturer</th>
-                      <th style={{ width: "130px" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(order.items || []).length === 0 ? (
-                      <tr><td colSpan={7} style={{ color: "#6b7280" }}>No items yet.</td></tr>
-                    ) : (
-                      order.items.map((it) => (
-                        <EditableRow
-                          key={it.id}
-                          item={it}
-                          itemEdits={itemEdits[it.id] || {}}
-                          onFieldChange={(field, value) => updateItemEdit(it.id, field, value)}
-                          onDelete={() => deleteItem(it.id)}
-                          onMarkOrdered={() => markItemOrdered(it.id)}
-                          onUnmarkOrdered={() => {
-                            setUnorderingItemId(it.id);
-                            setShowUnorderDialog(true);
-                          }}
-                          disabled={saving}
-                          isLocked={order.isLocked}
-                          isAdmin={isAdmin}
-                          manufacturers={manufacturers}
-                        />
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {!order.isLocked && (
-                <form onSubmit={addItem} style={{ marginTop: 16 }}>
-                  <h3 style={{ margin: "0 0 12px", fontSize: 14 }}>Add New Item</h3>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Product *</label>
-                      <input
-                        className="input"
-                        placeholder="Product name"
-                        value={newItem.productCode}
-                        onChange={e => setNewItem(v => ({ ...v, productCode: e.target.value }))}
-                        style={{ width: "200px" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Qty *</label>
-                      <input
-                        className="input"
-                        type="number"
-                        min={1}
-                        value={newItem.qty}
-                        onChange={e => setNewItem(v => ({ ...v, qty: e.target.value }))}
-                        style={{ width: "80px" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Model # *</label>
-                      <input
-                        className="input"
-                        placeholder="Model number"
-                        value={newItem.modelNumber}
-                        onChange={e => setNewItem(v => ({ ...v, modelNumber: e.target.value }))}
-                        style={{ width: "130px" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Manufacturer</label>
-                      <select
-                        className="input"
-                        value={newItem.manufacturerId}
-                        onChange={e => setNewItem(v => ({ ...v, manufacturerId: e.target.value }))}
-                        style={{ width: "150px" }}
-                      >
-                        <option value="">Select...</option>
-                        {manufacturers.map(mfg => (
-                          <option key={mfg.id} value={mfg.id}>{mfg.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Voltage *</label>
-                      <input
-                        className="input"
-                        placeholder="e.g., 120V"
-                        value={newItem.voltage}
-                        onChange={e => setNewItem(v => ({ ...v, voltage: e.target.value }))}
-                        style={{ width: "90px" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Power *</label>
-                      <input
-                        className="input"
-                        placeholder="HP / Wattage"
-                        value={newItem.laserWattage}
-                        onChange={e => setNewItem(v => ({ ...v, laserWattage: e.target.value }))}
-                        style={{ width: "120px" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Serial #</label>
-                      <input
-                        className="input"
-                        placeholder="Optional"
-                        value={newItem.serialNumber}
-                        onChange={e => setNewItem(v => ({ ...v, serialNumber: e.target.value }))}
-                        style={{ width: "130px" }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Public Notes</label>
-                      <input
-                        className="input"
-                        placeholder="Optional notes"
-                        value={newItem.notes}
-                        onChange={e => setNewItem(v => ({ ...v, notes: e.target.value }))}
-                        style={{ width: "180px" }}
-                      />
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <input
-                        type="checkbox"
-                        id="extendedShipping"
-                        checked={newItem.hasExtendedShipping}
-                        onChange={e => setNewItem(v => ({ ...v, hasExtendedShipping: e.target.checked }))}
-                        style={{ width: "16px", height: "16px" }}
-                      />
-                      <label htmlFor="extendedShipping" style={{ fontSize: "12px", color: newItem.hasExtendedShipping ? "var(--success)" : "#6b7280" }}>
-                        ⭐ Extended
-                      </label>
-                    </div>
-                    <button className="btn primary" type="submit" disabled={saving}>Add Item</button>
-                  </div>
-                </form>
-              )}
-            </section>
+            <ItemsTable
+              order={order}
+              items={order.items}
+              itemEdits={itemEdits}
+              onFieldChange={updateItemEdit}
+              onDelete={deleteItem}
+              onMarkOrdered={markItemOrdered}
+              onUnmarkOrdered={(itemId) => {
+                setUnorderingItemId(itemId);
+                setShowUnorderDialog(true);
+              }}
+              onSaveAllChanges={saveAllChanges}
+              onAddItem={addItem}
+              disabled={saving}
+              isAdmin={isAdmin}
+              manufacturers={manufacturers}
+            />
 
             <section style={{ marginTop: 32 }}>
               <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Discount</h2>
@@ -1157,68 +687,15 @@ export default function EditOrderPage({ params }) {
               </div>
             </section>
 
-            <section style={{ marginTop: 32 }}>
-              <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Internal Notes</h2>
-              {order.isLocked && (
-                <div style={{ 
-                  fontSize: "12px", 
-                  color: "#dc2626", 
-                  marginBottom: "8px",
-                  fontStyle: "italic"
-                }}>
-                  🔒 Internal notes are locked and cannot be edited while the order is locked.
-                </div>
-              )}
-              <div style={{
-                backgroundColor: "#2d2d2d",
-                border: "1px solid #4b5563",
-                borderRadius: "6px",
-                padding: "12px"
-              }}>
-                <textarea
-                  value={internalNotes}
-                  onChange={(e) => {
-                    if (!order.isLocked) {
-                      setInternalNotes(e.target.value);
-                      setInternalNotesChanged(true);
-                    }
-                  }}
-                  placeholder="Internal notes only, payment / ordering information."
-                  disabled={order.isLocked}
-                  style={{
-                    width: "100%",
-                    minHeight: "120px",
-                    padding: "8px",
-                    border: "1px solid #4b5563",
-                    borderRadius: "4px",
-                    fontSize: "14px",
-                    fontFamily: "inherit",
-                    backgroundColor: order.isLocked ? "#1a1a1a" : "#2d2d2d",
-                    color: order.isLocked ? "#6b7280" : "#e5e7eb",
-                    opacity: order.isLocked ? 0.7 : 1,
-                    cursor: order.isLocked ? "not-allowed" : "text"
-                  }}
-                />
-                <div style={{ marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>
-                    These notes are private and will not be visible to customers.
-                  </div>
-                  {!order.isLocked && (
-                    <button
-                      className="btn primary"
-                      onClick={saveInternalNotes}
-                      disabled={!internalNotesChanged || internalNotesSaving}
-                      style={{
-                        opacity: !internalNotesChanged ? 0.5 : 1,
-                        cursor: !internalNotesChanged ? "not-allowed" : "pointer"
-                      }}
-                    >
-                      {internalNotesSaving ? "Saving..." : "Save Internal Notes"}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </section>
+            <InternalNotesSection
+              order={order}
+              internalNotes={internalNotes}
+              setInternalNotes={setInternalNotes}
+              internalNotesChanged={internalNotesChanged}
+              setInternalNotesChanged={setInternalNotesChanged}
+              onSaveInternalNotes={saveInternalNotes}
+              internalNotesSaving={internalNotesSaving}
+            />
 
             <MeasurementSection 
               order={order}
@@ -1284,448 +761,31 @@ export default function EditOrderPage({ params }) {
           </>
         )}
 
-        {showUnlockDialog && isAdmin && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
-          }}>
-            <div style={{
-              backgroundColor: "#fff",
-              borderRadius: "8px",
-              padding: "24px",
-              maxWidth: "500px",
-              width: "90%"
-            }}>
-              <h3 style={{ marginTop: 0, marginBottom: "16px" }}>Unlock Order</h3>
-              <p style={{ marginBottom: "16px", color: "#6b7280" }}>
-                Please provide a reason for unlocking this order. This will be logged in the audit trail.
-              </p>
-              <textarea
-                value={unlockReason}
-                onChange={(e) => setUnlockReason(e.target.value)}
-                placeholder="Enter reason for unlocking (minimum 10 characters)"
-                style={{
-                  width: "100%",
-                  minHeight: "100px",
-                  padding: "8px",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "4px",
-                  marginBottom: "16px"
-                }}
-              />
-              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    setShowUnlockDialog(false);
-                    setUnlockReason("");
-                  }}
-                  disabled={lockLoading}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn primary"
-                  onClick={unlockOrder}
-                  disabled={lockLoading || unlockReason.trim().length < 10}
-                  style={{
-                    backgroundColor: "#dc2626",
-                    color: "#fff",
-                    border: "none"
-                  }}
-                >
-                  {lockLoading ? "Unlocking..." : "Unlock Order"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <UnlockDialog
+          show={showUnlockDialog && isAdmin}
+          unlockReason={unlockReason}
+          setUnlockReason={setUnlockReason}
+          onCancel={() => {
+            setShowUnlockDialog(false);
+            setUnlockReason("");
+          }}
+          onUnlock={unlockOrder}
+          loading={lockLoading}
+        />
 
-        {showUnorderDialog && isAdmin && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
-          }}>
-            <div style={{
-              backgroundColor: "#fff",
-              borderRadius: "8px",
-              padding: "24px",
-              maxWidth: "500px",
-              width: "90%"
-            }}>
-              <h3 style={{ marginTop: 0, marginBottom: "16px" }}>Unmark Item as Ordered</h3>
-              <p style={{ marginBottom: "16px", color: "#6b7280" }}>
-                Please provide a reason for unmarking this item as ordered. This will be logged in the audit trail.
-              </p>
-              <textarea
-                value={unorderReason}
-                onChange={(e) => setUnorderReason(e.target.value)}
-                placeholder="Enter reason for unmarking as ordered (minimum 10 characters)"
-                style={{
-                  width: "100%",
-                  minHeight: "100px",
-                  padding: "8px",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "4px",
-                  marginBottom: "16px"
-                }}
-              />
-              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    setShowUnorderDialog(false);
-                    setUnorderReason("");
-                    setUnorderingItemId(null);
-                  }}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn"
-                  onClick={unmarkItemOrdered}
-                  disabled={saving || unorderReason.trim().length < 10}
-                  style={{
-                    backgroundColor: "#dc2626",
-                    color: "#fff",
-                    border: "none"
-                  }}
-                >
-                  {saving ? "Processing..." : "Unmark as Ordered"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <UnorderDialog
+          show={showUnorderDialog && isAdmin}
+          unorderReason={unorderReason}
+          setUnorderReason={setUnorderReason}
+          onCancel={() => {
+            setShowUnorderDialog(false);
+            setUnorderReason("");
+            setUnorderingItemId(null);
+          }}
+          onUnorder={unmarkItemOrdered}
+          saving={saving}
+        />
       </div>
-    </>
-  );
-}
-
-
-function EditableRow({ item, itemEdits, onFieldChange, onDelete, onMarkOrdered, onUnmarkOrdered, disabled, isLocked, isAdmin, manufacturers }) {
-  // Use itemEdits for current values, fallback to item's original values
-  const getValue = (field) => {
-    if (itemEdits.hasOwnProperty(field)) {
-      return itemEdits[field];
-    }
-    return item[field] ?? (field === 'qty' ? 1 : (field === 'hasExtendedShipping' ? false : (field === 'itemPrice' && item[field] !== null && item[field] !== undefined ? item[field].toString() : "")));
-  };
-
-  const name = getValue('productCode') || "";
-  const qty = getValue('qty') || 1;
-  const serialNumber = getValue('serialNumber') || "";
-  const manufacturerId = getValue('manufacturerId') || "";
-  const modelNumber = getValue('modelNumber') || "";
-  const voltage = getValue('voltage') || "";
-  const laserWattage = getValue('laserWattage') || "";
-  const notes = getValue('notes') || "";
-  const itemPrice = getValue('itemPrice') === null || getValue('itemPrice') === undefined || getValue('itemPrice') === "" ? "" : String(getValue('itemPrice'));
-  const privateItemNote = getValue('privateItemNote') || "";
-  const hasExtendedShipping = getValue('hasExtendedShipping') || false;
-
-  const hasChanges = Object.keys(itemEdits).length > 0;
-  const isOrdered = item.isOrdered;
-  const orderedDate = item.orderedAt ? new Date(item.orderedAt).toLocaleDateString() : null;
-
-  const handlePriceChange = (e) => {
-    const value = e.target.value;
-    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-      onFieldChange('itemPrice', value === "" ? null : value);
-    }
-  };
-
-  return (
-    <>
-      {/* Line 1: Star, Item name, Qty, Model #, Manufacturer, Ordered, Actions */}
-      <tr style={{ 
-        backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
-        ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
-      }}>
-        <td style={{ textAlign: "center", padding: "8px 3px" }}>
-          {hasExtendedShipping && (
-            <span style={{ color: "var(--success)", fontSize: "16px" }} title="Extended Shipping">⭐</span>
-          )}
-        </td>
-        <td>
-          <input 
-            className="input" 
-            value={name} 
-            onChange={e => onFieldChange('productCode', e.target.value)} 
-            disabled={isLocked}
-            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
-          />
-        </td>
-        <td>
-          <input 
-            className="input" 
-            type="number" 
-            min={1} 
-            value={qty} 
-            onChange={e => onFieldChange('qty', Number(e.target.value))} 
-            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }} 
-            disabled={isLocked}
-          />
-        </td>
-        <td>
-          <input 
-            className="input" 
-            value={modelNumber} 
-            onChange={e => onFieldChange('modelNumber', e.target.value)} 
-            placeholder="Model #"
-            disabled={isLocked}
-            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
-          />
-        </td>
-        <td>
-          {isOrdered ? (
-            <div style={{ 
-              color: "#059669", 
-              fontSize: "12px",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px"
-            }}>
-              <span>✓</span>
-              {orderedDate && (
-                <span title={`Ordered on ${orderedDate}`} style={{ cursor: "help" }}>
-                  {orderedDate}
-                </span>
-              )}
-            </div>
-          ) : (
-            <span style={{ color: "#6b7280", fontSize: "12px" }}>—</span>
-          )}
-        </td>
-        <td>
-          <select
-            className="input"
-            value={manufacturerId}
-            onChange={e => onFieldChange('manufacturerId', e.target.value)}
-            disabled={isLocked}
-            style={{ width: "100%", opacity: isLocked ? 0.6 : 1 }}
-          >
-            <option value="">Select...</option>
-            {manufacturers.map(mfg => (
-              <option key={mfg.id} value={mfg.id}>{mfg.name}</option>
-            ))}
-          </select>
-        </td>
-        <td style={{ paddingLeft: "8px" }}>
-          <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", justifyContent: "flex-start" }}>
-            <button 
-              className="btn danger" 
-              onClick={onDelete} 
-              disabled={disabled || isLocked} 
-              style={{ borderColor: "#ef4444", color: "#b91c1c", fontSize: "11px", padding: "2px 5px" }}
-              title={isLocked ? "Order is locked" : "Delete item"}
-            >
-              Delete
-            </button>
-            {isAdmin && (
-              isOrdered ? (
-                <button
-                  className="btn"
-                  onClick={onUnmarkOrdered}
-                  disabled={disabled}
-                  style={{ 
-                    backgroundColor: "#059669", 
-                    color: "#fff", 
-                    border: "none",
-                    fontSize: "11px", 
-                    padding: "2px 5px"
-                  }}
-                  title="Item is ordered - click to unmark"
-                >
-                  Ordered
-                </button>
-              ) : (
-                <button
-                  className="btn"
-                  onClick={onMarkOrdered}
-                  disabled={disabled}
-                  style={{ 
-                    backgroundColor: "#dc2626", 
-                    color: "#fff", 
-                    border: "none",
-                    fontSize: "11px", 
-                    padding: "2px 5px"
-                  }}
-                  title="Mark as ordered"
-                >
-                  Order
-                </button>
-              )
-            )}
-          </div>
-        </td>
-      </tr>
-      
-      {/* Line 2: Voltage, Power, Serial #, Price - PRICE FIELD NOW ACCESSIBLE TO ALL USERS */}
-      <tr style={{ 
-        backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
-        ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
-      }}>
-        <td colSpan="7" style={{ padding: "4px 8px" }}>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "55px" }}>Voltage *:</label>
-              <input 
-                className="input" 
-                value={voltage} 
-                onChange={e => onFieldChange('voltage', e.target.value)} 
-                placeholder="Required"
-                disabled={isLocked}
-                style={{ width: "90px", opacity: isLocked ? 0.6 : 1 }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "50px" }}>Power *:</label>
-              <input 
-                className="input" 
-                value={laserWattage} 
-                onChange={e => onFieldChange('laserWattage', e.target.value)} 
-                placeholder="Required"
-                disabled={isLocked}
-                style={{ width: "110px", opacity: isLocked ? 0.6 : 1 }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "55px" }}>Serial #:</label>
-              <input 
-                className="input" 
-                value={serialNumber} 
-                onChange={e => onFieldChange('serialNumber', e.target.value)} 
-                placeholder="Optional"
-                disabled={isLocked}
-                style={{ width: "230px", opacity: isLocked ? 0.6 : 1 }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "auto" }}>
-              <label style={{ fontSize: "11px", color: "#9ca3af" }}>Price:</label>
-              <span style={{ fontSize: "14px", color: "#9ca3af" }}>$</span>
-              <input
-                className="input"
-                type="text"
-                value={itemPrice}
-                onChange={handlePriceChange}
-                placeholder="0.00"
-                title="usually retail price"
-                style={{ 
-                  width: "100px", 
-                  textAlign: "right"
-                }}
-              />
-            </div>
-          </div>
-        </td>
-      </tr>
-      
-      {/* Lines 3-4: Public Notes (2 rows) */}
-      <tr style={{ 
-        backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
-        ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
-      }}>
-        <td colSpan="7" style={{ padding: "4px 8px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-            <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "85px", paddingTop: "6px" }}>Public Notes:</label>
-            <textarea 
-              className="input" 
-              value={notes} 
-              onChange={e => onFieldChange('notes', e.target.value)} 
-              placeholder="Optional notes visible to customer"
-              disabled={isLocked}
-              rows={2}
-              style={{ 
-                flex: 1, 
-                opacity: isLocked ? 0.6 : 1,
-                resize: "vertical",
-                minHeight: "50px"
-              }}
-            />
-          </div>
-        </td>
-      </tr>
-      
-      {/* Lines 5-7: Extended Shipping checkbox + Purchasing Notes (3 rows, admin only) */}
-      <tr style={{ 
-        backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", 
-        borderBottom: "2px solid #404040",
-        ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
-      }}>
-        <td colSpan="7" style={{ padding: "8px" }}>
-          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input
-                type="checkbox"
-                id={`extended-${item.id}`}
-                checked={hasExtendedShipping}
-                onChange={e => onFieldChange('hasExtendedShipping', e.target.checked)}
-                disabled={isLocked}
-                style={{ width: "16px", height: "16px", cursor: isLocked ? "not-allowed" : "pointer", opacity: isLocked ? 0.6 : 1 }}
-              />
-              <label 
-                htmlFor={`extended-${item.id}`} 
-                style={{ 
-                  fontSize: "12px", 
-                  color: hasExtendedShipping ? "var(--success)" : "#6b7280",
-                  cursor: isLocked ? "not-allowed" : "pointer",
-                  fontWeight: hasExtendedShipping ? "500" : "normal",
-                  opacity: isLocked ? 0.6 : 1,
-                  whiteSpace: "nowrap"
-                }}
-              >
-                ⭐ Extended Shipping
-              </label>
-            </div>
-            
-            {isAdmin && (
-              <div style={{ flex: 1, display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                <label style={{ fontSize: "11px", color: "#9ca3af", minWidth: "100px", paddingTop: "6px" }}>Purchasing Notes:</label>
-                <textarea
-                  className="input"
-                  value={privateItemNote}
-                  onChange={e => onFieldChange('privateItemNote', e.target.value)}
-                  placeholder="Internal purchasing notes (private, admin only)"
-                  rows={3}
-                  style={{ 
-                    flex: 1,
-                    resize: "vertical",
-                    minHeight: "65px"
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          {hasExtendedShipping && (
-            <div style={{ 
-              marginTop: "8px", 
-              fontSize: "11px", 
-              color: "var(--success)", 
-              fontStyle: "italic" 
-            }}>
-              This item requires extended lead time and will add extra days to the ETA
-            </div>
-          )}
-        </td>
-      </tr>
     </>
   );
 }
