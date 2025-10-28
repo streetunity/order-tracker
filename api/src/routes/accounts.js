@@ -75,7 +75,7 @@ export function createAccountsRouter(prisma) {
       }
       const accounts = await prisma.account.findMany({
         where,
-        select: { id: true, name: true, email: true, address: true, phone: true, machineVoltage: true, notes: true, createdAt: true },
+        select: { id: true, name: true, email: true, address: true, phone: true, machineVoltage: true, notes: true, contactName: true, createdAt: true },
         orderBy: { createdAt: 'desc' }
       });
       res.json(accounts);
@@ -110,7 +110,7 @@ export function createAccountsRouter(prisma) {
         return res.status(403).json({ error: 'Access denied. Manufacturers cannot create customer accounts.' });
       }
       
-      const { name, email, address, phone, machineVoltage, notes } = req.body || {};
+      const { name, email, address, phone, machineVoltage, notes, contactName } = req.body || {};
       if (!name || !String(name).trim()) {
         return res.status(400).json({ error: 'name required' });
       }
@@ -122,7 +122,8 @@ export function createAccountsRouter(prisma) {
             address: address ? String(address).trim() : null,
             phone: phone ? String(phone).trim() : null,
             machineVoltage: machineVoltage ? String(machineVoltage).trim() : null,
-            notes: notes ? String(notes).trim() : null
+            notes: notes ? String(notes).trim() : null,
+            contactName: contactName ? String(contactName).trim() : null
           }
         });
         await tx.auditLog.create({
@@ -130,7 +131,7 @@ export function createAccountsRouter(prisma) {
             entityType: 'Account',
             entityId: newAccount.id,
             action: 'ACCOUNT_CREATED',
-            metadata: JSON.stringify({ entity: 'Account', entityId: newAccount.id, data: { name: newAccount.name, email: newAccount.email, phone: newAccount.phone } }),
+            metadata: JSON.stringify({ entity: 'Account', entityId: newAccount.id, data: { name: newAccount.name, email: newAccount.email, phone: newAccount.phone, contactName: newAccount.contactName } }),
             performedByUserId: req.user.id,
             performedByName: req.user.name
           }
@@ -152,7 +153,7 @@ export function createAccountsRouter(prisma) {
       }
       const original = await prisma.account.findUnique({ where: { id: req.params.id } });
       if (!original) return res.status(404).json({ error: 'Account not found' });
-      const { name, email, address, phone, machineVoltage, notes } = req.body || {};
+      const { name, email, address, phone, machineVoltage, notes, contactName } = req.body || {};
       const data = {};
       const changes = [];
       if (name !== undefined && String(name).trim() !== original.name) {
@@ -192,6 +193,14 @@ export function createAccountsRouter(prisma) {
         if (newNotes !== original.notes) {
           data.notes = newNotes;
           changes.push({ field: 'notes', oldValue: original.notes || 'null', newValue: newNotes || 'null' });
+        }
+      }
+      // Add support for contactName field
+      if (contactName !== undefined) {
+        const newContactName = contactName ? String(contactName).trim() : null;
+        if (newContactName !== original.contactName) {
+          data.contactName = newContactName;
+          changes.push({ field: 'contactName', oldValue: original.contactName || 'null', newValue: newContactName || 'null' });
         }
       }
       if (Object.keys(data).length === 0) return res.status(400).json({ error: 'No fields to update' });
