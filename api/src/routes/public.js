@@ -29,7 +29,8 @@ export function createPublicRouter() {
 
       const {
         id, poNumber, sku, createdAt, etaDate, currentStage, orderDate,
-        shippingCarrier, trackingNumber, items, statusEvents, account, customerDocsLink
+        shippingCarrier, trackingNumber, items, statusEvents, account, customerDocsLink,
+        onsiteInstallationDate
       } = order;
 
       res.json({
@@ -40,7 +41,8 @@ export function createPublicRouter() {
           email: account.email,
           phone: account.phone,
           address: account.address,
-          machineVoltage: account.machineVoltage
+          machineVoltage: account.machineVoltage,
+          contactName: account.contactName  // Add contactName field here
         } : null,
         poNumber,
         orderDate,
@@ -50,6 +52,7 @@ export function createPublicRouter() {
         currentStage,
         shippingCarrier,
         trackingNumber,
+        onsiteInstallationDate,
         items: items.map(it => ({
           id: it.id,
           productCode: it.productCode,
