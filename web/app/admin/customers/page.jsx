@@ -53,6 +53,7 @@ export default function CustomersPage() {
     const searchTerm = q.toLowerCase();
     return (
       customer.name?.toLowerCase().includes(searchTerm) ||
+      customer.contactName?.toLowerCase().includes(searchTerm) ||
       customer.email?.toLowerCase().includes(searchTerm) ||
       customer.phone?.toLowerCase().includes(searchTerm) ||
       customer.address?.toLowerCase().includes(searchTerm) ||
@@ -65,6 +66,7 @@ export default function CustomersPage() {
     setEditingCustomer(customer.id);
     setEditForm({
       name: customer.name || "",
+      contactName: customer.contactName || "",
       email: customer.email || "",
       address: customer.address || "",
       phone: customer.phone || "",
@@ -135,7 +137,7 @@ export default function CustomersPage() {
 
           <input
             type="text"
-            placeholder="Search Customer Name / Email / Phone / Address"
+            placeholder="Search Customer Name / Contact / Email / Phone / Address"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             style={{
@@ -196,6 +198,11 @@ export default function CustomersPage() {
                     <div>
                       <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "8px", color: "rgba(255, 255, 255, 0.9)" }}>
                         {customer.name}
+                        {customer.contactName && (
+                          <span style={{ fontSize: "14px", fontWeight: "400", color: "rgba(255, 255, 255, 0.6)", marginLeft: "12px" }}>
+                            (Contact: {customer.contactName})
+                          </span>
+                        )}
                       </h3>
                       <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.6)", display: "flex", gap: "20px", flexWrap: "wrap" }}>
                         {customer.email && <span>📧 {customer.email}</span>}
@@ -252,12 +259,31 @@ export default function CustomersPage() {
                         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                           <div>
                             <label style={{ display: "block", marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "rgba(255, 255, 255, 0.9)" }}>
-                              Name
+                              Customer Name
                             </label>
                             <input
                               type="text"
                               value={editForm.name}
                               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                              style={{
+                                width: "100%",
+                                padding: "10px 14px",
+                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                borderRadius: "8px",
+                                background: "rgba(255, 255, 255, 0.05)",
+                                color: "rgba(255, 255, 255, 0.9)"
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "rgba(255, 255, 255, 0.9)" }}>
+                              Contact Name
+                            </label>
+                            <input
+                              type="text"
+                              value={editForm.contactName}
+                              onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })}
+                              placeholder="Contact person's name (optional)"
                               style={{
                                 width: "100%",
                                 padding: "10px 14px",
@@ -390,6 +416,12 @@ export default function CustomersPage() {
                         </div>
                       ) : (
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                          {customer.contactName && (
+                            <div>
+                              <strong style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.6)" }}>Contact Name:</strong>
+                              <p style={{ marginTop: "6px", color: "rgba(255, 255, 255, 0.9)" }}>{customer.contactName}</p>
+                            </div>
+                          )}
                           <div>
                             <strong style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.6)" }}>Address:</strong>
                             <p style={{ marginTop: "6px", color: "rgba(255, 255, 255, 0.9)" }}>{customer.address || "Not provided"}</p>
