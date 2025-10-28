@@ -164,29 +164,35 @@ export default function PublicTrackingPage() {
         
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "16px" }}>
           <div>
-            <strong style={{ color: "#ef4444" }}>Name:</strong>
+            <strong style={{ color: "#ef4444" }}>Company:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.accountName || "N/A"}</div>
           </div>
           <div>
-            <strong style={{ color: "#ef4444" }}>Email:</strong>
-            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.email || "Not provided"}</div>
+            <strong style={{ color: "#ef4444" }}>Contact Name:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.contactName || "Not provided"}</div>
           </div>
         </div>
         
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "16px" }}>
           <div>
+            <strong style={{ color: "#ef4444" }}>Email:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.email || "Not provided"}</div>
+          </div>
+          <div>
             <strong style={{ color: "#ef4444" }}>Phone:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.phone || "Not provided"}</div>
           </div>
+        </div>
+        
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "30px", marginBottom: "16px" }}>
           <div>
             <strong style={{ color: "#ef4444" }}>Address:</strong>
             <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.address || "Not provided"}</div>
           </div>
-        </div>
-        
-        <div style={{ marginBottom: "16px" }}>
-          <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
-          <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
+          <div>
+            <strong style={{ color: "#ef4444" }}>Machine Voltage:</strong>
+            <div style={{ color: "#e4e4e4", marginTop: "4px" }}>{order.account?.machineVoltage || "Not specified"}</div>
+          </div>
         </div>
         
         {order.customerDocsLink && (
