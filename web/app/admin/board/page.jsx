@@ -319,7 +319,7 @@ export default function AdminBoardPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Order Date / Sales Person / Account / Item / Serial #"
+              placeholder="Search Order Date / Sales Person / Account / Contact Name / Item / Serial #"
               style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6, minWidth: "350px" }}
             />
             <button className="btn" onClick={load}>Apply</button>
