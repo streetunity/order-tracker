@@ -168,6 +168,7 @@ export function createOrdersRouter(prisma) {
           { poNumber: { contains: q } },
           { sku: { contains: q } },
           { account: { is: { name: { contains: q } } } },
+          { account: { is: { contactName: { contains: q } } } }, // Added contact name search
           { items: { some: { productCode: { contains: q } } } },
           { items: { some: { serialNumber: { contains: q } } } }
         ];
