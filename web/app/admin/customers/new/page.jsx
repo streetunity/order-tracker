@@ -13,6 +13,7 @@ export default function NewCustomerPage() {
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
+    contactName: "",
     email: "",
     address: "",
     phone: "",
@@ -100,7 +101,28 @@ export default function NewCustomerPage() {
                 backgroundColor: "#383838",
                 color: "#e4e4e4"
               }}
-              placeholder="Enter customer name"
+              placeholder="Enter customer/company name"
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "5px", fontWeight: "500", color: "#e4e4e4" }}>
+              Contact Name
+            </label>
+            <input
+              type="text"
+              value={formData.contactName}
+              onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                border: "1px solid #404040",
+                borderRadius: "6px",
+                fontSize: "14px",
+                backgroundColor: "#383838",
+                color: "#e4e4e4"
+              }}
+              placeholder="Contact person's name (optional)"
             />
           </div>
 
