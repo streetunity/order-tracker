@@ -107,6 +107,9 @@ export default function PublicTrackingPage() {
     }
   };
 
+  // Check if we should show the shipping information section
+  const showShippingSection = order.etaDate || order.shippingCarrier || order.trackingNumber || order.onsiteInstallationDate !== undefined;
+
   return (
     <main style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto", position: "relative" }}>
       <div style={{
@@ -207,7 +210,7 @@ export default function PublicTrackingPage() {
         )}
       </div>
 
-      {(order.etaDate || order.shippingCarrier || order.trackingNumber || order.onsiteInstallationDate) && (
+      {showShippingSection && (
         <div style={{ 
           padding: "20px",
           backgroundColor: "#2d2d2d",
@@ -241,20 +244,27 @@ export default function PublicTrackingPage() {
                 </div>
               )}
             </div>
-            {order.onsiteInstallationDate && (
-              <div style={{ 
-                paddingLeft: "20px",
-                borderLeft: "1px solid #404040",
-                minWidth: "200px"
-              }}>
-                <div>
-                  <strong style={{ color: "#ef4444" }}>Onsite Installation Date:</strong>
-                  <div style={{ color: "#e4e4e4", marginTop: "4px", fontSize: "16px", fontWeight: "500" }}>
-                    {new Date(order.onsiteInstallationDate).toLocaleDateString()}
-                  </div>
+            <div style={{ 
+              paddingLeft: "20px",
+              borderLeft: "1px solid #404040",
+              minWidth: "200px"
+            }}>
+              <div>
+                <strong style={{ color: "#ef4444" }}>Onsite Installation Date:</strong>
+                <div style={{ 
+                  color: order.onsiteInstallationDate ? "#e4e4e4" : "#a0a0a0", 
+                  marginTop: "4px", 
+                  fontSize: "16px", 
+                  fontWeight: order.onsiteInstallationDate ? "500" : "normal",
+                  fontStyle: order.onsiteInstallationDate ? "normal" : "italic"
+                }}>
+                  {order.onsiteInstallationDate 
+                    ? new Date(order.onsiteInstallationDate).toLocaleDateString()
+                    : "TBD"
+                  }
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
