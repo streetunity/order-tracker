@@ -1,482 +1,305 @@
-/* Commission Status Card Styles */
-
 .commission-status-card {
-  background: #1a1a1a;
-  border: 1px solid #333333;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border, #333333);
   border-radius: 8px;
-  margin-bottom: 20px;
+  margin: 20px 0;
   overflow: hidden;
 }
 
-.commission-status-card.flagged {
-  border-color: #f59e0b;
+.commission-status-card.error {
+  border-color: var(--error, #ef4444);
 }
 
-.commission-status-card.no-commission {
-  opacity: 0.8;
-}
-
-/* Card Header */
 .card-header {
+  background: var(--bg-tertiary, #252525);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #333333);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  background: #252525;
-  border-bottom: 1px solid #333333;
+  justify-content: space-between;
 }
 
 .card-header h3 {
-  margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary, #ffffff);
+  margin: 0;
 }
 
-.toggle-details-btn {
-  padding: 6px 12px;
-  background: #333333;
-  border: 1px solid #444444;
-  color: #ffffff;
+.flag-indicator {
+  font-size: 14px;
+  color: var(--warning, #f59e0b);
+  padding: 4px 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: 4px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
 }
 
-.toggle-details-btn:hover {
-  background: #dc2626;
-  border-color: #dc2626;
-}
-
-/* Card Content */
-.card-content {
+.card-body {
   padding: 20px;
 }
 
-.card-loading {
-  padding: 40px;
+/* Loading and Empty States */
+.loading-state,
+.error-state,
+.empty-state {
   text-align: center;
-  color: #999999;
+  padding: 20px;
+  color: var(--text-secondary, #b3b3b3);
 }
 
-.no-commission-message {
-  color: #999999;
-  margin-bottom: 15px;
+.error-state {
+  color: var(--error, #ef4444);
 }
 
-.card-help {
-  background: #252525;
-  border: 1px solid #333333;
-  border-radius: 6px;
-  padding: 15px;
-  margin-top: 15px;
+.empty-state p {
+  margin: 0 0 8px 0;
+  font-size: 15px;
 }
 
-.card-help p {
-  margin: 0 0 10px;
-  color: #b3b3b3;
-  font-size: 14px;
-}
-
-.card-help ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.card-help li {
-  color: #999999;
+.help-text {
   font-size: 13px;
-  margin-bottom: 5px;
+  color: var(--text-dim, #666666);
 }
 
-/* Commission Summary */
-.commission-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
+/* Commission Info */
+.commission-info {
   margin-bottom: 20px;
 }
 
-.summary-item {
+.info-row {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.summary-label {
-  font-size: 12px;
-  color: #999999;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.info-row:last-child {
+  border-bottom: none;
 }
 
-.summary-value {
-  font-size: 16px;
-  color: #ffffff;
+.info-row.highlight {
+  background: rgba(220, 38, 38, 0.05);
+  padding: 12px 10px;
+  margin: 10px -10px;
+  border-radius: 6px;
+  border-bottom: none;
+}
+
+.info-row .label {
+  font-size: 14px;
+  color: var(--text-secondary, #b3b3b3);
+}
+
+.info-row .value {
+  font-size: 14px;
+  color: var(--text-primary, #ffffff);
   font-weight: 500;
 }
 
-.summary-value.highlight {
-  color: #dc2626;
-  font-size: 20px;
+.info-row .value.large {
+  font-size: 18px;
   font-weight: bold;
+  color: var(--accent, #dc2626);
 }
 
-/* Status Badge */
+/* Status Badges */
 .status-badge {
-  display: inline-block;
   padding: 4px 12px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.status-warning {
+.status-badge.awaiting {
   background: rgba(245, 158, 11, 0.2);
   color: #f59e0b;
-  border: 1px solid #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-.status-info {
+.status-badge.calculated {
   background: rgba(59, 130, 246, 0.2);
   color: #3b82f6;
-  border: 1px solid #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
-.status-partial {
-  background: rgba(139, 92, 246, 0.2);
-  color: #8b5cf6;
-  border: 1px solid #8b5cf6;
+.status-badge.partial {
+  background: rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.3);
 }
 
-.status-success {
+.status-badge.paid {
   background: rgba(16, 185, 129, 0.2);
   color: #10b981;
-  border: 1px solid #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
-.status-error {
+.status-badge.flagged {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
-  border: 1px solid #ef4444;
-}
-
-.status-cancelled {
-  background: rgba(107, 114, 128, 0.2);
-  color: #6b7280;
-  border: 1px solid #6b7280;
-}
-
-.status-default {
-  background: rgba(255, 255, 255, 0.1);
-  color: #999999;
-  border: 1px solid #666666;
-}
-
-/* Flag Alert */
-.flag-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 15px;
-  padding: 15px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid #f59e0b;
-  border-radius: 6px;
-  margin-bottom: 20px;
-}
-
-.flag-icon {
-  font-size: 24px;
-  flex-shrink: 0;
-}
-
-.flag-content {
-  flex: 1;
-}
-
-.flag-reason {
-  font-weight: 600;
-  color: #f59e0b;
-  margin-bottom: 5px;
-}
-
-.flag-details {
-  font-size: 13px;
-  color: #b3b3b3;
-}
-
-.btn-unflag {
-  padding: 6px 12px;
-  background: #f59e0b;
-  color: #000000;
-  border: none;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-unflag:hover {
-  background: #f97316;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 /* Payouts Section */
 .payouts-section {
-  margin-top: 25px;
-  padding-top: 25px;
-  border-top: 1px solid #333333;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border, #333333);
 }
 
 .payouts-section h4 {
-  margin: 0 0 15px;
-  font-size: 16px;
-  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 12px 0;
 }
 
-.payouts-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #252525;
+.payouts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.payout-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: var(--bg-tertiary, #252525);
   border-radius: 6px;
-  overflow: hidden;
+  font-size: 14px;
 }
 
-.payouts-table thead {
-  background: #333333;
+.payout-stage {
+  flex: 1;
+  color: var(--text-primary, #ffffff);
+  font-weight: 500;
+  text-transform: capitalize;
 }
 
-.payouts-table th {
-  padding: 10px 12px;
-  text-align: left;
-  font-size: 12px;
-  color: #b3b3b3;
+.payout-percentage {
+  color: var(--text-dim, #666666);
+  font-size: 13px;
+}
+
+.payout-amount {
+  color: var(--text-primary, #ffffff);
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+.payout-status {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
-.payouts-table tbody tr {
-  border-bottom: 1px solid #333333;
+.payout-status.waiting {
+  background: rgba(107, 114, 128, 0.2);
+  color: #6b7280;
 }
 
-.payouts-table tbody tr:last-child {
-  border-bottom: none;
+.payout-status.pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
 }
 
-.payouts-table td {
-  padding: 12px;
-  font-size: 14px;
-  color: #ffffff;
+.payout-status.approved {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
 }
 
-.payouts-table td.amount {
-  font-weight: 600;
+.payout-status.paid {
+  background: rgba(16, 185, 129, 0.2);
   color: #10b981;
 }
 
-.payouts-table tfoot {
-  background: #1a1a1a;
-  border-top: 2px solid #333333;
+.payout-status.rejected {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
 }
 
-.payouts-table tfoot td {
+/* Flag Details */
+.flag-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px;
-  font-weight: 600;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+  margin-top: 16px;
 }
 
-.payouts-table tfoot td.total {
-  color: #dc2626;
+.flag-icon {
   font-size: 16px;
 }
 
-/* Commission Notes */
-.commission-notes {
-  margin-top: 25px;
-  padding: 15px;
-  background: #252525;
-  border: 1px solid #333333;
-  border-radius: 6px;
-}
-
-.commission-notes h4 {
-  margin: 0 0 10px;
+.flag-message {
+  flex: 1;
   font-size: 14px;
-  color: #ffffff;
-}
-
-.commission-notes p {
-  margin: 0;
-  font-size: 13px;
-  color: #b3b3b3;
-  line-height: 1.6;
-}
-
-/* Commission Metadata */
-.commission-metadata {
-  margin-top: 20px;
-  padding: 15px;
-  background: #252525;
-  border: 1px solid #333333;
-  border-radius: 6px;
-  display: flex;
-  gap: 30px;
-  flex-wrap: wrap;
-}
-
-.metadata-item {
-  display: flex;
-  gap: 10px;
-}
-
-.metadata-label {
-  font-size: 13px;
-  color: #999999;
-}
-
-.metadata-value {
-  font-size: 13px;
-  color: #ffffff;
+  color: #f59e0b;
+  text-transform: capitalize;
 }
 
 /* Card Actions */
 .card-actions {
-  display: flex;
-  gap: 10px;
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid #333333;
+  border-top: 1px solid var(--border, #333333);
+  text-align: center;
 }
 
-/* Buttons */
-.btn {
-  padding: 8px 16px;
-  border-radius: 4px;
+.view-link {
+  color: var(--accent, #dc2626);
+  text-decoration: none;
   font-size: 14px;
   font-weight: 500;
-  cursor: pointer;
   transition: all 0.2s;
-  text-decoration: none;
-  display: inline-block;
-  text-align: center;
-  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.btn-primary {
-  background: #dc2626;
-  color: #ffffff;
-  border-color: #dc2626;
+.view-link:hover {
+  color: var(--accent-hover, #ef4444);
+  transform: translateX(2px);
 }
 
-.btn-primary:hover {
-  background: #b91c1c;
-  border-color: #b91c1c;
-}
-
-.btn-secondary {
-  background: #252525;
-  color: #ffffff;
-  border-color: #333333;
-}
-
-.btn-secondary:hover {
-  background: #333333;
-  border-color: #444444;
-}
-
-/* Badge Styles in Table */
-.badge-warning {
-  background: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.badge-info {
-  background: rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.badge-success {
-  background: rgba(16, 185, 129, 0.2);
-  color: #10b981;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.badge-error {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.badge-default {
-  background: rgba(255, 255, 255, 0.1);
-  color: #999999;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .commission-summary {
-    grid-template-columns: 1fr;
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .card-header {
+    padding: 12px 16px;
   }
   
-  .payouts-table {
-    font-size: 12px;
+  .card-body {
+    padding: 16px;
   }
   
-  .payouts-table th,
-  .payouts-table td {
-    padding: 8px;
-  }
-  
-  .card-actions {
+  .info-row {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
   
-  .btn {
-    width: 100%;
+  .payout-item {
+    flex-wrap: wrap;
+    gap: 6px;
   }
   
-  .commission-metadata {
-    flex-direction: column;
-    gap: 10px;
+  .payout-stage {
+    flex: 1 1 100%;
   }
 }
 
-/* Loading Animation */
-@keyframes shimmer {
-  0% {
-    background-position: -468px 0;
-  }
-  100% {
-    background-position: 468px 0;
-  }
-}
-
-.card-loading {
-  background: linear-gradient(
-    to right,
-    #252525 8%,
-    #333333 18%,
-    #252525 33%
-  );
-  background-size: 936px 104px;
-  animation: shimmer 1.5s linear infinite;
+/* Dark theme consistency */
+.commission-status-card * {
+  box-sizing: border-box;
 }
