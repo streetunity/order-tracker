@@ -5,6 +5,9 @@ import { isAdminOrHigher, isManufacturer } from '../utils/roleHelpers.js';
 export function createOrdersRouter(prisma) {
   const router = express.Router();
 
+  // Get commission functions from global (set up in index.js)
+  const getCommissionFunctions = () => global.commissionFunctions || {};
+
   // Helper to build role-based where clause for orders
   async function buildRoleBasedWhere(user, additionalWhere = {}) {
     const where = { ...additionalWhere };
@@ -327,7 +330,7 @@ export function createOrdersRouter(prisma) {
     }
   });
 
-  // Create order - BLOCKED FOR MANUFACTURERS
+  // Create order - BLOCKED FOR MANUFACTURERS - WITH COMMISSION INTEGRATION
   router.post('/', async (req, res) => {
     try {
       // Block manufacturers from creating orders
@@ -390,6 +393,18 @@ export function createOrdersRouter(prisma) {
         
         return newOrder;
       });
+
+      // Create commission for the order (if sales person assigned)
+      try {
+        const { createCommissionForOrder } = getCommissionFunctions();
+        if (createCommissionForOrder && order.sku) {
+          await createCommissionForOrder(order);
+          console.log(`Commission created for order ${order.id} with sales person ${order.sku}`);
+        }
+      } catch (commissionError) {
+        console.error('Error creating commission:', commissionError);
+        // Don't fail the order creation if commission fails
+      }
 
       res.status(201).json(order);
     } catch (e) {
@@ -475,7 +490,9 @@ export function createOrdersRouter(prisma) {
         });
       }
       
-      if (sku !== undefined && sku !== original.sku) {
+      // Track if sales person (sku) is changing for commission update
+      const skuChanged = sku !== undefined && sku !== original.sku;
+      if (skuChanged) {
         data.sku = sku;
         changes.push({
           field: 'sku',
@@ -603,13 +620,62 @@ export function createOrdersRouter(prisma) {
         return updated;
       });
       
+      // Handle commission update if sales person changed
+      if (skuChanged) {
+        try {
+          const { createCommissionForOrder } = getCommissionFunctions();
+          if (createCommissionForOrder) {
+            // Check if commission exists
+            const existingCommission = await prisma.commission.findFirst({
+              where: { orderId: req.params.id }
+            });
+            
+            if (!existingCommission && sku) {
+              // Create new commission if sales person added
+              await createCommissionForOrder(order);
+              console.log(`Commission created for order ${order.id} with new sales person ${sku}`);
+            } else if (existingCommission && !sku) {
+              // Flag commission if sales person removed
+              await prisma.commission.update({
+                where: { id: existingCommission.id },
+                data: {
+                  isFlagged: true,
+                  flagReason: 'NO_SALES_REP',
+                  flagDetails: JSON.stringify({
+                    message: 'Sales person was removed from order',
+                    timestamp: new Date()
+                  })
+                }
+              });
+            } else if (existingCommission && sku) {
+              // Update commission with new sales person
+              await prisma.commission.update({
+                where: { id: existingCommission.id },
+                data: {
+                  salesPersonName: sku,
+                  isFlagged: true,
+                  flagReason: 'SALES_REP_CHANGED',
+                  flagDetails: JSON.stringify({
+                    oldSalesRep: original.sku,
+                    newSalesRep: sku,
+                    timestamp: new Date()
+                  })
+                }
+              });
+            }
+          }
+        } catch (commissionError) {
+          console.error('Error updating commission:', commissionError);
+        }
+      }
+      
       res.json(order);
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
 
-  // Delete order - BLOCKED FOR MANUFACTURERS
+  // Delete order - BLOCKED FOR MANUFACTURERS - WITH COMMISSION FLAGGING
   router.delete('/:id', async (req, res) => {
     try {
       // Block manufacturers from deleting orders
@@ -642,6 +708,31 @@ export function createOrdersRouter(prisma) {
           }
         });
         return res.status(403).json({ error: 'Cannot delete a locked order. Please unlock it first.' });
+      }
+
+      // Flag commission as orphaned before deleting order
+      try {
+        const commission = await prisma.commission.findFirst({
+          where: { orderId: req.params.id }
+        });
+        
+        if (commission) {
+          await prisma.commission.update({
+            where: { id: commission.id },
+            data: {
+              isFlagged: true,
+              flagReason: 'ORDER_DELETED',
+              flagDetails: JSON.stringify({
+                deletedAt: new Date(),
+                deletedBy: req.user.name,
+                message: 'Order was deleted, commission orphaned'
+              })
+            }
+          });
+          console.log(`Commission ${commission.id} flagged as orphaned due to order deletion`);
+        }
+      } catch (commissionError) {
+        console.error('Error flagging commission:', commissionError);
       }
 
       await prisma.$transaction(async (tx) => {
