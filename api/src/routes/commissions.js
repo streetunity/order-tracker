@@ -435,6 +435,52 @@ export function createCommissionsRouter(prisma) {
     }
   });
   
+  // Get commission by order ID
+  router.get('/order/:orderId', authGuard, async (req, res) => {
+    try {
+      const commission = await prisma.commission.findFirst({
+        where: { orderId: req.params.orderId },
+        include: {
+          payouts: {
+            orderBy: { stage: 'asc' }
+          },
+          order: {
+            select: {
+              id: true,
+              poNumber: true,
+              orderDate: true,
+              currentStage: true,
+              account: { select: { name: true } },
+              items: {
+                select: {
+                  productCode: true,
+                  qty: true,
+                  itemPrice: true
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      if (!commission) {
+        // Return null instead of error for non-existent commissions
+        // This allows the UI to handle orders without commissions gracefully
+        return res.json(null);
+      }
+      
+      // Check access - users can only see their own unless admin
+      if (commission.salesPersonName !== req.user.name && !canManageCommissions(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      res.json(commission);
+    } catch (error) {
+      console.error('Error fetching commission by order ID:', error);
+      res.status(500).json({ error: 'Failed to fetch commission' });
+    }
+  });
+  
   // Get single commission details
   router.get('/:id', authGuard, async (req, res) => {
     try {
