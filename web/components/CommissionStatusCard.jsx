@@ -1,286 +1,204 @@
-// Commission Status Card for Order Edit Page
+"use client";
 
-import { useState, useEffect } from 'react';
-import { formatCurrency, formatPercentage, getPayoutStatusStyle, formatDate } from '@/lib/commissionUtils';
-import './CommissionStatusCard.css';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import Link from "next/link";
+import "./CommissionStatusCard.css";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000';
 
 export default function CommissionStatusCard({ orderId, user }) {
-  const [loading, setLoading] = useState(true);
+  const { getAuthHeaders } = useAuth();
   const [commission, setCommission] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
+
+  // Check user permissions
+  const canViewCommission = user?.role === "SUPER_ADMIN" || 
+                           user?.role === "ACCOUNTANT" || 
+                           user?.role === "ADMIN";
 
   useEffect(() => {
-    if (orderId) {
-      fetchCommissionData();
+    if (orderId && canViewCommission) {
+      loadCommission();
     }
-  }, [orderId]);
+  }, [orderId, canViewCommission]);
 
-  const fetchCommissionData = async () => {
+  async function loadCommission() {
     try {
-      const headers = { 'x-auth-token': localStorage.getItem('token') };
-      const res = await fetch(`/api/commissions/order/${orderId}`, { headers });
-      
-      if (res.status === 404) {
-        // No commission for this order yet
-        setCommission(null);
-        setError('No commission calculated yet');
-      } else if (res.ok) {
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch(`${API_BASE}/commissions/order/${orderId}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (res.ok) {
         const data = await res.json();
         setCommission(data);
+      } else if (res.status === 404) {
+        // No commission exists for this order yet
+        setCommission(null);
       } else {
-        setError('Failed to load commission data');
+        throw new Error(`Failed to load commission: ${res.status}`);
       }
-    } catch (err) {
-      console.error('Error fetching commission:', err);
-      setError('Error loading commission data');
+    } catch (e) {
+      console.error("Failed to load commission:", e);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const handleRecalculate = async () => {
-    if (!commission || !confirm('Are you sure you want to recalculate this commission?')) {
-      return;
-    }
-
-    try {
-      const headers = { 
-        'x-auth-token': localStorage.getItem('token'),
-        'Content-Type': 'application/json'
-      };
-      
-      const res = await fetch(
-        `/api/commissions/${commission.id}/recalculate`,
-        { method: 'POST', headers }
-      );
-      
-      if (res.ok) {
-        const updatedCommission = await res.json();
-        setCommission(updatedCommission);
-        alert('Commission recalculated successfully');
-      } else {
-        const error = await res.text();
-        alert(`Failed to recalculate: ${error}`);
-      }
-    } catch (err) {
-      console.error('Error recalculating commission:', err);
-      alert('Error recalculating commission');
-    }
-  };
-
-  const handleUnflag = async () => {
-    if (!commission || !confirm('Are you sure you want to unflag this commission?')) {
-      return;
-    }
-
-    try {
-      const headers = { 
-        'x-auth-token': localStorage.getItem('token'),
-        'Content-Type': 'application/json'
-      };
-      
-      const res = await fetch(
-        `/api/commissions/${commission.id}/unflag`,
-        { 
-          method: 'POST', 
-          headers,
-          body: JSON.stringify({ reviewNotes: 'Manually unflagged by admin' })
-        }
-      );
-      
-      if (res.ok) {
-        const updatedCommission = await res.json();
-        setCommission(updatedCommission);
-        alert('Commission unflagged successfully');
-      } else {
-        const error = await res.text();
-        alert(`Failed to unflag: ${error}`);
-      }
-    } catch (err) {
-      console.error('Error unflagging commission:', err);
-      alert('Error unflagging commission');
-    }
-  };
+  // Don't show card if user doesn't have permission
+  if (!canViewCommission) {
+    return null;
+  }
 
   if (loading) {
     return (
       <div className="commission-status-card">
-        <div className="card-loading">Loading commission data...</div>
+        <div className="card-header">
+          <h3>💰 Commission Status</h3>
+        </div>
+        <div className="card-body">
+          <div className="loading-state">Loading commission data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="commission-status-card error">
+        <div className="card-header">
+          <h3>💰 Commission Status</h3>
+        </div>
+        <div className="card-body">
+          <div className="error-state">Failed to load commission data</div>
+        </div>
       </div>
     );
   }
 
   if (!commission) {
     return (
-      <div className="commission-status-card no-commission">
+      <div className="commission-status-card">
         <div className="card-header">
           <h3>💰 Commission Status</h3>
         </div>
-        <div className="card-content">
-          <p className="no-commission-message">{error || 'No commission calculated for this order'}</p>
-          <div className="card-help">
-            <p>Commission will be calculated when:</p>
-            <ul>
-              <li>Sales person (SKU) is assigned</li>
-              <li>Item prices are entered</li>
-              <li>Order is saved</li>
-            </ul>
+        <div className="card-body">
+          <div className="empty-state">
+            <p>No commission calculated yet</p>
+            <span className="help-text">Commission will be calculated when order has sales rep and item prices</span>
           </div>
         </div>
       </div>
     );
   }
 
-  const getStatusBadgeClass = (status) => {
-    const statusMap = {
-      'AWAITING_PRICES': 'status-warning',
-      'CALCULATED': 'status-info',
-      'PARTIAL_PAID': 'status-partial',
-      'FULLY_PAID': 'status-success',
-      'FLAGGED': 'status-error',
-      'CANCELLED': 'status-cancelled'
-    };
-    return statusMap[status] || 'status-default';
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
+  };
+
+  // Get status badge class
+  const getStatusClass = (status) => {
+    switch(status) {
+      case 'AWAITING_PRICES': return 'awaiting';
+      case 'CALCULATED': return 'calculated';
+      case 'PARTIAL_PAID': return 'partial';
+      case 'FULLY_PAID': return 'paid';
+      case 'FLAGGED': return 'flagged';
+      default: return '';
+    }
+  };
+
+  // Get payout status badge class
+  const getPayoutStatusClass = (status) => {
+    switch(status) {
+      case 'WAITING': return 'waiting';
+      case 'PENDING': return 'pending';
+      case 'APPROVED': return 'approved';
+      case 'PAID': return 'paid';
+      case 'REJECTED': return 'rejected';
+      default: return '';
+    }
   };
 
   return (
-    <div className={`commission-status-card ${commission.isFlagged ? 'flagged' : ''}`}>
+    <div className="commission-status-card">
       <div className="card-header">
         <h3>💰 Commission Status</h3>
-        <button 
-          className="toggle-details-btn"
-          onClick={() => setShowDetails(!showDetails)}
-        >
-          {showDetails ? 'Hide Details' : 'Show Details'}
-        </button>
+        {commission.isFlagged && (
+          <span className="flag-indicator" title={commission.flagReason}>⚠️ Flagged</span>
+        )}
       </div>
       
-      <div className="card-content">
-        <div className="commission-summary">
-          <div className="summary-item">
-            <span className="summary-label">Sales Rep:</span>
-            <span className="summary-value">{commission.salesPersonName || 'Not assigned'}</span>
+      <div className="card-body">
+        <div className="commission-info">
+          <div className="info-row">
+            <span className="label">Sales Rep:</span>
+            <span className="value">{commission.salesPersonName || 'Not assigned'}</span>
           </div>
-          <div className="summary-item">
-            <span className="summary-label">Rate:</span>
-            <span className="summary-value">{formatPercentage(commission.commissionRate)}</span>
+          
+          <div className="info-row">
+            <span className="label">Commission Rate:</span>
+            <span className="value">{commission.commissionRate}%</span>
           </div>
-          <div className="summary-item">
-            <span className="summary-label">Total Commission:</span>
-            <span className="summary-value highlight">
-              {formatCurrency(commission.totalCommissionAmount)}
-            </span>
+          
+          <div className="info-row">
+            <span className="label">Order Total:</span>
+            <span className="value">{formatCurrency(commission.orderTotalAmount)}</span>
           </div>
-          <div className="summary-item">
-            <span className="summary-label">Status:</span>
-            <span className={`status-badge ${getStatusBadgeClass(commission.status)}`}>
-              {commission.status}
+          
+          <div className="info-row highlight">
+            <span className="label">Total Commission:</span>
+            <span className="value large">{formatCurrency(commission.totalCommissionAmount)}</span>
+          </div>
+          
+          <div className="info-row">
+            <span className="label">Status:</span>
+            <span className={`status-badge ${getStatusClass(commission.status)}`}>
+              {commission.status.replace(/_/g, ' ')}
             </span>
           </div>
         </div>
 
-        {commission.isFlagged && (
-          <div className="flag-alert">
-            <div className="flag-icon">⚠️</div>
-            <div className="flag-content">
-              <div className="flag-reason">{commission.flagReason}</div>
-              {commission.flagDetails && (
-                <div className="flag-details">{commission.flagDetails}</div>
-              )}
-            </div>
-            {user && ['SUPER_ADMIN', 'ACCOUNTANT'].includes(user.role) && (
-              <button className="btn-unflag" onClick={handleUnflag}>Unflag</button>
-            )}
-          </div>
-        )}
-
-        {showDetails && commission.payouts && commission.payouts.length > 0 && (
+        {commission.payouts && commission.payouts.length > 0 && (
           <div className="payouts-section">
-            <h4>Payout Schedule</h4>
-            <table className="payouts-table">
-              <thead>
-                <tr>
-                  <th>Stage</th>
-                  <th>Percentage</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {commission.payouts.map((payout, idx) => (
-                  <tr key={idx}>
-                    <td>{payout.stage}</td>
-                    <td>{formatPercentage(payout.percentage)}</td>
-                    <td className="amount">{formatCurrency(payout.amount)}</td>
-                    <td>
-                      <span className={`status-badge ${getPayoutStatusStyle(payout.status)}`}>
-                        {payout.status}
-                      </span>
-                    </td>
-                    <td>
-                      {payout.paidAt ? formatDate(payout.paidAt, true) :
-                       payout.approvedAt ? formatDate(payout.approvedAt, true) :
-                       'Pending'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan="2">Total</td>
-                  <td className="amount total">
-                    {formatCurrency(commission.totalCommissionAmount)}
-                  </td>
-                  <td colSpan="2">
-                    {commission.payouts.filter(p => p.status === 'PAID').length} of {commission.payouts.length} paid
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-
-        {showDetails && commission.notes && (
-          <div className="commission-notes">
-            <h4>Notes</h4>
-            <p>{commission.notes}</p>
-          </div>
-        )}
-
-        {showDetails && commission.calculatedAt && (
-          <div className="commission-metadata">
-            <div className="metadata-item">
-              <span className="metadata-label">Calculated:</span>
-              <span className="metadata-value">{formatDate(commission.calculatedAt, true)}</span>
+            <h4>Payouts:</h4>
+            <div className="payouts-list">
+              {commission.payouts.map((payout, index) => (
+                <div key={payout.id || index} className="payout-item">
+                  <span className="payout-stage">{payout.stage.replace(/_/g, ' ')}</span>
+                  <span className="payout-percentage">({payout.percentage}%)</span>
+                  <span className="payout-amount">{formatCurrency(payout.amount)}</span>
+                  <span className={`payout-status ${getPayoutStatusClass(payout.status)}`}>
+                    {payout.status}
+                  </span>
+                </div>
+              ))}
             </div>
-            {commission.lastReviewedAt && (
-              <div className="metadata-item">
-                <span className="metadata-label">Last Reviewed:</span>
-                <span className="metadata-value">
-                  {formatDate(commission.lastReviewedAt, true)} by {commission.lastReviewedBy}
-                </span>
-              </div>
-            )}
+          </div>
+        )}
+
+        {commission.flagReason && (
+          <div className="flag-details">
+            <span className="flag-icon">⚠️</span>
+            <span className="flag-message">{commission.flagReason.replace(/_/g, ' ')}</span>
           </div>
         )}
 
         <div className="card-actions">
-          <a 
-            href={`/admin/commissions/${commission.id}`} 
-            className="btn btn-secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View Full Details
-          </a>
-          
-          {user && user.role === 'SUPER_ADMIN' && commission.status !== 'FULLY_PAID' && (
-            <button className="btn btn-primary" onClick={handleRecalculate}>
-              Recalculate
-            </button>
-          )}
+          <Link href={`/admin/commissions?orderId=${orderId}`} className="view-link">
+            View Full Commission Details →
+          </Link>
         </div>
       </div>
     </div>
