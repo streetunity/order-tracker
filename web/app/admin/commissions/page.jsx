@@ -339,7 +339,7 @@ export default function CommissionsPage() {
     <>
       <TopNav />
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "100px 24px 24px" }}>
-        <h1 style={{ fontSize: "32px", fontWeight: "700", marginBottom: "32px", color: "#ef4444" }}>
+        <h1 style={{ fontSize: "32px", fontWeight: "700", marginBottom: "32px", color: "#dc2626" }}>
           Commission Management
         </h1>
 
@@ -354,9 +354,9 @@ export default function CommissionsPage() {
                 style={{
                   padding: "12px 24px",
                   background: "none",
-                  color: activeTab === tab ? "#ef4444" : "#999",
+                  color: activeTab === tab ? "#dc2626" : "#999",
                   border: "none",
-                  borderBottom: activeTab === tab ? "2px solid #ef4444" : "2px solid transparent",
+                  borderBottom: activeTab === tab ? "2px solid #dc2626" : "2px solid transparent",
                   cursor: "pointer",
                   fontSize: "16px",
                   marginBottom: "-2px",
@@ -535,7 +535,7 @@ export default function CommissionsPage() {
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ color: "#999", fontSize: "14px" }}>Total Commission</div>
-                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "#ef4444" }}>
+                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "#dc2626" }}>
                           {formatCurrency(group.total)}
                         </div>
                       </div>
@@ -586,7 +586,7 @@ export default function CommissionsPage() {
                                 <td style={{ padding: "8px" }}>
                                   <a
                                     href={`/admin/orders/${payout.commission.orderId}`}
-                                    style={{ color: "#ef4444", textDecoration: "none" }}
+                                    style={{ color: "#dc2626", textDecoration: "none" }}
                                   >
                                     #{payout.commission.order?.poNumber || "N/A"}
                                   </a>
@@ -616,7 +616,7 @@ export default function CommissionsPage() {
                                     onClick={() => handleRejectPayout(payout.id)}
                                     style={{
                                       padding: "4px 12px",
-                                      background: "#ef4444",
+                                      background: "#dc2626",
                                       color: "white",
                                       border: "none",
                                       borderRadius: "4px",
@@ -722,7 +722,7 @@ export default function CommissionsPage() {
                           <td style={{ padding: "12px" }}>
                             <a
                               href={`/admin/orders/${payout.commission.orderId}`}
-                              style={{ color: "#ef4444", textDecoration: "none" }}
+                              style={{ color: "#dc2626", textDecoration: "none" }}
                             >
                               #{payout.commission.order?.poNumber || "N/A"}
                             </a>
@@ -792,7 +792,7 @@ export default function CommissionsPage() {
                           <td style={{ padding: "12px" }}>
                             <a
                               href={`/admin/orders/${payout.commission.orderId}`}
-                              style={{ color: "#ef4444", textDecoration: "none" }}
+                              style={{ color: "#dc2626", textDecoration: "none" }}
                             >
                               #{payout.commission.order?.poNumber || "N/A"}
                             </a>
@@ -869,7 +869,7 @@ export default function CommissionsPage() {
                             onClick={() => handleDeleteOrphanedCommission(commission.id)}
                             style={{
                               padding: "8px 16px",
-                              background: "#ef4444",
+                              background: "#dc2626",
                               color: "white",
                               border: "none",
                               borderRadius: "4px",
