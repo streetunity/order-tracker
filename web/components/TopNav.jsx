@@ -6,8 +6,6 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import "./TopNav.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000';
-
 export default function TopNav() {
   const { user, logout, getAuthHeaders, isAdmin } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -38,7 +36,7 @@ export default function TopNav() {
 
   async function loadNotificationCount() {
     try {
-      const res = await fetch(`${API_BASE}/notifications/stats`, {
+      const res = await fetch(`/api/notifications/stats`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
