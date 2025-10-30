@@ -1,0 +1,482 @@
+/* Commission Status Card Styles */
+
+.commission-status-card {
+  background: #1a1a1a;
+  border: 1px solid #333333;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.commission-status-card.flagged {
+  border-color: #f59e0b;
+}
+
+.commission-status-card.no-commission {
+  opacity: 0.8;
+}
+
+/* Card Header */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: #252525;
+  border-bottom: 1px solid #333333;
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.toggle-details-btn {
+  padding: 6px 12px;
+  background: #333333;
+  border: 1px solid #444444;
+  color: #ffffff;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-details-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* Card Content */
+.card-content {
+  padding: 20px;
+}
+
+.card-loading {
+  padding: 40px;
+  text-align: center;
+  color: #999999;
+}
+
+.no-commission-message {
+  color: #999999;
+  margin-bottom: 15px;
+}
+
+.card-help {
+  background: #252525;
+  border: 1px solid #333333;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 15px;
+}
+
+.card-help p {
+  margin: 0 0 10px;
+  color: #b3b3b3;
+  font-size: 14px;
+}
+
+.card-help ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.card-help li {
+  color: #999999;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+/* Commission Summary */
+.commission-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #999999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-value {
+  font-size: 16px;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.summary-value.highlight {
+  color: #dc2626;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid #f59e0b;
+}
+
+.status-info {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  border: 1px solid #3b82f6;
+}
+
+.status-partial {
+  background: rgba(139, 92, 246, 0.2);
+  color: #8b5cf6;
+  border: 1px solid #8b5cf6;
+}
+
+.status-success {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid #10b981;
+}
+
+.status-error {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+
+.status-cancelled {
+  background: rgba(107, 114, 128, 0.2);
+  color: #6b7280;
+  border: 1px solid #6b7280;
+}
+
+.status-default {
+  background: rgba(255, 255, 255, 0.1);
+  color: #999999;
+  border: 1px solid #666666;
+}
+
+/* Flag Alert */
+.flag-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.flag-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.flag-content {
+  flex: 1;
+}
+
+.flag-reason {
+  font-weight: 600;
+  color: #f59e0b;
+  margin-bottom: 5px;
+}
+
+.flag-details {
+  font-size: 13px;
+  color: #b3b3b3;
+}
+
+.btn-unflag {
+  padding: 6px 12px;
+  background: #f59e0b;
+  color: #000000;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-unflag:hover {
+  background: #f97316;
+}
+
+/* Payouts Section */
+.payouts-section {
+  margin-top: 25px;
+  padding-top: 25px;
+  border-top: 1px solid #333333;
+}
+
+.payouts-section h4 {
+  margin: 0 0 15px;
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.payouts-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #252525;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.payouts-table thead {
+  background: #333333;
+}
+
+.payouts-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: #b3b3b3;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.payouts-table tbody tr {
+  border-bottom: 1px solid #333333;
+}
+
+.payouts-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.payouts-table td {
+  padding: 12px;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.payouts-table td.amount {
+  font-weight: 600;
+  color: #10b981;
+}
+
+.payouts-table tfoot {
+  background: #1a1a1a;
+  border-top: 2px solid #333333;
+}
+
+.payouts-table tfoot td {
+  padding: 12px;
+  font-weight: 600;
+}
+
+.payouts-table tfoot td.total {
+  color: #dc2626;
+  font-size: 16px;
+}
+
+/* Commission Notes */
+.commission-notes {
+  margin-top: 25px;
+  padding: 15px;
+  background: #252525;
+  border: 1px solid #333333;
+  border-radius: 6px;
+}
+
+.commission-notes h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.commission-notes p {
+  margin: 0;
+  font-size: 13px;
+  color: #b3b3b3;
+  line-height: 1.6;
+}
+
+/* Commission Metadata */
+.commission-metadata {
+  margin-top: 20px;
+  padding: 15px;
+  background: #252525;
+  border: 1px solid #333333;
+  border-radius: 6px;
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.metadata-item {
+  display: flex;
+  gap: 10px;
+}
+
+.metadata-label {
+  font-size: 13px;
+  color: #999999;
+}
+
+.metadata-value {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+/* Card Actions */
+.card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #333333;
+}
+
+/* Buttons */
+.btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.btn-primary {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+.btn-primary:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.btn-secondary {
+  background: #252525;
+  color: #ffffff;
+  border-color: #333333;
+}
+
+.btn-secondary:hover {
+  background: #333333;
+  border-color: #444444;
+}
+
+/* Badge Styles in Table */
+.badge-warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-info {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-error {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-default {
+  background: rgba(255, 255, 255, 0.1);
+  color: #999999;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .commission-summary {
+    grid-template-columns: 1fr;
+  }
+  
+  .payouts-table {
+    font-size: 12px;
+  }
+  
+  .payouts-table th,
+  .payouts-table td {
+    padding: 8px;
+  }
+  
+  .card-actions {
+    flex-direction: column;
+  }
+  
+  .btn {
+    width: 100%;
+  }
+  
+  .commission-metadata {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+/* Loading Animation */
+@keyframes shimmer {
+  0% {
+    background-position: -468px 0;
+  }
+  100% {
+    background-position: 468px 0;
+  }
+}
+
+.card-loading {
+  background: linear-gradient(
+    to right,
+    #252525 8%,
+    #333333 18%,
+    #252525 33%
+  );
+  background-size: 936px 104px;
+  animation: shimmer 1.5s linear infinite;
+}
