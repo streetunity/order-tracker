@@ -5,6 +5,17 @@ import { isManufacturer, isAdminOrHigher } from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
 
+// Import commission functions from global scope
+const getCommissionFunctions = () => {
+  if (global.calculateCommissionForOrder && global.recalculateCommissionIfPriceChanged) {
+    return {
+      calculateCommissionForOrder: global.calculateCommissionForOrder,
+      recalculateCommissionIfPriceChanged: global.recalculateCommissionIfPriceChanged
+    };
+  }
+  return null;
+};
+
 export function createItemsRouter() {
   const router = express.Router();
 
@@ -71,7 +82,7 @@ export function createItemsRouter() {
       const orderId = String(req.params.orderId);
       const order = await prisma.order.findUnique({ 
         where: { id: orderId }, 
-        select: { id: true, isLocked: true } 
+        select: { id: true, isLocked: true, sku: true } 
       });
       
       if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -149,6 +160,20 @@ export function createItemsRouter() {
         return createdItems;
       });
       
+      // Check if we need to recalculate commission after adding items with prices
+      const hasItemsWithPrices = created.some(item => item.itemPrice && item.itemPrice > 0);
+      if (hasItemsWithPrices) {
+        const commissionFns = getCommissionFunctions();
+        if (commissionFns && commissionFns.recalculateCommissionIfPriceChanged) {
+          try {
+            console.log(`[COMMISSION] Recalculating commission for order ${orderId} after items added with prices`);
+            await commissionFns.recalculateCommissionIfPriceChanged(prisma, orderId);
+          } catch (error) {
+            console.error(`[COMMISSION] Error recalculating commission for order ${orderId}:`, error);
+          }
+        }
+      }
+      
       res.status(201).json(created);
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -220,11 +245,12 @@ export function createItemsRouter() {
       
       const order = await prisma.order.findUnique({
         where: { id: orderId },
-        select: { isLocked: true }
+        select: { isLocked: true, sku: true }
       });
       
       const data = {};
       const changes = [];
+      let priceChanged = false;
       
       // Archive/restore is allowed even when locked (but NOT for manufacturers)
       if (req.body.archivedAt !== undefined && !isManufacturer(req.user.role)) {
@@ -453,6 +479,7 @@ export function createItemsRouter() {
 
           if (newPrice !== item.itemPrice) {
             data.itemPrice = newPrice;
+            priceChanged = true; // Track that price changed
             changes.push({
               field: 'itemPrice',
               oldValue: item.itemPrice ? String(item.itemPrice) : 'null',
@@ -568,16 +595,17 @@ export function createItemsRouter() {
           const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
           const isSerialNumberOnly = changes.length === 1 && changes[0].field === 'serialNumber';
           const isOrderedUpdate = changes.some(c => ['isOrdered', 'orderedAt', 'orderedBy'].includes(c.field));
+          const isPriceUpdate = changes.some(c => c.field === 'itemPrice');
           
           await tx.auditLog.create({
             data: {
               entityType: isContainerUpdate ? 'Container' : (isMeasurementUpdate ? 'Measurement' : 'OrderItem'),
               entityId: itemId,
               parentEntityId: orderId,
-              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : (isSerialNumberOnly ? 'SERIAL_NUMBER_UPDATED' : (isOrderedUpdate ? 'ITEM_ORDERED' : 'ORDERITEM_UPDATED'))),
+              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : (isSerialNumberOnly ? 'SERIAL_NUMBER_UPDATED' : (isOrderedUpdate ? 'ITEM_ORDERED' : (isPriceUpdate ? 'ITEM_PRICE_UPDATED' : 'ORDERITEM_UPDATED')))),
               changes: JSON.stringify(changes),
-              metadata: (isContainerUpdate || isMeasurementUpdate || isSerialNumberOnly || isOrderedUpdate) ? JSON.stringify({
-                message: isContainerUpdate ? 'Containers updated' : (isMeasurementUpdate ? 'Measurements updated via item endpoint' : (isSerialNumberOnly ? 'Serial number updated' : (isOrderedUpdate ? 'Item marked as ordered' : 'Item updated'))),
+              metadata: (isContainerUpdate || isMeasurementUpdate || isSerialNumberOnly || isOrderedUpdate || isPriceUpdate) ? JSON.stringify({
+                message: isContainerUpdate ? 'Containers updated' : (isMeasurementUpdate ? 'Measurements updated via item endpoint' : (isSerialNumberOnly ? 'Serial number updated' : (isOrderedUpdate ? 'Item marked as ordered' : (isPriceUpdate ? 'Item price updated' : 'Item updated')))),
                 updatedFields: changes.map(c => c.field).join(', '),
                 updatedByRole: req.user.role
               }) : null,
@@ -589,6 +617,19 @@ export function createItemsRouter() {
         
         return updatedItem;
       });
+      
+      // If price changed, recalculate commission
+      if (priceChanged) {
+        const commissionFns = getCommissionFunctions();
+        if (commissionFns && commissionFns.recalculateCommissionIfPriceChanged) {
+          try {
+            console.log(`[COMMISSION] Recalculating commission for order ${orderId} after item price change`);
+            await commissionFns.recalculateCommissionIfPriceChanged(prisma, orderId);
+          } catch (error) {
+            console.error(`[COMMISSION] Error recalculating commission for order ${orderId}:`, error);
+          }
+        }
+      }
       
       res.json(updated);
     } catch (e) {
