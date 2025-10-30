@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import MeasurementSection from "@/components/MeasurementSection";
+import CommissionStatusCard from "@/components/CommissionStatusCard";
 
 // Import modularized components
 import UnlockDialog from "./components/UnlockDialog";
@@ -703,6 +704,11 @@ export default function EditOrderPage({ params }) {
               onRefresh={load}
               getAuthHeaders={getAuthHeaders}
             />
+
+            {/* Commission Status Card */}
+            {order && user && (
+              <CommissionStatusCard orderId={order.id} user={user} />
+            )}
 
             {order.auditLogs && order.auditLogs.length > 0 && (
               <section style={{ marginTop: 32 }}>
