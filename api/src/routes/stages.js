@@ -8,7 +8,10 @@ const prisma = new PrismaClient();
 export function createStagesRouter() {
   const router = express.Router();
 
-  // Update ORDER stage (affects all items in order)
+  // Get commission functions from global (set up in index.js)
+  const getCommissionFunctions = () => global.commissionFunctions || {};
+
+  // Update ORDER stage (affects all items in order) - WITH COMMISSION PAYOUT TRIGGER
   router.post('/:id/stage', async (req, res) => {
     try {
       // MANUFACTURERS CANNOT CHANGE ORDER-LEVEL STAGES - only item-level
@@ -25,8 +28,10 @@ export function createStagesRouter() {
       const order = await prisma.order.findUnique({ where: { id: req.params.id } });
       if (!order) return res.status(404).json({ error: 'Not found' });
 
-      if (!canAdvance(order.currentStage, nextStage, !!allowFastForward)) {
-        return res.status(400).json({ error: `Cannot move from ${order.currentStage} to ${nextStage}` });
+      const previousStage = order.currentStage;
+
+      if (!canAdvance(previousStage, nextStage, !!allowFastForward)) {
+        return res.status(400).json({ error: `Cannot move from ${previousStage} to ${nextStage}` });
       }
 
       const event = await prisma.$transaction(async (tx) => {
@@ -35,6 +40,18 @@ export function createStagesRouter() {
           data: { orderId: order.id, stage: nextStage, note: note ?? null, changedByUserId: req.user.id }
         });
       });
+
+      // Trigger commission payout if stage reached
+      try {
+        const { checkCommissionPayoutTrigger } = getCommissionFunctions();
+        if (checkCommissionPayoutTrigger) {
+          await checkCommissionPayoutTrigger(order.id, nextStage);
+          console.log(`Commission payout trigger checked for order ${order.id} stage ${nextStage}`);
+        }
+      } catch (commissionError) {
+        console.error('Error checking commission payout trigger:', commissionError);
+        // Don't fail the stage change if commission check fails
+      }
 
       res.json({ ok: true, event });
     } catch (e) {
@@ -123,6 +140,35 @@ export function createStagesRouter() {
 
         return statusEvent;
       });
+
+      // Check if all items have reached the stage to trigger commission payout
+      // (Optional: Only trigger if all items reach certain stage)
+      if (!isManufacturer(req.user.role)) {
+        try {
+          const allItems = await prisma.orderItem.findMany({
+            where: { orderId: orderId }
+          });
+          
+          // Check if all items have reached or passed the trigger stage
+          const triggerStages = ['SHIPPING', 'DELIVERED'];
+          if (triggerStages.includes(nextStage)) {
+            const allAtStage = allItems.every(i => 
+              i.id === itemId ? nextStage === nextStage : // Current item
+              STAGES.indexOf(i.currentStage) >= STAGES.indexOf(nextStage) // Other items
+            );
+            
+            if (allAtStage) {
+              const { checkCommissionPayoutTrigger } = getCommissionFunctions();
+              if (checkCommissionPayoutTrigger) {
+                await checkCommissionPayoutTrigger(orderId, nextStage);
+                console.log(`Commission payout trigger checked for order ${orderId} (all items at ${nextStage})`);
+              }
+            }
+          }
+        } catch (commissionError) {
+          console.error('Error checking commission payout trigger:', commissionError);
+        }
+      }
 
       res.json({ ok: true, event });
     } catch (e) {
