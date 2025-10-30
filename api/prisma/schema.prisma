@@ -7,6 +7,140 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ============================================
+// COMMISSION MODELS - Sales commission tracking
+// ============================================
+
+model Commission {
+  id                    String              @id @default(cuid())
+  orderId               String
+  salesPersonName       String              // Maps from order.sku
+  
+  // Calculated amounts (locked at calculation time)
+  orderTotalAmount      Float               // Sum of all item prices
+  commissionRate        Float               // Percentage (e.g., 5.0 = 5%)
+  totalCommissionAmount Float               // Total commission to be paid
+  
+  // Status tracking
+  status                String              // AWAITING_PRICES, CALCULATED, PARTIAL_PAID, FULLY_PAID, FLAGGED, CANCELLED
+  isFlagged             Boolean             @default(false)
+  flagReason            String?             // AWAITING_PRICES, NO_SALES_REP, PRICE_CHANGED, ORDER_DELETED
+  flagDetails           String?             // JSON: detailed flag info
+  
+  // Price snapshot for change detection
+  itemPricesSnapshot    String?             // JSON: [{itemId, productCode, price}]
+  
+  // Notes
+  notes                 String?             // General notes on commission
+  
+  // Audit fields
+  calculatedAt          DateTime?           // When fully calculated
+  lastReviewedAt        DateTime?           // Last admin review
+  lastReviewedBy        String?
+  reviewNotes           String?
+  
+  // Relations
+  order                 Order?              @relation(fields: [orderId], references: [id])
+  // NOTE: No onDelete Cascade - allows orphaned commissions
+  payouts               CommissionPayout[]
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  // Indexes for performance
+  @@index([salesPersonName])
+  @@index([status])
+  @@index([orderId])
+  @@index([isFlagged])
+  @@index([status, createdAt])
+  @@index([salesPersonName, status])
+  @@index([isFlagged, flagReason])
+}
+
+model CommissionPayout {
+  id              String      @id @default(cuid())
+  commissionId    String
+  
+  // Stage configuration
+  stage           String      // "SHIPPING", "DELIVERED", etc.
+  percentage      Float       // 50.0 = 50%
+  amount          Float       // Calculated payout amount
+  
+  // Status tracking
+  status          String      // WAITING, PENDING, APPROVED, PAID, REJECTED
+  
+  // Notes
+  notes           String?     // Payout-specific notes
+  
+  // Approval tracking
+  approvedAt      DateTime?
+  approvedByUserId String?
+  approvedByName  String?
+  approvalNotes   String?
+  
+  // Payment tracking
+  paidAt          DateTime?
+  paidByUserId    String?
+  paidByName      String?
+  paymentNotes    String?
+  paymentMethod   String?     // "Check", "Wire", "ACH", etc.
+  
+  // Rejection tracking
+  rejectedAt      DateTime?
+  rejectedByUserId String?
+  rejectedByName  String?
+  rejectionReason String?
+  
+  // Relations
+  commission      Commission  @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  // Indexes for performance
+  @@index([commissionId])
+  @@index([status])
+  @@index([stage])
+  @@index([status, createdAt])
+  @@index([stage, status])
+}
+
+model CommissionRate {
+  id              String   @id @default(cuid())
+  salesPersonName String   @unique  // Must match names in order.sku
+  rate            Float    // Percentage (e.g., 5.5 = 5.5%)
+  
+  // Audit
+  setByUserId     String?
+  setByName       String?
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([salesPersonName])
+}
+
+model CommissionStageSetting {
+  id              String   @id @default(cuid())
+  stage           String   @unique  // "SHIPPING", "DELIVERED", etc.
+  percentage      Float    // Must total 100% across all active stages
+  sortOrder       Int      // Display order (1, 2, 3...)
+  isActive        Boolean  @default(true)
+  
+  // Audit
+  updatedByUserId String?
+  updatedByName   String?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  
+  @@index([isActive, sortOrder])
+}
+
+// ============================================
+// EXISTING MODELS
+// ============================================
+
 model Account {
   id             String   @id @default(cuid())
   name           String
@@ -25,7 +159,7 @@ model Order {
   id              String              @id @default(cuid())
   accountId       String
   poNumber        String?
-  sku             String?
+  sku             String?             // Stores sales person name (keep as-is for commission)
   orderDate       DateTime?           // NEW FIELD: Actual order date from customer
   customerDocsLink String?            // Customer Documents Link (Dropbox URL)
   internalNotes   String?             // Internal notes for the order
@@ -42,10 +176,12 @@ model Order {
   lockedAt        DateTime?
   lockedBy        String?
   createdByUserId String?
+  
   account         Account             @relation(fields: [accountId], references: [id])
   items           OrderItem[]
   statusEvents    OrderStatusEvent[]
   createdBy       User?               @relation(fields: [createdByUserId], references: [id])
+  commissions     Commission[]        // NEW: Commission relation
 }
 
 model OrderItem {
@@ -124,10 +260,10 @@ model OrderItemStatusEvent {
 // Flexible audit log table that can handle any entity type
 model AuditLog {
   id                String   @id @default(cuid())
-  entityType        String   // "Order", "Account", "User", "OrderItem", "Manufacturer"
+  entityType        String   // "Order", "Account", "User", "OrderItem", "Manufacturer", "Commission"
   entityId          String   // ID of the entity being audited
   parentEntityId    String?  // Optional: orderId for OrderItems, etc.
-  action            String   // "CREATED", "UPDATED", "DELETED", "LOCKED", "ITEM_ORDERED", "ITEM_UNORDERED", etc.
+  action            String   // "CREATED", "UPDATED", "DELETED", "LOCKED", "ITEM_ORDERED", "ITEM_UNORDERED", "COMMISSION_APPROVED", etc.
   changes           String?  // JSON string of field changes
   metadata          String?  // JSON string of additional data (reason, notes, etc.)
   performedByUserId String?
@@ -167,22 +303,26 @@ model MeasurementAuditLog {
 }
 
 model User {
-  id                String                  @id @default(cuid())
-  email             String                  @unique
-  password          String
-  name              String
-  role              String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", or "MANUFACTURER"
-  isActive          Boolean                 @default(true)
-  canBeSalesRep     Boolean                 @default(true)  // NEW: Whether user appears in sales rep dropdown
-  lastLogin         DateTime?
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  createdOrders     Order[]
-  statusEvents      OrderStatusEvent[]
-  itemStatusEvents  OrderItemStatusEvent[]
-  auditLogs         AuditLog[]
-  notifications     Notification[]          // Notifications assigned to this user
-  manufacturer      Manufacturer?           // Link to manufacturer profile if role is MANUFACTURER
+  id                      String                  @id @default(cuid())
+  email                   String                  @unique
+  password                String
+  name                    String
+  role                    String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", "MANUFACTURER"
+  isActive                Boolean                 @default(true)
+  showInSalesRepDropdown  Boolean                 @default(true)  // NEW: Whether user appears in sales rep dropdown
+  lastLogin               DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  createdOrders           Order[]
+  statusEvents            OrderStatusEvent[]
+  itemStatusEvents        OrderItemStatusEvent[]
+  auditLogs               AuditLog[]
+  notifications           Notification[]          // Notifications assigned to this user
+  manufacturer            Manufacturer?           // Link to manufacturer profile if role is MANUFACTURER
+  
+  @@index([role])
+  @@index([isActive])
+  @@index([showInSalesRepDropdown])
 }
 
 // Manufacturer model - represents companies that manufacture items
