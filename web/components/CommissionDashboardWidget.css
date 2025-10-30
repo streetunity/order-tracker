@@ -1,0 +1,279 @@
+/* Commission Dashboard Widget Styles */
+
+.commission-dashboard-widget {
+  background: #1a1a1a;
+  border: 1px solid #333333;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.widget-loading {
+  text-align: center;
+  color: #999999;
+  padding: 40px 20px;
+}
+
+.widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.widget-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.view-all-link {
+  color: #dc2626;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.view-all-link:hover {
+  color: #ef4444;
+}
+
+/* Widget Cards Grid */
+.widget-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.widget-card {
+  background: #252525;
+  border: 1px solid #333333;
+  border-radius: 8px;
+  padding: 20px;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  transition: all 0.2s;
+}
+
+.widget-card:hover {
+  border-color: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+}
+
+.widget-card.flagged {
+  border-color: #f59e0b;
+}
+
+.widget-card.flagged:hover {
+  border-color: #f59e0b;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+/* Card Icon */
+.widget-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.widget-card-icon.pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+.widget-card-icon.money {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.widget-card-icon.chart {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+.widget-card-icon.warning {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+/* Card Content */
+.widget-card-content {
+  flex: 1;
+}
+
+.widget-card-label {
+  font-size: 13px;
+  color: #999999;
+  margin-bottom: 6px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.widget-card-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.widget-card-detail {
+  font-size: 13px;
+  color: #666666;
+  margin-top: 4px;
+}
+
+/* Card Link */
+.widget-card-link {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  color: #dc2626;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.widget-card:hover .widget-card-link {
+  opacity: 1;
+}
+
+.widget-card-link:hover {
+  color: #ef4444;
+  text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 1400px) {
+  .widget-cards {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .widget-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .widget-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .widget-card-link {
+    opacity: 1;
+  }
+  
+  .widget-card-value {
+    font-size: 24px;
+  }
+}
+
+/* Loading Animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.widget-loading {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Success/Error States */
+.widget-card.success {
+  border-color: #10b981;
+}
+
+.widget-card.error {
+  border-color: #ef4444;
+}
+
+/* Badge Styles */
+.widget-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.widget-badge.new {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.widget-badge.urgent {
+  background: #f59e0b;
+  color: #000000;
+}
+
+/* Tooltip */
+.widget-tooltip {
+  position: relative;
+  cursor: help;
+}
+
+.widget-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  background: #333333;
+  color: #ffffff;
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.widget-tooltip:hover::after {
+  opacity: 1;
+}
+
+/* Dark Mode Adjustments */
+@media (prefers-color-scheme: light) {
+  .commission-dashboard-widget {
+    background: #ffffff;
+    border-color: #e5e5e5;
+  }
+  
+  .widget-card {
+    background: #f9f9f9;
+    border-color: #e5e5e5;
+  }
+  
+  .widget-card-label {
+    color: #666666;
+  }
+  
+  .widget-card-value {
+    color: #000000;
+  }
+  
+  .widget-card-detail {
+    color: #999999;
+  }
+}
