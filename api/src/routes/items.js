@@ -2,6 +2,26 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { markItemAsOrdered, unmarkItemAsOrdered } from '../ordered-endpoints.js';
 import { isManufacturer, isAdminOrHigher } from '../utils/roleHelpers.js';
+import { 
+  canAccessItem, 
+  canCreateItems, 
+  canDeleteItems,
+  canMarkAsOrdered,
+  validateManufacturerFieldAccess,
+  LOCKED_ORDER_EDITABLE_FIELDS,
+  MEASUREMENT_FIELDS,
+  STRING_FIELDS
+} from '../helpers/itemPermissions.js';
+import {
+  extractItemsFromBody,
+  validateQuantity,
+  processStringField,
+  processNumericField,
+  buildFieldChange,
+  hasItemsWithPrices,
+  validateItemBelongsToOrder,
+  getAuditAction
+} from '../helpers/itemValidation.js';
 
 const prisma = new PrismaClient();
 
@@ -19,63 +39,11 @@ const getCommissionFunctions = () => {
 export function createItemsRouter() {
   const router = express.Router();
 
-  // Helper to check if user can access a specific item
-  async function canAccessItem(user, itemId) {
-    // Admins and higher can access all items
-    if (isAdminOrHigher(user.role)) return true;
-    
-    // Manufacturers: Check if item is assigned to them
-    if (isManufacturer(user.role)) {
-      if (!user.manufacturer || !user.manufacturer.id) return false;
-      
-      const item = await prisma.orderItem.findUnique({
-        where: { id: itemId },
-        select: { manufacturerId: true }
-      });
-      
-      if (!item) return false;
-      const hasAccess = item.manufacturerId === user.manufacturer.id;
-      
-      if (!hasAccess) {
-        console.log(`[ACCESS DENIED] Manufacturer ${user.name} tried to access item ${itemId} not assigned to them`);
-      }
-      
-      return hasAccess;
-    }
-    
-    // Agents: Check if item's order belongs to them
-    const item = await prisma.orderItem.findUnique({
-      where: { id: itemId },
-      include: { order: { select: { sku: true } } }
-    });
-    
-    if (!item) return false;
-    return item.order.sku === user.name;
-  }
-
-  function normalizeIncomingItems(items) {
-    return (Array.isArray(items) ? items : [])
-      .map((i) => ({
-        productCode: String(i?.productCode ?? i?.code ?? i?.name ?? '').trim(),
-        qty: Number(i?.qty ?? i?.quantity ?? i?.count ?? 1) || 1,
-        serialNumber: i?.serialNumber ? String(i.serialNumber).trim() : null,
-        modelNumber: i?.modelNumber ? String(i.modelNumber).trim() : null,
-        manufacturerId: (i?.manufacturerId === '' || i?.manufacturerId === null) ? null : (i?.manufacturerId ? String(i.manufacturerId).trim() : null),
-        voltage: i?.voltage ? String(i.voltage).trim() : null,
-        laserWattage: i?.laserWattage ? String(i.laserWattage).trim() : null,
-        notes: i?.notes ? String(i.notes).trim() : null,
-        hasExtendedShipping: i?.hasExtendedShipping === true,
-        itemPrice: i?.itemPrice ? parseFloat(i.itemPrice) : null,
-        privateItemNote: i?.privateItemNote ? String(i.privateItemNote).trim() : null
-      }))
-      .filter((i) => i.productCode.length > 0);
-  }
-
   // Create items - BLOCKED FOR MANUFACTURERS
   router.post('/:orderId/items', async (req, res) => {
     try {
-      // Block manufacturers from creating items
-      if (isManufacturer(req.user.role)) {
+      // Check permissions
+      if (!canCreateItems(req.user.role)) {
         return res.status(403).json({ error: 'Access denied. Manufacturers cannot create new items.' });
       }
 
@@ -102,16 +70,7 @@ export function createItemsRouter() {
         return res.status(403).json({ error: 'Cannot add items to a locked order. Please unlock it first.' });
       }
 
-      const body = req.body || {};
-      let items = [];
-
-      if (Array.isArray(body)) {
-        items = normalizeIncomingItems(body);
-      } else if (Array.isArray(body.items)) {
-        items = normalizeIncomingItems(body.items);
-      } else {
-        items = normalizeIncomingItems([body]);
-      }
+      const items = extractItemsFromBody(req.body);
 
       if (items.length === 0) return res.status(400).json({ error: 'No valid items provided' });
 
@@ -161,8 +120,7 @@ export function createItemsRouter() {
       });
       
       // Check if we need to recalculate commission after adding items with prices
-      const hasItemsWithPrices = created.some(item => item.itemPrice && item.itemPrice > 0);
-      if (hasItemsWithPrices) {
+      if (hasItemsWithPrices(created)) {
         const commissionFns = getCommissionFunctions();
         if (commissionFns && commissionFns.recalculateCommissionIfPriceChanged) {
           try {
@@ -186,61 +144,34 @@ export function createItemsRouter() {
       const { orderId, itemId } = req.params;
       
       // Check if user has access to this item
-      const hasAccess = await canAccessItem(req.user, itemId);
+      const hasAccess = await canAccessItem(req.user, itemId, prisma);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only edit items assigned to you.' });
       }
       
-      // MANUFACTURERS: Can ONLY edit serial number
-      if (isManufacturer(req.user.role)) {
-        // Check if they're trying to edit anything OTHER than serialNumber
-        const requestedFields = Object.keys(req.body);
-        const nonSerialFields = requestedFields.filter(f => f !== 'serialNumber');
-        
-        if (nonSerialFields.length > 0) {
-          console.log(`[ACCESS DENIED] Manufacturer ${req.user.name} tried to edit fields other than serialNumber: ${nonSerialFields.join(', ')}`);
-          return res.status(403).json({ 
-            error: 'Access denied. Manufacturers can only edit the serial number field.' 
-          });
-        }
-        
-        // If they're only editing serialNumber, allow it to proceed
-        console.log(`[ALLOWED] Manufacturer ${req.user.name} editing serial number for item ${itemId}`);
+      // Validate manufacturer field access
+      const accessCheck = validateManufacturerFieldAccess(req.body, req.user.role, req.user.name);
+      if (!accessCheck.allowed) {
+        return res.status(403).json({ error: accessCheck.error });
       }
 
       const item = await prisma.orderItem.findUnique({ 
         where: { id: itemId }, 
         select: { 
-          id: true, 
-          orderId: true,
-          productCode: true,
-          qty: true,
-          serialNumber: true,
-          modelNumber: true,
-          voltage: true,
-          laserWattage: true,
-          notes: true,
-          archivedAt: true,
-          currentStage: true,
-          height: true,
-          width: true,
-          length: true,
-          weight: true,
-          measurementUnit: true,
-          weightUnit: true,
-          itemPrice: true,
-          privateItemNote: true,
-          hasExtendedShipping: true,
-          containers: true,
-          manufacturerId: true,
-          isOrdered: true,
-          orderedAt: true,
-          orderedBy: true
+          id: true, orderId: true, productCode: true, qty: true,
+          serialNumber: true, modelNumber: true, voltage: true,
+          laserWattage: true, notes: true, archivedAt: true,
+          currentStage: true, height: true, width: true, length: true,
+          weight: true, measurementUnit: true, weightUnit: true,
+          itemPrice: true, privateItemNote: true, hasExtendedShipping: true,
+          containers: true, manufacturerId: true, isOrdered: true,
+          orderedAt: true, orderedBy: true
         } 
       });
       
-      if (!item || item.orderId !== orderId) {
-        return res.status(404).json({ error: 'Item not found for this order' });
+      const validation = await validateItemBelongsToOrder(prisma, itemId, orderId);
+      if (!validation.valid) {
+        return res.status(404).json({ error: validation.error });
       }
       
       const order = await prisma.order.findUnique({
@@ -252,119 +183,60 @@ export function createItemsRouter() {
       const changes = [];
       let priceChanged = false;
       
-      // Archive/restore is allowed even when locked (but NOT for manufacturers)
+      // Handle fields that can be edited even when locked
+      // Archive/restore
       if (req.body.archivedAt !== undefined && !isManufacturer(req.user.role)) {
         const newArchived = req.body.archivedAt ? new Date(req.body.archivedAt) : null;
-        const oldArchived = item.archivedAt;
-        
-        const oldArchivedStr = oldArchived ? oldArchived.toISOString() : null;
-        const newArchivedStr = newArchived ? newArchived.toISOString() : null;
-        
-        if (oldArchivedStr !== newArchivedStr) {
+        const change = buildFieldChange('archivedAt', item.archivedAt, newArchived);
+        if (change) {
           data.archivedAt = newArchived;
-          changes.push({
-            field: 'archivedAt',
-            oldValue: oldArchivedStr || 'null',
-            newValue: newArchivedStr || 'null'
-          });
+          changes.push(change);
         }
       }
       
-      // Containers are allowed even when locked (but NOT for manufacturers)
+      // Containers
       if (req.body.hasOwnProperty('containers') && !isManufacturer(req.user.role)) {
         const newContainers = typeof req.body.containers === 'string' 
           ? req.body.containers 
           : JSON.stringify(req.body.containers);
-          
-        if (newContainers !== item.containers) {
+        
+        const change = buildFieldChange('containers', item.containers, newContainers);
+        if (change) {
           data.containers = newContainers;
-          changes.push({
-            field: 'containers',
-            oldValue: item.containers || '[]',
-            newValue: newContainers
-          });
+          changes.push(change);
         }
       }
       
-      // Measurements are allowed even when locked (but NOT for manufacturers)
-      const measurementFields = ['height', 'width', 'length', 'weight', 'measurementUnit', 'weightUnit'];
-      const hasMeasurementFields = measurementFields.some(field => req.body.hasOwnProperty(field));
-      
+      // Measurements
+      const hasMeasurementFields = MEASUREMENT_FIELDS.some(field => req.body.hasOwnProperty(field));
       if (hasMeasurementFields && !isManufacturer(req.user.role)) {
-        // Process measurement fields
-        if (req.body.hasOwnProperty('height') && req.body.height !== item.height) {
-          data.height = req.body.height;
-          changes.push({
-            field: 'height',
-            oldValue: item.height ? String(item.height) : 'null',
-            newValue: req.body.height ? String(req.body.height) : 'null'
-          });
+        for (const field of MEASUREMENT_FIELDS) {
+          if (req.body.hasOwnProperty(field)) {
+            const newValue = ['height', 'width', 'length', 'weight'].includes(field) 
+              ? processNumericField(req.body[field])
+              : processStringField(req.body[field]);
+            
+            const change = buildFieldChange(field, item[field], newValue);
+            if (change) {
+              data[field] = newValue;
+              changes.push(change);
+            }
+          }
         }
         
-        if (req.body.hasOwnProperty('width') && req.body.width !== item.width) {
-          data.width = req.body.width;
-          changes.push({
-            field: 'width',
-            oldValue: item.width ? String(item.width) : 'null',
-            newValue: req.body.width ? String(req.body.width) : 'null'
-          });
-        }
-        
-        if (req.body.hasOwnProperty('length') && req.body.length !== item.length) {
-          data.length = req.body.length;
-          changes.push({
-            field: 'length',
-            oldValue: item.length ? String(item.length) : 'null',
-            newValue: req.body.length ? String(req.body.length) : 'null'
-          });
-        }
-        
-        if (req.body.hasOwnProperty('weight') && req.body.weight !== item.weight) {
-          data.weight = req.body.weight;
-          changes.push({
-            field: 'weight',
-            oldValue: item.weight ? String(item.weight) : 'null',
-            newValue: req.body.weight ? String(req.body.weight) : 'null'
-          });
-        }
-        
-        if (req.body.hasOwnProperty('measurementUnit') && req.body.measurementUnit !== item.measurementUnit) {
-          data.measurementUnit = req.body.measurementUnit;
-          changes.push({
-            field: 'measurementUnit',
-            oldValue: item.measurementUnit || 'null',
-            newValue: req.body.measurementUnit || 'null'
-          });
-        }
-        
-        if (req.body.hasOwnProperty('weightUnit') && req.body.weightUnit !== item.weightUnit) {
-          data.weightUnit = req.body.weightUnit;
-          changes.push({
-            field: 'weightUnit',
-            oldValue: item.weightUnit || 'null',
-            newValue: req.body.weightUnit || 'null'
-          });
-        }
-        
-        if (changes.some(c => measurementFields.includes(c.field))) {
+        if (changes.some(c => MEASUREMENT_FIELDS.includes(c.field))) {
           data.measuredAt = new Date();
           data.measuredBy = req.user.name;
         }
       }
       
-      // Serial number is ALWAYS editable by everyone (even manufacturers, even when locked)
+      // Serial number is ALWAYS editable by everyone
       if (req.body.hasOwnProperty('serialNumber')) {
-        const newSerialNumber = (req.body.serialNumber === '' || req.body.serialNumber === null)
-          ? null
-          : String(req.body.serialNumber).trim();
-        
-        if (newSerialNumber !== item.serialNumber) {
+        const newSerialNumber = processStringField(req.body.serialNumber);
+        const change = buildFieldChange('serialNumber', item.serialNumber, newSerialNumber);
+        if (change) {
           data.serialNumber = newSerialNumber;
-          changes.push({
-            field: 'serialNumber',
-            oldValue: item.serialNumber || 'null',
-            newValue: newSerialNumber || 'null'
-          });
+          changes.push(change);
         }
       }
       
@@ -377,18 +249,12 @@ export function createItemsRouter() {
           if (!req.body.hasOwnProperty(field)) return false;
           
           if (field === 'qty') {
-            const newQty = Number(req.body[field]);
-            return newQty !== item.qty;
+            const validation = validateQuantity(req.body[field]);
+            return validation.valid && validation.value !== item.qty;
           }
           
-          if (field === 'manufacturerId') {
-            const newManufacturerId = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
-            return newManufacturerId !== item.manufacturerId;
-          }
-          
-          const currentVal = item[field] || null;
-          const newVal = (req.body[field] === '' || req.body[field] === null) ? null : String(req.body[field]).trim();
-          return newVal !== currentVal;
+          const newVal = processStringField(req.body[field]);
+          return newVal !== item[field];
         });
 
         if (hasEditFieldChanges && order.isLocked) {
@@ -404,181 +270,130 @@ export function createItemsRouter() {
             }
           });
           return res.status(403).json({ 
-            error: 'Cannot edit item details in a locked order. Please unlock it first. Use /measurements endpoint for dimension updates.' 
+            error: 'Cannot edit item details in a locked order. Please unlock it first.' 
           });
         }
         
-        // Process all other fields (only if not locked)
-        if (req.body.hasOwnProperty('productCode') && typeof req.body.productCode === 'string') {
-          const newCode = req.body.productCode.trim();
-          if (newCode !== item.productCode) {
-            data.productCode = newCode;
-            changes.push({
-              field: 'productCode',
-              oldValue: item.productCode,
-              newValue: newCode
-            });
+        // Process fields (only if not locked)
+        if (!order.isLocked) {
+          // Product code
+          if (req.body.hasOwnProperty('productCode')) {
+            const newCode = processStringField(req.body.productCode);
+            const change = buildFieldChange('productCode', item.productCode, newCode);
+            if (change) {
+              data.productCode = newCode;
+              changes.push(change);
+            }
           }
-        }
-        
-        if (req.body.hasOwnProperty('qty')) {
-          const q = Number(req.body.qty);
-          if (!Number.isFinite(q) || q <= 0) {
-            return res.status(400).json({ error: 'qty must be a positive number' });
+          
+          // Quantity
+          if (req.body.hasOwnProperty('qty')) {
+            const validation = validateQuantity(req.body.qty);
+            if (!validation.valid) {
+              return res.status(400).json({ error: validation.error });
+            }
+            const change = buildFieldChange('qty', item.qty, validation.value);
+            if (change) {
+              data.qty = validation.value;
+              changes.push(change);
+            }
           }
-          if (q !== item.qty) {
-            data.qty = q;
-            changes.push({
-              field: 'qty',
-              oldValue: String(item.qty),
-              newValue: String(q)
-            });
+          
+          // String fields
+          for (const field of STRING_FIELDS) {
+            if (req.body.hasOwnProperty(field)) {
+              const newValue = processStringField(req.body[field]);
+              const change = buildFieldChange(field, item[field], newValue);
+              if (change) {
+                data[field] = newValue;
+                changes.push(change);
+              }
+            }
           }
-        }
-        
-        // Process other string fields (excluding serialNumber which was handled above)
-        const stringFields = ['modelNumber', 'voltage', 'laserWattage', 'notes'];
-        for (const field of stringFields) {
-          if (req.body.hasOwnProperty(field)) {
-            const newValue = (req.body[field] === '' || req.body[field] === null) 
-              ? null 
-              : String(req.body[field]).trim();
-            
-            if (newValue !== item[field]) {
-              data[field] = newValue;
-              changes.push({
-                field,
-                oldValue: item[field] || 'null',
-                newValue: newValue || 'null'
-              });
+          
+          // Manufacturer ID
+          if (req.body.hasOwnProperty('manufacturerId')) {
+            const newManufacturerId = processStringField(req.body.manufacturerId);
+            const change = buildFieldChange('manufacturerId', item.manufacturerId, newManufacturerId);
+            if (change) {
+              data.manufacturerId = newManufacturerId;
+              changes.push(change);
             }
           }
         }
 
-        // Handle manufacturerId (editable field but blocked when order is locked)
-        if (req.body.hasOwnProperty('manufacturerId')) {
-          const newManufacturerId = (req.body.manufacturerId === '' || req.body.manufacturerId === null)
-            ? null
-            : String(req.body.manufacturerId).trim();
-
-          if (newManufacturerId !== item.manufacturerId) {
-            data.manufacturerId = newManufacturerId;
-            changes.push({
-              field: 'manufacturerId',
-              oldValue: item.manufacturerId || 'null',
-              newValue: newManufacturerId || 'null'
-            });
-          }
-        }
-
-        // Handle itemPrice and privateItemNote (admin-only fields allowed even on locked orders)
+        // Fields editable even when locked
+        // Item price
         if (req.body.hasOwnProperty('itemPrice')) {
-          const newPrice = (req.body.itemPrice === '' || req.body.itemPrice === null)
-            ? null
-            : parseFloat(req.body.itemPrice);
-
-          if (newPrice !== item.itemPrice) {
+          const newPrice = processNumericField(req.body.itemPrice);
+          const change = buildFieldChange('itemPrice', item.itemPrice, newPrice);
+          if (change) {
             data.itemPrice = newPrice;
-            priceChanged = true; // Track that price changed
-            changes.push({
-              field: 'itemPrice',
-              oldValue: item.itemPrice ? String(item.itemPrice) : 'null',
-              newValue: newPrice ? String(newPrice) : 'null'
-            });
+            priceChanged = true;
+            changes.push(change);
           }
         }
 
+        // Private note
         if (req.body.hasOwnProperty('privateItemNote')) {
-          const newPrivateNote = (req.body.privateItemNote === '' || req.body.privateItemNote === null)
-            ? null
-            : String(req.body.privateItemNote).trim();
-
-          if (newPrivateNote !== item.privateItemNote) {
-            data.privateItemNote = newPrivateNote;
-            changes.push({
-              field: 'privateItemNote',
-              oldValue: item.privateItemNote || 'null',
-              newValue: newPrivateNote || 'null'
-            });
+          const newNote = processStringField(req.body.privateItemNote);
+          const change = buildFieldChange('privateItemNote', item.privateItemNote, newNote);
+          if (change) {
+            data.privateItemNote = newNote;
+            changes.push(change);
           }
         }
 
-        // Handle hasExtendedShipping (allowed even on locked orders - all users can edit)
+        // Extended shipping
         if (req.body.hasOwnProperty('hasExtendedShipping')) {
-          const newExtendedShipping = req.body.hasExtendedShipping === true;
-
-          if (newExtendedShipping !== (item.hasExtendedShipping || false)) {
-            data.hasExtendedShipping = newExtendedShipping;
-            changes.push({
-              field: 'hasExtendedShipping',
-              oldValue: String(item.hasExtendedShipping || false),
-              newValue: String(newExtendedShipping)
-            });
+          const newExtended = req.body.hasExtendedShipping === true;
+          const change = buildFieldChange('hasExtendedShipping', item.hasExtendedShipping || false, newExtended);
+          if (change) {
+            data.hasExtendedShipping = newExtended;
+            changes.push(change);
           }
         }
 
-        // Handle isOrdered and orderedAt (allowed even on locked orders)
+        // Ordered status
         if (req.body.hasOwnProperty('isOrdered')) {
           const newIsOrdered = req.body.isOrdered === true;
           
-          // If marking as ordered, also set orderedAt and orderedBy if not already set
           if (newIsOrdered && !item.isOrdered) {
             data.isOrdered = true;
             data.orderedAt = req.body.orderedAt ? new Date(req.body.orderedAt) : new Date();
             data.orderedBy = req.user.name;
             
-            changes.push({
-              field: 'isOrdered',
-              oldValue: 'false',
-              newValue: 'true'
-            });
-            changes.push({
-              field: 'orderedAt',
-              oldValue: 'null',
-              newValue: data.orderedAt.toISOString()
-            });
-            changes.push({
-              field: 'orderedBy',
-              oldValue: 'null',
-              newValue: req.user.name
-            });
-          }
-          // If unmarking as ordered, clear the orderedAt and orderedBy fields
-          else if (!newIsOrdered && item.isOrdered) {
+            changes.push(
+              buildFieldChange('isOrdered', false, true),
+              buildFieldChange('orderedAt', null, data.orderedAt),
+              buildFieldChange('orderedBy', null, req.user.name)
+            );
+          } else if (!newIsOrdered && item.isOrdered) {
             data.isOrdered = false;
             data.orderedAt = null;
             data.orderedBy = null;
             
-            changes.push({
-              field: 'isOrdered',
-              oldValue: 'true',
-              newValue: 'false'
-            });
-            changes.push({
-              field: 'orderedAt',
-              oldValue: item.orderedAt ? item.orderedAt.toISOString() : 'null',
-              newValue: 'null'
-            });
-            changes.push({
-              field: 'orderedBy',
-              oldValue: item.orderedBy || 'null',
-              newValue: 'null'
-            });
+            changes.push(
+              buildFieldChange('isOrdered', true, false),
+              buildFieldChange('orderedAt', item.orderedAt, null),
+              buildFieldChange('orderedBy', item.orderedBy, null)
+            );
           }
         }
         
+        // Current stage
         if (req.body.hasOwnProperty('currentStage')) {
           const newStage = req.body.currentStage;
-          if (newStage !== item.currentStage) {
+          const change = buildFieldChange('currentStage', item.currentStage, newStage);
+          if (change) {
             data.currentStage = newStage;
-            changes.push({
-              field: 'currentStage',
-              oldValue: item.currentStage || 'null',
-              newValue: newStage || 'null'
-            });
+            changes.push(change);
           }
         }
       }
+      
+      // Filter out null changes
+      const validChanges = changes.filter(c => c !== null);
       
       if (Object.keys(data).length === 0) {
         return res.json(item);
@@ -590,25 +405,21 @@ export function createItemsRouter() {
           data 
         });
         
-        if (changes.length > 0) {
-          const isContainerUpdate = changes.some(c => c.field === 'containers');
-          const isMeasurementUpdate = changes.every(c => measurementFields.includes(c.field));
-          const isSerialNumberOnly = changes.length === 1 && changes[0].field === 'serialNumber';
-          const isOrderedUpdate = changes.some(c => ['isOrdered', 'orderedAt', 'orderedBy'].includes(c.field));
-          const isPriceUpdate = changes.some(c => c.field === 'itemPrice');
+        if (validChanges.length > 0) {
+          const action = getAuditAction(validChanges);
           
           await tx.auditLog.create({
             data: {
-              entityType: isContainerUpdate ? 'Container' : (isMeasurementUpdate ? 'Measurement' : 'OrderItem'),
+              entityType: action?.includes('CONTAINER') ? 'Container' : (action?.includes('MEASUREMENT') ? 'Measurement' : 'OrderItem'),
               entityId: itemId,
               parentEntityId: orderId,
-              action: isContainerUpdate ? 'CONTAINERS_UPDATED' : (isMeasurementUpdate ? 'MEASUREMENTS_UPDATED' : (isSerialNumberOnly ? 'SERIAL_NUMBER_UPDATED' : (isOrderedUpdate ? 'ITEM_ORDERED' : (isPriceUpdate ? 'ITEM_PRICE_UPDATED' : 'ORDERITEM_UPDATED')))),
-              changes: JSON.stringify(changes),
-              metadata: (isContainerUpdate || isMeasurementUpdate || isSerialNumberOnly || isOrderedUpdate || isPriceUpdate) ? JSON.stringify({
-                message: isContainerUpdate ? 'Containers updated' : (isMeasurementUpdate ? 'Measurements updated via item endpoint' : (isSerialNumberOnly ? 'Serial number updated' : (isOrderedUpdate ? 'Item marked as ordered' : (isPriceUpdate ? 'Item price updated' : 'Item updated')))),
-                updatedFields: changes.map(c => c.field).join(', '),
+              action: action || 'ORDERITEM_UPDATED',
+              changes: JSON.stringify(validChanges),
+              metadata: JSON.stringify({
+                message: `Item updated`,
+                updatedFields: validChanges.map(c => c.field).join(', '),
                 updatedByRole: req.user.role
-              }) : null,
+              }),
               performedByUserId: req.user.id,
               performedByName: req.user.name
             }
@@ -641,27 +452,23 @@ export function createItemsRouter() {
   // Delete item - BLOCKED FOR MANUFACTURERS
   router.delete('/:orderId/items/:itemId', async (req, res) => {
     try {
-      // Block manufacturers from deleting items
-      if (isManufacturer(req.user.role)) {
+      if (!canDeleteItems(req.user.role)) {
         return res.status(403).json({ error: 'Access denied. Manufacturers cannot delete items.' });
       }
 
       const { orderId, itemId } = req.params;
       
-      // Check access for non-manufacturers
-      const hasAccess = await canAccessItem(req.user, itemId);
+      const hasAccess = await canAccessItem(req.user, itemId, prisma);
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied. You can only delete items assigned to you.' });
       }
 
-      const item = await prisma.orderItem.findUnique({ 
-        where: { id: itemId }, 
-        select: { id: true, orderId: true, productCode: true } 
-      });
-      
-      if (!item || item.orderId !== orderId) {
-        return res.status(404).json({ error: 'Item not found for this order' });
+      const validation = await validateItemBelongsToOrder(prisma, itemId, orderId);
+      if (!validation.valid) {
+        return res.status(404).json({ error: validation.error });
       }
+      
+      const item = validation.item;
       
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -694,8 +501,7 @@ export function createItemsRouter() {
             action: 'ITEM_DELETED',
             metadata: JSON.stringify({
               entity: 'OrderItem',
-              entityId: itemId,
-              productCode: item.productCode
+              entityId: itemId
             }),
             performedByUserId: req.user.id,
             performedByName: req.user.name
@@ -711,33 +517,28 @@ export function createItemsRouter() {
     }
   });
 
-  // Mark item as ordered - BLOCKED FOR MANUFACTURERS
+  // Mark item as ordered
   router.post('/:orderId/items/:itemId/ordered', async (req, res) => {
-    // Block manufacturers
-    if (isManufacturer(req.user.role)) {
+    if (!canMarkAsOrdered(req.user.role)) {
       return res.status(403).json({ error: 'Access denied. Manufacturers cannot mark items as ordered.' });
     }
-
     await markItemAsOrdered(req, res, prisma, req.user);
   });
 
-  // Unmark item as ordered - BLOCKED FOR MANUFACTURERS
+  // Unmark item as ordered
   router.post('/:orderId/items/:itemId/unordered', async (req, res) => {
-    // Block manufacturers
-    if (isManufacturer(req.user.role)) {
+    if (!canMarkAsOrdered(req.user.role)) {
       return res.status(403).json({ error: 'Access denied. Manufacturers cannot unmark items as ordered.' });
     }
-
     await unmarkItemAsOrdered(req, res, prisma, req.user);
   });
 
-  // Item stage change - MANUFACTURER CAN ONLY MOVE ASSIGNED ITEMS (THIS IS THE ONLY THING THEY CAN DO)
+  // Item stage change - MANUFACTURER CAN ONLY MOVE ASSIGNED ITEMS
   router.post('/:orderId/items/:itemId/stage', async (req, res) => {
     try {
       const { itemId } = req.params;
       
-      // Check if user has access to this item
-      const hasAccess = await canAccessItem(req.user, itemId);
+      const hasAccess = await canAccessItem(req.user, itemId, prisma);
       if (!hasAccess) {
         console.log(`[ACCESS DENIED] User ${req.user.name} (${req.user.role}) tried to change stage for item ${itemId}`);
         return res.status(403).json({ error: 'Access denied. You can only change stages for items assigned to you.' });
