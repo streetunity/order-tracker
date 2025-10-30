@@ -11,24 +11,24 @@ generator client {
 // COMMISSION MODELS - Sales commission tracking
 // ============================================
 
+// AGGREGATE COMMISSION - Order-level summary
 model Commission {
   id                    String              @id @default(cuid())
   orderId               String
   salesPersonName       String              // Maps from order.sku
   
-  // Calculated amounts (locked at calculation time)
-  orderTotalAmount      Float               // Sum of all item prices
+  // Calculated amounts (aggregate of all items)
+  orderSubtotal         Float               // Sum of all item prices (before discount)
+  orderDiscount         Float               @default(0) // Total order discount
+  orderNetTotal         Float               // Subtotal - discount
   commissionRate        Float               // Percentage (e.g., 5.0 = 5%)
-  totalCommissionAmount Float               // Total commission to be paid
+  totalCommissionAmount Float               // Total commission across all items
   
   // Status tracking
   status                String              // AWAITING_PRICES, CALCULATED, PARTIAL_PAID, FULLY_PAID, FLAGGED, CANCELLED
   isFlagged             Boolean             @default(false)
   flagReason            String?             // AWAITING_PRICES, NO_SALES_REP, PRICE_CHANGED, ORDER_DELETED
   flagDetails           String?             // JSON: detailed flag info
-  
-  // Price snapshot for change detection
-  itemPricesSnapshot    String?             // JSON: [{itemId, productCode, price}]
   
   // Notes
   notes                 String?             // General notes on commission
@@ -42,7 +42,7 @@ model Commission {
   // Relations
   order                 Order?              @relation(fields: [orderId], references: [id])
   // NOTE: No onDelete Cascade - allows orphaned commissions
-  payouts               CommissionPayout[]
+  itemCommissions       ItemCommission[]    // Individual item commissions
   
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
@@ -57,47 +57,91 @@ model Commission {
   @@index([isFlagged, flagReason])
 }
 
-model CommissionPayout {
-  id              String      @id @default(cuid())
-  commissionId    String
+// ITEM-LEVEL COMMISSION - Per-item tracking with discount allocation
+model ItemCommission {
+  id                    String              @id @default(cuid())
+  commissionId          String              // Parent aggregate commission
+  itemId                String              // OrderItem this applies to
+  orderId               String              // Denormalized for queries
   
-  // Stage configuration
-  stage           String      // "SHIPPING", "DELIVERED", etc.
-  percentage      Float       // 50.0 = 50%
-  amount          Float       // Calculated payout amount
+  // Item details (snapshot at calculation time)
+  productCode           String
+  qty                   Int
+  itemPrice             Float               // Total price for this item (price × qty)
   
-  // Status tracking
-  status          String      // WAITING, PENDING, APPROVED, PAID, REJECTED
+  // Discount allocation (proportional)
+  itemSubtotal          Float               // itemPrice
+  allocatedDiscount     Float               // Proportional share of order discount
+  discountPercentage    Float               // What % of order discount this item received
+  netAmount             Float               // itemSubtotal - allocatedDiscount
   
-  // Notes
-  notes           String?     // Payout-specific notes
+  // Commission calculation
+  commissionRate        Float               // Rate at time of calculation
+  commissionAmount      Float               // netAmount × rate / 100
   
-  // Approval tracking
-  approvedAt      DateTime?
-  approvedByUserId String?
-  approvedByName  String?
-  approvalNotes   String?
-  
-  // Payment tracking
-  paidAt          DateTime?
-  paidByUserId    String?
-  paidByName      String?
-  paymentNotes    String?
-  paymentMethod   String?     // "Check", "Wire", "ACH", etc.
-  
-  // Rejection tracking
-  rejectedAt      DateTime?
-  rejectedByUserId String?
-  rejectedByName  String?
-  rejectionReason String?
+  // Status tracking (item-level)
+  status                String              @default("CALCULATED") // CALCULATED, PARTIAL_PAID, FULLY_PAID
   
   // Relations
-  commission      Commission  @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  commission            Commission          @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  item                  OrderItem?          @relation(fields: [itemId], references: [id])
+  payouts               CommissionPayout[]  // Payouts for this specific item
   
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  
+  @@index([commissionId])
+  @@index([itemId])
+  @@index([orderId])
+  @@index([status])
+}
+
+// PAYOUT - Now linked to individual item commissions
+model CommissionPayout {
+  id                  String          @id @default(cuid())
+  itemCommissionId    String          // Link to specific item commission
+  commissionId        String          // Denormalized for reporting
+  
+  // Stage configuration
+  stage               String          // "SHIPPING", "DELIVERED", etc.
+  percentage          Float           // 50.0 = 50%
+  amount              Float           // Calculated payout amount for this item
+  
+  // Status tracking
+  status              String          // WAITING, PENDING, APPROVED, PAID, REJECTED
+  triggeredByItemId   String?         // Which item triggered this payout
+  triggeredAt         DateTime?       // When item reached the stage
+  
+  // Notes
+  notes               String?         // Payout-specific notes
+  
+  // Approval tracking
+  approvedAt          DateTime?
+  approvedByUserId    String?
+  approvedByName      String?
+  approvalNotes       String?
+  
+  // Payment tracking
+  paidAt              DateTime?
+  paidByUserId        String?
+  paidByName          String?
+  paymentNotes        String?
+  paymentMethod       String?         // "Check", "Wire", "ACH", etc.
+  
+  // Rejection tracking
+  rejectedAt          DateTime?
+  rejectedByUserId    String?
+  rejectedByName      String?
+  rejectionReason     String?
+  
+  // Relations
+  itemCommission      ItemCommission  @relation(fields: [itemCommissionId], references: [id], onDelete: Cascade)
+  
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
   
   // Indexes for performance
+  @@index([itemCommissionId])
   @@index([commissionId])
   @@index([status])
   @@index([stage])
@@ -137,6 +181,18 @@ model CommissionStageSetting {
   @@index([isActive, sortOrder])
 }
 
+// Commission system settings
+model CommissionSettings {
+  id              String   @id @default(cuid())
+  defaultRate     Float    @default(5.0)  // Default commission rate
+  
+  // Audit
+  updatedByUserId String?
+  updatedByName   String?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+}
+
 // ============================================
 // EXISTING MODELS
 // ============================================
@@ -160,7 +216,7 @@ model Order {
   accountId       String
   poNumber        String?
   sku             String?             // Stores sales person name (keep as-is for commission)
-  orderDate       DateTime?           // NEW FIELD: Actual order date from customer
+  orderDate       DateTime?           // Actual order date from customer
   customerDocsLink String?            // Customer Documents Link (Dropbox URL)
   internalNotes   String?             // Internal notes for the order
   discount        Float?              @default(0) // Discount amount (stored as positive, calculated as negative)
@@ -181,7 +237,7 @@ model Order {
   items           OrderItem[]
   statusEvents    OrderStatusEvent[]
   createdBy       User?               @relation(fields: [createdByUserId], references: [id])
-  commissions     Commission[]        // NEW: Commission relation
+  commissions     Commission[]        // Commission relation
 }
 
 model OrderItem {
@@ -224,15 +280,18 @@ model OrderItem {
   // MULTI-CONTAINER SUPPORT - Using String for SQLite compatibility
   containers     String?  @default("[]") // JSON string of container objects
   
-  currentStage   String   @default("MANUFACTURING") // FIXED: Added default value and made non-nullable
+  currentStage   String   @default("MANUFACTURING")
   archivedAt     DateTime?
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
   order          Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   statusEvents   OrderItemStatusEvent[]
   measurementLogs MeasurementAuditLog[]
+  itemCommissions ItemCommission[]       // Item commission tracking
   
   @@index([manufacturerId])
+  @@index([orderId])
+  @@index([currentStage])
 }
 
 model OrderStatusEvent {
@@ -309,7 +368,7 @@ model User {
   name                    String
   role                    String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", "MANUFACTURER"
   isActive                Boolean                 @default(true)
-  showInSalesRepDropdown  Boolean                 @default(true)  // NEW: Whether user appears in sales rep dropdown
+  showInSalesRepDropdown  Boolean                 @default(true)  // Whether user appears in sales rep dropdown
   lastLogin               DateTime?
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
