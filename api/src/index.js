@@ -25,6 +25,8 @@ import { createAuditRouter } from './routes/audit.js';
 import { createPublicRouter } from './routes/public.js';
 import { createNotificationsRouter } from './routes/notifications.js';
 import { createManufacturersRouter } from './routes/manufacturers.js';
+import { createCommissionsRouter } from './routes/commissions.js';
+import { createCommissionSettingsRouter } from './routes/commissionSettings.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -103,6 +105,15 @@ const auditRouter = createAuditRouter();
 const publicRouter = createPublicRouter();
 const notificationsRouter = createNotificationsRouter(prisma);
 const manufacturersRouter = createManufacturersRouter(prisma);
+const commissionsRouter = createCommissionsRouter(prisma);
+const commissionSettingsRouter = createCommissionSettingsRouter(prisma);
+
+// Make commission functions available globally for use in orders/items
+global.commissionFunctions = {
+  createCommissionForOrder: commissionsRouter.createCommissionForOrder,
+  checkAndRecalculateCommission: commissionsRouter.checkAndRecalculateCommission,
+  checkCommissionPayoutTrigger: commissionsRouter.checkCommissionPayoutTrigger
+};
 
 // =============================
 // Mount Routes
@@ -175,6 +186,11 @@ app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 // Notifications API (auth required, role-filtered)
 app.use('/notifications', authGuard, notificationsRouter);
 console.log('✅ Notifications API loaded');
+
+// Commission management (auth required, role-based access)
+app.use('/commissions', authGuard, commissionsRouter);
+app.use('/commission-settings', authGuard, commissionSettingsRouter);
+console.log('✅ Commission module loaded');
 
 // =============================
 // Sales by Month Report (special endpoint that wasn't modularized)
