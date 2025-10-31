@@ -64,8 +64,8 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={formData.canBeSalesRep}
-                onChange={(e) => setFormData({ ...formData, canBeSalesRep: e.target.checked })}
+                checked={formData.showInSalesRepDropdown}
+                onChange={(e) => setFormData({ ...formData, showInSalesRepDropdown: e.target.checked })}
               />
               Show in Sales Rep dropdown
             </label>
