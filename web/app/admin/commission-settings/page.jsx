@@ -84,10 +84,10 @@ export default function CommissionSettingsPage() {
       }
 
       // Fetch users who can be sales reps
-      const usersRes = await fetch("/api/users", { headers });
+      const usersRes = await fetch("/api/commission-settings/sales-reps", { headers });
       if (usersRes.ok) {
         const data = await usersRes.json();
-        setSalesReps(data.filter(u => u.showInSalesRepDropdown && u.isActive));
+        setSalesReps(data);
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
