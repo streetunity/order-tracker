@@ -450,14 +450,11 @@ export function createCommissionSettingsRouter(prisma) {
         return res.status(403).json({ error: 'Only Super Admins can view sales rep list' });
       }
       
-      // Get all users who show in sales rep dropdown or have commissions
+      // Get all users who are flagged to show in sales rep dropdown
       const users = await prisma.user.findMany({
         where: {
-          OR: [
-            { showInSalesRepDropdown: true },
-            { role: 'AGENT' },
-            { role: 'ADMIN' }
-          ],
+          showInSalesRepDropdown: true,
+          isActive: true,
           role: {
             not: 'ACCOUNTANT'
           }
