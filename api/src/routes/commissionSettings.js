@@ -1,5 +1,6 @@
 import express from 'express';
 import { adminGuard } from '../middleware/auth.js';
+import { recalculateAllCommissions } from '../helpers/commission.js';
 
 export function createCommissionSettingsRouter(prisma) {
   const router = express.Router();
@@ -610,6 +611,44 @@ export function createCommissionSettingsRouter(prisma) {
     } catch (error) {
       console.error('Error resetting rates:', error);
       res.status(500).json({ error: 'Failed to reset rates' });
+    }
+  });
+  
+  // ==========================================
+  // RECALCULATE ALL COMMISSIONS
+  // ==========================================
+  
+  // Recalculate all unpaid commissions - applies rate and stage setting changes
+  router.post('/recalculate-all', async (req, res) => {
+    try {
+      if (!canManageSettings(req.user.role)) {
+        return res.status(403).json({ error: 'Only Super Admins can recalculate all commissions' });
+      }
+      
+      const { reason } = req.body;
+      
+      if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+        return res.status(400).json({ error: 'Reason for recalculation is required' });
+      }
+      
+      console.log(`[COMMISSION RECALC] Starting bulk recalculation by ${req.user.name}: ${reason}`);
+      
+      // Call the recalculate function
+      const results = await recalculateAllCommissions(req.user.id, req.user.name, reason);
+      
+      console.log(`[COMMISSION RECALC] Complete: ${results.recalculated} recalculated, ${results.skipped} skipped, ${results.failed} failed`);
+      
+      res.json({
+        success: true,
+        message: `Recalculated ${results.recalculated} commissions, skipped ${results.skipped} with paid payouts, ${results.failed} failed`,
+        results
+      });
+    } catch (error) {
+      console.error('Error recalculating all commissions:', error);
+      res.status(500).json({ 
+        error: 'Failed to recalculate commissions', 
+        details: error.message 
+      });
     }
   });
   
