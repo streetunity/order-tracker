@@ -20,6 +20,7 @@ export default function CommissionsPage() {
   const [paymentMethod, setPaymentMethod] = useState("Check");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [approvalNotes, setApprovalNotes] = useState("");
+  const [debugInfo, setDebugInfo] = useState(null); // NEW: Debug information
 
   useEffect(() => {
     if (!user) {
@@ -34,14 +35,50 @@ export default function CommissionsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setDebugInfo(null); // Clear previous debug info
       const headers = { Authorization: `Bearer ${user.token}` };
 
       switch (activeTab) {
         case "pending":
+          console.log("🔍 Fetching pending payouts...");
           const pendingRes = await fetch("/api/commissions/payouts/pending", { headers });
+          console.log("📡 Response status:", pendingRes.status, pendingRes.statusText);
+          
+          // NEW: Enhanced error handling and logging
           if (pendingRes.ok) {
             const data = await pendingRes.json();
+            console.log("✅ Received data:", data);
+            console.log("📊 Data type:", Array.isArray(data) ? "Array" : typeof data);
+            console.log("📈 Array length:", Array.isArray(data) ? data.length : "N/A");
+            
+            if (Array.isArray(data) && data.length > 0) {
+              console.log("📦 First group structure:", JSON.stringify(data[0], null, 2));
+            }
+            
             setPayoutGroups(data);
+            setDebugInfo({
+              status: "success",
+              dataReceived: true,
+              dataType: Array.isArray(data) ? "Array" : typeof data,
+              length: Array.isArray(data) ? data.length : 0,
+              sample: data[0] || null
+            });
+          } else {
+            const errorText = await pendingRes.text();
+            console.error("❌ API Error:", {
+              status: pendingRes.status,
+              statusText: pendingRes.statusText,
+              errorBody: errorText
+            });
+            
+            setDebugInfo({
+              status: "error",
+              httpStatus: pendingRes.status,
+              statusText: pendingRes.statusText,
+              errorBody: errorText
+            });
+            
+            alert(`Failed to fetch pending payouts: ${pendingRes.status} ${pendingRes.statusText}`);
           }
           break;
 
@@ -50,6 +87,8 @@ export default function CommissionsPage() {
           if (flaggedRes.ok) {
             const data = await flaggedRes.json();
             setFlaggedCommissions(data);
+          } else {
+            console.error("Failed to fetch flagged commissions:", flaggedRes.status);
           }
           break;
 
@@ -58,6 +97,8 @@ export default function CommissionsPage() {
           if (approvedRes.ok) {
             const data = await approvedRes.json();
             setApprovedPayouts(data);
+          } else {
+            console.error("Failed to fetch approved payouts:", approvedRes.status);
           }
           break;
 
@@ -66,6 +107,8 @@ export default function CommissionsPage() {
           if (paidRes.ok) {
             const data = await paidRes.json();
             setRecentlyPaid(data);
+          } else {
+            console.error("Failed to fetch paid payouts:", paidRes.status);
           }
           break;
 
@@ -74,6 +117,8 @@ export default function CommissionsPage() {
           if (orphanedRes.ok) {
             const data = await orphanedRes.json();
             setOrphanedCommissions(data);
+          } else {
+            console.error("Failed to fetch orphaned commissions:", orphanedRes.status);
           }
           break;
 
@@ -84,7 +129,13 @@ export default function CommissionsPage() {
           break;
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("❌ Exception while fetching data:", error);
+      setDebugInfo({
+        status: "exception",
+        error: error.message,
+        stack: error.stack
+      });
+      alert(`Error fetching data: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -92,7 +143,7 @@ export default function CommissionsPage() {
 
   const handleApprovePayout = async (payoutId) => {
     try {
-      const res = await fetch(`/api/commissions/payout/${payoutId}/approve`, {
+      const res = await fetch(`/api/commissions/payouts/${payoutId}/approve`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -105,7 +156,8 @@ export default function CommissionsPage() {
         alert("Payout approved successfully");
         fetchData();
       } else {
-        alert("Failed to approve payout");
+        const error = await res.text();
+        alert(`Failed to approve payout: ${error}`);
       }
     } catch (error) {
       console.error("Error approving payout:", error);
@@ -118,7 +170,7 @@ export default function CommissionsPage() {
     if (!rejectionReason) return;
 
     try {
-      const res = await fetch(`/api/commissions/payout/${payoutId}/reject`, {
+      const res = await fetch(`/api/commissions/payouts/${payoutId}/reject`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -174,7 +226,7 @@ export default function CommissionsPage() {
 
   const handleMarkAsPaid = async (payoutId) => {
     try {
-      const res = await fetch(`/api/commissions/payout/${payoutId}/pay`, {
+      const res = await fetch(`/api/commissions/payouts/${payoutId}/pay`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -342,6 +394,26 @@ export default function CommissionsPage() {
         <h1 style={{ fontSize: "32px", fontWeight: "700", marginBottom: "32px", color: "#dc2626" }}>
           Commission Management
         </h1>
+
+        {/* DEBUG PANEL - Shows API response info */}
+        {debugInfo && (
+          <div style={{
+            background: debugInfo.status === "success" ? "#1a3a1a" : "#3a1a1a",
+            border: `2px solid ${debugInfo.status === "success" ? "#10b981" : "#dc2626"}`,
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "20px",
+            fontFamily: "monospace",
+            fontSize: "12px"
+          }}>
+            <div style={{ color: "#fff", fontWeight: "bold", marginBottom: "8px" }}>
+              🔍 DEBUG INFO - {debugInfo.status.toUpperCase()}
+            </div>
+            <pre style={{ margin: 0, color: "#ccc", whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "30px", borderBottom: "2px solid #333" }}>
@@ -529,7 +601,7 @@ export default function CommissionsPage() {
                         <div>
                           <div style={{ fontWeight: "600", fontSize: "16px" }}>{group.salesPerson}</div>
                           <div style={{ color: "#999", fontSize: "14px" }}>
-                            {group.payouts.length} orders • Rate: {group.payouts[0]?.commission?.commissionRate || 0}%
+                            {group.payouts.length} orders • Rate: {group.payouts[0]?.itemCommission?.commission?.commissionRate || 0}%
                           </div>
                         </div>
                       </div>
@@ -585,10 +657,10 @@ export default function CommissionsPage() {
                                 </td>
                                 <td style={{ padding: "8px" }}>
                                   <a
-                                    href={`/admin/orders/${payout.commission.orderId}`}
+                                    href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                                     style={{ color: "#dc2626", textDecoration: "none" }}
                                   >
-                                    #{payout.commission.order?.poNumber || "N/A"}
+                                    #{payout.itemCommission.commission.order?.poNumber || "N/A"}
                                   </a>
                                 </td>
                                 <td style={{ padding: "8px", color: "#ccc" }}>{payout.stage}</td>
@@ -721,14 +793,14 @@ export default function CommissionsPage() {
                           </td>
                           <td style={{ padding: "12px" }}>
                             <a
-                              href={`/admin/orders/${payout.commission.orderId}`}
+                              href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                               style={{ color: "#dc2626", textDecoration: "none" }}
                             >
-                              #{payout.commission.order?.poNumber || "N/A"}
+                              #{payout.itemCommission.commission.order?.poNumber || "N/A"}
                             </a>
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
-                            {payout.commission.salesPersonName}
+                            {payout.itemCommission.commission.salesPersonName}
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>{payout.stage}</td>
                           <td style={{ padding: "12px", color: "#10b981", fontWeight: "bold" }}>
@@ -791,14 +863,14 @@ export default function CommissionsPage() {
                         <tr key={payout.id} style={{ borderBottom: "1px solid #333" }}>
                           <td style={{ padding: "12px" }}>
                             <a
-                              href={`/admin/orders/${payout.commission.orderId}`}
+                              href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                               style={{ color: "#dc2626", textDecoration: "none" }}
                             >
-                              #{payout.commission.order?.poNumber || "N/A"}
+                              #{payout.itemCommission.commission.order?.poNumber || "N/A"}
                             </a>
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
-                            {payout.commission.salesPersonName}
+                            {payout.itemCommission.commission.salesPersonName}
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>{payout.stage}</td>
                           <td style={{ padding: "12px", color: "#ccc", fontWeight: "bold" }}>
@@ -856,11 +928,13 @@ export default function CommissionsPage() {
                           Status: {commission.status}
                         </div>
                         <div style={{ marginTop: "8px" }}>
-                          {commission.payouts?.map((payout) => (
-                            <div key={payout.id} style={{ color: "#666", fontSize: "13px" }}>
-                              {payout.stage}: {formatCurrency(payout.amount)} ({payout.status})
-                            </div>
-                          ))}
+                          {commission.itemCommissions?.map((itemComm) => 
+                            itemComm.payouts?.map((payout) => (
+                              <div key={payout.id} style={{ color: "#666", fontSize: "13px" }}>
+                                {payout.stage}: {formatCurrency(payout.amount)} ({payout.status})
+                              </div>
+                            ))
+                          )}
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: "8px" }}>
