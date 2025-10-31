@@ -73,7 +73,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
               const roleBadge = getRoleBadgeColor(user.role);
               const isSelf = currentUser?.id === user.id;
               const isTogglingThisUser = togglingUserId === user.id;
-              const isSalesRep = Boolean(user.canBeSalesRep);
+              const isSalesRep = Boolean(user.showInSalesRepDropdown);
 
               return (
                 <tr key={user.id} className={!user.isActive ? 'inactive' : ''}>
