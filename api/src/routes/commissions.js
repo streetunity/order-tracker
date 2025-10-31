@@ -1,6 +1,6 @@
 import express from 'express';
 import { authGuard, adminGuard } from '../middleware/auth.js';
-import { recalculate AllCommissions } from '../helpers/commission.js';
+import { recalculateAllCommissions } from '../helpers/commission.js';
 
 export function createCommissionsRouter(prisma) {
   const router = express.Router();
