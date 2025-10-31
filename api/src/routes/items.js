@@ -22,6 +22,7 @@ import {
   validateItemBelongsToOrder,
   getAuditAction
 } from '../helpers/itemValidation.js';
+import { checkCommissionPayoutTrigger } from '../helpers/commission.js';
 
 const prisma = new PrismaClient();
 
@@ -536,7 +537,7 @@ export function createItemsRouter() {
   // Item stage change - MANUFACTURER CAN ONLY MOVE ASSIGNED ITEMS
   router.post('/:orderId/items/:itemId/stage', async (req, res) => {
     try {
-      const { itemId } = req.params;
+      const { itemId, orderId } = req.params;
       
       const hasAccess = await canAccessItem(req.user, itemId, prisma);
       if (!hasAccess) {
@@ -551,11 +552,11 @@ export function createItemsRouter() {
       if (!STAGES.includes(nextStage)) return res.status(400).json({ error: 'invalid stage' });
 
       const item = await prisma.orderItem.findUnique({
-        where: { id: req.params.itemId },
+        where: { id: itemId },
         include: { order: true, manufacturer: true }
       });
       
-      if (!item || item.orderId !== req.params.orderId) {
+      if (!item || item.orderId !== orderId) {
         return res.status(404).json({ error: 'Item not found for this order' });
       }
 
@@ -587,6 +588,14 @@ export function createItemsRouter() {
           }
         });
       });
+
+      // CRITICAL: Trigger commission payout if stage matches payout trigger
+      try {
+        await checkCommissionPayoutTrigger(orderId, itemId, currentStage, nextStage);
+      } catch (error) {
+        console.error(`[COMMISSION] Error triggering commission payout for item ${itemId}:`, error);
+        // Don't fail the stage change if commission triggering fails
+      }
 
       res.json({ ok: true, event });
     } catch (e) {
