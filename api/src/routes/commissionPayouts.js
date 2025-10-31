@@ -11,13 +11,28 @@ export function createCommissionPayoutsRouter(prisma) {
     return ['SUPER_ADMIN', 'ACCOUNTANT'].includes(role);
   };
 
+  // DEBUG ENDPOINT - Remove after testing
+  router.get('/test', (req, res) => {
+    res.json({ 
+      message: 'Commission payouts router is working',
+      timestamp: new Date(),
+      headers: req.headers
+    });
+  });
+
   // Get pending payouts (groups by sales person)
   router.get('/pending', adminGuard, async (req, res) => {
     try {
+      console.log('📊 /pending endpoint hit');
+      console.log('👤 User:', req.user);
+      console.log('🔑 User role:', req.user?.role);
+      
       if (!canManageCommissions(req.user.role)) {
+        console.log('❌ User cannot manage commissions');
         return res.status(403).json({ error: 'Only Super Admins and Accountants can view pending approvals' });
       }
 
+      console.log('✅ Fetching pending payouts from database...');
       const payouts = await prisma.commissionPayout.findMany({
         where: { status: 'PENDING' },
         include: {
@@ -50,6 +65,8 @@ export function createCommissionPayoutsRouter(prisma) {
         ]
       });
 
+      console.log(`✅ Found ${payouts.length} pending payouts`);
+
       // Group by sales person for UI
       const grouped = {};
       payouts.forEach(payout => {
@@ -67,9 +84,12 @@ export function createCommissionPayoutsRouter(prisma) {
         grouped[name].count += 1;
       });
 
-      res.json(Object.values(grouped));
+      const result = Object.values(grouped);
+      console.log(`✅ Returning ${result.length} groups`);
+      
+      res.json(result);
     } catch (error) {
-      console.error('Error fetching pending approvals:', error);
+      console.error('❌ Error fetching pending approvals:', error);
       res.status(500).json({ error: 'Failed to fetch pending approvals' });
     }
   });
