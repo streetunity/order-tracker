@@ -22,7 +22,7 @@ import {
   validateItemBelongsToOrder,
   getAuditAction
 } from '../helpers/itemValidation.js';
-import { checkCommissionPayoutTrigger } from '../helpers/commission.js';
+import { checkCommissionPayoutTrigger, checkOrderedStatusTrigger } from '../helpers/commission.js';
 
 const prisma = new PrismaClient();
 
@@ -183,6 +183,7 @@ export function createItemsRouter() {
       const data = {};
       const changes = [];
       let priceChanged = false;
+      let orderedStatusChanged = false;
       
       // Handle fields that can be edited even when locked
       // Archive/restore
@@ -355,7 +356,7 @@ export function createItemsRouter() {
           }
         }
 
-        // Ordered status
+        // Ordered status - CRITICAL: Track if this changes from false to true
         if (req.body.hasOwnProperty('isOrdered')) {
           const newIsOrdered = req.body.isOrdered === true;
           
@@ -363,6 +364,7 @@ export function createItemsRouter() {
             data.isOrdered = true;
             data.orderedAt = req.body.orderedAt ? new Date(req.body.orderedAt) : new Date();
             data.orderedBy = req.user.name;
+            orderedStatusChanged = true; // Flag to trigger commission check
             
             changes.push(
               buildFieldChange('isOrdered', false, true),
@@ -429,6 +431,17 @@ export function createItemsRouter() {
         
         return updatedItem;
       });
+      
+      // CRITICAL: If item was marked as ordered, trigger commission checks
+      if (orderedStatusChanged) {
+        try {
+          console.log(`[COMMISSION] Item ${itemId} marked as ordered - triggering commission checks`);
+          await checkOrderedStatusTrigger(orderId, itemId);
+        } catch (error) {
+          console.error(`[COMMISSION] Error triggering commission for newly ordered item ${itemId}:`, error);
+          // Don't fail the update if commission triggering fails
+        }
+      }
       
       // If price changed, recalculate commission
       if (priceChanged) {
@@ -589,7 +602,7 @@ export function createItemsRouter() {
         });
       });
 
-      // CRITICAL: Trigger commission payout if stage matches payout trigger
+      // CRITICAL: Trigger commission payout if stage matches payout trigger AND item is ordered
       try {
         await checkCommissionPayoutTrigger(orderId, itemId, currentStage, nextStage);
       } catch (error) {
