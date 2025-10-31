@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
 export default function CommissionsPage() {
-  const { user, getAuthHeaders } = useAuth(); // ADD getAuthHeaders
+  const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("pending");
@@ -20,120 +20,112 @@ export default function CommissionsPage() {
   const [paymentMethod, setPaymentMethod] = useState("Check");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [approvalNotes, setApprovalNotes] = useState("");
-  const [debugInfo, setDebugInfo] = useState(null); // NEW: Debug information
-  const [stageSettings, setStageSettings] = useState([]); // NEW: Stage distribution settings
+  const [stageSettings, setStageSettings] = useState([]);
 
   useEffect(() => {
     if (!user) {
       router.push("/login");
     } else if (user.role !== "SUPER_ADMIN" && user.role !== "ACCOUNTANT") {
       router.push("/my-commissions");
-    } else {
-      fetchData();
-      fetchStageSettings(); // Fetch stage settings for dynamic columns
     }
-  }, [user, router, activeTab]);
+  }, [user, router]);
+
+  // Separate useEffect for loading stage settings - only runs once when user is available
+  useEffect(() => {
+    if (user && (user.role === "SUPER_ADMIN" || user.role === "ACCOUNTANT")) {
+      fetchStageSettings();
+    }
+  }, [user]);
+
+  // Separate useEffect for loading data - runs when user or activeTab changes
+  useEffect(() => {
+    if (user && (user.role === "SUPER_ADMIN" || user.role === "ACCOUNTANT")) {
+      fetchData();
+    }
+  }, [user, activeTab]);
 
   const fetchStageSettings = async () => {
+    if (!user) return;
+    
     try {
-      const headers = getAuthHeaders();
-      const res = await fetch("/api/commission-settings/stages", { headers });
+      const res = await fetch("/api/commission-settings/stages", { 
+        headers: getAuthHeaders(),
+        cache: "no-store"
+      });
       if (res.ok) {
         const data = await res.json();
         setStageSettings(data.sort((a, b) => a.stage.localeCompare(b.stage)));
       }
     } catch (error) {
       console.error("Error fetching stage settings:", error);
+      // Set default stages if fetch fails
+      setStageSettings([
+        { stage: "SHIPPING", percentage: 50 },
+        { stage: "DELIVERED", percentage: 50 }
+      ]);
     }
   };
 
   const fetchData = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      setDebugInfo(null); // Clear previous debug info
-      const headers = getAuthHeaders(); // FIX: Use getAuthHeaders() instead of user.token
+      const headers = getAuthHeaders();
 
       switch (activeTab) {
         case "pending":
-          console.log("🔍 Fetching pending payouts...");
-          const pendingRes = await fetch("/api/commissions/payouts/pending", { headers });
-          console.log("📡 Response status:", pendingRes.status, pendingRes.statusText);
-          
-          // NEW: Enhanced error handling and logging
+          const pendingRes = await fetch("/api/commissions/payouts/pending", { 
+            headers,
+            cache: "no-store"
+          });
           if (pendingRes.ok) {
             const data = await pendingRes.json();
-            console.log("✅ Received data:", data);
-            console.log("📊 Data type:", Array.isArray(data) ? "Array" : typeof data);
-            console.log("📈 Array length:", Array.isArray(data) ? data.length : "N/A");
-            
-            if (Array.isArray(data) && data.length > 0) {
-              console.log("📦 First group structure:", JSON.stringify(data[0], null, 2));
-            }
-            
             setPayoutGroups(data);
-            setDebugInfo({
-              status: "success",
-              dataReceived: true,
-              dataType: Array.isArray(data) ? "Array" : typeof data,
-              length: Array.isArray(data) ? data.length : 0,
-              sample: data[0] || null
-            });
-          } else {
-            const errorText = await pendingRes.text();
-            console.error("❌ API Error:", {
-              status: pendingRes.status,
-              statusText: pendingRes.statusText,
-              errorBody: errorText
-            });
-            
-            setDebugInfo({
-              status: "error",
-              httpStatus: pendingRes.status,
-              statusText: pendingRes.statusText,
-              errorBody: errorText
-            });
-            
-            alert(`Failed to fetch pending payouts: ${pendingRes.status} ${pendingRes.statusText}`);
           }
           break;
 
         case "flagged":
-          const flaggedRes = await fetch("/api/commissions/flagged", { headers });
+          const flaggedRes = await fetch("/api/commissions/flagged", { 
+            headers,
+            cache: "no-store"
+          });
           if (flaggedRes.ok) {
             const data = await flaggedRes.json();
             setFlaggedCommissions(data);
-          } else {
-            console.error("Failed to fetch flagged commissions:", flaggedRes.status);
           }
           break;
 
         case "approved":
-          const approvedRes = await fetch("/api/commissions/approved", { headers });
+          const approvedRes = await fetch("/api/commissions/approved", { 
+            headers,
+            cache: "no-store"
+          });
           if (approvedRes.ok) {
             const data = await approvedRes.json();
             setApprovedPayouts(data);
-          } else {
-            console.error("Failed to fetch approved payouts:", approvedRes.status);
           }
           break;
 
         case "paid":
-          const paidRes = await fetch("/api/commissions/paid?limit=50", { headers });
+          const paidRes = await fetch("/api/commissions/paid?limit=50", { 
+            headers,
+            cache: "no-store"
+          });
           if (paidRes.ok) {
             const data = await paidRes.json();
             setRecentlyPaid(data);
-          } else {
-            console.error("Failed to fetch paid payouts:", paidRes.status);
           }
           break;
 
         case "orphaned":
-          const orphanedRes = await fetch("/api/commissions/orphaned", { headers });
+          const orphanedRes = await fetch("/api/commissions/orphaned", { 
+            headers,
+            cache: "no-store"
+          });
           if (orphanedRes.ok) {
             const data = await orphanedRes.json();
             setOrphanedCommissions(data);
-          } else {
-            console.error("Failed to fetch orphaned commissions:", orphanedRes.status);
           }
           break;
 
@@ -144,13 +136,7 @@ export default function CommissionsPage() {
           break;
       }
     } catch (error) {
-      console.error("❌ Exception while fetching data:", error);
-      setDebugInfo({
-        status: "exception",
-        error: error.message,
-        stack: error.stack
-      });
-      alert(`Error fetching data: ${error.message}`);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -409,26 +395,6 @@ export default function CommissionsPage() {
         <h1 style={{ fontSize: "32px", fontWeight: "700", marginBottom: "32px", color: "#dc2626" }}>
           Commission Management
         </h1>
-
-        {/* DEBUG PANEL - Shows API response info */}
-        {debugInfo && (
-          <div style={{
-            background: debugInfo.status === "success" ? "#1a3a1a" : "#3a1a1a",
-            border: `2px solid ${debugInfo.status === "success" ? "#10b981" : "#dc2626"}`,
-            borderRadius: "8px",
-            padding: "16px",
-            marginBottom: "20px",
-            fontFamily: "monospace",
-            fontSize: "12px"
-          }}>
-            <div style={{ color: "#fff", fontWeight: "bold", marginBottom: "8px" }}>
-              🔍 DEBUG INFO - {debugInfo.status.toUpperCase()}
-            </div>
-            <pre style={{ margin: 0, color: "#ccc", whiteSpace: "pre-wrap" }}>
-              {JSON.stringify(debugInfo, null, 2)}
-            </pre>
-          </div>
-        )}
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "30px", borderBottom: "2px solid #333" }}>
