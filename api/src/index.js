@@ -34,6 +34,7 @@ import { createNotificationsRouter } from './routes/notifications.js';
 import { createManufacturersRouter } from './routes/manufacturers.js';
 import { createCommissionsRouter } from './routes/commissions.js';
 import { createCommissionSettingsRouter } from './routes/commissionSettings.js';
+import { createCommissionPayoutsRouter } from './routes/commissionPayouts.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -134,6 +135,7 @@ const notificationsRouter = createNotificationsRouter(prisma);
 const manufacturersRouter = createManufacturersRouter(prisma);
 const commissionsRouter = createCommissionsRouter(prisma);
 const commissionSettingsRouter = createCommissionSettingsRouter(prisma);
+const commissionPayoutsRouter = createCommissionPayoutsRouter(prisma);
 
 // =============================
 // Mount Routes
@@ -208,6 +210,7 @@ console.log('✅ Notifications API loaded');
 
 // Commission management (auth required, role-based access)
 app.use('/commissions', authGuard, commissionsRouter);
+app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
 console.log('✅ Commission module loaded');
 
