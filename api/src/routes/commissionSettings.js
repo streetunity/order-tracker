@@ -14,7 +14,7 @@ export function createCommissionSettingsRouter(prisma) {
   // ==========================================
   
   // Get all commission rates
-  router.get('/rates', adminGuard, async (req, res) => {
+  router.get('/rates', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can manage commission rates' });
@@ -32,7 +32,7 @@ export function createCommissionSettingsRouter(prisma) {
   });
   
   // Get specific rate for sales person
-  router.get('/rates/:name', adminGuard, async (req, res) => {
+  router.get('/rates/:name', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can view commission rates' });
@@ -54,7 +54,7 @@ export function createCommissionSettingsRouter(prisma) {
   });
   
   // Set or update commission rate
-  router.put('/rates/:name', adminGuard, async (req, res) => {
+  router.put('/rates/:name', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can set commission rates' });
@@ -109,7 +109,7 @@ export function createCommissionSettingsRouter(prisma) {
   });
   
   // Delete commission rate (reset to default)
-  router.delete('/rates/:name', adminGuard, async (req, res) => {
+  router.delete('/rates/:name', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can delete commission rates' });
@@ -156,7 +156,7 @@ export function createCommissionSettingsRouter(prisma) {
   // ==========================================
   
   // Get stage payout configuration
-  router.get('/stages', adminGuard, async (req, res) => {
+  router.get('/stages', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can view stage settings' });
@@ -200,7 +200,7 @@ export function createCommissionSettingsRouter(prisma) {
   });
   
   // Update stage percentages
-  router.put('/stages', adminGuard, async (req, res) => {
+  router.put('/stages', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can update stage settings' });
@@ -290,7 +290,7 @@ export function createCommissionSettingsRouter(prisma) {
   });
   
   // Validate stage percentages
-  router.post('/stages/validate', adminGuard, async (req, res) => {
+  router.post('/stages/validate', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can validate stage settings' });
@@ -321,7 +321,7 @@ export function createCommissionSettingsRouter(prisma) {
   // ==========================================
   
   // Get global commission settings
-  router.get('/global', adminGuard, async (req, res) => {
+  router.get('/global', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can view global settings' });
@@ -351,8 +351,11 @@ export function createCommissionSettingsRouter(prisma) {
   });
   
   // Update global commission settings
-  router.put('/global', adminGuard, async (req, res) => {
+  router.put('/global', async (req, res) => {
     try {
+      console.log('PUT /global - Request body:', req.body);
+      console.log('PUT /global - User:', req.user);
+      
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can update global settings' });
       }
@@ -361,11 +364,14 @@ export function createCommissionSettingsRouter(prisma) {
         enabled,
         defaultRate,
         calculationBasis,
-        minimumOrderValue
+        minimumOrderValue,
+        // These fields are sent by frontend but not in DB schema - ignore them
+        paymentTrigger,
+        tieredEnabled
       } = req.body;
       
       // Validate default rate
-      if (typeof defaultRate === 'number' && (defaultRate < 0 || defaultRate > 100)) {
+      if (defaultRate !== undefined && (typeof defaultRate !== 'number' || defaultRate < 0 || defaultRate > 100)) {
         return res.status(400).json({ error: 'Default rate must be between 0 and 100' });
       }
       
@@ -376,7 +382,7 @@ export function createCommissionSettingsRouter(prisma) {
       }
       
       // Validate minimum order value
-      if (typeof minimumOrderValue === 'number' && minimumOrderValue < 0) {
+      if (minimumOrderValue !== undefined && (typeof minimumOrderValue !== 'number' || minimumOrderValue < 0)) {
         return res.status(400).json({ error: 'Minimum order value cannot be negative' });
       }
       
@@ -424,10 +430,12 @@ export function createCommissionSettingsRouter(prisma) {
         }
       });
       
+      console.log('PUT /global - Success, returning:', settings);
       res.json(settings);
     } catch (error) {
       console.error('Error updating global settings:', error);
-      res.status(500).json({ error: 'Failed to update global settings' });
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to update global settings', details: error.message });
     }
   });
   
@@ -436,7 +444,7 @@ export function createCommissionSettingsRouter(prisma) {
   // ==========================================
   
   // Get list of all sales reps (users who can have commissions)
-  router.get('/sales-reps', adminGuard, async (req, res) => {
+  router.get('/sales-reps', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can view sales rep list' });
@@ -500,7 +508,7 @@ export function createCommissionSettingsRouter(prisma) {
   // ==========================================
   
   // Set rates for multiple sales reps at once
-  router.post('/rates/bulk', adminGuard, async (req, res) => {
+  router.post('/rates/bulk', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can bulk set rates' });
@@ -576,7 +584,7 @@ export function createCommissionSettingsRouter(prisma) {
   });
   
   // Reset all rates to default
-  router.post('/rates/reset', adminGuard, async (req, res) => {
+  router.post('/rates/reset', async (req, res) => {
     try {
       if (!canManageSettings(req.user.role)) {
         return res.status(403).json({ error: 'Only Super Admins can reset rates' });
