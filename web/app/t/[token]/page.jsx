@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -38,7 +39,9 @@ export default function PublicTrackingPage() {
   useEffect(() => {
     async function loadOrder() {
       try {
-        const res = await fetch(`/api/public/orders/${params.token}`);
+        const res = await fetch(`/api/public/orders/${params.token}`, {
+          cache: "no-store"
+        });
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
           console.error("API Error:", errorData);
