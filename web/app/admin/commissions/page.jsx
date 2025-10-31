@@ -21,6 +21,7 @@ export default function CommissionsPage() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [approvalNotes, setApprovalNotes] = useState("");
   const [debugInfo, setDebugInfo] = useState(null); // NEW: Debug information
+  const [stageSettings, setStageSettings] = useState([]); // NEW: Stage distribution settings
 
   useEffect(() => {
     if (!user) {
@@ -29,8 +30,22 @@ export default function CommissionsPage() {
       router.push("/my-commissions");
     } else {
       fetchData();
+      fetchStageSettings(); // Fetch stage settings for dynamic columns
     }
   }, [user, router, activeTab]);
+
+  const fetchStageSettings = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const res = await fetch("/api/commission-settings/stages", { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setStageSettings(data.sort((a, b) => a.stage.localeCompare(b.stage)));
+      }
+    } catch (error) {
+      console.error("Error fetching stage settings:", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -638,9 +653,12 @@ export default function CommissionsPage() {
                           <thead>
                             <tr style={{ borderBottom: "1px solid #333" }}>
                               <th style={{ padding: "8px", textAlign: "left" }}>Select</th>
-                              <th style={{ padding: "8px", textAlign: "left" }}>Order #</th>
-                              <th style={{ padding: "8px", textAlign: "left" }}>Stage</th>
-                              <th style={{ padding: "8px", textAlign: "left" }}>Payout %</th>
+                              <th style={{ padding: "8px", textAlign: "left" }}>Customer Name</th>
+                              {stageSettings.map((stageSetting) => (
+                                <th key={stageSetting.stage} style={{ padding: "8px", textAlign: "center" }}>
+                                  {stageSetting.stage}
+                                </th>
+                              ))}
                               <th style={{ padding: "8px", textAlign: "left" }}>Amount</th>
                               <th style={{ padding: "8px", textAlign: "left" }}>Actions</th>
                             </tr>
@@ -660,11 +678,14 @@ export default function CommissionsPage() {
                                     href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                                     style={{ color: "#dc2626", textDecoration: "none" }}
                                   >
-                                    #{payout.itemCommission.commission.order?.poNumber || "N/A"}
+                                    {payout.itemCommission.commission.order?.customer?.name || "N/A"}
                                   </a>
                                 </td>
-                                <td style={{ padding: "8px", color: "#ccc" }}>{payout.stage}</td>
-                                <td style={{ padding: "8px", color: "#ccc" }}>{payout.percentage}%</td>
+                                {stageSettings.map((stageSetting) => (
+                                  <td key={stageSetting.stage} style={{ padding: "8px", textAlign: "center", color: "#10b981" }}>
+                                    {payout.stage === stageSetting.stage ? "✓" : ""}
+                                  </td>
+                                ))}
                                 <td style={{ padding: "8px", color: "#ccc", fontWeight: "bold" }}>
                                   {formatCurrency(payout.amount)}
                                 </td>
@@ -773,7 +794,7 @@ export default function CommissionsPage() {
                             }}
                           />
                         </th>
-                        <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Order #</th>
+                        <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Customer Name</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Sales Rep</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Stage</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Amount</th>
@@ -796,7 +817,7 @@ export default function CommissionsPage() {
                               href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                               style={{ color: "#dc2626", textDecoration: "none" }}
                             >
-                              #{payout.itemCommission.commission.order?.poNumber || "N/A"}
+                              {payout.itemCommission.commission.order?.customer?.name || "N/A"}
                             </a>
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
@@ -849,7 +870,7 @@ export default function CommissionsPage() {
                   <table style={{ width: "100%" }}>
                     <thead>
                       <tr style={{ background: "#252525", borderBottom: "1px solid #333" }}>
-                        <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Order #</th>
+                        <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Customer Name</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Sales Rep</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Stage</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Amount</th>
@@ -866,7 +887,7 @@ export default function CommissionsPage() {
                               href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                               style={{ color: "#dc2626", textDecoration: "none" }}
                             >
-                              #{payout.itemCommission.commission.order?.poNumber || "N/A"}
+                              {payout.itemCommission.commission.order?.customer?.name || "N/A"}
                             </a>
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
