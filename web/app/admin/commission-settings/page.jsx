@@ -12,6 +12,7 @@ export default function CommissionSettingsPage() {
   const [activeTab, setActiveTab] = useState("global");
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   
   // Global Settings State
   const [globalSettings, setGlobalSettings] = useState({
@@ -33,18 +34,18 @@ export default function CommissionSettingsPage() {
   const [salesReps, setSalesReps] = useState([]);
   const [individualRates, setIndividualRates] = useState({});
 
-  // Available stages
+  // Available stages - FIXED: Using actual system stages
   const availableStages = [
-    "QUOTE",
     "MANUFACTURING",
     "TESTING",
     "SHIPPING",
+    "AT_SEA",
     "SMT",
     "QC",
     "DELIVERED",
     "ONSITE",
     "COMPLETED",
-    "FOLLOWUP",
+    "FOLLOW_UP",
   ];
 
   useEffect(() => {
@@ -197,6 +198,49 @@ export default function CommissionSettingsPage() {
     }
   };
 
+  const recalculateAllCommissions = async () => {
+    const reason = prompt("Please provide a reason for recalculating all commissions:");
+    
+    if (!reason || reason.trim() === "") {
+      alert("Reason is required to recalculate commissions");
+      return;
+    }
+
+    if (!confirm("This will recalculate ALL unpaid commissions based on current rates and stage settings. Continue?")) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      const res = await fetch("/api/commission-settings/recalculate-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        alert(
+          `Recalculation complete!\n\n` +
+          `Recalculated: ${result.results.recalculated}\n` +
+          `Skipped (with paid payouts): ${result.results.skipped}\n` +
+          `Failed: ${result.results.failed}`
+        );
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to recalculate commissions");
+      }
+    } catch (error) {
+      console.error("Error recalculating commissions:", error);
+      alert("Error recalculating commissions");
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   const addStage = () => {
     const availableToAdd = availableStages.filter(
       s => !stageDistribution.find(sd => sd.stage === s)
@@ -261,9 +305,30 @@ export default function CommissionSettingsPage() {
     <>
       <TopNav />
       <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "100px 24px 24px" }}>
-        <h1 style={{ fontSize: "32px", fontWeight: "700", marginBottom: "32px", color: "#ef4444" }}>
-          Commission Settings
-        </h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px" }}>
+          <h1 style={{ fontSize: "32px", fontWeight: "700", color: "#ef4444" }}>
+            Commission Settings
+          </h1>
+          <button
+            onClick={recalculateAllCommissions}
+            disabled={recalculating}
+            style={{
+              padding: "12px 24px",
+              background: recalculating ? "#666" : "#f59e0b",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: recalculating ? "not-allowed" : "pointer",
+              fontWeight: "600",
+              fontSize: "14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            {recalculating ? "⏳ Recalculating..." : "🔄 Recalculate All Commissions"}
+          </button>
+        </div>
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "30px", borderBottom: "2px solid #333" }}>
