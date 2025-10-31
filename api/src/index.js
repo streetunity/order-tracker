@@ -139,9 +139,8 @@ app.get('/health', (req, res) => {
 // Public routes (no auth, rate limited)
 app.use('/public', publicRouter);
 
-// Authentication routes - mixed auth requirements
-// Most auth routes don't need authentication
-app.use('/auth', (req, res, next) => {
+// Authentication routes - mixed auth requirements with /api prefix
+app.use('/api/auth', (req, res, next) => {
   // Apply authGuard only to specific routes
   if (req.path === '/me' || req.path === '/logout' || req.path === '/change-password') {
     return authGuard(req, res, () => {
