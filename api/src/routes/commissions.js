@@ -1,6 +1,6 @@
 import express from 'express';
 import { authGuard, adminGuard } from '../middleware/auth.js';
-import { recalculateAllCommissions } from '../helpers/commission.js';
+import { recalculateAllCommissions, recalculateSingleCommission } from '../helpers/commission.js';
 
 export function createCommissionsRouter(prisma) {
   const router = express.Router();
@@ -341,6 +341,310 @@ export function createCommissionsRouter(prisma) {
     }
   });
 
+  // Get flagged commissions
+  router.get('/flagged', adminGuard, async (req, res) => {
+    try {
+      if (!canManageCommissions(req.user.role)) {
+        return res.status(403).json({ error: 'Only Super Admins and Accountants can view flagged commissions' });
+      }
+
+      const commissions = await prisma.commission.findMany({
+        where: { 
+          isFlagged: true 
+        },
+        include: {
+          itemCommissions: {
+            include: {
+              payouts: true,
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
+              }
+            }
+          },
+          order: {
+            select: {
+              poNumber: true,
+              orderDate: true,
+              currentStage: true,
+              account: { select: { name: true } }
+            }
+          }
+        },
+        orderBy: { flaggedAt: 'desc' }
+      });
+
+      res.json(commissions);
+    } catch (error) {
+      console.error('Error fetching flagged commissions:', error);
+      res.status(500).json({ error: 'Failed to fetch flagged commissions' });
+    }
+  });
+
+  // Get approved payouts
+  router.get('/approved', adminGuard, async (req, res) => {
+    try {
+      if (!canManageCommissions(req.user.role)) {
+        return res.status(403).json({ error: 'Only Super Admins and Accountants can view approved payouts' });
+      }
+
+      const payouts = await prisma.commissionPayout.findMany({
+        where: { status: 'APPROVED' },
+        include: {
+          itemCommission: {
+            include: {
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      poNumber: true,
+                      orderDate: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: { approvedAt: 'desc' }
+      });
+
+      res.json(payouts);
+    } catch (error) {
+      console.error('Error fetching approved payouts:', error);
+      res.status(500).json({ error: 'Failed to fetch approved payouts' });
+    }
+  });
+
+  // Get paid payouts
+  router.get('/paid', adminGuard, async (req, res) => {
+    try {
+      if (!canManageCommissions(req.user.role)) {
+        return res.status(403).json({ error: 'Only Super Admins and Accountants can view paid payouts' });
+      }
+
+      const { salesPersonName, dateFrom, dateTo } = req.query;
+      
+      const whereClause = { status: 'PAID' };
+      
+      if (salesPersonName) {
+        whereClause.itemCommission = {
+          commission: {
+            salesPersonName
+          }
+        };
+      }
+
+      if (dateFrom || dateTo) {
+        whereClause.paidAt = {};
+        if (dateFrom) whereClause.paidAt.gte = new Date(dateFrom);
+        if (dateTo) whereClause.paidAt.lte = new Date(dateTo);
+      }
+
+      const payouts = await prisma.commissionPayout.findMany({
+        where: whereClause,
+        include: {
+          itemCommission: {
+            include: {
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      poNumber: true,
+                      orderDate: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: { paidAt: 'desc' }
+      });
+
+      res.json(payouts);
+    } catch (error) {
+      console.error('Error fetching paid payouts:', error);
+      res.status(500).json({ error: 'Failed to fetch paid payouts' });
+    }
+  });
+
+  // Get orphaned commissions (order deleted)
+  router.get('/orphaned', adminGuard, async (req, res) => {
+    try {
+      if (!canManageCommissions(req.user.role)) {
+        return res.status(403).json({ error: 'Only Super Admins and Accountants can view orphaned commissions' });
+      }
+
+      const commissions = await prisma.commission.findMany({
+        where: { 
+          orderId: null 
+        },
+        include: {
+          itemCommissions: {
+            include: {
+              payouts: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      res.json(commissions);
+    } catch (error) {
+      console.error('Error fetching orphaned commissions:', error);
+      res.status(500).json({ error: 'Failed to fetch orphaned commissions' });
+    }
+  });
+
+  // Unflag a commission
+  router.post('/:id/unflag', adminGuard, async (req, res) => {
+    try {
+      if (!canManageCommissions(req.user.role)) {
+        return res.status(403).json({ error: 'Only Super Admins and Accountants can unflag commissions' });
+      }
+
+      const { unflagReason } = req.body;
+
+      const commission = await prisma.commission.update({
+        where: { id: req.params.id },
+        data: {
+          isFlagged: false,
+          flaggedAt: null,
+          flagReason: null,
+          unflaggedByUserId: req.user.id,
+          unflaggedByName: req.user.name,
+          unflagReason,
+          unflaggedAt: new Date()
+        }
+      });
+
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Commission',
+          entityId: commission.id,
+          action: 'UNFLAGGED',
+          metadata: JSON.stringify({ unflagReason }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+
+      res.json(commission);
+    } catch (error) {
+      console.error('Error unflagging commission:', error);
+      res.status(500).json({ error: 'Failed to unflag commission' });
+    }
+  });
+
+  // Recalculate a single commission
+  router.post('/:id/recalculate', adminGuard, async (req, res) => {
+    try {
+      if (req.user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Only Super Admins can recalculate commissions' });
+      }
+
+      const { reason } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({ error: 'Reason is required for recalculation' });
+      }
+
+      const result = await recalculateSingleCommission(
+        req.params.id,
+        req.user.id,
+        req.user.name,
+        reason
+      );
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error recalculating commission:', error);
+      res.status(500).json({ error: error.message || 'Failed to recalculate commission' });
+    }
+  });
+
+  // Delete a commission (soft delete - maintains history)
+  router.delete('/:id', adminGuard, async (req, res) => {
+    try {
+      if (req.user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Only Super Admins can delete commissions' });
+      }
+
+      const commission = await prisma.commission.findUnique({
+        where: { id: req.params.id },
+        include: {
+          itemCommissions: {
+            include: {
+              payouts: true
+            }
+          }
+        }
+      });
+
+      if (!commission) {
+        return res.status(404).json({ error: 'Commission not found' });
+      }
+
+      // Check if any payouts are paid
+      const hasPaidPayouts = commission.itemCommissions.some(ic =>
+        ic.payouts.some(p => p.status === 'PAID')
+      );
+
+      if (hasPaidPayouts) {
+        return res.status(400).json({ 
+          error: 'Cannot delete commission with paid payouts' 
+        });
+      }
+
+      // Soft delete by marking as orphaned
+      await prisma.commission.update({
+        where: { id: req.params.id },
+        data: {
+          orderId: null,
+          status: 'ORPHANED'
+        }
+      });
+
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Commission',
+          entityId: commission.id,
+          action: 'DELETED',
+          metadata: JSON.stringify({ reason: 'Manual deletion by admin' }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+
+      res.json({ message: 'Commission deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting commission:', error);
+      res.status(500).json({ error: 'Failed to delete commission' });
+    }
+  });
+
   // BULK RECALCULATION ENDPOINT (SUPER_ADMIN only)
   router.post('/recalculate-all', adminGuard, async (req, res) => {
     try {
@@ -446,9 +750,6 @@ export function createCommissionsRouter(prisma) {
       res.status(500).json({ error: 'Failed to recalculate commissions' });
     }
   });
-  
-  // Continue with other existing endpoints...
-  // (Rest of the commission routes remain the same)
   
   return router;
 }
