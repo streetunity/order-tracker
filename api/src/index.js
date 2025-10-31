@@ -139,8 +139,8 @@ app.get('/health', (req, res) => {
 // Public routes (no auth, rate limited)
 app.use('/public', publicRouter);
 
-// Authentication routes - mixed auth requirements with /api prefix
-app.use('/api/auth', (req, res, next) => {
+// Authentication routes - mixed auth requirements
+app.use('/auth', (req, res, next) => {
   // Apply authGuard only to specific routes
   if (req.path === '/me' || req.path === '/logout' || req.path === '/change-password') {
     return authGuard(req, res, () => {
@@ -151,53 +151,52 @@ app.use('/api/auth', (req, res, next) => {
   authRouter(req, res, next);
 });
 
-// API Routes with /api prefix
 // Reports modules (auth required, manufacturers blocked)
-app.use('/api/reports', authGuard, nonManufacturerGuard, reportsRouter);
-app.use('/api/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
-app.use('/api/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
+app.use('/reports', authGuard, nonManufacturerGuard, reportsRouter);
+app.use('/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
+app.use('/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
 console.log('✅ Reports modules loaded');
 
 // Settings API (admin only)
-app.use('/api/settings', adminGuard, settingsRouter);
+app.use('/settings', adminGuard, settingsRouter);
 console.log('✅ Settings API loaded');
 
 // User management (admin only)
-app.use('/api/users', adminGuard, usersRouter);
+app.use('/users', adminGuard, usersRouter);
 
 // Manufacturer management (admin only) - adminGuard includes auth checking
-app.use('/api/manufacturers', adminGuard, manufacturersRouter);
+app.use('/manufacturers', adminGuard, manufacturersRouter);
 console.log('✅ Manufacturers API loaded');
 
 // Account management (auth required, manufacturers blocked)
-app.use('/api/accounts', authGuard, nonManufacturerGuard, accountsRouter);
+app.use('/accounts', authGuard, nonManufacturerGuard, accountsRouter);
 
 // Order management (auth required - manufacturers get filtered access)
-app.use('/api/orders', authGuard, ordersRouter);
+app.use('/orders', authGuard, ordersRouter);
 
 // Item management - routes are nested under orders (manufacturers get filtered access)
-app.use('/api/orders', authGuard, itemsRouter);
+app.use('/orders', authGuard, itemsRouter);
 
 // Measurement endpoints (manufacturers can update measurements)
-app.use('/api/orders', authGuard, measurementsRouter);
+app.use('/orders', authGuard, measurementsRouter);
 
 // Stage management (manufacturers get filtered access)
-app.use('/api/orders', authGuard, stagesRouter);
+app.use('/orders', authGuard, stagesRouter);
 
 // Lock/unlock functionality (manufacturers blocked)
-app.use('/api/orders', authGuard, locksRouter);
+app.use('/orders', authGuard, locksRouter);
 
 // Audit logs (manufacturers blocked)
-app.use('/api/audit', authGuard, nonManufacturerGuard, auditRouter);
-app.use('/api/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
+app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
+app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
 // Notifications API (auth required, role-filtered)
-app.use('/api/notifications', authGuard, notificationsRouter);
+app.use('/notifications', authGuard, notificationsRouter);
 console.log('✅ Notifications API loaded');
 
 // Commission management (auth required, role-based access)
-app.use('/api/commissions', authGuard, commissionsRouter);
-app.use('/api/commission-settings', authGuard, commissionSettingsRouter);
+app.use('/commissions', authGuard, commissionsRouter);
+app.use('/commission-settings', authGuard, commissionSettingsRouter);
 console.log('✅ Commission module loaded');
 
 // =============================
