@@ -4,15 +4,19 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
-// Define stage order for comparison (ONLY valid order stages)
+// CRITICAL: Use the ACTUAL order stages from your system
+// These must match the stages defined in api/src/state.js
 const STAGE_ORDER = [
   'MANUFACTURING',
   'TESTING',
-  'PACKAGING',
   'SHIPPING',
-  'IN_TRANSIT',
+  'AT_SEA',
+  'SMT',
+  'QC',
   'DELIVERED',
-  'INSTALLED'
+  'ONSITE',
+  'COMPLETED',
+  'FOLLOW_UP'
 ];
 
 /**
