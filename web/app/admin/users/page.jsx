@@ -28,7 +28,7 @@ export default function UsersPage() {
     email: '',
     password: '',
     role: 'AGENT',
-    canBeSalesRep: true
+    showInSalesRepDropdown: true
   });
   const [error, setError] = useState('');
   const router = useRouter();
@@ -188,7 +188,7 @@ export default function UsersPage() {
     try {
       setTogglingUserId(user.id);
       const token = localStorage.getItem('token');
-      const newValue = !user.canBeSalesRep;
+      const newValue = !user.showInSalesRepDropdown;
       
       const res = await fetch(`/api/users/${user.id}`, {
         method: 'PATCH',
@@ -196,7 +196,7 @@ export default function UsersPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ canBeSalesRep: newValue })
+        body: JSON.stringify({ showInSalesRepDropdown: newValue })
       });
       
       const data = await res.json();
@@ -244,7 +244,7 @@ export default function UsersPage() {
       email: '',
       password: '',
       role: assignableRoles.length > 0 ? assignableRoles[assignableRoles.length - 1].value : 'AGENT',
-      canBeSalesRep: true
+      showInSalesRepDropdown: true
     });
     setEditingUser(null);
     setError('');
@@ -262,7 +262,7 @@ export default function UsersPage() {
       email: user.email,
       password: '',
       role: user.role,
-      canBeSalesRep: user.canBeSalesRep ?? true
+      showInSalesRepDropdown: user.showInSalesRepDropdown ?? true
     });
     setEditingUser(user);
     setError('');
@@ -272,7 +272,7 @@ export default function UsersPage() {
   function closeModal() {
     setShowAddModal(false);
     setEditingUser(null);
-    setFormData({ name: '', email: '', password: '', role: 'AGENT', canBeSalesRep: true });
+    setFormData({ name: '', email: '', password: '', role: 'AGENT', showInSalesRepDropdown: true });
     setError('');
   }
 
