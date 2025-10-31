@@ -4,6 +4,26 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
+// Define stage order for comparison
+const STAGE_ORDER = [
+  'MANUFACTURING',
+  'TESTING',
+  'PACKAGING',
+  'SHIPPING',
+  'IN_TRANSIT',
+  'DELIVERED',
+  'INSTALLED'
+];
+
+/**
+ * Check if a stage is at or past another stage
+ */
+function isStageAtOrPast(currentStage, targetStage) {
+  const currentIndex = STAGE_ORDER.indexOf(currentStage);
+  const targetIndex = STAGE_ORDER.indexOf(targetStage);
+  return currentIndex >= targetIndex;
+}
+
 /**
  * Calculate commissions for an order at the item level with proportional discount allocation
  * @param {Object} order - Order object with items
@@ -134,6 +154,7 @@ export async function calculateCommissionForOrder(order) {
 
 /**
  * Create item-level commissions with proportional discount distribution
+ * CRITICAL: Auto-triggers payouts for items already at/past payout stages
  */
 async function createItemCommissions(commission, pricedItems, orderSubtotal, orderDiscount, rate) {
   // Get stage settings for payout configuration
@@ -186,8 +207,17 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
       }
     });
     
+    // CRITICAL FIX: Check item's current stage
+    const currentItemStage = item.currentStage || 'MANUFACTURING';
+    
     // Create payouts for each stage for this item
+    let triggeredCount = 0;
     for (const setting of stageSettings) {
+      // Determine initial payout status
+      // If item is already at or past this stage, trigger immediately
+      const shouldTrigger = isStageAtOrPast(currentItemStage, setting.stage);
+      const payoutStatus = shouldTrigger ? 'PENDING' : 'WAITING';
+      
       await prisma.commissionPayout.create({
         data: {
           itemCommissionId: itemCommission.id,
@@ -195,13 +225,60 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
           stage: setting.stage,
           percentage: setting.percentage,
           amount: (commissionAmount * setting.percentage) / 100,
-          status: 'WAITING',
-          triggeredByItemId: item.id
+          status: payoutStatus,
+          triggeredByItemId: item.id,
+          triggeredAt: shouldTrigger ? new Date() : null
         }
       });
+      
+      if (shouldTrigger) {
+        triggeredCount++;
+        console.log(`[COMMISSION] Auto-triggered ${setting.stage} payout for item ${item.productCode} (already at ${currentItemStage})`);
+      }
     }
     
     console.log(`[COMMISSION] Item ${item.productCode}: Subtotal $${itemSubtotal.toFixed(2)}, Discount $${allocatedDiscount.toFixed(2)} (${(discountPercentage * 100).toFixed(2)}%), Net $${netAmount.toFixed(2)}, Commission $${commissionAmount.toFixed(2)}`);
+    
+    if (triggeredCount > 0) {
+      console.log(`[COMMISSION] Auto-triggered ${triggeredCount} payout(s) for item ${item.productCode}`);
+    }
+  }
+  
+  // After creating all payouts, check if we need to notify about pending payouts
+  const pendingPayouts = await prisma.commissionPayout.findMany({
+    where: {
+      commissionId: commission.id,
+      status: 'PENDING'
+    },
+    include: {
+      itemCommission: true
+    }
+  });
+  
+  if (pendingPayouts.length > 0) {
+    console.log(`[COMMISSION] Created ${pendingPayouts.length} PENDING payouts (items already at trigger stages)`);
+    // Group by item and notify
+    const itemGroups = {};
+    pendingPayouts.forEach(p => {
+      const itemId = p.itemCommission.itemId;
+      if (!itemGroups[itemId]) {
+        itemGroups[itemId] = {
+          itemCommission: p.itemCommission,
+          payouts: []
+        };
+      }
+      itemGroups[itemId].payouts.push(p);
+    });
+    
+    // Create notifications for each item with pending payouts
+    for (const [itemId, group] of Object.entries(itemGroups)) {
+      await createPayoutNotification(
+        commission,
+        group.itemCommission,
+        group.itemCommission.productCode,
+        group.payouts
+      );
+    }
   }
 }
 
