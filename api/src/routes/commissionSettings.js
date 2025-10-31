@@ -9,6 +9,11 @@ export function createCommissionSettingsRouter(prisma) {
   const canManageSettings = (role) => {
     return role === 'SUPER_ADMIN';
   };
+
+  // Helper to check if user can view settings (ACCOUNTANT can view, not edit)
+  const canViewSettings = (role) => {
+    return role === 'SUPER_ADMIN' || role === 'ACCOUNTANT';
+  };
   
   // ==========================================
   // COMMISSION RATES
@@ -156,11 +161,11 @@ export function createCommissionSettingsRouter(prisma) {
   // STAGE SETTINGS
   // ==========================================
   
-  // Get stage payout configuration
+  // Get stage payout configuration - ACCOUNTANT can view
   router.get('/stages', async (req, res) => {
     try {
-      if (!canManageSettings(req.user.role)) {
-        return res.status(403).json({ error: 'Only Super Admins can view stage settings' });
+      if (!canViewSettings(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied' });
       }
       
       const stages = await prisma.commissionStageSetting.findMany({
