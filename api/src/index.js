@@ -209,9 +209,10 @@ app.use('/notifications', authGuard, notificationsRouter);
 console.log('✅ Notifications API loaded');
 
 // Commission management (auth required, role-based access)
-app.use('/commissions', authGuard, commissionsRouter);
+// CRITICAL: Mount more specific routes BEFORE general routes!
 app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
+app.use('/commissions', authGuard, commissionsRouter);
 console.log('✅ Commission module loaded');
 
 // =============================
