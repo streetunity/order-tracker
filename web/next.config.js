@@ -1,8 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Removed 'output: standalone' - not needed for non-Docker deployments
-  // This fixes the missing prerender-manifest.json issue
+  // Disable static optimization for fully dynamic authenticated app
+  experimental: {
+    appDir: true,
+  },
+  // Skip static page generation at build time
+  // This is an authenticated app - everything should be dynamic
+  output: 'standalone',
+  generateBuildId: async () => {
+    return 'build-' + Date.now()
+  },
   images: {
     unoptimized: true
   },
