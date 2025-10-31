@@ -183,14 +183,17 @@ model CommissionStageSetting {
 
 // Commission system settings
 model CommissionSettings {
-  id              String   @id @default(cuid())
-  defaultRate     Float    @default(5.0)  // Default commission rate
+  id                 String   @id @default(cuid())
+  enabled            Boolean  @default(true)          // Enable/disable commission system
+  defaultRate        Float    @default(5.0)           // Default commission rate
+  calculationBasis   String   @default("ORDER_TOTAL") // ORDER_TOTAL, SUBTOTAL, PROFIT_MARGIN
+  minimumOrderValue  Float    @default(0)             // Minimum order value for commissions
   
   // Audit
-  updatedByUserId String?
-  updatedByName   String?
-  updatedAt       DateTime @updatedAt
-  createdAt       DateTime @default(now())
+  lastUpdatedBy      String?  // User ID who last updated
+  lastUpdatedByName  String?  // User name who last updated
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
 }
 
 // ============================================
