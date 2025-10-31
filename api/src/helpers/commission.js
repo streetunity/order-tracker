@@ -623,67 +623,92 @@ async function createPayoutNotification(commission, itemCommission, stage, payou
 }
 
 /**
- * Recalculate ALL unpaid commissions (SUPER_ADMIN only)
+ * Recalculate ALL commissions (SUPER_ADMIN only)
+ * FIXED: Now also creates commissions for orders that don't have them yet
  * Used when commission rates change or system needs recalculation
  */
 export async function recalculateAllCommissions(userId, userName, reason) {
   try {
     console.log(`[COMMISSION] Starting full recalculation by ${userName}`);
     
-    // Get all commissions with no paid payouts
-    const commissions = await prisma.commission.findMany({
+    // FIXED: Get ALL orders with sales people, not just existing commissions
+    const ordersWithSalesPerson = await prisma.order.findMany({
+      where: {
+        sku: { not: null }  // Orders with sales people assigned
+      },
       include: {
-        order: {
-          include: { items: true }
-        },
-        itemCommissions: {
-          include: { payouts: true }
-        }
+        items: true
       }
     });
     
+    console.log(`[COMMISSION] Found ${ordersWithSalesPerson.length} orders with sales people`);
+    
     const results = {
-      total: commissions.length,
+      total: ordersWithSalesPerson.length,
+      created: 0,
       recalculated: 0,
       skipped: 0,
       failed: 0,
       details: []
     };
     
-    for (const commission of commissions) {
-      // Check if any payout is paid
-      const hasPaidPayouts = commission.itemCommissions.some(ic =>
-        ic.payouts.some(p => p.status === 'PAID')
-      );
-      
-      if (hasPaidPayouts) {
-        results.skipped++;
-        results.details.push({
-          orderId: commission.orderId,
-          salesPerson: commission.salesPersonName,
-          status: 'skipped',
-          reason: 'Has paid payouts'
-        });
-        continue;
-      }
-      
+    for (const order of ordersWithSalesPerson) {
       try {
-        const oldAmount = commission.totalCommissionAmount;
-        await calculateCommissionForOrder(commission.order);
+        // Check if commission exists
+        const existingCommission = await prisma.commission.findFirst({
+          where: { orderId: order.id },
+          include: {
+            itemCommissions: {
+              include: { payouts: true }
+            }
+          }
+        });
+        
+        let oldAmount = 0;
+        let actionType = 'created';
+        
+        if (existingCommission) {
+          // Check if any payout is paid
+          const hasPaidPayouts = existingCommission.itemCommissions.some(ic =>
+            ic.payouts.some(p => p.status === 'PAID')
+          );
+          
+          if (hasPaidPayouts) {
+            results.skipped++;
+            results.details.push({
+              orderId: order.id,
+              salesPerson: order.sku,
+              status: 'skipped',
+              reason: 'Has paid payouts'
+            });
+            continue;
+          }
+          
+          oldAmount = existingCommission.totalCommissionAmount;
+          actionType = 'recalculated';
+        }
+        
+        // Calculate/recalculate commission (this handles both creation and updates)
+        await calculateCommissionForOrder(order);
         
         // Get new amount
-        const updated = await prisma.commission.findUnique({
-          where: { id: commission.id }
+        const updated = await prisma.commission.findFirst({
+          where: { orderId: order.id }
         });
         
         const newAmount = updated?.totalCommissionAmount || 0;
         
-        results.recalculated++;
+        if (actionType === 'created') {
+          results.created++;
+        } else {
+          results.recalculated++;
+        }
+        
         results.details.push({
-          orderId: commission.orderId,
-          salesPerson: commission.salesPersonName,
-          status: 'recalculated',
-          oldAmount,
+          orderId: order.id,
+          salesPerson: order.sku,
+          status: actionType,
+          oldAmount: actionType === 'recalculated' ? oldAmount : 0,
           newAmount,
           difference: newAmount - oldAmount
         });
@@ -691,11 +716,12 @@ export async function recalculateAllCommissions(userId, userName, reason) {
       } catch (error) {
         results.failed++;
         results.details.push({
-          orderId: commission.orderId,
-          salesPerson: commission.salesPersonName,
+          orderId: order.id,
+          salesPerson: order.sku,
           status: 'failed',
           error: error.message
         });
+        console.error(`[COMMISSION] Failed to process order ${order.id}:`, error);
       }
     }
     
@@ -718,7 +744,7 @@ export async function recalculateAllCommissions(userId, userName, reason) {
     // Notify affected agents
     await notifyAgentsOfRecalculation(results, reason);
     
-    console.log(`[COMMISSION] Recalculation complete: ${results.recalculated} updated, ${results.skipped} skipped, ${results.failed} failed`);
+    console.log(`[COMMISSION] Recalculation complete: ${results.created} created, ${results.recalculated} updated, ${results.skipped} skipped, ${results.failed} failed`);
     
     return results;
   } catch (error) {
@@ -736,7 +762,7 @@ async function notifyAgentsOfRecalculation(results, reason) {
     const bySalesPerson = {};
     
     results.details.forEach(detail => {
-      if (detail.status === 'recalculated') {
+      if (detail.status === 'recalculated' || detail.status === 'created') {
         if (!bySalesPerson[detail.salesPerson]) {
           bySalesPerson[detail.salesPerson] = {
             orders: [],
