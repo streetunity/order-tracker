@@ -466,25 +466,38 @@ export default function EditOrderPage({ params }) {
             )}
 
             <section style={{ marginTop: 12, marginBottom: 16 }}>
-              <div style={{ fontSize: 14, color: "#6b7280", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <strong>Customer:</strong> {order.account?.name ?? "—"}
-                  {" · "}
-                  <strong>Public link:</strong>{" "}
-                  <a className="link" href={`/t/${order.trackingToken}`} target="_blank" rel="noreferrer">Open ↗</a>
-                  {order.createdBy && (
-                    <>
-                      {" · "}
-                      <strong>Created by:</strong> {order.createdBy.name}
-                    </>
+                  {/* Customer Name - Large and White */}
+                  <div style={{ fontSize: 24, color: "#ffffff", fontWeight: 600, marginBottom: 4 }}>
+                    <strong>Customer:</strong> {order.account?.name ?? "—"}
+                  </div>
+                  
+                  {/* Contact Name - Below customer name */}
+                  {order.account?.contactName && (
+                    <div style={{ fontSize: 16, color: "#e4e4e4", marginBottom: 8 }}>
+                      <strong>Contact:</strong> {order.account.contactName}
+                    </div>
                   )}
-                  {order.customerDocsLink && (
-                    <>
-                      {" · "}
-                      <strong>Documents:</strong>{" "}
-                      <a className="link" href={order.customerDocsLink} target="_blank" rel="noreferrer">View Files ↗</a>
-                    </>
-                  )}
+                  
+                  {/* Other information in smaller text */}
+                  <div style={{ fontSize: 14, color: "#6b7280" }}>
+                    <strong>Public link:</strong>{" "}
+                    <a className="link" href={`/t/${order.trackingToken}`} target="_blank" rel="noreferrer">Open ↗</a>
+                    {order.createdBy && (
+                      <>
+                        {" · "}
+                        <strong>Created by:</strong> {order.createdBy.name}
+                      </>
+                    )}
+                    {order.customerDocsLink && (
+                      <>
+                        {" · "}
+                        <strong>Documents:</strong>{" "}
+                        <a className="link" href={order.customerDocsLink} target="_blank" rel="noreferrer">View Files ↗</a>
+                      </>
+                    )}
+                  </div>
                 </div>
                 {!order.isLocked && (
                   <button
