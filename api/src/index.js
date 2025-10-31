@@ -152,167 +152,54 @@ app.use('/auth', (req, res, next) => {
   authRouter(req, res, next);
 });
 
+// API Routes with /api prefix
 // Reports modules (auth required, manufacturers blocked)
-app.use('/reports', authGuard, nonManufacturerGuard, reportsRouter);
-app.use('/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
-app.use('/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
+app.use('/api/reports', authGuard, nonManufacturerGuard, reportsRouter);
+app.use('/api/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
+app.use('/api/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
 console.log('✅ Reports modules loaded');
 
 // Settings API (admin only)
-app.use('/settings', adminGuard, settingsRouter);
+app.use('/api/settings', adminGuard, settingsRouter);
 console.log('✅ Settings API loaded');
 
 // User management (admin only)
-app.use('/users', adminGuard, usersRouter);
+app.use('/api/users', adminGuard, usersRouter);
 
 // Manufacturer management (admin only) - adminGuard includes auth checking
-app.use('/manufacturers', adminGuard, manufacturersRouter);
+app.use('/api/manufacturers', adminGuard, manufacturersRouter);
 console.log('✅ Manufacturers API loaded');
 
 // Account management (auth required, manufacturers blocked)
-app.use('/accounts', authGuard, nonManufacturerGuard, accountsRouter);
+app.use('/api/accounts', authGuard, nonManufacturerGuard, accountsRouter);
 
 // Order management (auth required - manufacturers get filtered access)
-app.use('/orders', authGuard, ordersRouter);
+app.use('/api/orders', authGuard, ordersRouter);
 
 // Item management - routes are nested under orders (manufacturers get filtered access)
-app.use('/orders', authGuard, itemsRouter);
+app.use('/api/orders', authGuard, itemsRouter);
 
 // Measurement endpoints (manufacturers can update measurements)
-app.use('/orders', authGuard, measurementsRouter);
+app.use('/api/orders', authGuard, measurementsRouter);
 
 // Stage management (manufacturers get filtered access)
-app.use('/orders', authGuard, stagesRouter);
+app.use('/api/orders', authGuard, stagesRouter);
 
 // Lock/unlock functionality (manufacturers blocked)
-app.use('/orders', authGuard, locksRouter);
+app.use('/api/orders', authGuard, locksRouter);
 
 // Audit logs (manufacturers blocked)
-app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
-app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
+app.use('/api/audit', authGuard, nonManufacturerGuard, auditRouter);
+app.use('/api/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
 // Notifications API (auth required, role-filtered)
-app.use('/notifications', authGuard, notificationsRouter);
+app.use('/api/notifications', authGuard, notificationsRouter);
 console.log('✅ Notifications API loaded');
 
 // Commission management (auth required, role-based access)
-// FIXED: Added authGuard to protect commission endpoints
-// Note: The commission router internally handles role-based access:
-// - Agents can view their own commissions
-// - SUPER_ADMIN and ACCOUNTANT can view/manage all commissions
-app.use('/commissions', authGuard, commissionsRouter);
-app.use('/commission-settings', authGuard, commissionSettingsRouter);
+app.use('/api/commissions', authGuard, commissionsRouter);
+app.use('/api/commission-settings', authGuard, commissionSettingsRouter);
 console.log('✅ Commission module loaded');
-
-// =============================
-// Sales by Month Report (special endpoint that wasn't modularized)
-// =============================
-app.get('/api/reports/sales-by-month', authGuard, nonManufacturerGuard, async (req, res) => {
-  try {
-    const now = new Date();
-    const monthParam = req.query.month ? parseInt(String(req.query.month), 10) : (now.getMonth() + 1);
-    const yearParam = req.query.year ? parseInt(String(req.query.year), 10) : now.getFullYear();
-
-    if (isNaN(monthParam) || monthParam < 1 || monthParam > 12) {
-      return res.status(400).json({ error: 'Invalid month. Use 1-12.' });
-    }
-    if (isNaN(yearParam) || yearParam < 1970 || yearParam > 9999) {
-      return res.status(400).json({ error: 'Invalid year.' });
-    }
-
-    // Selected month range [inclusive, exclusive)
-    const start = new Date(yearParam, monthParam - 1, 1);
-    const end = new Date(yearParam, monthParam, 1);
-
-    // Previous month range
-    const prevMonth = monthParam === 1 ? 12 : (monthParam - 1);
-    const prevYear = monthParam === 1 ? (yearParam - 1) : yearParam;
-    const prevStart = new Date(prevYear, prevMonth - 1, 1);
-    const prevEnd = new Date(prevYear, prevMonth, 1);
-
-    // Fetch orders filtered by orderDate
-    const orders = await prisma.order.findMany({
-      where: {
-        orderDate: {
-          gte: start,
-          lt: end
-        }
-      },
-      include: {
-        account: { select: { name: true } },
-        items: { select: { qty: true, itemPrice: true } }
-      },
-      orderBy: [{ orderDate: 'asc' }]
-    });
-
-    // Compute totals for current period
-    const orderDetails = orders.map(o => {
-      let subtotal = 0;
-      let itemCount = 0;
-      for (const it of (o.items || [])) {
-        const qty = typeof it.qty === 'number' && !isNaN(it.qty) ? it.qty : 1;
-        const price = typeof it.itemPrice === 'number' && !isNaN(it.itemPrice) ? it.itemPrice : 0;
-        subtotal += qty * price;
-        itemCount += qty;
-      }
-      return {
-        id: o.id,
-        poNumber: o.poNumber || null,
-        accountName: o.account?.name || null,
-        orderDate: o.orderDate,
-        itemCount,
-        subtotal
-      };
-    });
-
-    const periodSubtotal = orderDetails.reduce((s, d) => s + d.subtotal, 0);
-    const periodOrderCount = orderDetails.length;
-    const periodItemCount = orderDetails.reduce((s, d) => s + d.itemCount, 0);
-
-    // Previous month totals for MoM comparison
-    const prevOrders = await prisma.order.findMany({
-      where: {
-        orderDate: {
-          gte: prevStart,
-          lt: prevEnd
-        }
-      },
-      include: { items: { select: { qty: true, itemPrice: true } } }
-    });
-    
-    let prevSubtotal = 0;
-    for (const o of prevOrders) {
-      for (const it of (o.items || [])) {
-        const qty = typeof it.qty === 'number' && !isNaN(it.qty) ? it.qty : 1;
-        const price = typeof it.itemPrice === 'number' && !isNaN(it.itemPrice) ? it.itemPrice : 0;
-        prevSubtotal += qty * price;
-      }
-    }
-
-    const deltaAbs = periodSubtotal - prevSubtotal;
-    const deltaPct = prevSubtotal === 0 ? null : (deltaAbs / prevSubtotal);
-
-    res.json({
-      month: monthParam,
-      year: yearParam,
-      range: { start: start.toISOString(), end: end.toISOString() },
-      orders: orderDetails,
-      summary: {
-        orderCount: periodOrderCount,
-        itemCount: periodItemCount,
-        subtotal: periodSubtotal
-      },
-      monthOverMonth: {
-        prev: { month: prevMonth, year: prevYear, subtotal: prevSubtotal },
-        deltaAbs,
-        deltaPct
-      }
-    });
-  } catch (e) {
-    console.error('sales-by-month error:', e);
-    res.status(500).json({ error: 'Failed to generate sales-by-month report' });
-  }
-});
 
 // =============================
 // Error Handler
