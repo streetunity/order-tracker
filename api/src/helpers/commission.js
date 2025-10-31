@@ -4,7 +4,7 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
-// Define stage order for comparison
+// Define stage order for comparison (ONLY valid order stages)
 const STAGE_ORDER = [
   'MANUFACTURING',
   'TESTING',
@@ -154,7 +154,7 @@ export async function calculateCommissionForOrder(order) {
 
 /**
  * Create item-level commissions with proportional discount distribution
- * CRITICAL: Auto-triggers payouts for items already at/past payout stages
+ * CRITICAL: Auto-triggers payouts for items already at/past payout stages AND marked as ordered
  */
 async function createItemCommissions(commission, pricedItems, orderSubtotal, orderDiscount, rate) {
   // Get stage settings for payout configuration
@@ -207,15 +207,16 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
       }
     });
     
-    // CRITICAL FIX: Check item's current stage
+    // CRITICAL: Check item's current stage AND ordered status
     const currentItemStage = item.currentStage || 'MANUFACTURING';
+    const isOrdered = item.isOrdered === true;
     
     // Create payouts for each stage for this item
     let triggeredCount = 0;
     for (const setting of stageSettings) {
       // Determine initial payout status
-      // If item is already at or past this stage, trigger immediately
-      const shouldTrigger = isStageAtOrPast(currentItemStage, setting.stage);
+      // CRITICAL: Item must be ORDERED and at/past stage to trigger
+      const shouldTrigger = isOrdered && isStageAtOrPast(currentItemStage, setting.stage);
       const payoutStatus = shouldTrigger ? 'PENDING' : 'WAITING';
       
       await prisma.commissionPayout.create({
@@ -233,13 +234,15 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
       
       if (shouldTrigger) {
         triggeredCount++;
-        console.log(`[COMMISSION] Auto-triggered ${setting.stage} payout for item ${item.productCode} (already at ${currentItemStage})`);
+        console.log(`[COMMISSION] Auto-triggered ${setting.stage} payout for item ${item.productCode} (ordered=${isOrdered}, stage=${currentItemStage})`);
       }
     }
     
     console.log(`[COMMISSION] Item ${item.productCode}: Subtotal $${itemSubtotal.toFixed(2)}, Discount $${allocatedDiscount.toFixed(2)} (${(discountPercentage * 100).toFixed(2)}%), Net $${netAmount.toFixed(2)}, Commission $${commissionAmount.toFixed(2)}`);
     
-    if (triggeredCount > 0) {
+    if (!isOrdered) {
+      console.log(`[COMMISSION] Item ${item.productCode} NOT ordered yet - payouts remain in WAITING`);
+    } else if (triggeredCount > 0) {
       console.log(`[COMMISSION] Auto-triggered ${triggeredCount} payout(s) for item ${item.productCode}`);
     }
   }
@@ -256,7 +259,7 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
   });
   
   if (pendingPayouts.length > 0) {
-    console.log(`[COMMISSION] Created ${pendingPayouts.length} PENDING payouts (items already at trigger stages)`);
+    console.log(`[COMMISSION] Created ${pendingPayouts.length} PENDING payouts (items already ordered and at trigger stages)`);
     // Group by item and notify
     const itemGroups = {};
     pendingPayouts.forEach(p => {
@@ -396,13 +399,31 @@ export async function recalculateCommissionIfPriceChanged(orderId) {
 
 /**
  * Check if an item reaching a stage triggers a payout
- * This is called when an individual item's stage changes
+ * CRITICAL: Also checks if item is marked as ordered
+ * This is called when an individual item's stage changes OR when marked as ordered
  */
 export async function checkCommissionPayoutTrigger(orderId, itemId, oldStage, newStage) {
   try {
     if (oldStage === newStage) return;
     
     console.log(`[COMMISSION] Item ${itemId} stage changed: ${oldStage} → ${newStage}`);
+    
+    // Get item to check ordered status
+    const item = await prisma.orderItem.findUnique({
+      where: { id: itemId },
+      select: { isOrdered: true, currentStage: true }
+    });
+    
+    if (!item) {
+      console.log(`[COMMISSION] Item ${itemId} not found`);
+      return;
+    }
+    
+    // CRITICAL: Item must be ordered to trigger payouts
+    if (!item.isOrdered) {
+      console.log(`[COMMISSION] Item ${itemId} not marked as ordered - no payout trigger`);
+      return;
+    }
     
     // Find the commission and item commission
     const commission = await prisma.commission.findFirst({
@@ -446,7 +467,7 @@ export async function checkCommissionPayoutTrigger(orderId, itemId, oldStage, ne
         }
       });
       
-      console.log(`[COMMISSION] Triggered payout $${payout.amount.toFixed(2)} for item ${itemId} at stage ${newStage}`);
+      console.log(`[COMMISSION] Triggered payout $${payout.amount.toFixed(2)} for item ${itemId} at stage ${newStage} (ordered=true)`);
     }
     
     // Check if commission status needs updating
@@ -457,6 +478,80 @@ export async function checkCommissionPayoutTrigger(orderId, itemId, oldStage, ne
     
   } catch (error) {
     console.error(`[COMMISSION] Error checking payout trigger:`, error);
+  }
+}
+
+/**
+ * Check if marking an item as ordered triggers any payouts
+ * Called when isOrdered changes from false to true
+ */
+export async function checkOrderedStatusTrigger(orderId, itemId) {
+  try {
+    console.log(`[COMMISSION] Item ${itemId} marked as ordered - checking for payout triggers`);
+    
+    // Get item's current stage
+    const item = await prisma.orderItem.findUnique({
+      where: { id: itemId },
+      select: { currentStage: true }
+    });
+    
+    if (!item) {
+      console.log(`[COMMISSION] Item ${itemId} not found`);
+      return;
+    }
+    
+    // Find the commission and item commission
+    const commission = await prisma.commission.findFirst({
+      where: { orderId },
+      include: {
+        itemCommissions: {
+          where: { itemId },
+          include: { payouts: true }
+        }
+      }
+    });
+    
+    if (!commission || commission.status !== 'CALCULATED') {
+      console.log(`[COMMISSION] No calculated commission for order ${orderId}`);
+      return;
+    }
+    
+    const itemCommission = commission.itemCommissions[0];
+    if (!itemCommission) {
+      console.log(`[COMMISSION] No item commission found for item ${itemId}`);
+      return;
+    }
+    
+    // Check which stages this item has already reached
+    const currentStage = item.currentStage || 'MANUFACTURING';
+    const triggeredPayouts = [];
+    
+    for (const payout of itemCommission.payouts) {
+      // Trigger if item is at/past this stage and payout is waiting
+      if (payout.status === 'WAITING' && isStageAtOrPast(currentStage, payout.stage)) {
+        await prisma.commissionPayout.update({
+          where: { id: payout.id },
+          data: { 
+            status: 'PENDING',
+            triggeredAt: new Date()
+          }
+        });
+        
+        triggeredPayouts.push(payout);
+        console.log(`[COMMISSION] Triggered ${payout.stage} payout for item ${itemId} (already at ${currentStage})`);
+      }
+    }
+    
+    if (triggeredPayouts.length > 0) {
+      // Update commission status
+      await updateCommissionStatus(commission.id);
+      
+      // Create notification
+      await createPayoutNotification(commission, itemCommission, currentStage, triggeredPayouts);
+    }
+    
+  } catch (error) {
+    console.error(`[COMMISSION] Error checking ordered status trigger:`, error);
   }
 }
 
@@ -693,5 +788,6 @@ export default {
   calculateCommissionForOrder,
   recalculateCommissionIfPriceChanged,
   checkCommissionPayoutTrigger,
+  checkOrderedStatusTrigger,
   recalculateAllCommissions
 };
