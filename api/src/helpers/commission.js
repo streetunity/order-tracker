@@ -2,29 +2,24 @@
 // Item-level commission calculation with proportional discount allocation
 
 import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import { STAGES, STAGE_INDEX } from '../state.js';
 
-// CRITICAL: Use the ACTUAL order stages from your system
-// These must match the stages defined in api/src/state.js
-const STAGE_ORDER = [
-  'MANUFACTURING',
-  'TESTING',
-  'SHIPPING',
-  'AT_SEA',
-  'SMT',
-  'QC',
-  'DELIVERED',
-  'ONSITE',
-  'COMPLETED',
-  'FOLLOW_UP'
-];
+const prisma = new PrismaClient();
 
 /**
  * Check if a stage is at or past another stage
+ * Now uses the system's STAGES configuration from state.js
  */
 function isStageAtOrPast(currentStage, targetStage) {
-  const currentIndex = STAGE_ORDER.indexOf(currentStage);
-  const targetIndex = STAGE_ORDER.indexOf(targetStage);
+  const currentIndex = STAGE_INDEX[currentStage];
+  const targetIndex = STAGE_INDEX[targetStage];
+  
+  // Handle cases where stages might not be found in the index
+  if (currentIndex === undefined || targetIndex === undefined) {
+    console.warn(`[COMMISSION] Stage not found in STAGE_INDEX: current=${currentStage}, target=${targetStage}`);
+    return false;
+  }
+  
   return currentIndex >= targetIndex;
 }
 
@@ -159,9 +154,10 @@ export async function calculateCommissionForOrder(order) {
 /**
  * Create item-level commissions with proportional discount distribution
  * CRITICAL: Auto-triggers payouts for items already at/past payout stages AND marked as ordered
+ * Payout stages are dynamically loaded from CommissionStageSetting table
  */
 async function createItemCommissions(commission, pricedItems, orderSubtotal, orderDiscount, rate) {
-  // Get stage settings for payout configuration
+  // Get stage settings for payout configuration - this is where payout stages are defined
   let stageSettings = await prisma.commissionStageSetting.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' }
@@ -169,6 +165,7 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
   
   // Create default stage settings if none exist
   if (stageSettings.length === 0) {
+    console.log('[COMMISSION] No stage settings found - creating defaults (SHIPPING 50%, DELIVERED 50%)');
     await prisma.commissionStageSetting.createMany({
       data: [
         { stage: 'SHIPPING', percentage: 50, sortOrder: 1, isActive: true },
@@ -181,6 +178,8 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
       orderBy: { sortOrder: 'asc' }
     });
   }
+  
+  console.log(`[COMMISSION] Using ${stageSettings.length} payout stages from database:`, stageSettings.map(s => `${s.stage} (${s.percentage}%)`).join(', '));
   
   // Create item commission for each priced item
   for (const item of pricedItems) {
