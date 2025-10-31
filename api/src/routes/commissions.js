@@ -1,6 +1,6 @@
 import express from 'express';
 import { authGuard, adminGuard } from '../middleware/auth.js';
-import { recalculateAllCommissions, recalculateSingleCommission } from '../helpers/commission.js';
+import { recalculateAllCommissions, calculateCommissionForOrder } from '../helpers/commission.js';
 
 export function createCommissionsRouter(prisma) {
   const router = express.Router();
@@ -570,14 +570,66 @@ export function createCommissionsRouter(prisma) {
         return res.status(400).json({ error: 'Reason is required for recalculation' });
       }
 
-      const result = await recalculateSingleCommission(
-        req.params.id,
-        req.user.id,
-        req.user.name,
-        reason
+      // Get the commission with order
+      const commission = await prisma.commission.findUnique({
+        where: { id: req.params.id },
+        include: {
+          order: {
+            include: { items: true }
+          },
+          itemCommissions: {
+            include: { payouts: true }
+          }
+        }
+      });
+
+      if (!commission) {
+        return res.status(404).json({ error: 'Commission not found' });
+      }
+
+      // Check if any payout is paid
+      const hasPaidPayouts = commission.itemCommissions.some(ic =>
+        ic.payouts.some(p => p.status === 'PAID')
       );
 
-      res.json(result);
+      if (hasPaidPayouts) {
+        return res.status(400).json({ 
+          error: 'Cannot recalculate commission with paid payouts' 
+        });
+      }
+
+      // Recalculate using existing helper function
+      const oldAmount = commission.totalCommissionAmount;
+      await calculateCommissionForOrder(commission.order);
+
+      // Get updated commission
+      const updated = await prisma.commission.findUnique({
+        where: { id: req.params.id }
+      });
+
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'Commission',
+          entityId: commission.id,
+          action: 'RECALCULATED',
+          metadata: JSON.stringify({ 
+            reason,
+            oldAmount,
+            newAmount: updated.totalCommissionAmount,
+            difference: updated.totalCommissionAmount - oldAmount
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+
+      res.json({
+        success: true,
+        oldAmount,
+        newAmount: updated.totalCommissionAmount,
+        difference: updated.totalCommissionAmount - oldAmount
+      });
     } catch (error) {
       console.error('Error recalculating commission:', error);
       res.status(500).json({ error: error.message || 'Failed to recalculate commission' });
