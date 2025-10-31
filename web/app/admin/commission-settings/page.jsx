@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
 export default function CommissionSettingsPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("global");
@@ -60,7 +60,10 @@ export default function CommissionSettingsPage() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const headers = { Authorization: `Bearer ${user.token}` };
+      const headers = { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
       // Fetch global settings
       const settingsRes = await fetch("/api/commission-settings/global", { headers });
@@ -107,7 +110,7 @@ export default function CommissionSettingsPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(globalSettings),
       });
@@ -141,7 +144,7 @@ export default function CommissionSettingsPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(stageDistribution.map((s, index) => ({
           ...s,
@@ -177,7 +180,7 @@ export default function CommissionSettingsPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ rate: Number(rate) }),
       });
@@ -749,7 +752,6 @@ export default function CommissionSettingsPage() {
                     onClick={() => {
                       if (confirm("This will remove all custom rates and use the default rate for everyone. Continue?")) {
                         setIndividualRates({});
-                        // You would need to implement a backend endpoint to clear all rates
                         alert("Feature not yet implemented");
                       }
                     }}
