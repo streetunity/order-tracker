@@ -63,13 +63,17 @@ export default function CommissionSettingsPage() {
       const headers = { Authorization: `Bearer ${user.token}` };
 
       // Fetch global settings
-      const settingsRes = await fetch("/api/commission-settings", { headers });
+      const settingsRes = await fetch("/api/commission-settings/global", { headers });
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         setGlobalSettings(data);
-        if (data.stageDistribution) {
-          setStageDistribution(JSON.parse(data.stageDistribution));
-        }
+      }
+
+      // Fetch stage settings
+      const stagesRes = await fetch("/api/commission-settings/stages", { headers });
+      if (stagesRes.ok) {
+        const data = await stagesRes.json();
+        setStageDistribution(data.map(s => ({ stage: s.stage, percentage: s.percentage })));
       }
 
       // Fetch individual rates
@@ -87,7 +91,7 @@ export default function CommissionSettingsPage() {
       const usersRes = await fetch("/api/commission-settings/sales-reps", { headers });
       if (usersRes.ok) {
         const data = await usersRes.json();
-        setSalesReps(data);
+        setSalesReps(data.filter(u => u.isActive));
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -99,23 +103,21 @@ export default function CommissionSettingsPage() {
   const saveGlobalSettings = async () => {
     try {
       setSaving(true);
-      const res = await fetch("/api/commission-settings", {
+      const res = await fetch("/api/commission-settings/global", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${user.token}`,
         },
-        body: JSON.stringify({
-          ...globalSettings,
-          stageDistribution: JSON.stringify(stageDistribution),
-        }),
+        body: JSON.stringify(globalSettings),
       });
 
       if (res.ok) {
         alert("Global settings saved successfully");
         setHasChanges(false);
       } else {
-        alert("Failed to save global settings");
+        const error = await res.json();
+        alert(error.error || "Failed to save global settings");
       }
     } catch (error) {
       console.error("Error saving global settings:", error);
@@ -154,7 +156,7 @@ export default function CommissionSettingsPage() {
         await fetchSettings(); // Refresh to get server state
       } else {
         const error = await res.json();
-        alert(error.message || "Failed to save stage distribution");
+        alert(error.error || "Failed to save stage distribution");
       }
     } catch (error) {
       console.error("Error saving stage distribution:", error);
@@ -770,8 +772,8 @@ export default function CommissionSettingsPage() {
             {activeTab === "tiered" && (
               <div style={{ background: "#1a1a1a", padding: "30px", borderRadius: "8px", border: "1px solid #333" }}>
                 <div style={{
-                  background: "rgba(96, 165, 250, 0.1)",
-                  border: "1px solid #60a5fa",
+                  background: "rgba(220, 38, 38, 0.1)",
+                  border: "1px solid #dc2626",
                   borderRadius: "6px",
                   padding: "15px",
                   marginBottom: "30px",
