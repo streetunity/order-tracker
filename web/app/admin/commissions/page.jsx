@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
 export default function CommissionsPage() {
-  const { user } = useAuth();
+  const { user, getAuthHeaders } = useAuth(); // ADD getAuthHeaders
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("pending");
@@ -36,7 +36,7 @@ export default function CommissionsPage() {
     try {
       setLoading(true);
       setDebugInfo(null); // Clear previous debug info
-      const headers = { Authorization: `Bearer ${user.token}` };
+      const headers = getAuthHeaders(); // FIX: Use getAuthHeaders() instead of user.token
 
       switch (activeTab) {
         case "pending":
@@ -147,7 +147,7 @@ export default function CommissionsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ approvalNotes }),
       });
@@ -174,7 +174,7 @@ export default function CommissionsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ rejectionReason }),
       });
@@ -202,7 +202,7 @@ export default function CommissionsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           payoutIds: Array.from(selectedPayouts),
@@ -230,7 +230,7 @@ export default function CommissionsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ paymentMethod, paymentNotes }),
       });
@@ -258,7 +258,7 @@ export default function CommissionsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           payoutIds: Array.from(selectedPayouts),
@@ -287,7 +287,7 @@ export default function CommissionsPage() {
     try {
       const res = await fetch(`/api/commissions/${commissionId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: getAuthHeaders(),
       });
 
       if (res.ok) {
@@ -309,7 +309,7 @@ export default function CommissionsPage() {
     try {
       const res = await fetch(`/api/commissions/${commissionId}/recalculate`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${user.token}` },
+        headers: getAuthHeaders(),
       });
 
       if (res.ok) {
@@ -332,7 +332,7 @@ export default function CommissionsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ reviewNotes }),
       });
