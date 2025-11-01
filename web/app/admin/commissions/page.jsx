@@ -114,7 +114,7 @@ export default function CommissionsPage() {
             cache: "no-store"
           });
           if (paidRes.ok) {
-            const data = await paidRes.json();
+            const data = await res.json();
             setRecentlyPaid(data);
           }
           break;
@@ -279,7 +279,7 @@ export default function CommissionsPage() {
       }
     } catch (error) {
       console.error("Error bulk paying:", error);
-      alert("Error bulk paying");
+      alert("Error bulk paying payouts");
     }
   };
 
@@ -645,7 +645,7 @@ export default function CommissionsPage() {
                                     href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                                     style={{ color: "#dc2626", textDecoration: "none" }}
                                   >
-                                    {payout.itemCommission.commission.order?.customer?.name || "N/A"}
+                                    {payout.itemCommission.commission.order?.account?.name || "N/A"}
                                   </a>
                                 </td>
                                 {stageSettings.map((stageSetting) => (
@@ -784,7 +784,7 @@ export default function CommissionsPage() {
                               href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                               style={{ color: "#dc2626", textDecoration: "none" }}
                             >
-                              {payout.itemCommission.commission.order?.customer?.name || "N/A"}
+                              {payout.itemCommission.commission.order?.account?.name || "N/A"}
                             </a>
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
@@ -854,7 +854,7 @@ export default function CommissionsPage() {
                               href={`/admin/orders/${payout.itemCommission.commission.orderId}`}
                               style={{ color: "#dc2626", textDecoration: "none" }}
                             >
-                              {payout.itemCommission.commission.order?.customer?.name || "N/A"}
+                              {payout.itemCommission.commission.order?.account?.name || "N/A"}
                             </a>
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
