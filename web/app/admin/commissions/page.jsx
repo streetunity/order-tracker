@@ -114,7 +114,7 @@ export default function CommissionsPage() {
             cache: "no-store"
           });
           if (paidRes.ok) {
-            const data = await res.json();
+            const data = await paidRes.json();
             setRecentlyPaid(data);
           }
           break;
@@ -621,6 +621,7 @@ export default function CommissionsPage() {
                             <tr style={{ borderBottom: "1px solid #333" }}>
                               <th style={{ padding: "8px", textAlign: "left" }}>Select</th>
                               <th style={{ padding: "8px", textAlign: "left" }}>Customer Name</th>
+                              <th style={{ padding: "8px", textAlign: "left" }}>Item Name</th>
                               {stageSettings.map((stageSetting) => (
                                 <th key={stageSetting.stage} style={{ padding: "8px", textAlign: "center" }}>
                                   {stageSetting.stage}
@@ -647,6 +648,9 @@ export default function CommissionsPage() {
                                   >
                                     {payout.itemCommission.commission.order?.account?.name || "N/A"}
                                   </a>
+                                </td>
+                                <td style={{ padding: "8px", color: "#ccc" }}>
+                                  {payout.itemCommission?.productCode || "N/A"}
                                 </td>
                                 {stageSettings.map((stageSetting) => (
                                   <td key={stageSetting.stage} style={{ padding: "8px", textAlign: "center", color: "#10b981" }}>
@@ -762,6 +766,7 @@ export default function CommissionsPage() {
                           />
                         </th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Customer Name</th>
+                        <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Item Name</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Sales Rep</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Stage</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Amount</th>
@@ -786,6 +791,9 @@ export default function CommissionsPage() {
                             >
                               {payout.itemCommission.commission.order?.account?.name || "N/A"}
                             </a>
+                          </td>
+                          <td style={{ padding: "12px", color: "#ccc" }}>
+                            {payout.itemCommission?.productCode || "N/A"}
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
                             {payout.itemCommission.commission.salesPersonName}
@@ -838,6 +846,7 @@ export default function CommissionsPage() {
                     <thead>
                       <tr style={{ background: "#252525", borderBottom: "1px solid #333" }}>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Customer Name</th>
+                        <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Item Name</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Sales Rep</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Stage</th>
                         <th style={{ padding: "12px", textAlign: "left", color: "#999" }}>Amount</th>
@@ -856,6 +865,9 @@ export default function CommissionsPage() {
                             >
                               {payout.itemCommission.commission.order?.account?.name || "N/A"}
                             </a>
+                          </td>
+                          <td style={{ padding: "12px", color: "#ccc" }}>
+                            {payout.itemCommission?.productCode || "N/A"}
                           </td>
                           <td style={{ padding: "12px", color: "#ccc" }}>
                             {payout.itemCommission.commission.salesPersonName}
