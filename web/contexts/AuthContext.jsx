@@ -15,24 +15,19 @@ const AuthContext = createContext({});
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(null);
   const router = useRouter();
 
-  // Load token from localStorage on mount
+  // Load user from localStorage on mount
   useEffect(() => {
-    // Use 'token' as the key to match what other pages expect
-    const storedToken = localStorage.getItem('token') || localStorage.getItem('authToken');
+    const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     
     if (storedToken && storedUser) {
-      setToken(storedToken);
       try {
         setUser(JSON.parse(storedUser));
       } catch (e) {
         console.error('Failed to parse stored user:', e);
-        // Clear invalid data
         localStorage.removeItem('token');
-        localStorage.removeItem('authToken');
         localStorage.removeItem('user');
       }
     }
@@ -57,15 +52,10 @@ export function AuthProvider({ children }) {
 
       const data = await res.json();
       
-      // Store token and user data with consistent keys
-      // Use 'token' not 'authToken' to match what the users page expects
+      // Store token and user data
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
-      // Also store with old key for backward compatibility (optional, can remove later)
-      localStorage.setItem('authToken', data.token);
-      
-      setToken(data.token);
       setUser(data.user);
       
       return { success: true };
@@ -79,44 +69,33 @@ export function AuthProvider({ children }) {
 
   // Logout function
   const logout = () => {
-    // Clear all auth-related items from localStorage
     localStorage.removeItem('token');
-    localStorage.removeItem('authToken'); // Remove old key too
     localStorage.removeItem('user');
     
-    setToken(null);
     setUser(null);
     router.push('/login');
   };
 
-  // Get auth headers for API calls - ALWAYS check localStorage first
+  // Get auth headers for API calls
   const getAuthHeaders = () => {
-    // CRITICAL FIX: Always get fresh token from localStorage
-    // This prevents issues with stale state or timing problems
-    const currentToken = token || localStorage.getItem('token') || localStorage.getItem('authToken');
+    const token = localStorage.getItem('token');
     
-    if (!currentToken) {
-      console.warn('No auth token available');
+    if (!token) {
       return {};
     }
     
     return {
-      'Authorization': `Bearer ${currentToken}`
+      'Authorization': `Bearer ${token}`
     };
   };
 
-  // Get the current token - useful for direct API calls
-  const getToken = () => {
-    return token || localStorage.getItem('token') || localStorage.getItem('authToken');
-  };
-
-  // Role checking functions using the new hierarchy
+  // Role checking functions
   const isSuperAdminUser = user ? isSuperAdmin(user.role) : false;
   const isAccountantOrHigherUser = user ? isAccountantOrHigher(user.role) : false;
   const isAdminOrHigherUser = user ? isAdminOrHigher(user.role) : false;
   
   // Legacy role checks for backward compatibility
-  const isAdmin = isAdminOrHigherUser; // Now includes ADMIN, ACCOUNTANT, and SUPER_ADMIN
+  const isAdmin = isAdminOrHigherUser;
   const isAgent = user?.role === 'AGENT';
 
   // Permission checking functions
@@ -130,31 +109,13 @@ export function AuthProvider({ children }) {
     return canDeactivateUser(user.role, targetUserRole);
   };
 
-  // Migration: Update old authToken to new token key
-  useEffect(() => {
-    const oldToken = localStorage.getItem('authToken');
-    const newToken = localStorage.getItem('token');
-    
-    // If we have old token but not new token, migrate it
-    if (oldToken && !newToken) {
-      console.log('Migrating authToken to token');
-      localStorage.setItem('token', oldToken);
-    }
-    
-    // If we have new token but not old token, ensure both exist for compatibility
-    if (newToken && !oldToken) {
-      localStorage.setItem('authToken', newToken);
-    }
-  }, []);
-
   const value = {
     user,
     loading,
     login,
     logout,
     getAuthHeaders,
-    getToken, // NEW: Direct token access
-    // Legacy role checks (backward compatibility)
+    // Legacy role checks
     isAdmin,
     isAgent,
     // New role hierarchy checks
@@ -164,7 +125,6 @@ export function AuthProvider({ children }) {
     // Permission checking functions
     canEditUser,
     canDeactivateUser: canDeactivateUserCheck,
-    token: getToken() // Always return current token from localStorage
   };
 
   return (
