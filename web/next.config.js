@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    appDir: true,
-  },
   images: {
     unoptimized: true
   },
+  // Prevent Next.js from trying to statically generate API routes
+  skipTrailingSlashRedirect: true,
+  skipMiddlewareUrlNormalize: true,
   async rewrites() {
     // Use the correct backend URL based on environment
     const API_URL = process.env.NODE_ENV === 'production' 
