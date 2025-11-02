@@ -185,3 +185,11 @@ readiness.txt
 # web/.env
 # web/.env.production
 # These are kept because they're needed for the app to run
+
+# Local development files (DO NOT COMMIT)
+api/prisma/seedUsers.local.js
+api/prisma/dev.db*
+api/.env.local
+web/.env.local
+*.local.*
+

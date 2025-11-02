@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
 // HARDCODED FOR AWS DEPLOYMENT
-const API_BASE = 'http://50.19.66.100:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export async function GET(request) {
   try {
