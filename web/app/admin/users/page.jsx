@@ -33,6 +33,10 @@ export default function UsersPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
+  // Deactivate confirmation modal state
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [pendingDeactivate, setPendingDeactivate] = useState(null);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -102,16 +106,18 @@ export default function UsersPage() {
     }
   }
 
-  // Separate users into regular users and manufacturers
-  const { regularUsers, manufacturerUsers } = useMemo(() => {
+  // Separate users into regular users, manufacturers, and brokers
+  const { regularUsers, manufacturerUsers, brokerUsers } = useMemo(() => {
     const filtered = showInactive ? users : users.filter(user => user.isActive);
-    
-    const regular = filtered.filter(user => user.role !== 'MANUFACTURER');
+
+    const regular = filtered.filter(user => user.role !== 'MANUFACTURER' && user.role !== 'BROKER');
     const manufacturers = filtered.filter(user => user.role === 'MANUFACTURER');
-    
+    const brokers = filtered.filter(user => user.role === 'BROKER');
+
     return {
       regularUsers: regular,
-      manufacturerUsers: manufacturers
+      manufacturerUsers: manufacturers,
+      brokerUsers: brokers
     };
   }, [users, showInactive]);
 
@@ -210,17 +216,22 @@ export default function UsersPage() {
     }
   }
 
-  async function deactivateUser(user) {
+  function deactivateUser(user) {
     if (!canDeactivate(user)) {
       setError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`);
       return;
     }
 
-    if (!confirm(`Are you sure you want to deactivate ${user.name}?`)) return;
-    
+    setPendingDeactivate(user);
+    setShowDeactivateConfirm(true);
+  }
+
+  async function executeDeactivate() {
+    if (!pendingDeactivate) return;
+
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/users/${user.id}`, {
+      const res = await fetch(`/api/users/${pendingDeactivate.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -228,14 +239,21 @@ export default function UsersPage() {
         },
         body: JSON.stringify({ isActive: false })
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to deactivate user');
       
       await loadUsers();
+      setShowDeactivateConfirm(false);
+      setPendingDeactivate(null);
     } catch (e) {
       setError(e.message || 'Failed to deactivate user');
     }
+  }
+
+  function cancelDeactivate() {
+    setShowDeactivateConfirm(false);
+    setPendingDeactivate(null);
   }
 
   function openAddModal() {
@@ -327,7 +345,7 @@ export default function UsersPage() {
         />
 
         {/* Manufacturer Accounts Table */}
-        <UserTable 
+        <UserTable
           users={manufacturerUsers}
           currentUser={currentUser}
           onEdit={openEditModal}
@@ -336,6 +354,18 @@ export default function UsersPage() {
           togglingUserId={togglingUserId}
           showInactive={showInactive}
           sectionTitle="Manufacturer Accounts"
+        />
+
+        {/* Broker Accounts Table */}
+        <UserTable
+          users={brokerUsers}
+          currentUser={currentUser}
+          onEdit={openEditModal}
+          onDeactivate={deactivateUser}
+          onToggleSalesRep={toggleSalesRep}
+          togglingUserId={togglingUserId}
+          showInactive={showInactive}
+          sectionTitle="Broker Accounts"
         />
 
         <UserModal
@@ -349,6 +379,86 @@ export default function UsersPage() {
           assignableRoles={assignableRoles}
           currentUser={currentUser}
         />
+
+        {/* Deactivate Confirmation Modal */}
+        {showDeactivateConfirm && pendingDeactivate && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1100
+            }}
+            onClick={cancelDeactivate}
+          >
+            <div
+              style={{
+                backgroundColor: "#1f1f1f",
+                border: "1px solid #404040",
+                borderRadius: "8px",
+                padding: "2rem",
+                maxWidth: "500px",
+                width: "90%",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+                Deactivate User
+              </h3>
+              <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
+                Are you sure you want to deactivate <strong>{pendingDeactivate.name}</strong>?
+              </p>
+              <div style={{
+                padding: "1rem",
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                borderRadius: "6px",
+                marginBottom: "1rem"
+              }}>
+                <p style={{ margin: "0", fontSize: "14px", color: "#ef4444" }}>
+                  <strong>Note:</strong> This user will no longer be able to log in until reactivated.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                <button
+                  onClick={cancelDeactivate}
+                  style={{
+                    background: "#2d2d2d",
+                    color: "#fff",
+                    border: "1px solid #404040",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeDeactivate}
+                  style={{
+                    backgroundColor: "#dc2626",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Deactivate User
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

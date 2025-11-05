@@ -148,7 +148,7 @@ export default function ItemsTable({
                   item={item}
                   itemEdits={itemEdits[item.id] || {}}
                   onFieldChange={(field, value) => onFieldChange(item.id, field, value)}
-                  onDelete={() => onDelete(item.id)}
+                  onDelete={() => onDelete(item.id, item.productCode)}
                   onMarkOrdered={() => onMarkOrdered(item.id)}
                   onUnmarkOrdered={() => onUnmarkOrdered(item.id)}
                   disabled={disabled}

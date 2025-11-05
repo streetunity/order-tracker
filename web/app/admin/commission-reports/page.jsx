@@ -49,6 +49,17 @@ export default function CommissionReportsPage() {
   const [salesRepData, setSalesRepData] = useState([]);
   const [stageBreakdown, setStageBreakdown] = useState([]);
 
+  // Notification state
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+
+  // Helper to show notification
+  function showNotif(message) {
+    setNotificationMessage(message);
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  }
+
   useEffect(() => {
     if (!user) {
       router.push("/login");
@@ -141,7 +152,7 @@ export default function CommissionReportsPage() {
       }
     } catch (error) {
       console.error("Error exporting CSV:", error);
-      alert("Failed to export CSV");
+      showNotif("Failed to export CSV");
     }
   };
 
@@ -154,7 +165,7 @@ export default function CommissionReportsPage() {
         }`,
         { headers }
       );
-      
+
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -167,7 +178,7 @@ export default function CommissionReportsPage() {
       }
     } catch (error) {
       console.error("Error exporting PDF:", error);
-      alert("Failed to export PDF");
+      showNotif("Failed to export PDF");
     }
   };
 
@@ -556,6 +567,29 @@ export default function CommissionReportsPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* Notification Toast */}
+        {showNotification && (
+          <div
+            style={{
+              position: "fixed",
+              top: "100px",
+              right: "24px",
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "1rem 1.5rem",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
+              zIndex: 1200,
+              maxWidth: "400px"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "20px" }}>ℹ️</span>
+              <span style={{ color: "#d1d5db", fontSize: "14px" }}>{notificationMessage}</span>
+            </div>
+          </div>
         )}
       </div>
     </>

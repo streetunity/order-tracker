@@ -58,11 +58,29 @@ export default function AdminBoardPage() {
   const [pendingAction, setPendingAction] = useState(null);
   const [performingAction, setPerformingAction] = useState(false);
 
+  // Archive Order confirmation (separate from item archive)
+  const [showArchiveOrderConfirm, setShowArchiveOrderConfirm] = useState(false);
+  const [pendingArchiveOrder, setPendingArchiveOrder] = useState(null);
+  const [archiveOrderLoading, setArchiveOrderLoading] = useState(false);
+
   // View item modal states
   const [viewItemModal, setViewItemModal] = useState({ show: false, item: null, order: null });
 
-  // Check if user is manufacturer
+  // Notification state
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+
+  // Helper to show notification
+  function showNotif(message) {
+    setNotificationMessage(message);
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  }
+
+  // Check if user is manufacturer or broker
   const isManufacturer = user?.role === "MANUFACTURER";
+  const isBroker = user?.role === "BROKER";
+  const isLimitedAccess = isManufacturer || isBroker; // Users with read-only or restricted access
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -208,7 +226,7 @@ export default function AdminBoardPage() {
   // Handle delete button click
   const handleDeleteClick = (orderId, itemId, itemName, isOrderLocked) => {
     if (isOrderLocked) {
-      alert("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
+      showNotif("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
       return;
     }
     setPendingAction({
@@ -226,21 +244,60 @@ export default function AdminBoardPage() {
 
     try {
       setPerformingAction(true);
-      
+
       if (pendingAction.type === 'delete') {
         await deleteItem(pendingAction.orderId, pendingAction.itemId);
       } else if (pendingAction.type === 'archive') {
         await archiveItem(pendingAction.orderId, pendingAction.itemId, !pendingAction.isArchived);
       }
-      
+
       await load();
       setShowDeleteConfirm(false);
       setShowArchiveConfirm(false);
       setPendingAction(null);
     } catch (e) {
-      alert(`Failed: ${e instanceof Error ? e.message : e}`);
+      showNotif(`Failed: ${e instanceof Error ? e.message : e}`);
     } finally {
       setPerformingAction(false);
+    }
+  };
+
+  // Handle archive order button click
+  const handleArchiveOrderClick = (order) => {
+    setPendingArchiveOrder(order);
+    setShowArchiveOrderConfirm(true);
+  };
+
+  // Execute archive order
+  const confirmArchiveOrderToggle = async () => {
+    if (!pendingArchiveOrder) return;
+
+    const action = pendingArchiveOrder.isArchived ? "unarchive" : "archive";
+
+    try {
+      setArchiveOrderLoading(true);
+      const response = await fetch(`/api/orders/${pendingArchiveOrder.id}/archive`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ isArchived: !pendingArchiveOrder.isArchived })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || `Failed to ${action} order`);
+      }
+
+      setShowArchiveOrderConfirm(false);
+      setPendingArchiveOrder(null);
+      showNotif(`Order ${pendingArchiveOrder.isArchived ? 'unarchived' : 'archived'} successfully`);
+      await load();
+    } catch (e) {
+      showNotif(`Failed to ${action} order: ${e.message}`);
+    } finally {
+      setArchiveOrderLoading(false);
     }
   };
 
@@ -278,7 +335,7 @@ export default function AdminBoardPage() {
       setTimeout(() => setCopiedLink(null), 2000);
     } catch (err) {
       console.error('Failed to copy: ', err);
-      alert('Failed to copy link. Please copy manually: ' + url);
+      showNotif('Failed to copy link. Please copy manually: ' + url);
     } finally {
       document.body.removeChild(textArea);
     }
@@ -305,14 +362,14 @@ export default function AdminBoardPage() {
   if (!user) return null;
 
   return (
-    <div className={`boardContainer ${isManufacturer ? 'manufacturer-view' : ''}`}>
+    <div className={`boardContainer ${isLimitedAccess ? 'manufacturer-view' : ''}`}>
       <TopNav />
       <NotificationBar />
       
       {/* Unified sticky container for QuickActions + Toolbar */}
       <div className="stickyActionsToolbar">
-        {/* HIDE QUICKACTIONS FOR MANUFACTURERS */}
-        {!isManufacturer && <QuickActions />}
+        {/* HIDE QUICKACTIONS FOR MANUFACTURERS AND BROKERS */}
+        {!isLimitedAccess && <QuickActions />}
         
         <div className="toolbar">
           <div className="tool">
@@ -394,9 +451,33 @@ export default function AdminBoardPage() {
                   <div className="customerName">
                     {hasLockedOrder && <span style={{ color: "#dc2626", marginRight: "6px", fontSize: "16px", verticalAlign: "middle" }} title="Order is locked - item details cannot be edited">🔒</span>}
                     {group.accountName}
-                    {/* HIDE EDIT LINK FOR MANUFACTURERS */}
-                    {!isManufacturer && group.orders?.[0] && (
-                      <> <Link className="link tiny" href={`/admin/orders/${group.orders[0].id}`} title={hasLockedOrder ? "Edit order (locked)" : "Edit order"}>✎ Edit</Link></>
+                    {/* HIDE EDIT LINK FOR MANUFACTURERS AND BROKERS */}
+                    {!isLimitedAccess && group.orders?.[0] && (
+                      <>
+                        {" "}
+                        <Link className="link tiny" href={`/admin/orders/${group.orders[0].id}`} title={hasLockedOrder ? "Edit order (locked)" : "Edit order"} style={{ textDecoration: 'none' }}>🔍</Link>
+                        {" "}
+                        <button
+                          className="link tiny"
+                          onClick={() => handleArchiveOrderClick(group.orders[0])}
+                          title={group.orders[0].isArchived ? "Unarchive order" : "Archive order"}
+                          style={{
+                            textDecoration: 'none',
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            fontSize: 'inherit'
+                          }}
+                        >
+                          {group.orders[0].isArchived ? "📂" : "📦"}
+                        </button>
+                      </>
+                    )}
+                    {group.orders?.[0]?.account?.contactName && (
+                      <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px", fontWeight: "normal" }}>
+                        {group.orders[0].account.contactName}
+                      </div>
                     )}
                   </div>
                   {/* HIDE PUBLIC LINKS FOR MANUFACTURERS */}
@@ -447,31 +528,36 @@ export default function AdminBoardPage() {
                           
                           return (
                             <div key={it.id} className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`} title={tooltipText} style={{ borderColor: isOrderLocked ? "#dc2626" : undefined, borderWidth: isOrderLocked ? "2px" : undefined }}>
-                              <div className="itemTitle">{it.productCode || "Item"}</div>
+                              <div className="itemTitle" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>{it.productCode || "Item"}</span>
+                                {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>}
+                              </div>
                               <div className="itemActions" style={{ gap: "2px" }}>
-                                <button className="miniBtn" aria-label="Move back" disabled={!prev} onClick={async () => { if (!prev) return; try { await changeItemStage(order.id, it.id, prev, { allowBackward: true }); await load(); } catch (e) { alert(`Failed to move back: ${e instanceof Error ? e.message : e}`); } }} title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>◀</button>
-                                <button className="miniBtn" aria-label="Move forward" disabled={!next} onClick={async () => { if (!next) return; try { await changeItemStage(order.id, it.id, next, { allowFastForward: true }); await load(); } catch (e) { alert(`Failed to move forward: ${e instanceof Error ? e.message : e}`); } }} title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>▶</button>
-                                
-                                {/* HIDE ARCHIVE AND DELETE BUTTONS FOR MANUFACTURERS */}
-                                {!isManufacturer && (
+                                {/* HIDE MOVE BUTTONS FOR MANUFACTURERS AND BROKERS */}
+                                {!isLimitedAccess && (
+                                  <>
+                                    <button className="miniBtn" aria-label="Move back" disabled={!prev} onClick={async () => { if (!prev) return; try { await changeItemStage(order.id, it.id, prev, { allowBackward: true }); await load(); } catch (e) { showNotif(`Failed to move back: ${e instanceof Error ? e.message : e}`); } }} title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>◀</button>
+                                    <button className="miniBtn" aria-label="Move forward" disabled={!next} onClick={async () => { if (!next) return; try { await changeItemStage(order.id, it.id, next, { allowFastForward: true }); await load(); } catch (e) { showNotif(`Failed to move forward: ${e instanceof Error ? e.message : e}`); } }} title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>▶</button>
+                                  </>
+                                )}
+
+                                {/* HIDE ARCHIVE AND DELETE BUTTONS FOR MANUFACTURERS AND BROKERS */}
+                                {!isLimitedAccess && (
                                   <>
                                     {!isArchived ? (
-                                      <button className="miniBtn danger" aria-label="Archive" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", false)} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px" }}>✕</button>
+                                      <button className="miniBtn danger" aria-label="Archive" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", false)} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px", marginLeft: "4px" }}>📦</button>
                                     ) : (
-                                      <button className="miniBtn" aria-label="Restore" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", true)} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px" }}>↺</button>
+                                      <button className="miniBtn" aria-label="Restore" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", true)} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px", marginLeft: "4px" }}>📂</button>
                                     )}
                                     <button className="miniBtn danger" aria-label="Delete item" onClick={() => handleDeleteClick(order.id, it.id, it.productCode || "this item", isOrderLocked)} title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"} style={{ opacity: isOrderLocked ? 0.5 : 1, cursor: isOrderLocked ? "not-allowed" : "pointer", fontSize: "10px", padding: "2px 4px" }}>🗑</button>
                                   </>
                                 )}
-                                
-                                {it.isOrdered && <span style={{ width: '8px', display: 'inline-block' }}></span>}
-                                {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>}
-                                
+
                                 {/* VIEW ITEM BUTTON - Far right */}
-                                <button 
-                                  className="miniBtn view" 
-                                  aria-label="View item details" 
-                                  onClick={() => handleViewItem(it, order)} 
+                                <button
+                                  className="miniBtn view"
+                                  aria-label="View item details"
+                                  onClick={() => handleViewItem(it, order)}
                                   title="View item details"
                                   style={{ fontSize: "10px", padding: "2px 6px" }}
                                 >
@@ -611,6 +697,122 @@ export default function AdminBoardPage() {
                 }
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Archive Order Confirmation Modal */}
+      {showArchiveOrderConfirm && pendingArchiveOrder && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1100
+          }}
+          onClick={() => !archiveOrderLoading && setShowArchiveOrderConfirm(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "2rem",
+              maxWidth: "500px",
+              width: "90%",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+              {pendingArchiveOrder.isArchived ? "📂 Unarchive Order?" : "📦 Archive Order?"}
+            </h3>
+            <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
+              {pendingArchiveOrder.isArchived
+                ? "Are you sure you want to unarchive this order? It will appear on the board and in active orders."
+                : "Are you sure you want to archive this order? It will be hidden from the board and active orders."}
+            </p>
+            {!pendingArchiveOrder.isArchived && (
+              <div style={{
+                padding: "1rem",
+                backgroundColor: "rgba(107, 114, 128, 0.1)",
+                border: "1px solid rgba(107, 114, 128, 0.3)",
+                borderRadius: "6px",
+                marginBottom: "1rem"
+              }}>
+                <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#9ca3af" }}>
+                  <strong>What will happen:</strong>
+                </p>
+                <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "13px", color: "#9ca3af" }}>
+                  <li>Order will be removed from the board view</li>
+                  <li>Order will appear in the "Archived Orders" tab</li>
+                  <li>You can unarchive the order at any time</li>
+                </ul>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+              <button
+                onClick={() => setShowArchiveOrderConfirm(false)}
+                disabled={archiveOrderLoading}
+                style={{
+                  background: "#2d2d2d",
+                  color: "#fff",
+                  border: "1px solid #404040",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: archiveOrderLoading ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: archiveOrderLoading ? 0.5 : 1
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmArchiveOrderToggle}
+                disabled={archiveOrderLoading}
+                style={{
+                  backgroundColor: pendingArchiveOrder.isArchived ? "#10b981" : "#6b7280",
+                  color: "white",
+                  border: "none",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: archiveOrderLoading ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: archiveOrderLoading ? 0.5 : 1
+                }}
+              >
+                {archiveOrderLoading ? (pendingArchiveOrder.isArchived ? "Unarchiving..." : "Archiving...") : (pendingArchiveOrder.isArchived ? "Unarchive Order" : "Archive Order")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Toast */}
+      {showNotification && (
+        <div
+          style={{
+            position: "fixed",
+            top: "100px",
+            right: "24px",
+            backgroundColor: "#1f1f1f",
+            border: "1px solid #404040",
+            borderRadius: "8px",
+            padding: "1rem 1.5rem",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
+            zIndex: 1200,
+            maxWidth: "400px"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "20px" }}>ℹ️</span>
+            <span style={{ color: "#d1d5db", fontSize: "14px" }}>{notificationMessage}</span>
           </div>
         </div>
       )}

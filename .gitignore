@@ -193,3 +193,4 @@ api/.env.local
 web/.env.local
 *.local.*
 
+api/prisma/migrations/20250921184141_mez/

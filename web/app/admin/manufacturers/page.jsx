@@ -25,6 +25,10 @@ export default function ManufacturersPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
+  // Toggle status confirmation modal state
+  const [showToggleConfirm, setShowToggleConfirm] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState(null);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -108,52 +112,44 @@ export default function ManufacturersPage() {
     }
   }
 
-  async function toggleManufacturerStatus(manufacturer) {
-    if (!confirm(`Are you sure you want to ${manufacturer.isActive ? 'deactivate' : 'reactivate'} ${manufacturer.name}?`)) {
-      return;
-    }
+  function toggleManufacturerStatus(manufacturer) {
+    setPendingToggle(manufacturer);
+    setShowToggleConfirm(true);
+  }
+
+  async function executeToggle() {
+    if (!pendingToggle) return;
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/manufacturers/${manufacturer.id}`, {
+      const res = await fetch(`/api/manufacturers/${pendingToggle.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ isActive: !manufacturer.isActive })
+        body: JSON.stringify({ isActive: !pendingToggle.isActive })
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update manufacturer status');
-      
+
       await loadManufacturers();
+      setShowToggleConfirm(false);
+      setPendingToggle(null);
     } catch (e) {
       setError(e.message || 'Failed to update manufacturer status');
     }
   }
 
-  async function deactivateManufacturer(manufacturer) {
-    if (!confirm(`Are you sure you want to deactivate ${manufacturer.name}?`)) return;
-    
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/manufacturers/${manufacturer.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ isActive: false })
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to deactivate manufacturer');
-      
-      await loadManufacturers();
-    } catch (e) {
-      setError(e.message || 'Failed to deactivate manufacturer');
-    }
+  function cancelToggle() {
+    setShowToggleConfirm(false);
+    setPendingToggle(null);
+  }
+
+  function deactivateManufacturer(manufacturer) {
+    setPendingToggle(manufacturer);
+    setShowToggleConfirm(true);
   }
 
   function openAddModal() {
@@ -252,6 +248,88 @@ export default function ManufacturersPage() {
           onClose={closeModal}
           error={error}
         />
+
+        {/* Toggle Status Confirmation Modal */}
+        {showToggleConfirm && pendingToggle && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1100
+            }}
+            onClick={cancelToggle}
+          >
+            <div
+              style={{
+                backgroundColor: "#1f1f1f",
+                border: "1px solid #404040",
+                borderRadius: "8px",
+                padding: "2rem",
+                maxWidth: "500px",
+                width: "90%",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+                {pendingToggle.isActive ? 'Deactivate' : 'Reactivate'} Manufacturer
+              </h3>
+              <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
+                Are you sure you want to {pendingToggle.isActive ? 'deactivate' : 'reactivate'} <strong>{pendingToggle.name}</strong>?
+              </p>
+              <div style={{
+                padding: "1rem",
+                backgroundColor: pendingToggle.isActive ? "rgba(239, 68, 68, 0.1)" : "rgba(16, 185, 129, 0.1)",
+                border: `1px solid ${pendingToggle.isActive ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)"}`,
+                borderRadius: "6px",
+                marginBottom: "1rem"
+              }}>
+                <p style={{ margin: "0", fontSize: "14px", color: pendingToggle.isActive ? "#ef4444" : "#10b981" }}>
+                  <strong>Note:</strong> {pendingToggle.isActive
+                    ? 'This manufacturer will be deactivated and hidden from the list.'
+                    : 'This manufacturer will be reactivated and visible again.'}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                <button
+                  onClick={cancelToggle}
+                  style={{
+                    background: "#2d2d2d",
+                    color: "#fff",
+                    border: "1px solid #404040",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeToggle}
+                  style={{
+                    backgroundColor: pendingToggle.isActive ? "#dc2626" : "#10b981",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  {pendingToggle.isActive ? 'Deactivate' : 'Reactivate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

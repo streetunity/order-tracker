@@ -1,11 +1,12 @@
 /**
  * Frontend Role Hierarchy Helper Functions
- * 
+ *
  * Hierarchy:
  * SUPER_ADMIN (Level 5) - Full system access
  * ACCOUNTANT (Level 4) - Financial management
  * ADMIN (Level 3) - Standard admin
  * AGENT (Level 2) - Basic user
+ * BROKER (Level 1) - Read-only access to all orders, can see broker links
  * MANUFACTURER (Level 1) - External manufacturer access
  */
 
@@ -14,6 +15,7 @@ export const ROLES = {
   ACCOUNTANT: 'ACCOUNTANT',
   ADMIN: 'ADMIN',
   AGENT: 'AGENT',
+  BROKER: 'BROKER',
   MANUFACTURER: 'MANUFACTURER'
 };
 
@@ -22,6 +24,7 @@ export const ROLE_LEVELS = {
   ACCOUNTANT: 4,
   ADMIN: 3,
   AGENT: 2,
+  BROKER: 1,
   MANUFACTURER: 1
 };
 
@@ -30,6 +33,7 @@ export const ROLE_DISPLAY_NAMES = {
   ACCOUNTANT: 'Accountant',
   ADMIN: 'Admin',
   AGENT: 'Agent',
+  BROKER: 'Broker',
   MANUFACTURER: 'Manufacturer'
 };
 
@@ -144,6 +148,8 @@ export function getRoleBadgeColor(role) {
       return { bg: '#581c87', text: '#e9d5ff' }; // Purple
     case ROLES.AGENT:
       return { bg: '#404040', text: '#e4e4e4' }; // Gray
+    case ROLES.BROKER:
+      return { bg: '#115e59', text: '#99f6e4' }; // Dark teal
     case ROLES.MANUFACTURER:
       return { bg: '#6b21a8', text: '#e9d5ff' }; // Purple for manufacturer
     default:

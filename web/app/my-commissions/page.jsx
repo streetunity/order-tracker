@@ -6,9 +6,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import NotificationBar from "@/components/NotificationBar";
 import Link from "next/link";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import "./page.css";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000';
 
 export default function MyCommissionsPage() {
   const { user, getAuthHeaders } = useAuth();
@@ -17,8 +17,14 @@ export default function MyCommissionsPage() {
   const [summary, setSummary] = useState(null);
   const [commissions, setCommissions] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
+  const [stageSettings, setStageSettings] = useState([]);
   const [filter, setFilter] = useState('all');
   const [year, setYear] = useState(new Date().getFullYear());
+
+  // PDF Modal state
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfPeriod, setPdfPeriod] = useState('ytd');
+  const [pdfMonth, setPdfMonth] = useState(new Date().getMonth() + 1);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -39,27 +45,59 @@ export default function MyCommissionsPage() {
       setLoading(true);
 
       // Load summary
-      const summaryRes = await fetch(`${API_BASE}/commissions/my/summary`, {
+      const summaryRes = await fetch(`/api/commissions/my/summary`, {
         headers: getAuthHeaders(),
       });
       if (summaryRes.ok) {
         setSummary(await summaryRes.json());
       }
 
+      // Load stage settings for commission percentage calculation
+      const stageRes = await fetch('/api/commission-settings/stages', {
+        headers: getAuthHeaders(),
+      });
+      if (stageRes.ok) {
+        const stages = await stageRes.json();
+        setStageSettings(stages);
+      }
+
       // Load commission history
       const params = new URLSearchParams();
       if (filter !== 'all') params.set('status', filter);
       params.set('year', year);
-      
-      const commissionsRes = await fetch(`${API_BASE}/commissions/my?${params}`, {
+
+      const commissionsRes = await fetch(`/api/commissions/my?${params}`, {
         headers: getAuthHeaders(),
       });
       if (commissionsRes.ok) {
-        setCommissions(await commissionsRes.json());
+        const commissionsData = await commissionsRes.json();
+
+        // Flatten commissions into individual payout rows for the history table
+        const payoutRows = [];
+        commissionsData.forEach(commission => {
+          commission.itemCommissions?.forEach(itemComm => {
+            itemComm.payouts?.forEach(payout => {
+              payoutRows.push({
+                ...payout,
+                orderId: commission.orderId,
+                orderNumber: commission.order?.poNumber,
+                orderDate: commission.order?.orderDate,
+                customerName: commission.order?.account?.name,
+                commissionRate: commission.commissionRate,
+                productCode: itemComm.productCode || itemComm.item?.productCode
+              });
+            });
+          });
+        });
+
+        // Sort by created date descending
+        payoutRows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        setCommissions(payoutRows);
       }
 
       // Load monthly breakdown
-      const monthlyRes = await fetch(`${API_BASE}/commissions/my/monthly?year=${year}`, {
+      const monthlyRes = await fetch(`/api/commissions/my/monthly?year=${year}`, {
         headers: getAuthHeaders(),
       });
       if (monthlyRes.ok) {
@@ -92,42 +130,167 @@ export default function MyCommissionsPage() {
     });
   };
 
+  // Helper to convert number to ordinal (1st, 2nd, 3rd, etc.)
+  const toOrdinal = (num) => {
+    const suffixes = ["th", "st", "nd", "rd"];
+    const v = num % 100;
+    return num + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+  };
+
+  // Get stage number from stage name
+  const getStageNumber = (stageName) => {
+    if (!stageName || stageSettings.length === 0) return '-';
+    const stageIndex = stageSettings.findIndex(s => s.stage === stageName);
+    return stageIndex >= 0 ? toOrdinal(stageIndex + 1) : stageName;
+  };
+
+  // Calculate applied commission percentage per stage
+  const getAppliedCommissionPercent = (commissionRate) => {
+    if (stageSettings.length === 0) return commissionRate.toFixed(2);
+    return (commissionRate / stageSettings.length).toFixed(2);
+  };
+
   // Get status badge class
   const getStatusClass = (status) => {
     switch(status) {
-      case 'AWAITING_PRICES': return 'awaiting';
-      case 'CALCULATED': return 'calculated';
-      case 'PARTIAL_PAID': return 'partial';
-      case 'FULLY_PAID': return 'paid';
+      case 'WAITING': return 'awaiting';
+      case 'PENDING': return 'calculated';
+      case 'APPROVED': return 'partial';
+      case 'PAID': return 'paid';
       case 'FLAGGED': return 'flagged';
       default: return '';
     }
   };
 
-  // Export to CSV
-  const exportToCSV = () => {
-    const headers = ['Order #', 'Customer', 'Order Date', 'Order Value', 'Rate', 'Commission', 'Status'];
-    const rows = commissions.map(c => [
-      c.order?.poNumber || '',
-      c.order?.account?.name || '',
-      formatDate(c.order?.orderDate),
-      c.orderTotalAmount,
-      c.commissionRate + '%',
-      c.totalCommissionAmount,
-      c.status
-    ]);
+  // Generate PDF Report
+  const generatePdfReport = async () => {
+    try {
+      // Determine date range
+      let startDate, endDate, periodLabel;
+      if (pdfPeriod === 'ytd') {
+        startDate = `${year}-01-01`;
+        endDate = `${year}-12-31`;
+        periodLabel = `Year-to-Date ${year}`;
+      } else {
+        // Specific month
+        const monthStr = String(pdfMonth).padStart(2, '0');
+        startDate = `${year}-${monthStr}-01`;
+        const lastDay = new Date(year, pdfMonth, 0).getDate();
+        endDate = `${year}-${monthStr}-${lastDay}`;
+        const monthName = new Date(year, pdfMonth - 1).toLocaleString('default', { month: 'long' });
+        periodLabel = `${monthName} ${year}`;
+      }
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+      // Fetch stage settings for commission percentage calculation
+      const stageRes = await fetch('/api/commission-settings/stages', {
+        headers: getAuthHeaders(),
+      });
+      const stageSettings = stageRes.ok ? await stageRes.json() : [];
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `my-commissions-${year}.csv`;
-    a.click();
+      // Fetch paid commissions for the period
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+      });
+
+      const res = await fetch(`/api/commissions/my/paid?${params}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        alert("Failed to fetch commission data");
+        return;
+      }
+
+      const payouts = await res.json();
+
+      if (payouts.length === 0) {
+        alert("No paid commissions found for selected period");
+        return;
+      }
+
+      // Load logo
+      const logoImg = new Image();
+      logoImg.src = "/smt-logo.png";
+
+      await new Promise((resolve, reject) => {
+        logoImg.onload = resolve;
+        logoImg.onerror = reject;
+      });
+
+      // Generate PDF
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Add logo in top right corner
+      const logoWidth = 30;
+      const logoHeight = (logoImg.height / logoImg.width) * logoWidth;
+      doc.addImage(logoImg, "PNG", pageWidth - logoWidth - 14, 10, logoWidth, logoHeight);
+
+      // Header
+      doc.setFontSize(18);
+      doc.setFont(undefined, "bold");
+      doc.text("Commission Statement", 14, 20);
+
+      // Agent and period info
+      doc.setFontSize(12);
+      doc.setFont(undefined, "normal");
+      doc.text(`Sales Agent: ${user.name}`, 14, 35);
+      doc.text(`Period: ${periodLabel}`, 14, 42);
+      doc.text(`Report Generated: ${new Date().toLocaleDateString()}`, 14, 49);
+
+      // Calculate total
+      const totalPaid = payouts.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+
+      // Table data
+      const tableData = payouts.map((payout) => {
+        const commissionRate = payout.itemCommission?.commission?.commissionRate || 0;
+        const appliedCommissionPercent = stageSettings.length > 0
+          ? (commissionRate / stageSettings.length).toFixed(2)
+          : commissionRate.toFixed(2);
+
+        return [
+          payout.itemCommission?.commission?.order?.account?.name || "N/A",
+          payout.itemCommission?.productCode || "N/A",
+          `$${parseFloat(payout.amount || 0).toFixed(2)}`,
+          `${appliedCommissionPercent}%`,
+          payout.approvedAt ? new Date(payout.approvedAt).toLocaleDateString() : "-",
+          payout.paidAt ? new Date(payout.paidAt).toLocaleDateString() : "-",
+        ];
+      });
+
+      // Add table
+      autoTable(doc, {
+        startY: 55,
+        head: [["Customer", "Item", "Amount", "Commission %", "Approved Date", "Paid Date"]],
+        body: tableData,
+        theme: "grid",
+        headStyles: { fillColor: [60, 60, 60], textColor: 255 },
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: {
+          2: { halign: "right" },
+          3: { halign: "center" },
+        },
+      });
+
+      // Get final Y position after table
+      const finalY = doc.lastAutoTable.finalY;
+
+      // Add total
+      doc.setFontSize(12);
+      doc.setFont(undefined, "bold");
+      doc.text(`Total Paid: $${totalPaid.toFixed(2)}`, pageWidth - 14, finalY + 10, { align: "right" });
+
+      // Save PDF
+      const fileName = `Commission_Statement_${user.name.replace(/\s+/g, "_")}_${periodLabel.replace(/\s+/g, "_")}.pdf`;
+      doc.save(fileName);
+
+      setShowPdfModal(false);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("Error generating PDF report");
+    }
   };
 
   if (!user) return null;
@@ -140,8 +303,8 @@ export default function MyCommissionsPage() {
       <div className="page-content">
         <div className="page-header">
           <h1>My Commissions</h1>
-          <button className="export-btn" onClick={exportToCSV}>
-            Export to CSV
+          <button className="export-btn" onClick={() => setShowPdfModal(true)}>
+            📄 Generate Report
           </button>
         </div>
 
@@ -152,35 +315,27 @@ export default function MyCommissionsPage() {
             {/* Summary Cards */}
             <div className="summary-cards">
               <div className="summary-card">
-                <div className="card-label">YTD Earnings</div>
-                <div className="card-value">{formatCurrency(summary?.ytdTotal || 0)}</div>
-                {summary?.ytdChange && (
-                  <div className={`card-change ${summary.ytdChange > 0 ? 'positive' : 'negative'}`}>
-                    {summary.ytdChange > 0 ? '+' : ''}{summary.ytdChange}%
-                  </div>
-                )}
+                <div className="card-label">Total Paid (YTD)</div>
+                <div className="card-value">{formatCurrency(summary?.totalPaid || 0)}</div>
+                <div className="card-sublabel">Commissions received</div>
               </div>
 
               <div className="summary-card">
                 <div className="card-label">Pending Approval</div>
-                <div className="card-value">{formatCurrency(summary?.ytdPending || 0)}</div>
-                <div className="card-sublabel">{summary?.pendingCount || 0} orders</div>
+                <div className="card-value">{formatCurrency(summary?.totalPending || 0)}</div>
+                <div className="card-sublabel">Awaiting approval</div>
               </div>
 
               <div className="summary-card">
                 <div className="card-label">Approved</div>
-                <div className="card-value">{formatCurrency(summary?.ytdApproved || 0)}</div>
+                <div className="card-value">{formatCurrency(summary?.totalApproved || 0)}</div>
                 <div className="card-sublabel">Ready for payment</div>
               </div>
 
               <div className="summary-card">
-                <div className="card-label">This Month</div>
-                <div className="card-value">{formatCurrency(summary?.monthlyTotal || 0)}</div>
-                {summary?.monthlyChange && (
-                  <div className={`card-change ${summary.monthlyChange > 0 ? 'positive' : 'negative'}`}>
-                    {summary.monthlyChange > 0 ? '+' : ''}{summary.monthlyChange}% vs last month
-                  </div>
-                )}
+                <div className="card-label">Projected</div>
+                <div className="card-value">{formatCurrency(summary?.totalProjected || 0)}</div>
+                <div className="card-sublabel">Future earnings</div>
               </div>
             </div>
 
@@ -287,36 +442,36 @@ export default function MyCommissionsPage() {
                     <tr>
                       <th>Order #</th>
                       <th>Customer</th>
+                      <th>Item</th>
                       <th>Order Date</th>
                       <th>Stage</th>
-                      <th>Order Value</th>
-                      <th>Rate</th>
-                      <th>Commission</th>
+                      <th>Applied %</th>
+                      <th>Amount</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {commissions.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="empty-row">No commissions found</td>
+                        <td colSpan="8" className="empty-row">No commission payouts found</td>
                       </tr>
                     ) : (
-                      commissions.map((commission) => (
-                        <tr key={commission.id}>
+                      commissions.map((payout) => (
+                        <tr key={payout.id}>
                           <td>
-                            <Link href={`/admin/orders/${commission.orderId}`} className="order-link">
-                              #{commission.order?.poNumber || '-'}
+                            <Link href={`/admin/orders/${payout.orderId}`} className="order-link">
+                              #{payout.orderNumber || '-'}
                             </Link>
                           </td>
-                          <td>{commission.order?.account?.name || '-'}</td>
-                          <td>{formatDate(commission.order?.orderDate)}</td>
-                          <td>{commission.order?.currentStage || '-'}</td>
-                          <td>{formatCurrency(commission.orderTotalAmount)}</td>
-                          <td>{commission.commissionRate}%</td>
-                          <td className="commission-amount">{formatCurrency(commission.totalCommissionAmount)}</td>
+                          <td>{payout.customerName || '-'}</td>
+                          <td>{payout.productCode || '-'}</td>
+                          <td>{formatDate(payout.orderDate)}</td>
+                          <td>{getStageNumber(payout.stage)}</td>
+                          <td>{getAppliedCommissionPercent(payout.commissionRate)}%</td>
+                          <td className="commission-amount">{formatCurrency(payout.amount)}</td>
                           <td>
-                            <span className={`status-badge ${getStatusClass(commission.status)}`}>
-                              {commission.status.replace(/_/g, ' ')}
+                            <span className={`status-badge ${getStatusClass(payout.status)}`}>
+                              {payout.status.replace(/_/g, ' ')}
                             </span>
                           </td>
                         </tr>
@@ -329,6 +484,129 @@ export default function MyCommissionsPage() {
           </>
         )}
       </div>
+
+      {/* Generate PDF Report Modal */}
+      {showPdfModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowPdfModal(false)}
+        >
+          <div
+            style={{
+              background: "#1a1a1a",
+              padding: "30px",
+              borderRadius: "12px",
+              maxWidth: "500px",
+              width: "90%",
+              border: "1px solid #333",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginBottom: "24px", color: "#dc2626", fontSize: "20px" }}>
+              Generate Commission Statement
+            </h2>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", marginBottom: "8px", color: "#ccc", fontSize: "14px" }}>
+                Report Period
+              </label>
+              <select
+                value={pdfPeriod}
+                onChange={(e) => setPdfPeriod(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  background: "#2a2a2a",
+                  border: "1px solid #444",
+                  borderRadius: "4px",
+                  color: "#fff",
+                  fontSize: "14px",
+                }}
+              >
+                <option value="ytd">Year to Date ({year})</option>
+                <option value="month">Specific Month</option>
+              </select>
+            </div>
+
+            {pdfPeriod === 'month' && (
+              <div style={{ marginBottom: "24px" }}>
+                <label style={{ display: "block", marginBottom: "8px", color: "#ccc", fontSize: "14px" }}>
+                  Select Month
+                </label>
+                <select
+                  value={pdfMonth}
+                  onChange={(e) => setPdfMonth(parseInt(e.target.value))}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    background: "#2a2a2a",
+                    border: "1px solid #444",
+                    borderRadius: "4px",
+                    color: "#fff",
+                    fontSize: "14px",
+                  }}
+                >
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const month = i + 1;
+                    const monthName = new Date(year, i).toLocaleString('default', { month: 'long' });
+                    return (
+                      <option key={month} value={month}>
+                        {monthName}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowPdfModal(false);
+                  setPdfPeriod('ytd');
+                }}
+                style={{
+                  background: "#2a2a2a",
+                  color: "#999",
+                  border: "1px solid #444",
+                  padding: "10px 20px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={generatePdfReport}
+                style={{
+                  background: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  padding: "10px 20px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
+                Generate PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

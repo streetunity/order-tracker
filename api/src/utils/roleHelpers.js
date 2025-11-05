@@ -1,11 +1,12 @@
 /**
  * Role Hierarchy Helper Functions
- * 
+ *
  * Hierarchy:
  * SUPER_ADMIN (Level 5) - Full system access
  * ACCOUNTANT (Level 4) - Financial management
  * ADMIN (Level 3) - Standard admin
  * AGENT (Level 2) - Basic user
+ * BROKER (Level 1) - Read-only access to all orders, can see broker links
  * MANUFACTURER (Level 1) - External manufacturer access
  */
 
@@ -14,6 +15,7 @@ export const ROLES = {
   ACCOUNTANT: 'ACCOUNTANT',
   ADMIN: 'ADMIN',
   AGENT: 'AGENT',
+  BROKER: 'BROKER',
   MANUFACTURER: 'MANUFACTURER'
 };
 
@@ -22,6 +24,7 @@ export const ROLE_LEVELS = {
   ACCOUNTANT: 4,
   ADMIN: 3,
   AGENT: 2,
+  BROKER: 1,
   MANUFACTURER: 1
 };
 
@@ -30,6 +33,7 @@ export const ROLE_DISPLAY_NAMES = {
   ACCOUNTANT: 'Accountant',
   ADMIN: 'Admin',
   AGENT: 'Agent',
+  BROKER: 'Broker',
   MANUFACTURER: 'Manufacturer'
 };
 
@@ -161,4 +165,22 @@ export function isAdminOrHigher(role) {
  */
 export function isManufacturer(role) {
   return role === ROLES.MANUFACTURER;
+}
+
+/**
+ * Check if user is Broker role
+ * @param {string} role - User role
+ * @returns {boolean}
+ */
+export function isBroker(role) {
+  return role === ROLES.BROKER;
+}
+
+/**
+ * Check if user has read-only access (Manufacturer or Broker)
+ * @param {string} role - User role
+ * @returns {boolean}
+ */
+export function isReadOnly(role) {
+  return isManufacturer(role) || isBroker(role);
 }

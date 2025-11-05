@@ -182,7 +182,7 @@ input[type="number"] {
 /* Button reset */
 button {
   font-family: inherit;
-  font-size: inherit;
+  font-size: 14px;
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);

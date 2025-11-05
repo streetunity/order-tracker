@@ -158,7 +158,7 @@ export function createManufacturersRouter(prisma) {
             name: name.trim(),
             role: 'MANUFACTURER',
             isActive: true,
-            canBeSalesRep: false
+            showInSalesRepDropdown: false  // Manufacturers should never appear as sales reps
           }
         });
 

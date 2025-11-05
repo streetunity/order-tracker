@@ -14,6 +14,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const [lockingOrder, setLockingOrder] = useState(false);
 
   const isManufacturer = user?.role === "MANUFACTURER";
+  const isBroker = user?.role === "BROKER";
+  const canSeeBrokerLink = user?.role === "SUPER_ADMIN" || user?.role === "BROKER";
   const isOrderLocked = order?.isLocked || false;
   
   // Format ordered date if it exists
@@ -25,19 +27,25 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       })
     : null;
   
+  // Brokers cannot edit anything (read-only)
   // Manufacturers can only edit serial number
   // Admin/Agents can edit all fields if order is not locked
   const canEditField = (fieldName) => {
+    // Brokers cannot edit anything
+    if (isBroker) {
+      return false;
+    }
+
     if (fieldName === "serialNumber") {
-      // Serial number is always editable by everyone, even if order is locked
+      // Serial number is always editable by everyone except brokers, even if order is locked
       return true;
     }
-    
+
     if (isManufacturer) {
       // Manufacturers can ONLY edit serial number
       return false;
     }
-    
+
     // Admin/Agents can edit if order is not locked
     return !isOrderLocked;
   };
@@ -105,11 +113,14 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     }
   };
 
+  const [showAdminOnlyAlert, setShowAdminOnlyAlert] = useState(false);
+
   const handleLockToggle = () => {
     if (isOrderLocked) {
       // Show unlock dialog with reason requirement
       if (!isAdmin) {
-        alert("Only administrators can unlock orders.");
+        setShowAdminOnlyAlert(true);
+        setTimeout(() => setShowAdminOnlyAlert(false), 3000);
         return;
       }
       setShowUnlockDialog(true);
@@ -155,9 +166,12 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     }
   };
 
+  const [showUnlockError, setShowUnlockError] = useState(false);
+
   const performUnlock = async () => {
     if (unlockReason.trim().length < 10) {
-      alert("Please provide a reason with at least 10 characters");
+      setShowUnlockError(true);
+      setTimeout(() => setShowUnlockError(false), 3000);
       return;
     }
 
@@ -295,6 +309,21 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
               fontSize: "13px"
             }}>
               ℹ️ <strong>Manufacturer view.</strong> You can edit the serial number and view financial notes.
+            </div>
+          )}
+
+          {isBroker && (
+            <div style={{
+              padding: "12px",
+              margin: "0 1.5rem",
+              marginTop: "1rem",
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "6px",
+              color: "#e4e4e4",
+              fontSize: "13px"
+            }}>
+              ℹ️ <strong>Broker view.</strong> You have read-only access and can view the broker documents link.
             </div>
           )}
 
@@ -454,12 +483,47 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                   }}
                 />
               </div>
+
+              {canSeeBrokerLink && (
+                <div style={{
+                  padding: "12px",
+                  backgroundColor: "#1f1f1f",
+                  border: "1px solid #404040",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  marginTop: "1rem"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <span>📎</span>
+                    <strong style={{ color: "#e4e4e4" }}>Broker Documents</strong>
+                  </div>
+                  {order?.brokerDocsLink ? (
+                    <a
+                      href={order.brokerDocsLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: "#dc2626",
+                        textDecoration: "underline",
+                        fontSize: "12px",
+                        wordBreak: "break-all"
+                      }}
+                    >
+                      {order.brokerDocsLink}
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: "12px", color: "#a0a0a0", fontStyle: "italic" }}>
+                      No broker documents link set. {user?.role === "SUPER_ADMIN" && "Edit this order to add a link."}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="view-item-footer">
             <div style={{ display: "flex", gap: "0.5rem", marginRight: "auto" }}>
-              {!isManufacturer && (
+              {!isManufacturer && !isBroker && (
                 <button
                   onClick={handleLockToggle}
                   disabled={saving || lockingOrder}
@@ -478,8 +542,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                   {lockingOrder ? "..." : (isOrderLocked ? "🔓 Unlock Order" : "🔒 Lock Order")}
                 </button>
               )}
-              
-              {!isManufacturer && !item?.isOrdered && (
+
+              {!isManufacturer && !isBroker && !item?.isOrdered && (
                 <button
                   onClick={handleMarkOrdered}
                   disabled={saving}
@@ -507,7 +571,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
             >
               {hasChanges() ? "Cancel" : "Close"}
             </button>
-            {hasChanges() && (
+            {hasChanges() && !isBroker && (
               <button
                 onClick={handleSave}
                 disabled={saving || lockingOrder}
@@ -522,41 +586,85 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
 
       {/* Lock Confirmation Dialog */}
       {showLockConfirm && (
-        <div className="confirm-overlay" onClick={() => !lockingOrder && setShowLockConfirm(false)} style={{ zIndex: 1100 }}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>🔒 Lock Order?</h3>
-            <p style={{ fontSize: "16px", marginBottom: "1rem" }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1100
+          }}
+          onClick={() => !lockingOrder && setShowLockConfirm(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "2rem",
+              maxWidth: "500px",
+              width: "90%",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+              🔒 Lock Order?
+            </h3>
+            <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
               Are you sure you've finished editing <strong>ALL items</strong> on this order?
             </p>
-            <div style={{ 
-              padding: "1rem", 
-              backgroundColor: "rgba(255, 170, 0, 0.1)", 
-              border: "1px solid rgba(255, 170, 0, 0.3)",
+            <div style={{
+              padding: "1rem",
+              backgroundColor: "rgba(245, 158, 11, 0.1)",
+              border: "1px solid rgba(245, 158, 11, 0.3)",
               borderRadius: "6px",
               marginBottom: "1rem"
             }}>
-              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px" }}>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#f59e0b" }}>
                 <strong>What will happen:</strong>
               </p>
-              <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px" }}>
+              <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "13px", color: "#f59e0b" }}>
                 <li>Most item details will become read-only</li>
                 <li>Only serial numbers will remain editable</li>
                 <li>You can unlock the order later if needed</li>
               </ul>
             </div>
-            <div className="confirm-actions">
-              <button 
-                onClick={() => setShowLockConfirm(false)} 
-                className="btn-cancel"
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+              <button
+                onClick={() => setShowLockConfirm(false)}
                 disabled={lockingOrder}
+                style={{
+                  background: "#2d2d2d",
+                  color: "#fff",
+                  border: "1px solid #404040",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: lockingOrder ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: lockingOrder ? 0.5 : 1
+                }}
               >
                 Cancel
               </button>
-              <button 
-                onClick={performLock} 
+              <button
+                onClick={performLock}
                 disabled={lockingOrder}
-                className="btn-confirm"
-                style={{ backgroundColor: "#dc2626" }}
+                style={{
+                  backgroundColor: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: lockingOrder ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: lockingOrder ? 0.5 : 1
+                }}
               >
                 {lockingOrder ? "Locking..." : "Lock Order"}
               </button>
@@ -567,11 +675,52 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
 
       {/* Unlock Reason Dialog */}
       {showUnlockDialog && isAdmin && (
-        <div className="confirm-overlay" onClick={() => !lockingOrder && setShowUnlockDialog(false)} style={{ zIndex: 1100 }}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>🔓 Unlock Order</h3>
-            <p style={{ fontSize: "16px", marginBottom: "1rem", color: "var(--text-dim)" }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1100
+          }}
+          onClick={() => !lockingOrder && setShowUnlockDialog(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "2rem",
+              maxWidth: "500px",
+              width: "90%",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+              🔓 Unlock Order
+            </h3>
+            <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
               Please provide a reason for unlocking this order. This will be logged in the audit trail.
+            </p>
+            <div style={{
+              padding: "1rem",
+              backgroundColor: "rgba(245, 158, 11, 0.1)",
+              border: "1px solid rgba(245, 158, 11, 0.3)",
+              borderRadius: "6px",
+              marginBottom: "1rem"
+            }}>
+              <p style={{ margin: "0", fontSize: "14px", color: "#f59e0b" }}>
+                <strong>Note:</strong> This action will be recorded in the order's audit log.
+              </p>
+            </div>
+            <p style={{ fontSize: "14px", marginBottom: "0.5rem", color: "#d1d5db" }}>
+              <strong>Reason:</strong>
             </p>
             <textarea
               value={unlockReason}
@@ -580,37 +729,100 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
               style={{
                 width: "100%",
                 minHeight: "100px",
-                padding: "12px",
-                border: "1px solid var(--border)",
+                padding: "10px",
+                background: "#252525",
+                border: "1px solid #404040",
                 borderRadius: "6px",
-                marginBottom: "16px",
+                color: "#fff",
                 fontSize: "14px",
+                marginBottom: "1rem",
                 fontFamily: "inherit",
-                backgroundColor: "var(--input-bg)",
-                color: "var(--text)",
                 resize: "vertical"
               }}
             />
-            <div className="confirm-actions">
-              <button 
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+              <button
                 onClick={() => {
                   setShowUnlockDialog(false);
                   setUnlockReason("");
-                }} 
-                className="btn-cancel"
+                }}
                 disabled={lockingOrder}
+                style={{
+                  background: "#2d2d2d",
+                  color: "#fff",
+                  border: "1px solid #404040",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: lockingOrder ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: lockingOrder ? 0.5 : 1
+                }}
               >
                 Cancel
               </button>
-              <button 
-                onClick={performUnlock} 
+              <button
+                onClick={performUnlock}
                 disabled={lockingOrder || unlockReason.trim().length < 10}
-                className="btn-confirm"
-                style={{ backgroundColor: "#dc2626" }}
+                style={{
+                  backgroundColor: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: (lockingOrder || unlockReason.trim().length < 10) ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: (lockingOrder || unlockReason.trim().length < 10) ? 0.5 : 1
+                }}
               >
                 {lockingOrder ? "Unlocking..." : "Unlock Order"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Only Alert */}
+      {showAdminOnlyAlert && (
+        <div
+          style={{
+            position: "fixed",
+            top: "100px",
+            right: "24px",
+            backgroundColor: "#1f1f1f",
+            border: "1px solid #404040",
+            borderRadius: "8px",
+            padding: "1rem 1.5rem",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
+            zIndex: 1200,
+            maxWidth: "400px"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "20px" }}>⚠️</span>
+            <span style={{ color: "#d1d5db", fontSize: "14px" }}>Only administrators can unlock orders.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Unlock Error Alert */}
+      {showUnlockError && (
+        <div
+          style={{
+            position: "fixed",
+            top: "100px",
+            right: "24px",
+            backgroundColor: "#1f1f1f",
+            border: "1px solid #404040",
+            borderRadius: "8px",
+            padding: "1rem 1.5rem",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
+            zIndex: 1200,
+            maxWidth: "400px"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "20px" }}>⚠️</span>
+            <span style={{ color: "#d1d5db", fontSize: "14px" }}>Please provide a reason with at least 10 characters</span>
           </div>
         </div>
       )}

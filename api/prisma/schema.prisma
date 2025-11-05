@@ -221,6 +221,7 @@ model Order {
   sku             String?             // Stores sales person name (keep as-is for commission)
   orderDate       DateTime?           // Actual order date from customer
   customerDocsLink String?            // Customer Documents Link (Dropbox URL)
+  brokerDocsLink  String?             // Broker Documents Link (SUPER_ADMIN only, not visible to customers)
   internalNotes   String?             // Internal notes for the order
   discount        Float?              @default(0) // Discount amount (stored as positive, calculated as negative)
   createdAt       DateTime            @default(now())
@@ -234,8 +235,11 @@ model Order {
   isLocked        Boolean             @default(false)
   lockedAt        DateTime?
   lockedBy        String?
+  isArchived      Boolean             @default(false)
+  archivedAt      DateTime?
+  archivedBy      String?
   createdByUserId String?
-  
+
   account         Account             @relation(fields: [accountId], references: [id])
   items           OrderItem[]
   statusEvents    OrderStatusEvent[]
@@ -369,7 +373,7 @@ model User {
   email                   String                  @unique
   password                String
   name                    String
-  role                    String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", "MANUFACTURER"
+  role                    String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", "MANUFACTURER", "BROKER"
   isActive                Boolean                 @default(true)
   showInSalesRepDropdown  Boolean                 @default(true)  // Whether user appears in sales rep dropdown
   lastLogin               DateTime?

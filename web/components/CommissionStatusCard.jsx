@@ -153,10 +153,22 @@ export default function CommissionStatusCard({ orderId, user }) {
           </div>
           
           <div className="info-row">
-            <span className="label">Order Total:</span>
-            <span className="value">{formatCurrency(commission.orderTotalAmount)}</span>
+            <span className="label">Order Subtotal:</span>
+            <span className="value">{formatCurrency(commission.orderSubtotal)}</span>
           </div>
-          
+
+          {commission.orderDiscount > 0 && (
+            <div className="info-row">
+              <span className="label">Discount:</span>
+              <span className="value" style={{ color: '#dc2626' }}>-{formatCurrency(commission.orderDiscount)}</span>
+            </div>
+          )}
+
+          <div className="info-row">
+            <span className="label">Order Net Total:</span>
+            <span className="value">{formatCurrency(commission.orderNetTotal)}</span>
+          </div>
+
           <div className="info-row highlight">
             <span className="label">Total Commission:</span>
             <span className="value large">{formatCurrency(commission.totalCommissionAmount)}</span>

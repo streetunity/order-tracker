@@ -17,6 +17,21 @@ export default function CustomersPage() {
   const [editForm, setEditForm] = useState({});
   const [q, setQ] = useState("");
 
+  // Delete confirmation modal state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+
+  // Notification state
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+
+  // Helper to show notification
+  function showNotif(message) {
+    setNotificationMessage(message);
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  }
+
   useEffect(() => {
     if (!user) {
       router.push("/login");
@@ -95,13 +110,16 @@ export default function CustomersPage() {
     }
   }
 
-  async function handleDelete(customer) {
-    if (!confirm(`Are you sure you want to delete customer "${customer.name}"? This action cannot be undone.`)) {
-      return;
-    }
+  function handleDelete(customer) {
+    setPendingDelete(customer);
+    setShowDeleteConfirm(true);
+  }
+
+  async function executeDelete() {
+    if (!pendingDelete) return;
 
     try {
-      const res = await fetch(`/api/accounts/${customer.id}`, {
+      const res = await fetch(`/api/accounts/${pendingDelete.id}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -110,14 +128,21 @@ export default function CustomersPage() {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${res.status}`);
       }
-      
+
       await loadCustomers();
-      if (expandedCustomer === customer.id) {
+      if (expandedCustomer === pendingDelete.id) {
         setExpandedCustomer(null);
       }
+      setShowDeleteConfirm(false);
+      setPendingDelete(null);
     } catch (err) {
-      alert(`Failed to delete customer: ${err.message}`);
+      showNotif(`Failed to delete customer: ${err.message}`);
     }
+  }
+
+  function cancelDelete() {
+    setShowDeleteConfirm(false);
+    setPendingDelete(null);
   }
 
   if (!user) return null;
@@ -457,6 +482,109 @@ export default function CustomersPage() {
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && pendingDelete && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1100
+            }}
+            onClick={cancelDelete}
+          >
+            <div
+              style={{
+                backgroundColor: "#1f1f1f",
+                border: "1px solid #404040",
+                borderRadius: "8px",
+                padding: "2rem",
+                maxWidth: "500px",
+                width: "90%",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+                Delete Customer
+              </h3>
+              <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
+                Are you sure you want to delete customer <strong>"{pendingDelete.name}"</strong>?
+              </p>
+              <div style={{
+                padding: "1rem",
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                borderRadius: "6px",
+                marginBottom: "1rem"
+              }}>
+                <p style={{ margin: "0", fontSize: "14px", color: "#ef4444" }}>
+                  <strong>Warning:</strong> This action cannot be undone. All customer data will be permanently deleted.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                <button
+                  onClick={cancelDelete}
+                  style={{
+                    background: "#2d2d2d",
+                    color: "#fff",
+                    border: "1px solid #404040",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeDelete}
+                  style={{
+                    backgroundColor: "#dc2626",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Delete Customer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notification Toast */}
+        {showNotification && (
+          <div
+            style={{
+              position: "fixed",
+              top: "100px",
+              right: "24px",
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "1rem 1.5rem",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
+              zIndex: 1200,
+              maxWidth: "400px"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "20px" }}>ℹ️</span>
+              <span style={{ color: "#d1d5db", fontSize: "14px" }}>{notificationMessage}</span>
+            </div>
           </div>
         )}
       </div>

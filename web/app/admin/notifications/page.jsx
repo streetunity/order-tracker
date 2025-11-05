@@ -262,7 +262,7 @@ export default function NotificationsPage() {
                         <span className="metadata-tag">⏱️ {notif.metadata.daysInStage} days</span>
                       )}
                       {notif.metadata.stage && (
-                        <span className="metadata-tag">📍 {notif.metadata.stage}</span>
+                        <span className="metadata-tag">{notif.metadata.stage}</span>
                       )}
                     </div>
                   )}

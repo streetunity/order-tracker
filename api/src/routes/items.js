@@ -126,7 +126,7 @@ export function createItemsRouter() {
         if (commissionFns && commissionFns.recalculateCommissionIfPriceChanged) {
           try {
             console.log(`[COMMISSION] Recalculating commission for order ${orderId} after items added with prices`);
-            await commissionFns.recalculateCommissionIfPriceChanged(prisma, orderId);
+            await commissionFns.recalculateCommissionIfPriceChanged(orderId);
           } catch (error) {
             console.error(`[COMMISSION] Error recalculating commission for order ${orderId}:`, error);
           }
@@ -449,7 +449,7 @@ export function createItemsRouter() {
         if (commissionFns && commissionFns.recalculateCommissionIfPriceChanged) {
           try {
             console.log(`[COMMISSION] Recalculating commission for order ${orderId} after item price change`);
-            await commissionFns.recalculateCommissionIfPriceChanged(prisma, orderId);
+            await commissionFns.recalculateCommissionIfPriceChanged(orderId);
           } catch (error) {
             console.error(`[COMMISSION] Error recalculating commission for order ${orderId}:`, error);
           }

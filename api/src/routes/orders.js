@@ -1,6 +1,6 @@
 import express from 'express';
 import { newTrackingToken } from '../state.js';
-import { isAdminOrHigher, isManufacturer } from '../utils/roleHelpers.js';
+import { isAdminOrHigher, isManufacturer, isBroker, isReadOnly } from '../utils/roleHelpers.js';
 
 export function createOrdersRouter(prisma) {
   const router = express.Router();
@@ -11,7 +11,7 @@ export function createOrdersRouter(prisma) {
   // Helper to build role-based where clause for orders
   async function buildRoleBasedWhere(user, additionalWhere = {}) {
     const where = { ...additionalWhere };
-    
+
     // MANUFACTURERS: Only see orders that have items assigned to their manufacturer
     if (isManufacturer(user.role)) {
       if (!user.manufacturer || !user.manufacturer.id) {
@@ -20,26 +20,27 @@ export function createOrdersRouter(prisma) {
         where.id = 'impossible-id-no-matches'; // Force no results
         return where;
       }
-      
+
       // Only show orders that have at least one item assigned to this manufacturer
       where.items = {
         some: {
           manufacturerId: user.manufacturer.id
         }
       };
-      
+
       console.log(`[MANUFACTURER FILTER] User: ${user.name}, Manufacturer ID: ${user.manufacturer.id}, Filtering orders by assigned items`);
       return where;
     }
-    
+
     // AGENTS: Only show orders where sku (sales person) matches their name
     if (user.role === 'AGENT') {
       where.sku = user.name;
       console.log(`[AGENT FILTER] User: ${user.name}, Role: ${user.role}, Filtering orders by sku: ${user.name}`);
     }
-    
+
+    // BROKERS: Can see all orders (read-only access, similar to ADMIN viewing)
     // ADMIN and higher users see all orders (no additional filtering)
-    
+
     return where;
   }
 
@@ -47,7 +48,10 @@ export function createOrdersRouter(prisma) {
   async function canAccessOrder(user, orderId) {
     // Admins and higher can access all orders
     if (isAdminOrHigher(user.role)) return true;
-    
+
+    // Brokers can access all orders (read-only)
+    if (isBroker(user.role)) return true;
+
     // Manufacturers: Check if they have any items in this order
     if (isManufacturer(user.role)) {
       if (!user.manufacturer || !user.manufacturer.id) return false;
@@ -161,10 +165,23 @@ export function createOrdersRouter(prisma) {
   // List orders - ROLE-FILTERED (including manufacturers)
   router.get('/', async (req, res) => {
     try {
-      const { stage, accountId, search } = req.query;
+      const { stage, accountId, search, includeArchived } = req.query;
       const baseWhere = {};
       if (stage) baseWhere.currentStage = String(stage);
       if (accountId) baseWhere.accountId = String(accountId);
+
+      // Filter archived orders by default (unless explicitly requested)
+      if (includeArchived === 'true') {
+        // Show only archived orders
+        baseWhere.isArchived = true;
+      } else if (includeArchived === 'all') {
+        // Show both archived and non-archived orders
+        // Don't add any filter
+      } else {
+        // Default: show only non-archived orders
+        baseWhere.isArchived = false;
+      }
+
       if (search) {
         const q = String(search);
         baseWhere.OR = [
@@ -333,12 +350,12 @@ export function createOrdersRouter(prisma) {
   // Create order - BLOCKED FOR MANUFACTURERS - WITH COMMISSION INTEGRATION
   router.post('/', async (req, res) => {
     try {
-      // Block manufacturers from creating orders
-      if (isManufacturer(req.user.role)) {
-        return res.status(403).json({ error: 'Access denied. Manufacturers cannot create orders.' });
+      // Block read-only users (manufacturers and brokers) from creating orders
+      if (isReadOnly(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to create orders.' });
       }
 
-      const { accountId, poNumber, sku, items = [], customerDocsLink, orderDate } = req.body || {};
+      const { accountId, poNumber, sku, items = [], customerDocsLink, brokerDocsLink, orderDate, discount } = req.body || {};
       if (!accountId) return res.status(400).json({ error: 'accountId required' });
 
       const normalizedItems = normalizeIncomingItems(items);
@@ -354,7 +371,9 @@ export function createOrdersRouter(prisma) {
             orderDate: orderDate ? new Date(orderDate) : new Date(),
             trackingToken,
             customerDocsLink: customerDocsLink ?? null,
+            brokerDocsLink: (brokerDocsLink && req.user.role === 'SUPER_ADMIN') ? brokerDocsLink : null,
             etaDate: etaDate,
+            discount: discount ?? 0,
             createdByUserId: req.user.id,
             items: { create: normalizedItems }
           },
@@ -416,9 +435,9 @@ export function createOrdersRouter(prisma) {
   // Update order - BLOCKED FOR MANUFACTURERS
   router.patch('/:id', async (req, res) => {
     try {
-      // Block manufacturers from editing orders
-      if (isManufacturer(req.user.role)) {
-        return res.status(403).json({ error: 'Access denied. Manufacturers cannot edit orders.' });
+      // Block read-only users (manufacturers and brokers) from editing orders
+      if (isReadOnly(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to edit orders.' });
       }
 
       const hasAccess = await canAccessOrder(req.user, req.params.id);
@@ -434,15 +453,15 @@ export function createOrdersRouter(prisma) {
         return res.status(404).json({ error: 'Order not found' });
       }
       
-      const { customerDocsLink, internalNotes, orderDate } = req.body || {};
-      
+      const { customerDocsLink, brokerDocsLink, internalNotes, orderDate } = req.body || {};
+
       if (customerDocsLink !== undefined && customerDocsLink !== original.customerDocsLink) {
         const updatedOrder = await prisma.order.update({
           where: { id: req.params.id },
           data: { customerDocsLink },
           include: { account: true, items: true }
         });
-        
+
         await prisma.auditLog.create({
           data: {
             entityType: 'Order',
@@ -458,7 +477,39 @@ export function createOrdersRouter(prisma) {
             performedByName: req.user.name
           }
         });
-        
+
+        return res.json(updatedOrder);
+      }
+
+      // Handle broker docs link - SUPER_ADMIN only
+      if (brokerDocsLink !== undefined && brokerDocsLink !== original.brokerDocsLink) {
+        // Only super admins can update broker docs link
+        if (req.user.role !== 'SUPER_ADMIN') {
+          return res.status(403).json({ error: 'Only super admins can update broker documents link' });
+        }
+
+        const updatedOrder = await prisma.order.update({
+          where: { id: req.params.id },
+          data: { brokerDocsLink },
+          include: { account: true, items: true }
+        });
+
+        await prisma.auditLog.create({
+          data: {
+            entityType: 'Order',
+            entityId: req.params.id,
+            parentEntityId: req.params.id,
+            action: 'ORDER_UPDATED',
+            changes: JSON.stringify([{
+              field: 'brokerDocsLink',
+              oldValue: original.brokerDocsLink || 'null',
+              newValue: brokerDocsLink || 'null'
+            }]),
+            performedByUserId: req.user.id,
+            performedByName: req.user.name
+          }
+        });
+
         return res.json(updatedOrder);
       }
       
@@ -567,14 +618,16 @@ export function createOrdersRouter(prisma) {
         }
       }
       
-      // Handle discount field
+      // Handle discount field - Track if it changes for commission recalculation
       const { discount } = req.body || {};
+      let discountChanged = false;
       if (discount !== undefined) {
         const discountValue = typeof discount === 'number' ? discount : parseFloat(discount);
         const originalDiscount = original.discount || 0;
-        
+
         if (!isNaN(discountValue) && discountValue !== originalDiscount) {
           data.discount = discountValue;
+          discountChanged = true;
           changes.push({
             field: 'discount',
             oldValue: String(originalDiscount),
@@ -668,7 +721,20 @@ export function createOrdersRouter(prisma) {
           console.error('Error updating commission:', commissionError);
         }
       }
-      
+
+      // Recalculate commission if discount changed
+      if (discountChanged) {
+        try {
+          const { recalculateCommissionIfPriceChanged } = getCommissionFunctions();
+          if (recalculateCommissionIfPriceChanged) {
+            await recalculateCommissionIfPriceChanged(req.params.id);
+            console.log(`Commission recalculated for order ${req.params.id} due to discount change`);
+          }
+        } catch (commissionError) {
+          console.error('Error recalculating commission after discount change:', commissionError);
+        }
+      }
+
       res.json(order);
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -678,9 +744,9 @@ export function createOrdersRouter(prisma) {
   // Delete order - BLOCKED FOR MANUFACTURERS - WITH COMMISSION FLAGGING
   router.delete('/:id', async (req, res) => {
     try {
-      // Block manufacturers from deleting orders
-      if (isManufacturer(req.user.role)) {
-        return res.status(403).json({ error: 'Access denied. Manufacturers cannot delete orders.' });
+      // Block read-only users (manufacturers and brokers) from deleting orders
+      if (isReadOnly(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to delete orders.' });
       }
 
       const hasAccess = await canAccessOrder(req.user, req.params.id);
@@ -710,29 +776,44 @@ export function createOrdersRouter(prisma) {
         return res.status(403).json({ error: 'Cannot delete a locked order. Please unlock it first.' });
       }
 
-      // Flag commission as orphaned before deleting order
+      // Delete commission records before deleting order (cascades to ItemCommissions and Payouts)
       try {
-        const commission = await prisma.commission.findFirst({
+        const commissions = await prisma.commission.findMany({
           where: { orderId: req.params.id }
         });
-        
-        if (commission) {
-          await prisma.commission.update({
-            where: { id: commission.id },
-            data: {
-              isFlagged: true,
-              flagReason: 'ORDER_DELETED',
-              flagDetails: JSON.stringify({
-                deletedAt: new Date(),
-                deletedBy: req.user.name,
-                message: 'Order was deleted, commission orphaned'
-              })
-            }
+
+        if (commissions.length > 0) {
+          // Log commission deletion for audit purposes
+          for (const commission of commissions) {
+            await prisma.auditLog.create({
+              data: {
+                entityType: 'Commission',
+                entityId: commission.id,
+                parentEntityId: req.params.id,
+                action: 'COMMISSION_DELETED_WITH_ORDER',
+                metadata: JSON.stringify({
+                  deletedAt: new Date(),
+                  deletedBy: req.user.name,
+                  orderId: req.params.id,
+                  salesPerson: commission.salesPersonName,
+                  message: 'Commission deleted because order was deleted'
+                }),
+                performedByUserId: req.user.id,
+                performedByName: req.user.name
+              }
+            });
+          }
+
+          // Delete all commissions for this order (cascades to related records)
+          await prisma.commission.deleteMany({
+            where: { orderId: req.params.id }
           });
-          console.log(`Commission ${commission.id} flagged as orphaned due to order deletion`);
+
+          console.log(`Deleted ${commissions.length} commission(s) for order ${req.params.id}`);
         }
       } catch (commissionError) {
-        console.error('Error flagging commission:', commissionError);
+        console.error('Error deleting commissions:', commissionError);
+        // Don't fail the entire operation if commission deletion fails
       }
 
       await prisma.$transaction(async (tx) => {
@@ -760,9 +841,9 @@ export function createOrdersRouter(prisma) {
   // Update internal notes - BLOCKED FOR MANUFACTURERS
   router.patch('/:id/internal-notes', async (req, res) => {
     try {
-      // Block manufacturers
-      if (isManufacturer(req.user.role)) {
-        return res.status(403).json({ error: 'Access denied. Manufacturers cannot edit internal notes.' });
+      // Block read-only users (manufacturers and brokers)
+      if (isReadOnly(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to edit internal notes.' });
       }
 
       const orderId = req.params.id;
@@ -812,6 +893,72 @@ export function createOrdersRouter(prisma) {
     } catch (e) {
       console.error('Internal notes update error:', e);
       res.status(500).json({ error: e.message || 'Failed to update internal notes' });
+    }
+  });
+
+  // Archive/Unarchive order - BLOCKED FOR MANUFACTURERS
+  router.patch('/:id/archive', async (req, res) => {
+    try {
+      // Block read-only users (manufacturers and brokers)
+      if (isReadOnly(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied. You do not have permission to archive orders.' });
+      }
+
+      const orderId = req.params.id;
+
+      const hasAccess = await canAccessOrder(req.user, orderId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied. You can only archive orders assigned to you.' });
+      }
+
+      const { isArchived } = req.body || {};
+
+      if (typeof isArchived !== 'boolean') {
+        return res.status(400).json({ error: 'isArchived must be a boolean value' });
+      }
+
+      const order = await prisma.order.findUnique({
+        where: { id: String(orderId) },
+        select: { id: true, isArchived: true }
+      });
+
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const updatedOrder = await prisma.$transaction(async (tx) => {
+        const up = await tx.order.update({
+          where: { id: String(orderId) },
+          data: {
+            isArchived,
+            archivedAt: isArchived ? new Date() : null,
+            archivedBy: isArchived ? req.user.name : null
+          }
+        });
+
+        await tx.auditLog.create({
+          data: {
+            entityType: 'Order',
+            entityId: String(orderId),
+            parentEntityId: String(orderId),
+            action: isArchived ? 'ORDER_ARCHIVED' : 'ORDER_UNARCHIVED',
+            metadata: JSON.stringify({
+              previousState: order.isArchived,
+              newState: isArchived,
+              archivedBy: req.user.name
+            }),
+            performedByUserId: req.user?.id || 'Unknown',
+            performedByName: req.user?.name || 'Unknown'
+          }
+        });
+
+        return up;
+      });
+
+      res.json({ success: true, order: updatedOrder });
+    } catch (e) {
+      console.error('Archive order error:', e);
+      res.status(500).json({ error: e.message || 'Failed to archive order' });
     }
   });
 

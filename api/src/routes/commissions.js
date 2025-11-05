@@ -18,12 +18,12 @@ export function createCommissionsRouter(prisma) {
   router.get('/my', authGuard, async (req, res) => {
     try {
       const { status, dateFrom, dateTo, year } = req.query;
-      
+
       const whereClause = {
         salesPersonName: req.user.name,
         status: status || undefined
       };
-      
+
       // Add date filters if provided
       if (dateFrom || dateTo) {
         whereClause.createdAt = {};
@@ -37,7 +37,7 @@ export function createCommissionsRouter(prisma) {
           lt: new Date(`${yearNum + 1}-01-01`)
         };
       }
-      
+
       const commissions = await prisma.commission.findMany({
         where: whereClause,
         include: {
@@ -67,8 +67,34 @@ export function createCommissionsRouter(prisma) {
         },
         orderBy: { createdAt: 'desc' }
       });
-      
-      res.json(commissions);
+
+      // Add computed payout status for each commission
+      const commissionsWithStatus = commissions.map(commission => {
+        // Collect all payouts from all item commissions
+        const allPayouts = commission.itemCommissions.flatMap(ic => ic.payouts || []);
+
+        let payoutStatus = 'CALCULATED';
+        if (allPayouts.length > 0) {
+          const hasApproved = allPayouts.some(p => p.status === 'APPROVED');
+          const hasPending = allPayouts.some(p => p.status === 'PENDING');
+          const allPaid = allPayouts.every(p => p.status === 'PAID');
+
+          if (allPaid) {
+            payoutStatus = 'PAID';
+          } else if (hasApproved) {
+            payoutStatus = 'APPROVED';
+          } else if (hasPending) {
+            payoutStatus = 'PENDING';
+          }
+        }
+
+        return {
+          ...commission,
+          status: payoutStatus
+        };
+      });
+
+      res.json(commissionsWithStatus);
     } catch (error) {
       console.error('Error fetching user commissions:', error);
       res.status(500).json({ error: 'Failed to fetch commissions' });
@@ -172,11 +198,11 @@ export function createCommissionsRouter(prisma) {
         });
         
         const total = payouts.reduce((sum, p) => sum + (p.amount || 0), 0);
-        
+
         monthlyData.push({
           month: month + 1,
-          monthName: startDate.toLocaleString('default', { month: 'short' }),
-          amount: total
+          name: startDate.toLocaleString('default', { month: 'short' }),
+          total: total
         });
       }
       
@@ -186,7 +212,59 @@ export function createCommissionsRouter(prisma) {
       res.status(500).json({ error: 'Failed to fetch monthly breakdown' });
     }
   });
-  
+
+  // Get agent's own paid payouts for PDF report generation
+  router.get('/my/paid', authGuard, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const payouts = await prisma.commissionPayout.findMany({
+        where: {
+          status: 'PAID',
+          paidAt: {
+            gte: new Date(startDate),
+            lte: new Date(endDate + 'T23:59:59.999Z'), // Include entire end date
+          },
+          itemCommission: {
+            commission: {
+              salesPersonName: req.user.name,
+            },
+          },
+        },
+        include: {
+          itemCommission: {
+            include: {
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      id: true,
+                      poNumber: true,
+                      orderDate: true,
+                      account: { select: { name: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          paidAt: 'asc',
+        },
+      });
+
+      res.json(payouts);
+    } catch (error) {
+      console.error('Error fetching agent paid commissions:', error);
+      res.status(500).json({ error: 'Failed to fetch paid commissions' });
+    }
+  });
+
   // Get projected commissions (calculated but not yet triggered)
   router.get('/projected', authGuard, async (req, res) => {
     try {
@@ -496,8 +574,8 @@ export function createCommissionsRouter(prisma) {
       }
 
       const commissions = await prisma.commission.findMany({
-        where: { 
-          orderId: null 
+        where: {
+          orderId: null
         },
         include: {
           itemCommissions: {
@@ -513,6 +591,40 @@ export function createCommissionsRouter(prisma) {
     } catch (error) {
       console.error('Error fetching orphaned commissions:', error);
       res.status(500).json({ error: 'Failed to fetch orphaned commissions' });
+    }
+  });
+
+  // Get commission for specific order
+  router.get('/order/:orderId', authGuard, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+
+      // Only admins and accountants can view commissions
+      if (!canManageCommissions(req.user.role) && req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const commission = await prisma.commission.findFirst({
+        where: { orderId },
+        include: {
+          itemCommissions: {
+            include: {
+              payouts: {
+                orderBy: { stage: 'asc' }
+              }
+            }
+          }
+        }
+      });
+
+      if (!commission) {
+        return res.status(404).json({ error: 'No commission found for this order' });
+      }
+
+      res.json(commission);
+    } catch (error) {
+      console.error('Error fetching commission for order:', error);
+      res.status(500).json({ error: 'Failed to fetch commission' });
     }
   });
 
@@ -694,6 +806,73 @@ export function createCommissionsRouter(prisma) {
     } catch (error) {
       console.error('Error deleting commission:', error);
       res.status(500).json({ error: 'Failed to delete commission' });
+    }
+  });
+
+  // Calculate commission for a specific order by order ID
+  router.post('/calculate-for-order/:orderId', adminGuard, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+
+      // Get order with items
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { items: true }
+      });
+
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      if (!order.sku) {
+        return res.status(400).json({ error: 'Order has no sales person assigned' });
+      }
+
+      // Check if commission already exists
+      const existing = await prisma.commission.findFirst({
+        where: { orderId }
+      });
+
+      if (existing) {
+        // Recalculate existing commission
+        await calculateCommissionForOrder(order);
+        const updated = await prisma.commission.findFirst({
+          where: { orderId },
+          include: {
+            itemCommissions: {
+              include: { payouts: true }
+            }
+          }
+        });
+        return res.json({
+          success: true,
+          message: 'Commission recalculated',
+          commission: updated
+        });
+      } else {
+        // Create new commission
+        const commission = await calculateCommissionForOrder(order);
+        if (commission) {
+          const created = await prisma.commission.findUnique({
+            where: { id: commission.id },
+            include: {
+              itemCommissions: {
+                include: { payouts: true }
+              }
+            }
+          });
+          return res.json({
+            success: true,
+            message: 'Commission calculated successfully',
+            commission: created
+          });
+        } else {
+          return res.status(400).json({ error: 'Failed to calculate commission. Check that items have prices and order has a sales person.' });
+        }
+      }
+    } catch (error) {
+      console.error('Error calculating commission for order:', error);
+      res.status(500).json({ error: 'Failed to calculate commission' });
     }
   });
 

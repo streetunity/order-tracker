@@ -133,12 +133,13 @@ export function createNotificationsRouter(prisma) {
    * Get user's notifications (role-filtered)
    * Agents only see their own notifications
    * Admins see only THEIR OWN notifications (not all notifications)
+   * Accountants ONLY see commission-related notifications
    */
   router.get('/', async (req, res) => {
     try {
-      const { 
-        unreadOnly = 'false', 
-        category, 
+      const {
+        unreadOnly = 'false',
+        category,
         priority,
         limit = '50'
       } = req.query;
@@ -150,12 +151,18 @@ export function createNotificationsRouter(prisma) {
         isDismissed: false  // FIXED: Always exclude dismissed notifications
       };
 
+      // ACCOUNTANTS: Only show commission-related notifications
+      if (req.user.role === 'ACCOUNTANT') {
+        where.category = 'COMMISSION';
+      }
+
       // Additional filters
       if (unreadOnly === 'true') {
         where.isRead = false;
       }
 
-      if (category) {
+      if (category && req.user.role !== 'ACCOUNTANT') {
+        // Don't allow category override for accountants
         where.category = category;
       }
 
@@ -208,6 +215,7 @@ export function createNotificationsRouter(prisma) {
   /**
    * Get unread notifications for current user
    * Simpler endpoint used by the notification bar
+   * Accountants ONLY see commission-related notifications
    */
   router.get('/unread', async (req, res) => {
     try {
@@ -220,6 +228,11 @@ export function createNotificationsRouter(prisma) {
           { expiresAt: { gt: new Date() } }
         ]
       };
+
+      // ACCOUNTANTS: Only show commission-related notifications
+      if (req.user.role === 'ACCOUNTANT') {
+        where.category = 'COMMISSION';
+      }
 
       const notifications = await prisma.notification.findMany({
         where,
@@ -250,6 +263,7 @@ export function createNotificationsRouter(prisma) {
 
   /**
    * Get notification statistics for user (THEIR OWN stats only)
+   * Accountants ONLY see commission-related notification stats
    */
   router.get('/stats', async (req, res) => {
     try {
@@ -262,6 +276,11 @@ export function createNotificationsRouter(prisma) {
           { expiresAt: { gt: new Date() } }
         ]
       };
+
+      // ACCOUNTANTS: Only show commission-related notifications
+      if (req.user.role === 'ACCOUNTANT') {
+        baseWhere.category = 'COMMISSION';
+      }
 
       const [total, unread, byCategory, byPriority] = await Promise.all([
         // Total active notifications for this user
@@ -527,16 +546,19 @@ export function createNotificationsRouter(prisma) {
    * Generate operational notifications (admin only)
    * Scans for late orders, stage warnings, etc. and creates notifications
    * Creates individual notifications for all admins AND the sales rep
+   * NOTE: ACCOUNTANTS are explicitly EXCLUDED from operational notifications
+   *       They only receive commission-related notifications
    */
   router.post('/generate-operational', adminGuard, async (req, res) => {
     try {
       const { userId } = req.body; // Optional: generate for specific user
 
       // Get all active admins who should receive operational notifications
+      // NOTE: ACCOUNTANTS are excluded - they only get commission notifications
       const admins = await prisma.user.findMany({
         where: {
           isActive: true,
-          role: { in: ['ADMIN', 'SUPER_ADMIN'] }
+          role: { in: ['ADMIN', 'SUPER_ADMIN'] }  // Explicitly excludes ACCOUNTANT
         },
         select: { id: true, name: true, role: true }
       });

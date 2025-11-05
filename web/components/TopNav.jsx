@@ -14,15 +14,17 @@ export default function TopNav() {
   const dropdownRef = useRef(null);
   const pathname = usePathname();
 
-  // Check if user is manufacturer
+  // Check if user is manufacturer or broker (limited access users)
   const isManufacturer = user?.role === 'MANUFACTURER';
+  const isBroker = user?.role === 'BROKER';
+  const isLimitedAccess = isManufacturer || isBroker;
 
   useEffect(() => {
-    if (user && !isManufacturer) {
+    if (user && !isLimitedAccess) {
       loadNotificationCount();
       loadYearlyTotal();
     }
-  }, [user, isManufacturer]);
+  }, [user, isLimitedAccess]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -96,9 +98,9 @@ export default function TopNav() {
               </svg>
               Board
             </Link>
-            
-            {/* Hide everything else from manufacturers */}
-            {!isManufacturer && (
+
+            {/* Hide everything else from manufacturers and brokers */}
+            {!isLimitedAccess && (
               <>
                 <Link href="/admin/customers" className={`nav-link ${isActive("/admin/customers") ? "active" : ""}`}>
                   <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,16 +155,16 @@ export default function TopNav() {
         </div>
 
         <div className="nav-right">
-          {/* Hide sales badge from manufacturers */}
-          {!isManufacturer && yearlyTotal && (
+          {/* Hide sales badge from manufacturers and brokers */}
+          {!isLimitedAccess && yearlyTotal && (
             <div className="sales-badge">
               <div className="sales-badge-label">{new Date().getFullYear()} Sales</div>
               <div className="sales-badge-value">{yearlyTotal.formatted}</div>
             </div>
           )}
 
-          {/* Hide notifications from manufacturers for now */}
-          {!isManufacturer && (
+          {/* Hide notifications from manufacturers and brokers for now */}
+          {!isLimitedAccess && (
             <Link href="/admin/notifications" className="icon-button">
               <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
@@ -196,9 +198,9 @@ export default function TopNav() {
                   </svg>
                   My Profile
                 </Link>
-                
-                {/* Hide settings from manufacturers */}
-                {!isManufacturer && (
+
+                {/* Hide settings from manufacturers and brokers */}
+                {!isLimitedAccess && (
                   <>
                     <Link href="/admin/settings" className="dropdown-item">
                       <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">

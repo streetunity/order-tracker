@@ -1,5 +1,5 @@
 import express from 'express';
-import { adminGuard } from '../middleware/auth.js';
+import { authGuard, adminGuard } from '../middleware/auth.js';
 import { recalculateAllCommissions } from '../helpers/commission.js';
 
 export function createCommissionSettingsRouter(prisma) {
@@ -10,9 +10,9 @@ export function createCommissionSettingsRouter(prisma) {
     return role === 'SUPER_ADMIN';
   };
 
-  // Helper to check if user can view settings (ACCOUNTANT can view, not edit)
+  // Helper to check if user can view settings (ACCOUNTANT, ADMIN, SALES_REP, and AGENT can view, not edit)
   const canViewSettings = (role) => {
-    return role === 'SUPER_ADMIN' || role === 'ACCOUNTANT';
+    return role === 'SUPER_ADMIN' || role === 'ACCOUNTANT' || role === 'SALES_REP' || role === 'ADMIN' || role === 'AGENT';
   };
   
   // ==========================================
@@ -162,7 +162,7 @@ export function createCommissionSettingsRouter(prisma) {
   // ==========================================
   
   // Get stage payout configuration - ACCOUNTANT can view
-  router.get('/stages', async (req, res) => {
+  router.get('/stages', authGuard, async (req, res) => {
     try {
       if (!canViewSettings(req.user.role)) {
         return res.status(403).json({ error: 'Access denied' });
@@ -460,10 +460,7 @@ export function createCommissionSettingsRouter(prisma) {
       const users = await prisma.user.findMany({
         where: {
           showInSalesRepDropdown: true,
-          isActive: true,
-          role: {
-            not: 'ACCOUNTANT'
-          }
+          isActive: true
         },
         select: {
           id: true,

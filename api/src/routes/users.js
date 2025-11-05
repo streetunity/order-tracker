@@ -20,7 +20,15 @@ export function createUsersRouter() {
   // List all users
   router.get('/', async (req, res) => {
     try {
+      const { role } = req.query;
+
+      const where = {};
+      if (role) {
+        where.role = role;
+      }
+
       const users = await prisma.user.findMany({
+        where,
         select: {
           id: true,
           email: true,

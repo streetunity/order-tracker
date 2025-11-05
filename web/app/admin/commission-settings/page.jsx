@@ -6,13 +6,28 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
 export default function CommissionSettingsPage() {
-  const { user, token } = useAuth();
+  const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("global");
   const [hasChanges, setHasChanges] = useState(false);
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+
+  // Recalculate confirmation modal state
+  const [showRecalculateModal, setShowRecalculateModal] = useState(false);
+  const [recalculateReason, setRecalculateReason] = useState("");
+
+  // Clear rates modal state
+  const [showClearRatesModal, setShowClearRatesModal] = useState(false);
+
+  // Success notification state
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // Recalculate results modal state
+  const [showRecalculateResults, setShowRecalculateResults] = useState(false);
+  const [recalculateResults, setRecalculateResults] = useState(null);
   
   // Global Settings State
   const [globalSettings, setGlobalSettings] = useState({
@@ -61,27 +76,33 @@ export default function CommissionSettingsPage() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const headers = { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
+      const headers = getAuthHeaders();
 
       // Fetch global settings
-      const settingsRes = await fetch("/api/commission-settings/global", { headers });
+      const settingsRes = await fetch("/api/commission-settings/global", {
+        headers,
+        cache: "no-store"
+      });
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         setGlobalSettings(data);
       }
 
       // Fetch stage settings
-      const stagesRes = await fetch("/api/commission-settings/stages", { headers });
+      const stagesRes = await fetch("/api/commission-settings/stages", {
+        headers,
+        cache: "no-store"
+      });
       if (stagesRes.ok) {
         const data = await stagesRes.json();
         setStageDistribution(data.map(s => ({ stage: s.stage, percentage: s.percentage })));
       }
 
       // Fetch individual rates
-      const ratesRes = await fetch("/api/commission-settings/rates", { headers });
+      const ratesRes = await fetch("/api/commission-settings/rates", {
+        headers,
+        cache: "no-store"
+      });
       if (ratesRes.ok) {
         const data = await ratesRes.json();
         const ratesMap = {};
@@ -92,10 +113,19 @@ export default function CommissionSettingsPage() {
       }
 
       // Fetch users who can be sales reps
-      const usersRes = await fetch("/api/commission-settings/sales-reps", { headers });
+      const usersRes = await fetch("/api/commission-settings/sales-reps", {
+        headers,
+        cache: "no-store"
+      });
       if (usersRes.ok) {
         const data = await usersRes.json();
-        setSalesReps(data.filter(u => u.isActive));
+        console.log('[Commission Settings] Sales reps received:', data);
+        console.log('[Commission Settings] Number of sales reps:', data.length);
+        setSalesReps(data);
+      } else {
+        console.error('[Commission Settings] Failed to fetch sales reps:', usersRes.status);
+        const errorData = await usersRes.json().catch(() => ({}));
+        console.error('[Commission Settings] Error details:', errorData);
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -110,22 +140,28 @@ export default function CommissionSettingsPage() {
       const res = await fetch("/api/commission-settings/global", {
         method: "PUT",
         headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(globalSettings),
       });
 
       if (res.ok) {
-        alert("Global settings saved successfully");
         setHasChanges(false);
+        setSuccessMessage("Global settings saved successfully");
+        setShowSuccessNotification(true);
+        setTimeout(() => setShowSuccessNotification(false), 3000);
       } else {
         const error = await res.json();
-        alert(error.error || "Failed to save global settings");
+        setSuccessMessage(error.error || "Failed to save global settings");
+        setShowSuccessNotification(true);
+        setTimeout(() => setShowSuccessNotification(false), 3000);
       }
     } catch (error) {
       console.error("Error saving global settings:", error);
-      alert("Error saving global settings");
+      setSuccessMessage("Error saving global settings");
+      setShowSuccessNotification(true);
+      setTimeout(() => setShowSuccessNotification(false), 3000);
     } finally {
       setSaving(false);
     }
@@ -133,9 +169,11 @@ export default function CommissionSettingsPage() {
 
   const saveStageDistribution = async () => {
     const total = stageDistribution.reduce((sum, s) => sum + Number(s.percentage), 0);
-    
+
     if (Math.abs(total - 100) > 0.01) {
-      alert(`Stage percentages must total 100%. Current total: ${total}%`);
+      setSuccessMessage(`Stage percentages must total 100%. Current total: ${total}%`);
+      setShowSuccessNotification(true);
+      setTimeout(() => setShowSuccessNotification(false), 3000);
       return;
     }
 
@@ -144,8 +182,8 @@ export default function CommissionSettingsPage() {
       const res = await fetch("/api/commission-settings/stages", {
         method: "PUT",
         headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(stageDistribution.map((s, index) => ({
           ...s,
@@ -155,16 +193,22 @@ export default function CommissionSettingsPage() {
       });
 
       if (res.ok) {
-        alert("Stage distribution saved successfully");
         setHasChanges(false);
         await fetchSettings(); // Refresh to get server state
+        setSuccessMessage("Stage distribution saved successfully");
+        setShowSuccessNotification(true);
+        setTimeout(() => setShowSuccessNotification(false), 3000);
       } else {
         const error = await res.json();
-        alert(error.error || "Failed to save stage distribution");
+        setSuccessMessage(error.error || "Failed to save stage distribution");
+        setShowSuccessNotification(true);
+        setTimeout(() => setShowSuccessNotification(false), 3000);
       }
     } catch (error) {
       console.error("Error saving stage distribution:", error);
-      alert("Error saving stage distribution");
+      setSuccessMessage("Error saving stage distribution");
+      setShowSuccessNotification(true);
+      setTimeout(() => setShowSuccessNotification(false), 3000);
     } finally {
       setSaving(false);
     }
@@ -172,7 +216,9 @@ export default function CommissionSettingsPage() {
 
   const saveIndividualRate = async (salesPersonName, rate) => {
     if (rate < 0 || rate > 100) {
-      alert("Rate must be between 0 and 100");
+      setSuccessMessage("Rate must be between 0 and 100");
+      setShowSuccessNotification(true);
+      setTimeout(() => setShowSuccessNotification(false), 3000);
       return;
     }
 
@@ -180,33 +226,36 @@ export default function CommissionSettingsPage() {
       const res = await fetch(`/api/commission-settings/rates/${encodeURIComponent(salesPersonName)}`, {
         method: "PUT",
         headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ rate: Number(rate) }),
       });
 
       if (res.ok) {
-        alert(`Rate saved for ${salesPersonName}`);
         setIndividualRates({ ...individualRates, [salesPersonName]: Number(rate) });
+        setSuccessMessage(`Rate saved for ${salesPersonName}`);
+        setShowSuccessNotification(true);
+        setTimeout(() => setShowSuccessNotification(false), 3000);
       } else {
-        alert("Failed to save rate");
+        setSuccessMessage("Failed to save rate");
+        setShowSuccessNotification(true);
+        setTimeout(() => setShowSuccessNotification(false), 3000);
       }
     } catch (error) {
       console.error("Error saving rate:", error);
-      alert("Error saving rate");
+      setSuccessMessage("Error saving rate");
+      setShowSuccessNotification(true);
+      setTimeout(() => setShowSuccessNotification(false), 3000);
     }
   };
 
-  const recalculateAllCommissions = async () => {
-    const reason = prompt("Please provide a reason for recalculating all commissions:");
-    
-    if (!reason || reason.trim() === "") {
-      alert("Reason is required to recalculate commissions");
-      return;
-    }
+  const recalculateAllCommissions = () => {
+    setShowRecalculateModal(true);
+  };
 
-    if (!confirm("This will recalculate ALL unpaid commissions based on current rates and stage settings. Continue?")) {
+  const executeRecalculate = async () => {
+    if (!recalculateReason || recalculateReason.trim().length < 10) {
       return;
     }
 
@@ -215,30 +264,37 @@ export default function CommissionSettingsPage() {
       const res = await fetch("/api/commission-settings/recalculate-all", {
         method: "POST",
         headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({ reason: recalculateReason.trim() }),
       });
 
       if (res.ok) {
         const result = await res.json();
-        alert(
-          `Recalculation complete!\n\n` +
-          `Recalculated: ${result.results.recalculated}\n` +
-          `Skipped (with paid payouts): ${result.results.skipped}\n` +
-          `Failed: ${result.results.failed}`
-        );
+        setShowRecalculateModal(false);
+        setRecalculateReason("");
+        setRecalculateResults(result.results);
+        setShowRecalculateResults(true);
       } else {
         const error = await res.json();
-        alert(error.error || "Failed to recalculate commissions");
+        setSuccessMessage(error.error || "Failed to recalculate commissions");
+        setShowSuccessNotification(true);
+        setTimeout(() => setShowSuccessNotification(false), 3000);
       }
     } catch (error) {
       console.error("Error recalculating commissions:", error);
-      alert("Error recalculating commissions");
+      setSuccessMessage("Error recalculating commissions");
+      setShowSuccessNotification(true);
+      setTimeout(() => setShowSuccessNotification(false), 3000);
     } finally {
       setRecalculating(false);
     }
+  };
+
+  const cancelRecalculate = () => {
+    setShowRecalculateModal(false);
+    setRecalculateReason("");
   };
 
   const addStage = () => {
@@ -814,12 +870,7 @@ export default function CommissionSettingsPage() {
 
                 <div style={{ textAlign: "center", marginTop: "30px" }}>
                   <button
-                    onClick={() => {
-                      if (confirm("This will remove all custom rates and use the default rate for everyone. Continue?")) {
-                        setIndividualRates({});
-                        alert("Feature not yet implemented");
-                      }
-                    }}
+                    onClick={() => setShowClearRatesModal(true)}
                     style={{
                       padding: "10px 20px",
                       background: "#333",
@@ -903,6 +954,288 @@ export default function CommissionSettingsPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* Recalculate Confirmation Modal */}
+        {showRecalculateModal && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }} onClick={cancelRecalculate}>
+            <div style={{
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "2rem",
+              maxWidth: "500px",
+              width: "90%",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+            }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+                🔄 Recalculate All Commissions
+              </h3>
+              <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
+                This will recalculate ALL unpaid commissions based on current rates and stage settings.
+              </p>
+              <div style={{
+                padding: "1rem",
+                backgroundColor: "rgba(250, 204, 21, 0.1)",
+                border: "1px solid rgba(250, 204, 21, 0.3)",
+                borderRadius: "6px",
+                marginBottom: "1rem"
+              }}>
+                <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#facc15" }}>
+                  <strong>Note:</strong>
+                </p>
+                <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px", color: "#d1d5db" }}>
+                  <li>Only unpaid commissions will be recalculated</li>
+                  <li>Commissions with paid payouts will be skipped</li>
+                  <li>This action will be logged in the audit trail</li>
+                </ul>
+              </div>
+              <p style={{ fontSize: "14px", marginBottom: "0.5rem", color: "#d1d5db" }}>
+                <strong>Please provide a reason:</strong>
+              </p>
+              <textarea
+                value={recalculateReason}
+                onChange={(e) => setRecalculateReason(e.target.value)}
+                placeholder="Enter reason for recalculation (minimum 10 characters)"
+                style={{
+                  width: "100%",
+                  minHeight: "100px",
+                  padding: "10px",
+                  background: "#252525",
+                  border: "1px solid #404040",
+                  borderRadius: "6px",
+                  color: "#fff",
+                  fontSize: "14px",
+                  marginBottom: "1rem",
+                  fontFamily: "inherit"
+                }}
+              />
+              <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                <button
+                  onClick={cancelRecalculate}
+                  disabled={recalculating}
+                  style={{
+                    background: "#2d2d2d",
+                    color: "#fff",
+                    border: "1px solid #404040",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: recalculating ? "not-allowed" : "pointer",
+                    fontSize: "14px",
+                    opacity: recalculating ? 0.5 : 1
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeRecalculate}
+                  disabled={recalculating || recalculateReason.trim().length < 10}
+                  style={{
+                    backgroundColor: "#f59e0b",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: (recalculating || recalculateReason.trim().length < 10) ? "not-allowed" : "pointer",
+                    fontSize: "14px",
+                    opacity: (recalculating || recalculateReason.trim().length < 10) ? 0.5 : 1
+                  }}
+                >
+                  {recalculating ? "Recalculating..." : "Recalculate Commissions"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Clear Rates Confirmation Modal */}
+        {showClearRatesModal && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1001
+            }}
+            onClick={() => setShowClearRatesModal(false)}
+          >
+            <div
+              style={{
+                backgroundColor: "#1f1f1f",
+                border: "1px solid #404040",
+                borderRadius: "8px",
+                padding: "2rem",
+                maxWidth: "500px",
+                width: "90%",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+                🗑️ Clear All Custom Rates
+              </h3>
+              <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
+                Are you sure you want to remove all custom rates? All sales reps will use the default commission rate.
+              </p>
+              <div style={{
+                padding: "1rem",
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                borderRadius: "6px",
+                marginBottom: "1rem"
+              }}>
+                <p style={{ margin: "0", fontSize: "14px", color: "#ef4444" }}>
+                  <strong>Warning:</strong> This feature is not yet implemented. Your custom rates will remain unchanged.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                <button
+                  onClick={() => setShowClearRatesModal(false)}
+                  style={{
+                    background: "#2d2d2d",
+                    color: "#fff",
+                    border: "1px solid #404040",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setIndividualRates({});
+                    setSuccessMessage("Feature not yet implemented");
+                    setShowSuccessNotification(true);
+                    setTimeout(() => setShowSuccessNotification(false), 3000);
+                    setShowClearRatesModal(false);
+                  }}
+                  style={{
+                    backgroundColor: "#dc2626",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Clear All Rates
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Recalculate Results Modal */}
+        {showRecalculateResults && recalculateResults && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1001
+            }}
+            onClick={() => setShowRecalculateResults(false)}
+          >
+            <div
+              style={{
+                backgroundColor: "#1f1f1f",
+                border: "1px solid #404040",
+                borderRadius: "8px",
+                padding: "2rem",
+                maxWidth: "500px",
+                width: "90%",
+                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+                ✅ Recalculation Complete
+              </h3>
+              <div style={{
+                padding: "1rem",
+                backgroundColor: "rgba(16, 185, 129, 0.1)",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
+                borderRadius: "6px",
+                marginBottom: "1rem"
+              }}>
+                <div style={{ marginBottom: "0.5rem", fontSize: "14px", color: "#10b981" }}>
+                  <strong>Recalculated:</strong> {recalculateResults.recalculated} commissions
+                </div>
+                <div style={{ marginBottom: "0.5rem", fontSize: "14px", color: "#f59e0b" }}>
+                  <strong>Skipped (with paid payouts):</strong> {recalculateResults.skipped} commissions
+                </div>
+                <div style={{ fontSize: "14px", color: "#ef4444" }}>
+                  <strong>Failed:</strong> {recalculateResults.failed} commissions
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+                <button
+                  onClick={() => setShowRecalculateResults(false)}
+                  style={{
+                    backgroundColor: "#10b981",
+                    color: "white",
+                    border: "none",
+                    padding: "0.5rem 1.5rem",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success Notification Toast */}
+        {showSuccessNotification && (
+          <div
+            style={{
+              position: "fixed",
+              top: "100px",
+              right: "24px",
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "1rem 1.5rem",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
+              zIndex: 1002,
+              maxWidth: "400px",
+              animation: "slideIn 0.3s ease-out"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "20px" }}>ℹ️</span>
+              <span style={{ color: "#d1d5db", fontSize: "14px" }}>{successMessage}</span>
+            </div>
+          </div>
         )}
       </div>
     </>

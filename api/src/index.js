@@ -178,6 +178,29 @@ console.log('✅ Settings API loaded');
 // User management (admin only)
 app.use('/users', adminGuard, usersRouter);
 
+// Manufacturer active list (auth required - needed for order creation dropdowns)
+// Register this BEFORE the main manufacturers route so it matches first
+app.get('/manufacturers/active', authGuard, async (req, res, next) => {
+  try {
+    const manufacturers = await prisma.manufacturer.findMany({
+      where: {
+        isActive: true
+      },
+      select: {
+        id: true,
+        name: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+    res.json(manufacturers);
+  } catch (error) {
+    console.error('Error fetching active manufacturers:', error);
+    res.status(500).json({ error: 'Failed to fetch active manufacturers', details: error.message });
+  }
+});
+
 // Manufacturer management (admin only) - adminGuard includes auth checking
 app.use('/manufacturers', adminGuard, manufacturersRouter);
 console.log('✅ Manufacturers API loaded');
