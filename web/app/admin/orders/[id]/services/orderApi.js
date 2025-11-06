@@ -84,20 +84,36 @@ export const orderApi = {
 
   // Get sales agents
   async getSalesAgents(getAuthHeaders) {
-    const res = await fetch('/api/users/sales-reps', {
-      headers: getAuthHeaders()
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    try {
+      const res = await fetch('/api/users/sales-reps', {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      console.error('Failed to load sales agents:', res.status);
+      return [];
+    } catch (e) {
+      console.error('Failed to load sales agents:', e);
+      return [];
+    }
   },
 
   // Get active manufacturers
   async getManufacturers(getAuthHeaders) {
-    const res = await fetch('/api/manufacturers/active', {
-      headers: getAuthHeaders()
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    try {
+      const res = await fetch('/api/manufacturers/active', {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      console.error('Failed to load manufacturers:', res.status);
+      return [];
+    } catch (e) {
+      console.error('Failed to load manufacturers:', e);
+      return [];
+    }
   }
 };
 

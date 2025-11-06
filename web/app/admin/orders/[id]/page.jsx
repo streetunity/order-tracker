@@ -103,6 +103,8 @@ export default function EditOrderPage({ params }) {
           orderApi.getManufacturers(getAuthHeaders),
           orderApi.getSalesAgents(getAuthHeaders)
         ]);
+        console.log('[Edit Order] Loaded manufacturers:', mfgData);
+        console.log('[Edit Order] Loaded sales agents:', agentsData);
         setManufacturers(mfgData);
         setSalesAgents(agentsData);
       } catch (e) {
