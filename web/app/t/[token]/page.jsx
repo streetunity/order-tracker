@@ -110,6 +110,25 @@ export default function PublicTrackingPage() {
     }
   };
 
+  // Format date-only values without timezone conversion
+  const formatDateOnly = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      // For ISO date strings, extract the date part directly to avoid timezone issues
+      const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (dateMatch) {
+        const [, year, month, day] = dateMatch;
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return date.toLocaleDateString();
+      }
+      // Fallback for other formats
+      const date = new Date(dateStr);
+      return date.toLocaleDateString();
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Check if we should show the shipping information section
   const showShippingSection = order.etaDate || order.shippingCarrier || order.trackingNumber || order.onsiteInstallationDate !== undefined;
 
@@ -136,7 +155,7 @@ export default function PublicTrackingPage() {
         <div style={{ display: "flex", justifyContent: "center", gap: "20px", flexWrap: "wrap" }}>
           {order.orderDate && (
             <div style={{ fontSize: "16px", color: "#a0a0a0" }}>
-              <strong>Order Date:</strong> {new Date(order.orderDate).toLocaleDateString()}
+              <strong>Order Date:</strong> {formatDateOnly(order.orderDate)}
             </div>
           )}
           {order.poNumber && (
@@ -237,7 +256,7 @@ export default function PublicTrackingPage() {
               {order.etaDate && (
                 <div style={{ marginBottom: "8px" }}>
                   <strong style={{ color: "#ef4444" }}>ETA:</strong>
-                  <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{new Date(order.etaDate).toLocaleDateString()}</span>
+                  <span style={{ color: "#e4e4e4", marginLeft: "8px" }}>{formatDateOnly(order.etaDate)}</span>
                 </div>
               )}
               {order.shippingCarrier && (
@@ -260,15 +279,15 @@ export default function PublicTrackingPage() {
             }}>
               <div>
                 <strong style={{ color: "#ef4444" }}>Onsite Installation Date:</strong>
-                <div style={{ 
-                  color: order.onsiteInstallationDate ? "#e4e4e4" : "#a0a0a0", 
-                  marginTop: "4px", 
-                  fontSize: "16px", 
+                <div style={{
+                  color: order.onsiteInstallationDate ? "#e4e4e4" : "#a0a0a0",
+                  marginTop: "4px",
+                  fontSize: "16px",
                   fontWeight: order.onsiteInstallationDate ? "500" : "normal",
                   fontStyle: order.onsiteInstallationDate ? "normal" : "italic"
                 }}>
-                  {order.onsiteInstallationDate 
-                    ? new Date(order.onsiteInstallationDate).toLocaleDateString()
+                  {order.onsiteInstallationDate
+                    ? formatDateOnly(order.onsiteInstallationDate)
                     : "TBD"
                   }
                 </div>
@@ -587,7 +606,7 @@ export default function PublicTrackingPage() {
 
       <div style={{ marginTop: "40px", paddingTop: "20px", borderTop: "1px solid #404040", textAlign: "center" }}>
         <p style={{ color: "#a0a0a0", fontSize: "14px" }}>
-          Order created on {new Date(order.createdAt).toLocaleDateString()}
+          Order created on {formatDateOnly(order.createdAt)}
         </p>
         <p style={{ color: "#666", fontSize: "12px", marginTop: "8px" }}>
           This is a secure tracking link. Do not share with unauthorized parties.

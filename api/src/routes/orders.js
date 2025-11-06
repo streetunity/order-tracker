@@ -528,7 +528,7 @@ export function createOrdersRouter(prisma) {
         return res.status(403).json({ error: 'Cannot edit a locked order' });
       }
       
-      const { poNumber, sku, etaDate, trackingNumber, shippingCarrier, accountId } = req.body || {};
+      const { poNumber, sku, etaDate, trackingNumber, shippingCarrier, accountId, onsiteInstallationDate } = req.body || {};
       const data = {};
       const changes = [];
       
@@ -617,7 +617,22 @@ export function createOrdersRouter(prisma) {
           }
         }
       }
-      
+
+      if (onsiteInstallationDate !== undefined) {
+        const newDate = onsiteInstallationDate ? new Date(onsiteInstallationDate) : null;
+        const oldDateStr = original.onsiteInstallationDate?.toISOString() || null;
+        const newDateStr = newDate?.toISOString() || null;
+
+        if (oldDateStr !== newDateStr) {
+          data.onsiteInstallationDate = newDate;
+          changes.push({
+            field: 'onsiteInstallationDate',
+            oldValue: oldDateStr || 'null',
+            newValue: newDateStr || 'null'
+          });
+        }
+      }
+
       // Handle discount field - Track if it changes for commission recalculation
       const { discount } = req.body || {};
       let discountChanged = false;

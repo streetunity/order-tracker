@@ -1,3 +1,22 @@
+// Format date-only values without timezone conversion
+const formatDateOnly = (dateStr) => {
+  if (!dateStr) return null;
+  try {
+    // For ISO date strings, extract the date part directly to avoid timezone issues
+    const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      const [, year, month, day] = dateMatch;
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      return date.toLocaleDateString();
+    }
+    // Fallback for other formats
+    const date = new Date(dateStr);
+    return date.toLocaleDateString();
+  } catch {
+    return dateStr;
+  }
+};
+
 // Component for displaying and editing order information
 export default function OrderInformation({
   order,
@@ -101,7 +120,7 @@ export default function OrderInformation({
                 fontSize: "14px",
                 color: "#e4e4e4"
               }}>
-                {new Date(order.etaDate).toLocaleDateString()}
+                {formatDateOnly(order.etaDate)}
                 {hasExtendedShipping && (
                   <span style={{ fontSize: "11px", color: "var(--success)", marginLeft: "8px" }}>
                     (Extended)
