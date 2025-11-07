@@ -551,43 +551,100 @@ export default function AdminBoardPage() {
                           if (isOrderLocked) tooltipText += "\n(Order Locked)";
                           
                           return (
-                            <div key={it.id} className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`} title={tooltipText} style={{ borderColor: isOrderLocked ? "#dc2626" : undefined, borderWidth: isOrderLocked ? "2px" : undefined }}>
-                              <div className="itemTitle" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div key={it.id} className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`} title={tooltipText} style={{ borderColor: isOrderLocked ? "#dc2626" : undefined, borderWidth: isOrderLocked ? "2px" : undefined, position: 'relative' }}>
+                              <div className="itemTitle" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help', flexShrink: 0 }}>$</span>}
                                 <span>{it.productCode || "Item"}</span>
-                                {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>}
                               </div>
-                              <div className="itemActions" style={{ gap: "2px" }}>
-                                {/* HIDE MOVE BUTTONS FOR MANUFACTURERS AND BROKERS */}
-                                {!isLimitedAccess && (
-                                  <>
-                                    <button className="miniBtn" aria-label="Move back" disabled={!prev} onClick={async () => { if (!prev) return; try { await changeItemStage(order.id, it.id, prev, { allowBackward: true }); await load(); } catch (e) { showNotif(`Failed to move back: ${e instanceof Error ? e.message : e}`); } }} title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>◀</button>
-                                    <button className="miniBtn" aria-label="Move forward" disabled={!next} onClick={async () => { if (!next) return; try { await changeItemStage(order.id, it.id, next, { allowFastForward: true }); await load(); } catch (e) { showNotif(`Failed to move forward: ${e instanceof Error ? e.message : e}`); } }} title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"} style={{ fontSize: "10px", padding: "2px 4px" }}>▶</button>
-                                  </>
-                                )}
 
-                                {/* HIDE ARCHIVE AND DELETE BUTTONS FOR MANUFACTURERS AND BROKERS */}
-                                {!isLimitedAccess && (
-                                  <>
-                                    {!isArchived ? (
-                                      <button className="miniBtn danger" aria-label="Archive" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", false)} title="Archive (hide from board)" style={{ fontSize: "10px", padding: "2px 4px", marginLeft: "4px" }}>📦</button>
-                                    ) : (
-                                      <button className="miniBtn" aria-label="Restore" onClick={() => handleArchiveClick(order.id, it.id, it.productCode || "this item", true)} title="Restore (show on board)" style={{ fontSize: "10px", padding: "2px 4px", marginLeft: "4px" }}>📂</button>
-                                    )}
-                                    <button className="miniBtn danger" aria-label="Delete item" onClick={() => handleDeleteClick(order.id, it.id, it.productCode || "this item", isOrderLocked)} title={isOrderLocked ? "Order is locked - cannot delete" : "Delete item permanently"} style={{ opacity: isOrderLocked ? 0.5 : 1, cursor: isOrderLocked ? "not-allowed" : "pointer", fontSize: "10px", padding: "2px 4px" }}>🗑</button>
-                                  </>
-                                )}
+                              {/* Magnifying glass - top right */}
+                              <button
+                                className="miniBtn view"
+                                aria-label="View item details"
+                                onClick={() => handleViewItem(it, order)}
+                                title="View item details"
+                                style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  right: '4px',
+                                  fontSize: '16px',
+                                  padding: '2px 4px',
+                                  lineHeight: 1,
+                                  opacity: 0.7,
+                                  transition: 'opacity 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                              >
+                                🔍
+                              </button>
 
-                                {/* VIEW ITEM BUTTON - Far right */}
-                                <button
-                                  className="miniBtn view"
-                                  aria-label="View item details"
-                                  onClick={() => handleViewItem(it, order)}
-                                  title="View item details"
-                                  style={{ fontSize: "10px", padding: "2px 6px" }}
-                                >
-                                  🔍
-                                </button>
-                              </div>
+                              {/* HIDE MOVE BUTTONS FOR MANUFACTURERS AND BROKERS */}
+                              {!isLimitedAccess && (
+                                <>
+                                  {/* Move back - bottom left */}
+                                  <button
+                                    className="miniBtn"
+                                    aria-label="Move back"
+                                    disabled={!prev}
+                                    onClick={async () => {
+                                      if (!prev) return;
+                                      try {
+                                        await changeItemStage(order.id, it.id, prev, { allowBackward: true });
+                                        await load();
+                                      } catch (e) {
+                                        showNotif(`Failed to move back: ${e instanceof Error ? e.message : e}`);
+                                      }
+                                    }}
+                                    title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"}
+                                    style={{
+                                      position: 'absolute',
+                                      bottom: '4px',
+                                      left: '4px',
+                                      fontSize: '12px',
+                                      padding: '2px 6px',
+                                      lineHeight: 1,
+                                      opacity: prev ? 0.7 : 0.3,
+                                      transition: 'opacity 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => prev && (e.currentTarget.style.opacity = '1')}
+                                    onMouseLeave={(e) => prev && (e.currentTarget.style.opacity = '0.7')}
+                                  >
+                                    ◀
+                                  </button>
+
+                                  {/* Move forward - bottom right */}
+                                  <button
+                                    className="miniBtn"
+                                    aria-label="Move forward"
+                                    disabled={!next}
+                                    onClick={async () => {
+                                      if (!next) return;
+                                      try {
+                                        await changeItemStage(order.id, it.id, next, { allowFastForward: true });
+                                        await load();
+                                      } catch (e) {
+                                        showNotif(`Failed to move forward: ${e instanceof Error ? e.message : e}`);
+                                      }
+                                    }}
+                                    title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"}
+                                    style={{
+                                      position: 'absolute',
+                                      bottom: '4px',
+                                      right: '4px',
+                                      fontSize: '12px',
+                                      padding: '2px 6px',
+                                      lineHeight: 1,
+                                      opacity: next ? 0.7 : 0.3,
+                                      transition: 'opacity 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => next && (e.currentTarget.style.opacity = '1')}
+                                    onMouseLeave={(e) => next && (e.currentTarget.style.opacity = '0.7')}
+                                  >
+                                    ▶
+                                  </button>
+                                </>
+                              )}
                             </div>
                           );
                         })}
