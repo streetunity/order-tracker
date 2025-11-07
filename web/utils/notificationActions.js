@@ -3,6 +3,19 @@
 
 export const NOTIFICATION_ACTIONS = {
   // Commission notifications
+  COMMISSION: [
+    {
+      label: "Review Commission",
+      path: "/admin/commissions",
+      variant: "primary"
+    },
+    {
+      label: "View Order",
+      path: (notification) => `/admin/orders/${notification.relatedId}`,
+      variant: "secondary"
+    }
+  ],
+
   COMMISSION_PENDING: [
     {
       label: "Review Commission",
@@ -92,10 +105,17 @@ export const NOTIFICATION_ACTIONS = {
 export function getNotificationActions(notification) {
   const actions = NOTIFICATION_ACTIONS[notification.type] || [];
 
-  return actions.map(action => ({
-    ...action,
-    href: typeof action.path === 'function'
-      ? action.path(notification)
-      : action.path
-  }));
+  return actions
+    .map(action => ({
+      ...action,
+      href: typeof action.path === 'function'
+        ? action.path(notification)
+        : action.path
+    }))
+    .filter(action => {
+      // Filter out actions with invalid hrefs (e.g., when relatedId is null)
+      if (!action.href) return false;
+      if (action.href.includes('null') || action.href.includes('undefined')) return false;
+      return true;
+    });
 }
