@@ -552,9 +552,9 @@ export default function AdminBoardPage() {
                           
                           return (
                             <div key={it.id} className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`} title={tooltipText} style={{ borderColor: isOrderLocked ? "#dc2626" : undefined, borderWidth: isOrderLocked ? "2px" : undefined, position: 'relative' }}>
-                              <div className="itemTitle" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <div className="itemTitle" style={{ display: "flex", alignItems: "center", gap: "6px", paddingRight: '24px' }}>
                                 {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help', flexShrink: 0 }}>$</span>}
-                                <span>{it.productCode || "Item"}</span>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{it.productCode || "Item"}</span>
                               </div>
 
                               {/* Magnifying glass - top right */}
@@ -568,10 +568,13 @@ export default function AdminBoardPage() {
                                   top: '2px',
                                   right: '2px',
                                   fontSize: '14px',
-                                  padding: '2px 4px',
+                                  padding: '2px',
                                   lineHeight: 1,
                                   opacity: 0.7,
-                                  transition: 'opacity 0.2s'
+                                  transition: 'opacity 0.2s',
+                                  border: 'none',
+                                  background: 'transparent',
+                                  cursor: 'pointer'
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                                 onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
@@ -602,10 +605,13 @@ export default function AdminBoardPage() {
                                       bottom: '2px',
                                       left: '2px',
                                       fontSize: '11px',
-                                      padding: '2px 5px',
+                                      padding: '2px',
                                       lineHeight: 1,
                                       opacity: prev ? 0.7 : 0.3,
-                                      transition: 'opacity 0.2s'
+                                      transition: 'opacity 0.2s',
+                                      border: 'none',
+                                      background: 'transparent',
+                                      cursor: prev ? 'pointer' : 'not-allowed'
                                     }}
                                     onMouseEnter={(e) => prev && (e.currentTarget.style.opacity = '1')}
                                     onMouseLeave={(e) => prev && (e.currentTarget.style.opacity = '0.7')}
@@ -633,10 +639,13 @@ export default function AdminBoardPage() {
                                       bottom: '2px',
                                       right: '2px',
                                       fontSize: '11px',
-                                      padding: '2px 5px',
+                                      padding: '2px',
                                       lineHeight: 1,
                                       opacity: next ? 0.7 : 0.3,
-                                      transition: 'opacity 0.2s'
+                                      transition: 'opacity 0.2s',
+                                      border: 'none',
+                                      background: 'transparent',
+                                      cursor: next ? 'pointer' : 'not-allowed'
                                     }}
                                     onMouseEnter={(e) => next && (e.currentTarget.style.opacity = '1')}
                                     onMouseLeave={(e) => next && (e.currentTarget.style.opacity = '0.7')}
