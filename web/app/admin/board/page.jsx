@@ -448,32 +448,56 @@ export default function AdminBoardPage() {
             <div className="customerRow" key={group.accountId || group.accountName}>
               <div className="stageCol stickyCol">
                 <div className="customerHeader">
+                  {/* Magnifying glass icon - top right corner */}
+                  {!isLimitedAccess && group.orders?.[0] && (
+                    <Link
+                      href={`/admin/orders/${group.orders[0].id}`}
+                      title={hasLockedOrder ? "Edit order (locked)" : "Edit order"}
+                      style={{
+                        position: 'absolute',
+                        top: '4px',
+                        right: '4px',
+                        textDecoration: 'none',
+                        fontSize: '22px',
+                        lineHeight: 1,
+                        opacity: 0.7,
+                        transition: 'opacity 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                    >
+                      🔍
+                    </Link>
+                  )}
+
+                  {/* Trash icon - bottom right corner */}
+                  {!isLimitedAccess && group.orders?.[0] && (
+                    <button
+                      onClick={() => handleArchiveOrderClick(group.orders[0])}
+                      title={group.orders[0].isArchived ? "Unarchive order" : "Archive order"}
+                      style={{
+                        position: 'absolute',
+                        bottom: '4px',
+                        right: '4px',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        fontSize: '18px',
+                        lineHeight: 1,
+                        opacity: 0.7,
+                        transition: 'opacity 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                    >
+                      🗑️
+                    </button>
+                  )}
+
                   <div className="customerName">
                     {hasLockedOrder && <span style={{ color: "#dc2626", marginRight: "6px", fontSize: "16px", verticalAlign: "middle" }} title="Order is locked - item details cannot be edited">🔒</span>}
                     {group.accountName}
-                    {/* HIDE EDIT LINK FOR MANUFACTURERS AND BROKERS */}
-                    {!isLimitedAccess && group.orders?.[0] && (
-                      <>
-                        {" "}
-                        <Link className="link tiny" href={`/admin/orders/${group.orders[0].id}`} title={hasLockedOrder ? "Edit order (locked)" : "Edit order"} style={{ textDecoration: 'none' }}>🔍</Link>
-                        {" "}
-                        <button
-                          className="link tiny"
-                          onClick={() => handleArchiveOrderClick(group.orders[0])}
-                          title={group.orders[0].isArchived ? "Unarchive order" : "Archive order"}
-                          style={{
-                            textDecoration: 'none',
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            fontSize: 'inherit'
-                          }}
-                        >
-                          {group.orders[0].isArchived ? "📂" : "📦"}
-                        </button>
-                      </>
-                    )}
                     {group.orders?.[0]?.account?.contactName && (
                       <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px", fontWeight: "normal" }}>
                         {group.orders[0].account.contactName}
@@ -731,7 +755,7 @@ export default function AdminBoardPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
-              {pendingArchiveOrder.isArchived ? "📂 Unarchive Order?" : "📦 Archive Order?"}
+              {pendingArchiveOrder.isArchived ? "🔄 Restore Order?" : "🗑️ Delete Order?"}
             </h3>
             <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
               {pendingArchiveOrder.isArchived

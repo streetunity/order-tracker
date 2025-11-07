@@ -99,43 +99,43 @@
   white-space: nowrap;
 }
 
-/* Primary button - main action */
+/* Primary button - main action (using red accent theme) */
 .notification-btn-primary {
-  background-color: #3b82f6;
+  background-color: var(--accent, #ef4444);
   color: white;
-  border-color: #3b82f6;
+  border-color: var(--accent, #ef4444);
 }
 
 .notification-btn-primary:hover {
-  background-color: #2563eb;
-  border-color: #2563eb;
+  background-color: var(--accent-strong, #dc2626);
+  border-color: var(--accent-strong, #dc2626);
 }
 
-/* Secondary button - less important action */
+/* Secondary button - less important action (neutral dark) */
 .notification-btn-secondary {
-  background-color: #f3f4f6;
-  color: #374151;
-  border-color: #d1d5db;
+  background-color: var(--panel, #2d2d2d);
+  color: var(--text, #e4e4e4);
+  border-color: var(--border, #404040);
 }
 
 .notification-btn-secondary:hover {
-  background-color: #e5e7eb;
-  border-color: #9ca3af;
+  background-color: var(--hover-bg, #3a3a3a);
+  border-color: #6b7280;
 }
 
-/* Success button - positive action */
+/* Success button - positive action (muted red with green tint) */
 .notification-btn-success {
-  background-color: #10b981;
+  background-color: #dc2626;
   color: white;
-  border-color: #10b981;
+  border-color: #dc2626;
 }
 
 .notification-btn-success:hover {
-  background-color: #059669;
-  border-color: #059669;
+  background-color: #b91c1c;
+  border-color: #b91c1c;
 }
 
-/* Warning button - attention needed */
+/* Warning button - attention needed (orange accent) */
 .notification-btn-warning {
   background-color: #f59e0b;
   color: white;
@@ -147,16 +147,16 @@
   border-color: #d97706;
 }
 
-/* Danger button - critical action */
+/* Danger button - critical action (strongest red) */
 .notification-btn-danger {
-  background-color: #ef4444;
+  background-color: var(--accent-strong, #dc2626);
   color: white;
-  border-color: #ef4444;
+  border-color: var(--accent-strong, #dc2626);
 }
 
 .notification-btn-danger:hover {
-  background-color: #dc2626;
-  border-color: #dc2626;
+  background-color: #b91c1c;
+  border-color: #b91c1c;
 }
 
 .notification-dismiss {
