@@ -221,7 +221,7 @@
   font-size: 11px;
   position: relative;
   flex-shrink: 0;
-  min-height: 56px; /* Increased to accommodate wrapped text and corner buttons */
+  min-height: 40px; /* Compact height - expands as needed for longer text */
 }
 
 .customerRow:nth-child(even) .itemCard {
