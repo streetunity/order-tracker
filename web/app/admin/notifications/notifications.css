@@ -274,6 +274,77 @@
   text-decoration: underline;
 }
 
+/* Action buttons */
+.action-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.action-btn-primary {
+  background-color: var(--accent, #ef4444);
+  color: white;
+  border-color: var(--accent, #ef4444);
+}
+
+.action-btn-primary:hover {
+  background-color: var(--accent-strong, #dc2626);
+  border-color: var(--accent-strong, #dc2626);
+}
+
+.action-btn-secondary {
+  background-color: var(--panel, #2d2d2d);
+  color: var(--text, #e4e4e4);
+  border-color: var(--border, #404040);
+}
+
+.action-btn-secondary:hover {
+  background-color: var(--hover-bg, #3a3a3a);
+  border-color: #6b7280;
+}
+
+.action-btn-success {
+  background-color: #dc2626;
+  color: white;
+  border-color: #dc2626;
+}
+
+.action-btn-success:hover {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.action-btn-warning {
+  background-color: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+}
+
+.action-btn-warning:hover {
+  background-color: #d97706;
+  border-color: #d97706;
+}
+
+.action-btn-danger {
+  background-color: var(--accent-strong, #dc2626);
+  color: white;
+  border-color: var(--accent-strong, #dc2626);
+}
+
+.action-btn-danger:hover {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+}
+
 .dismiss-btn {
   padding: 4px 12px;
   border: 1px solid var(--border);

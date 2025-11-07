@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
+import { getNotificationActions } from "@/utils/notificationActions";
 import "./notifications.css";
 
 export default function NotificationsPage() {
@@ -266,15 +267,19 @@ export default function NotificationsPage() {
                   )}
 
                   <div className="notification-actions">
-                    {notif.relatedOrderId && (
+                    {getNotificationActions({
+                      type: notif.type,
+                      relatedId: notif.relatedOrderId
+                    }).map((action, idx) => (
                       <Link
-                        href={`/admin/orders/${notif.relatedOrderId}`}
-                        className="action-link"
+                        key={idx}
+                        href={action.href}
+                        className={`action-btn action-btn-${action.variant}`}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        View Order →
+                        {action.label}
                       </Link>
-                    )}
+                    ))}
                     {!notif.isDismissed && (
                       <button
                         className="dismiss-btn"
