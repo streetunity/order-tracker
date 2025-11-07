@@ -7,8 +7,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import "./notifications.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000';
-
 export default function NotificationsPage() {
   const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
@@ -38,7 +36,7 @@ export default function NotificationsPage() {
       if (filter === "operational") params.set("category", "OPERATIONAL");
       params.set("limit", "100");
 
-      const res = await fetch(`${API_BASE}/notifications?${params.toString()}`, {
+      const res = await fetch(`/api/notifications?${params.toString()}`, {
         headers: getAuthHeaders(),
       });
 
@@ -57,7 +55,7 @@ export default function NotificationsPage() {
 
   async function loadStats() {
     try {
-      const res = await fetch(`${API_BASE}/notifications/stats`, {
+      const res = await fetch(`/api/notifications/stats`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -71,7 +69,7 @@ export default function NotificationsPage() {
 
   async function markAsRead(id) {
     try {
-      const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+      const res = await fetch(`/api/notifications/${id}/read`, {
         method: "PATCH",
         headers: getAuthHeaders(),
       });
@@ -86,7 +84,7 @@ export default function NotificationsPage() {
 
   async function markAllAsRead() {
     try {
-      const res = await fetch(`${API_BASE}/notifications/read-all`, {
+      const res = await fetch(`/api/notifications/mark-all-read`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -101,7 +99,7 @@ export default function NotificationsPage() {
 
   async function dismissNotification(id) {
     try {
-      const res = await fetch(`${API_BASE}/notifications/${id}/dismiss`, {
+      const res = await fetch(`/api/notifications/${id}/dismiss`, {
         method: "PATCH",
         headers: getAuthHeaders(),
       });
