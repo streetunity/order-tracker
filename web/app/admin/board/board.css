@@ -215,13 +215,13 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel);
-  padding: 6px 28px 24px 6px; /* Extra right padding for magnifying glass, extra bottom padding for arrows */
+  padding: 6px 26px 20px 6px; /* Extra right padding for magnifying glass, extra bottom padding for arrows */
   box-shadow: 0 2px 6px rgba(0,0,0,.3);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   font-size: 11px;
   position: relative;
   flex-shrink: 0;
-  min-height: 60px; /* Increased to accommodate wrapped text and corner buttons */
+  min-height: 56px; /* Increased to accommodate wrapped text and corner buttons */
 }
 
 .customerRow:nth-child(even) .itemCard {

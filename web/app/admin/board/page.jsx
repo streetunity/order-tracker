@@ -565,9 +565,9 @@ export default function AdminBoardPage() {
                                 title="View item details"
                                 style={{
                                   position: 'absolute',
-                                  top: '4px',
-                                  right: '4px',
-                                  fontSize: '16px',
+                                  top: '2px',
+                                  right: '2px',
+                                  fontSize: '14px',
                                   padding: '2px 4px',
                                   lineHeight: 1,
                                   opacity: 0.7,
@@ -599,10 +599,10 @@ export default function AdminBoardPage() {
                                     title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"}
                                     style={{
                                       position: 'absolute',
-                                      bottom: '4px',
-                                      left: '4px',
-                                      fontSize: '12px',
-                                      padding: '2px 6px',
+                                      bottom: '2px',
+                                      left: '2px',
+                                      fontSize: '11px',
+                                      padding: '2px 5px',
                                       lineHeight: 1,
                                       opacity: prev ? 0.7 : 0.3,
                                       transition: 'opacity 0.2s'
@@ -630,10 +630,10 @@ export default function AdminBoardPage() {
                                     title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"}
                                     style={{
                                       position: 'absolute',
-                                      bottom: '4px',
-                                      right: '4px',
-                                      fontSize: '12px',
-                                      padding: '2px 6px',
+                                      bottom: '2px',
+                                      right: '2px',
+                                      fontSize: '11px',
+                                      padding: '2px 5px',
                                       lineHeight: 1,
                                       opacity: next ? 0.7 : 0.3,
                                       transition: 'opacity 0.2s'
