@@ -2,62 +2,42 @@
 // Maps notification types to their specific action buttons
 
 export const NOTIFICATION_ACTIONS = {
-  // Commission notifications
+  // Commission notifications - all go to commission pages
   COMMISSION: [
     {
-      label: "Review Commission",
+      label: "Review Commissions",
       path: "/admin/commissions",
       variant: "primary"
-    },
-    {
-      label: "View Order",
-      path: (notification) => `/admin/orders/${notification.relatedId}`,
-      variant: "secondary"
     }
   ],
 
   COMMISSION_PENDING: [
     {
-      label: "Review Commission",
+      label: "Review Commissions",
       path: "/admin/commissions",
       variant: "primary"
-    },
-    {
-      label: "View Order",
-      path: (notification) => `/admin/orders/${notification.relatedId}`,
-      variant: "secondary"
     }
   ],
 
   COMMISSION_APPROVED: [
     {
-      label: "View Details",
+      label: "View Commissions",
       path: "/admin/commissions",
       variant: "success"
-    },
-    {
-      label: "View Order",
-      path: (notification) => `/admin/orders/${notification.relatedId}`,
-      variant: "secondary"
     }
   ],
 
   COMMISSION_EARNED: [
     {
-      label: "View Commission",
+      label: "View My Commissions",
       path: "/my-commissions",
-      variant: "primary"
-    },
-    {
-      label: "View Order",
-      path: (notification) => `/admin/orders/${notification.relatedId}`,
-      variant: "secondary"
+      variant: "success"
     }
   ],
 
   COMMISSION_PAYMENT: [
     {
-      label: "View Details",
+      label: "View My Commissions",
       path: "/my-commissions",
       variant: "success"
     }
