@@ -552,8 +552,32 @@ export default function AdminBoardPage() {
                           
                           return (
                             <div key={it.id} className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`} title={tooltipText} style={{ borderColor: isOrderLocked ? "#dc2626" : undefined, borderWidth: isOrderLocked ? "2px" : undefined, position: 'relative' }}>
-                              <div className="itemTitle" style={{ display: "block", paddingRight: '28px', paddingLeft: isLimitedAccess ? '0' : '22px', marginBottom: '4px' }}>
-                                {it.isOrdered && <span title="Item ordered" style={{ display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help', marginRight: '4px', verticalAlign: 'middle' }}>$</span>}
+                              {/* Ordered icon - top left */}
+                              {it.isOrdered && (
+                                <span
+                                  title="Item ordered"
+                                  style={{
+                                    position: 'absolute',
+                                    top: '2px',
+                                    left: '2px',
+                                    display: 'inline-block',
+                                    backgroundColor: '#16a34a',
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    fontSize: '10px',
+                                    width: '16px',
+                                    height: '16px',
+                                    lineHeight: '16px',
+                                    textAlign: 'center',
+                                    borderRadius: '50%',
+                                    cursor: 'help'
+                                  }}
+                                >
+                                  $
+                                </span>
+                              )}
+
+                              <div className="itemTitle" style={{ display: "block", paddingRight: '28px', paddingLeft: it.isOrdered ? '22px' : (isLimitedAccess ? '0' : '22px'), marginBottom: '4px' }}>
                                 <span style={{ wordBreak: 'break-word' }}>{it.productCode || "Item"}</span>
                               </div>
 
