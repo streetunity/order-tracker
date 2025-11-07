@@ -1,8 +1,6 @@
 // web/app/api/orders/[id]/items/[itemId]/measurements/route.js
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function PATCH(request, { params }) {
   try {
@@ -20,10 +18,10 @@ export async function PATCH(request, { params }) {
       orderId,
       itemId,
       body,
-      url: `${API_BASE}/orders/${orderId}/items/${itemId}/measurements`
+      url: `${API_BASE_URL}/orders/${orderId}/items/${itemId}/measurements`
     });
     
-    const backendUrl = `${API_BASE}/orders/${orderId}/items/${itemId}/measurements`;
+    const backendUrl = `${API_BASE_URL}/orders/${orderId}/items/${itemId}/measurements`;
     
     const response = await fetch(backendUrl, {
       method: 'PATCH',
@@ -81,7 +79,7 @@ export async function PUT(request, { params }) {
     }
 
     const response = await fetch(
-      `${API_BASE}/orders/${orderId}/items/${itemId}/measurements`,
+      `${API_BASE_URL}/orders/${orderId}/items/${itemId}/measurements`,
       {
         method: 'PUT',
         headers: {
@@ -127,7 +125,7 @@ export async function GET(request, { params }) {
     }
 
     const response = await fetch(
-      `${API_BASE}/orders/${orderId}/items/${itemId}/measurement-history`,
+      `${API_BASE_URL}/orders/${orderId}/items/${itemId}/measurement-history`,
       {
         method: 'GET',
         headers: {

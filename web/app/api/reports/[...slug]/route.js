@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, context) {
   try {
@@ -21,7 +19,7 @@ export async function GET(request, context) {
     // Next.js 14 requires awaiting params
     const params = await context.params;
     const slug = params.slug ? params.slug.join('/') : '';
-    const apiUrl = `${API_BASE}/reports/${slug}${queryString ? `?${queryString}` : ''}`;
+    const apiUrl = `${API_BASE_URL}/reports/${slug}${queryString ? `?${queryString}` : ''}`;
     
     console.log('[Reports Route] Fetching from:', apiUrl);
     
@@ -54,7 +52,7 @@ export async function POST(request, context) {
     // Next.js 14 requires awaiting params
     const params = await context.params;
     const slug = params.slug ? params.slug.join('/') : '';
-    const apiUrl = `${API_BASE}/reports/${slug}`;
+    const apiUrl = `${API_BASE_URL}/reports/${slug}`;
     
     console.log('[Reports Route] Posting to:', apiUrl);
     

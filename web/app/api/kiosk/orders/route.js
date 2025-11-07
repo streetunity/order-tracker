@@ -1,14 +1,12 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request) {
   try {
     // Kiosk endpoint - no authentication required for display board
-    const res = await fetch(`${API_BASE}/orders`, {
+    const res = await fetch(`${API_BASE_URL}/orders`, {
       headers: {
         'Content-Type': 'application/json',
         // Use a simple admin key for the kiosk display

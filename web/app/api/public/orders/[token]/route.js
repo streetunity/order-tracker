@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
     const { token } = params;
-    const apiUrl = `${API_BASE}/public/orders/${token}`;
+    const apiUrl = `${API_BASE_URL}/public/orders/${token}`;
     
     console.log('[Public Order Route] Fetching from:', apiUrl);
     

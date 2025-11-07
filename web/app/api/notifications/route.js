@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request) {
   try {
@@ -17,7 +15,7 @@ export async function GET(request) {
       headers['Authorization'] = authHeader;
     }
     
-    const apiUrl = `${API_BASE}/notifications${queryString ? `?${queryString}` : ''}`;
+    const apiUrl = `${API_BASE_URL}/notifications${queryString ? `?${queryString}` : ''}`;
     console.log('[Notifications Route] Fetching from:', apiUrl);
     
     const res = await fetch(apiUrl, { headers });
@@ -39,7 +37,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications`, {
+    const res = await fetch(`${API_BASE_URL}/notifications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -65,7 +63,7 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications`, {
+    const res = await fetch(`${API_BASE_URL}/notifications`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -91,7 +89,7 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications`, {
+    const res = await fetch(`${API_BASE_URL}/notifications`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -116,7 +114,7 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications`, {
+    const res = await fetch(`${API_BASE_URL}/notifications`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

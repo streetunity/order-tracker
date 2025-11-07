@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
@@ -18,7 +16,7 @@ export async function GET(request, { params }) {
       headers['Authorization'] = authHeader;
     }
     
-    const apiUrl = `${API_BASE}/notifications/${path}${queryString ? `?${queryString}` : ''}`;
+    const apiUrl = `${API_BASE_URL}/notifications/${path}${queryString ? `?${queryString}` : ''}`;
     console.log('[Notifications Catch-All Route] Fetching from:', apiUrl);
     
     const res = await fetch(apiUrl, { headers });
@@ -41,7 +39,7 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications/${path}`, {
+    const res = await fetch(`${API_BASE_URL}/notifications/${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -68,7 +66,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications/${path}`, {
+    const res = await fetch(`${API_BASE_URL}/notifications/${path}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -95,7 +93,7 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications/${path}`, {
+    const res = await fetch(`${API_BASE_URL}/notifications/${path}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -121,7 +119,7 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/notifications/${path}`, {
+    const res = await fetch(`${API_BASE_URL}/notifications/${path}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

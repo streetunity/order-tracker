@@ -1,7 +1,6 @@
 // web/app/api/accounts/route.js
 import { NextResponse } from 'next/server';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request) {
   try {
@@ -16,7 +15,7 @@ export async function GET(request) {
       headers['Authorization'] = authHeader;
     }
     
-    const res = await fetch(`${API_BASE}/accounts`, {
+    const res = await fetch(`${API_BASE_URL}/accounts`, {
       headers,
     });
 
@@ -41,7 +40,7 @@ export async function POST(request) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/accounts`, {
+    const res = await fetch(`${API_BASE_URL}/accounts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

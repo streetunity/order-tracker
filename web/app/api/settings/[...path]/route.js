@@ -1,13 +1,13 @@
 // web/app/api/settings/[...path]/route.js
 // Proxy all /api/settings/* requests to the backend
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   const { path } = params;
   const searchParams = request.nextUrl.searchParams;
   const queryString = searchParams.toString();
-  const url = `${API_URL}/settings/${path.join('/')}${queryString ? `?${queryString}` : ''}`;
+  const url = `${API_BASE_URL}/settings/${path.join('/')}${queryString ? `?${queryString}` : ''}`;
   
   try {
     const headers = {};
@@ -25,7 +25,7 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   const { path } = params;
-  const url = `${API_URL}/settings/${path.join('/')}`;
+  const url = `${API_BASE_URL}/settings/${path.join('/')}`;
   
   try {
     const headers = { 'Content-Type': 'application/json' };
@@ -48,7 +48,7 @@ export async function POST(request, { params }) {
 
 export async function PATCH(request, { params }) {
   const { path } = params;
-  const url = `${API_URL}/settings/${path.join('/')}`;
+  const url = `${API_BASE_URL}/settings/${path.join('/')}`;
   
   try {
     const headers = { 'Content-Type': 'application/json' };

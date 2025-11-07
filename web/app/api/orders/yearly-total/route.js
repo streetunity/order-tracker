@@ -1,9 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request) {
   try {
@@ -17,7 +15,7 @@ export async function GET(request) {
       headers['Authorization'] = authHeader;
     }
     
-    const apiUrl = `${API_BASE}/orders/yearly-total`;
+    const apiUrl = `${API_BASE_URL}/orders/yearly-total`;
     console.log('[Orders Yearly Total Route] Fetching from:', apiUrl);
     
     const res = await fetch(apiUrl, { headers });

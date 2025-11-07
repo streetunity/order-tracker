@@ -1,7 +1,6 @@
 // web/app/api/users/[id]/route.js
 import { NextResponse } from 'next/server';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
@@ -15,7 +14,7 @@ export async function GET(request, { params }) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/users/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/users/${id}`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': authHeader,
@@ -43,7 +42,7 @@ export async function PUT(request, { params }) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/users/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/users/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -85,7 +84,7 @@ export async function PATCH(request, { params }) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/users/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/users/${id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -125,7 +124,7 @@ export async function DELETE(request, { params }) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/users/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/users/${id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

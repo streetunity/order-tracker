@@ -1,7 +1,6 @@
 // web/app/api/audit/[id]/route.js
 import { NextResponse } from 'next/server';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
@@ -16,7 +15,7 @@ export async function GET(request, { params }) {
     }
     
     // Call the backend comprehensive-audit endpoint
-    const res = await fetch(`${API_BASE}/comprehensive-audit/${id}`, {
+    const res = await fetch(`${API_BASE_URL}/comprehensive-audit/${id}`, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': authHeader,

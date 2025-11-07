@@ -1,7 +1,6 @@
 // web/app/api/orders/[id]/measurements/bulk/route.js
 import { NextResponse } from 'next/server';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function PATCH(request, { params }) {
   try {
@@ -10,7 +9,7 @@ export async function PATCH(request, { params }) {
     const token = request.headers.get('authorization');
 
     const response = await fetch(
-      `${API_BASE}/orders/${id}/measurements/bulk`,
+      `${API_BASE_URL}/orders/${id}/measurements/bulk`,
       {
         method: 'PATCH',
         headers: {
@@ -53,7 +52,7 @@ export async function PUT(request, { params }) {
     const token = request.headers.get('authorization');
 
     const response = await fetch(
-      `${API_BASE}/orders/${id}/measurements/bulk`,
+      `${API_BASE_URL}/orders/${id}/measurements/bulk`,
       {
         method: 'PUT',
         headers: {

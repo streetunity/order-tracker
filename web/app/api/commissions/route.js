@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request) {
   try {
@@ -17,7 +15,7 @@ export async function GET(request) {
       headers['Authorization'] = authHeader;
     }
     
-    const apiUrl = `${API_BASE}/commissions${queryString ? `?${queryString}` : ''}`;
+    const apiUrl = `${API_BASE_URL}/commissions${queryString ? `?${queryString}` : ''}`;
     console.log('[Commissions Route] Fetching from:', apiUrl);
     
     const res = await fetch(apiUrl, { headers });
@@ -39,7 +37,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/commissions`, {
+    const res = await fetch(`${API_BASE_URL}/commissions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -65,7 +63,7 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/commissions`, {
+    const res = await fetch(`${API_BASE_URL}/commissions`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

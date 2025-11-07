@@ -1,7 +1,6 @@
 // web/app/api/orders/[id]/measurements/route.js
 import { NextResponse } from 'next/server';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
@@ -17,7 +16,7 @@ export async function GET(request, { params }) {
       headers['Authorization'] = authHeader;
     }
     
-    const res = await fetch(`${API_BASE}/orders/${id}/measurements`, {
+    const res = await fetch(`${API_BASE_URL}/orders/${id}/measurements`, {
       headers,
     });
 
@@ -43,7 +42,7 @@ export async function POST(request, { params }) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/orders/${id}/measurements`, {
+    const res = await fetch(`${API_BASE_URL}/orders/${id}/measurements`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,7 +73,7 @@ export async function PUT(request, { params }) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/orders/${id}/measurements`, {
+    const res = await fetch(`${API_BASE_URL}/orders/${id}/measurements`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -119,7 +118,7 @@ export async function PATCH(request, { params }) {
       );
     }
     
-    const res = await fetch(`${API_BASE}/orders/${id}/measurements`, {
+    const res = await fetch(`${API_BASE_URL}/orders/${id}/measurements`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

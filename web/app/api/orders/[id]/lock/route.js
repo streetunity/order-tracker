@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function POST(request, { params }) {
   try {
@@ -11,7 +10,7 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
-    const res = await fetch(`${API_BASE}/orders/${params.id}/lock`, {
+    const res = await fetch(`${API_BASE_URL}/orders/${params.id}/lock`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

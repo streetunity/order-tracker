@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function PATCH(request, { params }) {
   try {
@@ -14,8 +12,8 @@ export async function PATCH(request, { params }) {
     }
     
     console.log(`[Items PATCH] Updating item ${itemId} in order ${id}`);
-    
-    const res = await fetch(`${API_BASE}/orders/${id}/items/${itemId}`, {
+
+    const res = await fetch(`${API_BASE_URL}/orders/${id}/items/${itemId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -43,7 +41,7 @@ export async function DELETE(request, { params }) {
     
     console.log(`[Items DELETE] Deleting item ${itemId} from order ${id}`);
     
-    const res = await fetch(`${API_BASE}/orders/${id}/items/${itemId}`, {
+    const res = await fetch(`${API_BASE_URL}/orders/${id}/items/${itemId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': authHeader,

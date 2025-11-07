@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// HARDCODED FOR AWS DEPLOYMENT - Change this when moving servers
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request) {
   try {
@@ -18,7 +16,7 @@ export async function GET(request) {
       headers['Authorization'] = authHeader;
     }
     
-    const apiUrl = `${API_BASE}/orders${queryString ? `?${queryString}` : ''}`;
+    const apiUrl = `${API_BASE_URL}/orders${queryString ? `?${queryString}` : ''}`;
     console.log('[Orders Route] Fetching from:', apiUrl);
     
     const res = await fetch(apiUrl, {
@@ -49,7 +47,7 @@ export async function POST(request) {
     
     console.log('Creating order with auth header:', authHeader.substring(0, 20) + '...');
     
-    const res = await fetch(`${API_BASE}/orders`, {
+    const res = await fetch(`${API_BASE_URL}/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
