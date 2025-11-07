@@ -575,9 +575,9 @@ export default function EditOrderPage({ params }) {
             let dimensionStr = "-";
             if (container.length || container.width || container.height) {
               const parts = [];
-              if (container.length) parts.push(`L: ${container.length}`);
-              if (container.width) parts.push(`W: ${container.width}`);
-              if (container.height) parts.push(`H: ${container.height}`);
+              if (container.length) parts.push(`L: ${container.length}"`);
+              if (container.width) parts.push(`W: ${container.width}"`);
+              if (container.height) parts.push(`H: ${container.height}"`);
               dimensionStr = parts.join(", ");
             }
 

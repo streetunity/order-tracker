@@ -80,26 +80,83 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
+/* Base button style */
 .notification-btn {
   padding: 6px 14px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
-  background: var(--panel);
-  color: var(--text);
   text-decoration: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
-.notification-btn:hover {
-  background: var(--accent);
+/* Primary button - main action */
+.notification-btn-primary {
+  background-color: #3b82f6;
   color: white;
-  border-color: var(--accent);
+  border-color: #3b82f6;
+}
+
+.notification-btn-primary:hover {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+/* Secondary button - less important action */
+.notification-btn-secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.notification-btn-secondary:hover {
+  background-color: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+/* Success button - positive action */
+.notification-btn-success {
+  background-color: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.notification-btn-success:hover {
+  background-color: #059669;
+  border-color: #059669;
+}
+
+/* Warning button - attention needed */
+.notification-btn-warning {
+  background-color: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+}
+
+.notification-btn-warning:hover {
+  background-color: #d97706;
+  border-color: #d97706;
+}
+
+/* Danger button - critical action */
+.notification-btn-danger {
+  background-color: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.notification-btn-danger:hover {
+  background-color: #dc2626;
+  border-color: #dc2626;
 }
 
 .notification-dismiss {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { getNotificationActions } from "@/utils/notificationActions";
 import "./NotificationBar.css";
 
 export default function NotificationBar() {
@@ -117,18 +118,16 @@ export default function NotificationBar() {
             </div>
           </div>
           <div className="notification-actions">
-            {notification.relatedId && (
+            {getNotificationActions(notification).map((action, idx) => (
               <Link
-                href={
-                  notification.type.includes("COMMISSION")
-                    ? `/admin/commissions/${notification.relatedId}`
-                    : `/admin/orders/${notification.relatedId}`
-                }
-                className="notification-btn"
+                key={idx}
+                href={action.href}
+                className={`notification-btn notification-btn-${action.variant}`}
+                onClick={() => markAsRead(notification.id)}
               >
-                {notification.type === "COMMISSION_PENDING" ? "Review" : "View Details"}
+                {action.label}
               </Link>
-            )}
+            ))}
             <button
               onClick={() => markAsRead(notification.id)}
               className="notification-dismiss"
