@@ -581,8 +581,8 @@ export default function AdminBoardPage() {
                                 display: "flex",
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                paddingRight: '28px',
-                                paddingLeft: it.isOrdered ? '22px' : (isLimitedAccess ? '0' : '22px'),
+                                paddingRight: '24px',
+                                paddingLeft: (it.isOrdered || !isLimitedAccess) ? '24px' : '0',
                                 textAlign: 'center',
                                 minHeight: '100%'
                               }}>
