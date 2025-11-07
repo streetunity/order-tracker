@@ -577,7 +577,17 @@ export default function AdminBoardPage() {
                                 </span>
                               )}
 
-                              <div className="itemTitle" style={{ display: "block", paddingRight: '28px', paddingLeft: it.isOrdered ? '22px' : (isLimitedAccess ? '0' : '22px'), marginBottom: '4px' }}>
+                              <div className="itemTitle" style={{
+                                display: "flex",
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                paddingRight: '28px',
+                                paddingLeft: it.isOrdered ? '22px' : (isLimitedAccess ? '0' : '22px'),
+                                paddingTop: '20px',
+                                paddingBottom: '20px',
+                                textAlign: 'center',
+                                minHeight: '100%'
+                              }}>
                                 <span style={{ wordBreak: 'break-word' }}>{it.productCode || "Item"}</span>
                               </div>
 
