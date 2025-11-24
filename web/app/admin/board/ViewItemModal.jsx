@@ -279,8 +279,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     try {
       setLoadingDocs(true);
       const endpoint = isManufacturer
-        ? `/api/manufacturer/item/${item.id}/documents`
-        : `/api/items/${item.id}/documents`;
+        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents`
+        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents`;
       const res = await fetch(endpoint, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
@@ -309,8 +309,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       formData.append("documentType", selectedDocType);
 
       const endpoint = isManufacturer
-        ? `/api/manufacturer/item/${item.id}/documents`
-        : `/api/items/${item.id}/documents`;
+        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents`
+        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents`;
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -336,8 +336,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const handleDownload = async (doc) => {
     try {
       const endpoint = isManufacturer
-        ? `/api/manufacturer/item/${item.id}/documents/${doc.id}/download`
-        : `/api/items/${item.id}/documents/${doc.id}/download`;
+        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents/${doc.id}/download`
+        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents/${doc.id}/download`;
       const res = await fetch(endpoint, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
@@ -351,8 +351,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const handleDeleteDoc = async (docId) => {
     try {
       const endpoint = isManufacturer
-        ? `/api/manufacturer/item/${item.id}/documents/${docId}`
-        : `/api/items/${item.id}/documents/${docId}`;
+        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents/${docId}`
+        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents/${docId}`;
       const res = await fetch(endpoint, {
         method: "DELETE",
         headers: getAuthHeaders()
