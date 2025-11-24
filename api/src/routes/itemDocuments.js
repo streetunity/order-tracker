@@ -262,21 +262,19 @@ router.get("/manufacturer/item/:itemId/documents", authGuard, async (req, res) =
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    // Get manufacturer profile linked to this user
-    const manufacturer = await prisma.manufacturer.findUnique({
-      where: { userId: req.user.id }
-    });
-
-    if (!manufacturer) {
+    // Use manufacturer from auth middleware
+    if (!req.user.manufacturer || !req.user.manufacturer.id) {
       return res.status(403).json({ error: "No manufacturer profile found" });
     }
+
+    const manufacturerId = req.user.manufacturer.id;
 
     // Verify item is assigned to this manufacturer
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId }
     });
 
-    if (!item || item.manufacturerId !== manufacturer.id) {
+    if (!item || item.manufacturerId !== manufacturerId) {
       return res.status(403).json({ error: "Item not assigned to you" });
     }
 
@@ -344,14 +342,12 @@ router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('fi
       return res.status(400).json({ error: validationErrors.join(', ') });
     }
 
-    // Get manufacturer profile linked to this user
-    const manufacturer = await prisma.manufacturer.findUnique({
-      where: { userId: req.user.id }
-    });
-
-    if (!manufacturer) {
+    // Use manufacturer from auth middleware
+    if (!req.user.manufacturer || !req.user.manufacturer.id) {
       return res.status(403).json({ error: "No manufacturer profile found" });
     }
+
+    const manufacturerId = req.user.manufacturer.id;
 
     // Verify item is assigned to this manufacturer
     const item = await prisma.orderItem.findUnique({
@@ -359,7 +355,7 @@ router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('fi
       include: { order: true }
     });
 
-    if (!item || item.manufacturerId !== manufacturer.id) {
+    if (!item || item.manufacturerId !== manufacturerId) {
       return res.status(403).json({ error: "Item not assigned to you" });
     }
 
@@ -405,14 +401,12 @@ router.get("/manufacturer/item/:itemId/documents/:documentId/download", authGuar
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    // Get manufacturer profile
-    const manufacturer = await prisma.manufacturer.findUnique({
-      where: { userId: req.user.id }
-    });
-
-    if (!manufacturer) {
+    // Use manufacturer from auth middleware
+    if (!req.user.manufacturer || !req.user.manufacturer.id) {
       return res.status(403).json({ error: "No manufacturer profile found" });
     }
+
+    const manufacturerId = req.user.manufacturer.id;
 
     // Get document and verify access
     const document = await prisma.itemDocument.findUnique({
@@ -424,7 +418,7 @@ router.get("/manufacturer/item/:itemId/documents/:documentId/download", authGuar
       return res.status(404).json({ error: "Document not found" });
     }
 
-    if (document.item.manufacturerId !== manufacturer.id) {
+    if (document.item.manufacturerId !== manufacturerId) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
@@ -449,14 +443,12 @@ router.delete("/manufacturer/item/:itemId/documents/:documentId", authGuard, asy
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    // Get manufacturer profile
-    const manufacturer = await prisma.manufacturer.findUnique({
-      where: { userId: req.user.id }
-    });
-
-    if (!manufacturer) {
+    // Use manufacturer from auth middleware
+    if (!req.user.manufacturer || !req.user.manufacturer.id) {
       return res.status(403).json({ error: "No manufacturer profile found" });
     }
+
+    const manufacturerId = req.user.manufacturer.id;
 
     // Get document and verify access
     const document = await prisma.itemDocument.findUnique({
@@ -468,7 +460,7 @@ router.delete("/manufacturer/item/:itemId/documents/:documentId", authGuard, asy
       return res.status(404).json({ error: "Document not found" });
     }
 
-    if (document.item.manufacturerId !== manufacturer.id) {
+    if (document.item.manufacturerId !== manufacturerId) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
