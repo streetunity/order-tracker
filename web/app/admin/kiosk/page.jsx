@@ -112,7 +112,7 @@ export default function KioskPage() {
     overflow: 'hidden', // Always hidden for kiosk
     position: 'relative',
     zIndex: 2,
-    maxHeight: '100%', // Enforce height limit
+    maxHeight: '95%', // Leave space so footer doesn't hide content
   };
 
   const headerCellStyle = {
