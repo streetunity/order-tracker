@@ -487,22 +487,23 @@ export default function KioskPage() {
 
         {/* Scrollable Content */}
         <div style={boardStyle} ref={boardRef}>
-          {currentCustomers.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center', 
-              padding: '40px',
-              color: 'var(--text-dim)',
-              fontSize: '14px'
-            }}>
-              {grouped.length === 0 
-                ? (orders.length === 0 
-                    ? "No orders to display. Orders will appear here once created."
-                    : "Processing orders...")
-                : "No items on this page"}
-            </div>
-          ) : (
-            currentCustomers.map((group) => (
-              <div key={group.accountId || group.accountName} style={customerRowStyle}>
+          <div key={`page-${currentPage}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {currentCustomers.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '40px',
+                color: 'var(--text-dim)',
+                fontSize: '14px'
+              }}>
+                {grouped.length === 0
+                  ? (orders.length === 0
+                      ? "No orders to display. Orders will appear here once created."
+                      : "Processing orders...")
+                  : "No items on this page"}
+              </div>
+            ) : (
+              currentCustomers.map((group) => (
+                <div key={group.accountId || group.accountName} style={customerRowStyle}>
                 {/* Customer Name Cell */}
                 <div style={customerColStyle}>
                   <div style={customerNameStyle}>
@@ -546,6 +547,7 @@ export default function KioskPage() {
               </div>
             ))
           )}
+          </div>
         </div>
       </div>
 
