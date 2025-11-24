@@ -74,6 +74,7 @@ export default function EditOrderPage({ params }) {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
 
   // Helper to show notification
   function showNotif(message) {
@@ -729,14 +730,78 @@ export default function EditOrderPage({ params }) {
               </div>
             )}
 
-            <section style={{
-              marginTop: 12,
-              marginBottom: 16,
-              padding: "16px",
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #404040",
-              borderRadius: "8px"
+            {/* Tab Navigation */}
+            <div style={{
+              display: "flex",
+              gap: "4px",
+              marginBottom: "16px",
+              borderBottom: "1px solid #404040",
+              paddingBottom: "0"
             }}>
+              <button
+                onClick={() => setActiveTab("details")}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: activeTab === "details" ? "#dc2626" : "#2d2d2d",
+                  color: activeTab === "details" ? "#fff" : "#9ca3af",
+                  border: "1px solid #404040",
+                  borderBottom: activeTab === "details" ? "1px solid #dc2626" : "1px solid #404040",
+                  borderRadius: "6px 6px 0 0",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: activeTab === "details" ? "600" : "400",
+                  marginBottom: "-1px"
+                }}
+              >
+                Details
+              </button>
+              <button
+                onClick={() => setActiveTab("containers")}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: activeTab === "containers" ? "#dc2626" : "#2d2d2d",
+                  color: activeTab === "containers" ? "#fff" : "#9ca3af",
+                  border: "1px solid #404040",
+                  borderBottom: activeTab === "containers" ? "1px solid #dc2626" : "1px solid #404040",
+                  borderRadius: "6px 6px 0 0",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: activeTab === "containers" ? "600" : "400",
+                  marginBottom: "-1px"
+                }}
+              >
+                Shipping Containers
+              </button>
+              <button
+                onClick={() => setActiveTab("documents")}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: activeTab === "documents" ? "#dc2626" : "#2d2d2d",
+                  color: activeTab === "documents" ? "#fff" : "#9ca3af",
+                  border: "1px solid #404040",
+                  borderBottom: activeTab === "documents" ? "1px solid #dc2626" : "1px solid #404040",
+                  borderRadius: "6px 6px 0 0",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: activeTab === "documents" ? "600" : "400",
+                  marginBottom: "-1px"
+                }}
+              >
+                Documents
+              </button>
+            </div>
+
+            {/* Details Tab */}
+            {activeTab === "details" && (
+              <>
+                <section style={{
+                  marginTop: 12,
+                  marginBottom: 16,
+                  padding: "16px",
+                  backgroundColor: "#2d2d2d",
+                  border: "1px solid #404040",
+                  borderRadius: "8px"
+                }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
                 <h3 style={{ margin: 0, fontSize: 14, color: "#e4e4e4" }}>
                   Shipping & Customer Information
@@ -1037,13 +1102,6 @@ export default function EditOrderPage({ params }) {
               </div>
             </div>
 
-            <MeasurementSection
-              order={order}
-              items={order.items}
-              onRefresh={load}
-              getAuthHeaders={getAuthHeaders}
-            />
-
             {/* Generate Shipping Manifest Button */}
             <div style={{ marginTop: 16, marginBottom: 16 }}>
               <button
@@ -1073,18 +1131,6 @@ export default function EditOrderPage({ params }) {
               onSaveInternalNotes={saveInternalNotes}
               internalNotesSaving={internalNotesSaving}
             />
-
-            {/* Documents Section */}
-            <div style={{
-              marginTop: 16,
-              marginBottom: 16,
-              padding: "16px",
-              backgroundColor: "#2d2d2d",
-              border: "1px solid #404040",
-              borderRadius: "8px"
-            }}>
-              <DocumentUpload orderId={id} />
-            </div>
 
             {/* Commission Status Card */}
             {order && user && (
@@ -1144,6 +1190,32 @@ export default function EditOrderPage({ params }) {
                   ))}
                 </div>
               </section>
+            )}
+              </>
+            )}
+
+            {/* Shipping Containers Tab */}
+            {activeTab === "containers" && (
+              <MeasurementSection
+                order={order}
+                items={order.items}
+                onRefresh={load}
+                getAuthHeaders={getAuthHeaders}
+              />
+            )}
+
+            {/* Documents Tab */}
+            {activeTab === "documents" && (
+              <div style={{
+                marginTop: 16,
+                marginBottom: 16,
+                padding: "16px",
+                backgroundColor: "#2d2d2d",
+                border: "1px solid #404040",
+                borderRadius: "8px"
+              }}>
+                <DocumentUpload orderId={id} />
+              </div>
             )}
           </>
         )}
