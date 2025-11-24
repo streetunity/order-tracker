@@ -9,6 +9,9 @@ export default function DocumentUpload({ orderId, onUploadComplete }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Load documents on mount
   useEffect(() => {
@@ -115,12 +118,18 @@ export default function DocumentUpload({ orderId, onUploadComplete }) {
     }
   }
 
-  async function handleDelete(documentId) {
-    if (!confirm("Are you sure you want to delete this document?")) return;
+  function handleDeleteClick(doc) {
+    setDocumentToDelete(doc);
+    setShowDeleteConfirm(true);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!documentToDelete) return;
 
     try {
+      setDeleting(true);
       const token = localStorage.getItem("token");
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/api/documents/${documentId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/api/documents/${documentToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -136,6 +145,10 @@ export default function DocumentUpload({ orderId, onUploadComplete }) {
     } catch (err) {
       console.error("Delete error:", err);
       setError("Failed to delete document");
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+      setDocumentToDelete(null);
     }
   }
 
@@ -220,7 +233,7 @@ export default function DocumentUpload({ orderId, onUploadComplete }) {
                   <Download className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => handleDelete(doc.id)}
+                  onClick={() => handleDeleteClick(doc)}
                   className="p-2 text-gray-400 hover:text-red-500 hover:bg-gray-700 rounded transition-colors"
                   title="Delete"
                 >
@@ -236,6 +249,48 @@ export default function DocumentUpload({ orderId, onUploadComplete }) {
       <div className="text-gray-400 text-xs">
         Accepted file types: PDF, JPG, PNG, WEBP, DOCX, XLSX &bull; Max size: 10MB
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && documentToDelete && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => {
+            setShowDeleteConfirm(false);
+            setDocumentToDelete(null);
+          }}
+        >
+          <div
+            className="bg-gray-800 border border-gray-600 rounded-lg p-6 max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white mb-4">Delete Document?</h3>
+            <p className="text-gray-300 mb-2">
+              Are you sure you want to delete this document?
+            </p>
+            <p className="text-gray-400 text-sm mb-6 truncate">
+              <strong>{documentToDelete.fileName}</strong>
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDocumentToDelete(null);
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
