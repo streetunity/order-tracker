@@ -284,7 +284,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       const res = await fetch(endpoint, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
-        setDocuments(data);
+        // API returns { documents, checklist, stats } - extract the documents array
+        setDocuments(data.documents || []);
       }
     } catch (e) {
       console.error("Failed to load documents:", e);
@@ -341,7 +342,8 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       const res = await fetch(endpoint, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
-        window.open(data.url, "_blank");
+        // API returns { downloadUrl, fileName } - use downloadUrl
+        window.open(data.downloadUrl, "_blank");
       }
     } catch (e) {
       console.error("Download failed:", e);
