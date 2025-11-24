@@ -253,37 +253,77 @@ export default function DocumentUpload({ orderId, onUploadComplete }) {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && documentToDelete && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
           onClick={() => {
             setShowDeleteConfirm(false);
             setDocumentToDelete(null);
           }}
         >
           <div
-            className="bg-gray-800 border border-gray-600 rounded-lg p-6 max-w-md mx-4"
+            style={{
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "2rem",
+              maxWidth: "400px",
+              width: "90%",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-white mb-4">Delete Document?</h3>
-            <p className="text-gray-300 mb-2">
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+              Delete Document?
+            </h3>
+            <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
               Are you sure you want to delete this document?
             </p>
-            <p className="text-gray-400 text-sm mb-6 truncate">
+            <p style={{ fontSize: "14px", marginBottom: "1.5rem", color: "#9ca3af", wordBreak: "break-all" }}>
               <strong>{documentToDelete.fileName}</strong>
             </p>
-            <div className="flex justify-end gap-3">
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
               <button
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setDocumentToDelete(null);
                 }}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                disabled={deleting}
+                style={{
+                  background: "#2d2d2d",
+                  color: "#fff",
+                  border: "1px solid #404040",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: deleting ? 0.5 : 1
+                }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
                 disabled={deleting}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  fontSize: "14px",
+                  opacity: deleting ? 0.5 : 1
+                }}
               >
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
