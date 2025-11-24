@@ -245,6 +245,7 @@ model Order {
   statusEvents    OrderStatusEvent[]
   createdBy       User?               @relation(fields: [createdByUserId], references: [id])
   commissions     Commission[]        // Commission relation
+  documents       OrderDocument[]     // S3 document uploads
 }
 
 model OrderItem {
@@ -507,4 +508,23 @@ model BrokerActivityLog {
   @@index([userId])
   @@index([createdAt])
   @@index([action])
+}
+
+// S3 Document Storage
+model OrderDocument {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  fileName    String   // Original filename
+  fileSize    Int      // Size in bytes
+  fileType    String   // MIME type
+  s3Key       String   // S3 object key
+  s3Url       String   // Full S3 URL
+
+  uploadedBy  String   // Username who uploaded
+  uploadedAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_documents")
 }

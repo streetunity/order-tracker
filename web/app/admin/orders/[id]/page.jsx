@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import MeasurementSection from "@/components/MeasurementSection";
 import CommissionStatusCard from "@/components/CommissionStatusCard";
+import DocumentUpload from "@/components/DocumentUpload";
 
 // Import modularized components
 import UnlockDialog from "./components/UnlockDialog";
@@ -1072,6 +1073,18 @@ export default function EditOrderPage({ params }) {
               onSaveInternalNotes={saveInternalNotes}
               internalNotesSaving={internalNotesSaving}
             />
+
+            {/* Documents Section */}
+            <div style={{
+              marginTop: 16,
+              marginBottom: 16,
+              padding: "16px",
+              backgroundColor: "#2d2d2d",
+              border: "1px solid #404040",
+              borderRadius: "8px"
+            }}>
+              <DocumentUpload orderId={id} />
+            </div>
 
             {/* Commission Status Card */}
             {order && user && (
