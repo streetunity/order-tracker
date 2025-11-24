@@ -1,7 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { CheckCircle, XCircle, Circle, Upload, File, Download, Trash2 } from "lucide-react";
+
+const DOCUMENT_TYPE_LABELS = {
+  ISF: 'ISF (International Security Filing)',
+  ARRIVAL_NOTICE: 'Arrival Notice',
+  BILL_OF_LADING: 'Bill of Lading',
+  COMMERCIAL_INVOICE: 'Commercial Invoice',
+  PACKING_LIST: 'Packing List',
+  DELIVERY_ORDER: 'Delivery Order'
+};
+
+const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER'];
 
 export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const { user, getAuthHeaders, isAdmin } = useAuth();
@@ -12,6 +24,18 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
   const [unlockReason, setUnlockReason] = useState("");
   const [lockingOrder, setLockingOrder] = useState(false);
+
+  // Tab and document state
+  const [activeTab, setActiveTab] = useState("details");
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState("ISF");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const fileInputRef = useRef(null);
 
   const isManufacturer = user?.role === "MANUFACTURER";
   const isBroker = user?.role === "BROKER";
@@ -249,6 +273,116 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     }
   };
 
+  // Document functions
+  const loadDocuments = async () => {
+    if (!item?.id) return;
+    try {
+      setLoadingDocs(true);
+      const endpoint = isManufacturer
+        ? `/api/manufacturer/item/${item.id}/documents`
+        : `/api/items/${item.id}/documents`;
+      const res = await fetch(endpoint, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data);
+      }
+    } catch (e) {
+      console.error("Failed to load documents:", e);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "documents") {
+      loadDocuments();
+    }
+  }, [activeTab, item?.id]);
+
+  const handleDocumentUpload = async () => {
+    if (!selectedFile || !selectedDocType) return;
+    try {
+      setUploading(true);
+      setUploadError("");
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("documentType", selectedDocType);
+
+      const endpoint = isManufacturer
+        ? `/api/manufacturer/item/${item.id}/documents`
+        : `/api/items/${item.id}/documents`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: formData
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Upload failed");
+      }
+
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await loadDocuments();
+    } catch (e) {
+      setUploadError(e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownload = async (doc) => {
+    try {
+      const endpoint = isManufacturer
+        ? `/api/manufacturer/item/${item.id}/documents/${doc.id}/download`
+        : `/api/items/${item.id}/documents/${doc.id}/download`;
+      const res = await fetch(endpoint, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        window.open(data.url, "_blank");
+      }
+    } catch (e) {
+      console.error("Download failed:", e);
+    }
+  };
+
+  const handleDeleteDoc = async (docId) => {
+    try {
+      const endpoint = isManufacturer
+        ? `/api/manufacturer/item/${item.id}/documents/${docId}`
+        : `/api/items/${item.id}/documents/${docId}`;
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        setShowDeleteConfirm(null);
+        await loadDocuments();
+      }
+    } catch (e) {
+      console.error("Delete failed:", e);
+    }
+  };
+
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) setSelectedFile(file);
+  };
+
+  // Calculate checklist
+  const getChecklist = () => {
+    return REQUIRED_TYPES.map(type => {
+      const docs = documents.filter(d => d.documentType === type);
+      return { type, label: DOCUMENT_TYPE_LABELS[type], count: docs.length, hasDoc: docs.length > 0 };
+    });
+  };
+
   if (!item) return null;
 
   return (
@@ -327,6 +461,41 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
             </div>
           )}
 
+          {/* Tab Navigation */}
+          <div style={{ display: "flex", gap: "8px", margin: "1rem 1.5rem 0" }}>
+            <button
+              onClick={() => setActiveTab("details")}
+              style={{
+                padding: "8px 16px",
+                background: activeTab === "details" ? "#dc2626" : "#2d2d2d",
+                color: "#fff",
+                border: activeTab === "details" ? "none" : "1px solid #404040",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 500
+              }}
+            >
+              Details
+            </button>
+            <button
+              onClick={() => setActiveTab("documents")}
+              style={{
+                padding: "8px 16px",
+                background: activeTab === "documents" ? "#dc2626" : "#2d2d2d",
+                color: "#fff",
+                border: activeTab === "documents" ? "none" : "1px solid #404040",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 500
+              }}
+            >
+              Documents
+            </button>
+          </div>
+
+          {activeTab === "details" && (
           <div className="view-item-body-wide">
             {/* Left column - Item details */}
             <div className="view-item-left-col">
@@ -520,6 +689,120 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
               )}
             </div>
           </div>
+          )}
+
+          {/* Documents Tab */}
+          {activeTab === "documents" && (
+            <div style={{ padding: "1.5rem", maxHeight: "60vh", overflowY: "auto" }}>
+              {loadingDocs ? (
+                <div style={{ textAlign: "center", color: "#9ca3af", padding: "2rem" }}>Loading documents...</div>
+              ) : (
+                <>
+                  {/* Checklist */}
+                  <div style={{ background: "#252525", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+                      <span style={{ fontWeight: 600, color: "#fff" }}>Document Checklist</span>
+                      <span style={{ color: "#9ca3af", fontSize: "13px" }}>
+                        {getChecklist().filter(c => c.hasDoc).length}/{REQUIRED_TYPES.length} Complete
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {getChecklist().map(item => (
+                        <div key={item.type} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px", background: "#1a1a1a", borderRadius: "6px" }}>
+                          {item.hasDoc ? <CheckCircle size={16} color="#22c55e" /> : <XCircle size={16} color="#ef4444" />}
+                          <span style={{ flex: 1, fontSize: "13px", color: "#e5e7eb" }}>{item.label}</span>
+                          {item.count > 0 && <span style={{ fontSize: "12px", color: "#9ca3af" }}>{item.count} file(s)</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Upload Section */}
+                  <div style={{ background: "#252525", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
+                    <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: 600, color: "#fff" }}>Upload Document</h4>
+                    {uploadError && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 12px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "6px", color: "#ef4444", fontSize: "13px", marginBottom: "12px" }}>
+                        {uploadError}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        style={{
+                          flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                          padding: "16px", border: `2px dashed ${isDragging ? "#dc2626" : selectedFile ? "#22c55e" : "#404040"}`,
+                          borderRadius: "6px", color: selectedFile ? "#22c55e" : "#9ca3af", fontSize: "13px", cursor: "pointer",
+                          background: isDragging ? "rgba(220, 38, 38, 0.05)" : selectedFile ? "rgba(34, 197, 94, 0.05)" : "transparent"
+                        }}
+                      >
+                        <Upload size={16} />
+                        {selectedFile ? selectedFile.name : "Drop file or click to browse"}
+                      </div>
+                      <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={(e) => setSelectedFile(e.target.files[0])} />
+                      <select
+                        value={selectedDocType}
+                        onChange={(e) => setSelectedDocType(e.target.value)}
+                        style={{ flex: "0 0 250px", padding: "10px 12px", background: "#1a1a1a", border: "1px solid #404040", borderRadius: "6px", color: "#fff", fontSize: "13px" }}
+                      >
+                        {REQUIRED_TYPES.map(type => (
+                          <option key={type} value={type}>{DOCUMENT_TYPE_LABELS[type]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        onClick={handleDocumentUpload}
+                        disabled={!selectedFile || uploading}
+                        style={{
+                          padding: "10px 20px", background: "#dc2626", color: "#fff", border: "none", borderRadius: "6px",
+                          fontSize: "13px", fontWeight: 500, cursor: (!selectedFile || uploading) ? "not-allowed" : "pointer",
+                          opacity: (!selectedFile || uploading) ? 0.5 : 1
+                        }}
+                      >
+                        {uploading ? "Uploading..." : "Upload"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Documents List */}
+                  <div style={{ background: "#252525", borderRadius: "8px", overflow: "hidden" }}>
+                    <h4 style={{ margin: 0, padding: "16px", borderBottom: "1px solid #404040", fontSize: "14px", fontWeight: 600, color: "#fff" }}>
+                      Uploaded Documents ({documents.length})
+                    </h4>
+                    {documents.length === 0 ? (
+                      <div style={{ padding: "30px", textAlign: "center", color: "#6b7280", fontSize: "13px" }}>No documents uploaded yet</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        {documents.map(doc => (
+                          <div key={doc.id} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderBottom: "1px solid #404040" }}>
+                            <File size={18} color="#9ca3af" style={{ marginTop: "2px" }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", marginBottom: "4px", wordBreak: "break-word" }}>{doc.fileName}</div>
+                              <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "4px" }}>{DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}</div>
+                              <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                                {(doc.fileSize / 1024).toFixed(1)} KB • {new Date(doc.uploadedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <button onClick={() => handleDownload(doc)} style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}>
+                                <Download size={14} />
+                              </button>
+                              <button onClick={() => setShowDeleteConfirm(doc.id)} style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}>
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="view-item-footer">
             <div style={{ display: "flex", gap: "0.5rem", marginRight: "auto" }}>
@@ -823,6 +1106,56 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ fontSize: "20px" }}>⚠️</span>
             <span style={{ color: "#d1d5db", fontSize: "14px" }}>Please provide a reason with at least 10 characters</span>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Document Confirmation */}
+      {showDeleteConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1100
+          }}
+          onClick={() => setShowDeleteConfirm(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "2rem",
+              maxWidth: "400px",
+              width: "90%"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#fff", margin: "0 0 1rem 0" }}>Delete Document?</h3>
+            <p style={{ fontSize: "14px", color: "#d1d5db", marginBottom: "1.5rem" }}>
+              This action cannot be undone. The document will be permanently deleted.
+            </p>
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                style={{ background: "#2d2d2d", color: "#fff", border: "1px solid #404040", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteDoc(showDeleteConfirm)}
+                style={{ backgroundColor: "#dc2626", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

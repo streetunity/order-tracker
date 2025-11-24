@@ -1216,7 +1216,10 @@ export default function EditOrderPage({ params }) {
                 border: "1px solid #404040",
                 borderRadius: "8px"
               }}>
-                <DocumentUpload orderId={id} />
+                <DocumentUpload
+                  items={order.items}
+                  onDocumentChange={load}
+                />
               </div>
             )}
           </>

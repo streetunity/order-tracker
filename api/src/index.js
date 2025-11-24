@@ -37,6 +37,7 @@ import { createCommissionSettingsRouter } from './routes/commissionSettings.js';
 import { createCommissionPayoutsRouter } from './routes/commissionPayouts.js';
 import { createBrokerRouter } from './routes/broker.js';
 import documentsRouter from './routes/documents.js';
+import itemDocumentsRouter from './routes/itemDocuments.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -246,7 +247,8 @@ app.use('/broker', brokerRouter);
 
 // Document uploads (S3)
 app.use('/api', documentsRouter);
-console.log('✅ Broker portal loaded');
+app.use('/api', itemDocumentsRouter);
+console.log('✅ Document upload routes loaded');
 
 // =============================
 // Error Handler

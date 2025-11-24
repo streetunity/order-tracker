@@ -306,6 +306,7 @@ model OrderItem {
   measurementLogs MeasurementAuditLog[]
   itemCommissions ItemCommission[]       // Item commission tracking
   brokerActivityLogs BrokerActivityLog[]    // Broker activity tracking
+  documents       ItemDocument[]         // Item-level document uploads
 
   @@index([manufacturerId])
   @@index([orderId])
@@ -527,4 +528,25 @@ model OrderDocument {
 
   @@index([orderId])
   @@map("order_documents")
+}
+
+// S3 Document Storage - Item Level
+model ItemDocument {
+  id           String    @id @default(cuid())
+  itemId       String
+  item         OrderItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  fileName     String    // Original filename
+  fileSize     Int       // Size in bytes
+  fileType     String    // MIME type
+  documentType String    // ISF, ARRIVAL_NOTICE, BILL_OF_LADING, COMMERCIAL_INVOICE, PACKING_LIST, DELIVERY_ORDER, OTHER
+  s3Key        String    // S3 object key
+  s3Url        String    // Full S3 URL
+
+  uploadedBy   String    // Username who uploaded
+  uploadedAt   DateTime  @default(now())
+
+  @@index([itemId])
+  @@index([documentType])
+  @@map("item_documents")
 }

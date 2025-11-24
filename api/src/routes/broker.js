@@ -1,8 +1,17 @@
 import express from 'express';
+import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
+import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl, validateFile } from '../services/fileUploadService.js';
+import { DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES } from './itemDocuments.js';
 
 const prisma = new PrismaClient();
+
+// Configure multer for memory storage
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+});
 
 // Middleware to ensure only broker role can access
 const requireBrokerRole = (req, res, next) => {
@@ -473,6 +482,181 @@ export function createBrokerRouter() {
     } catch (error) {
       console.error('Error fetching history:', error);
       res.status(500).json({ error: 'Failed to fetch history' });
+    }
+  });
+
+  // =============================
+  // BROKER DOCUMENT ENDPOINTS
+  // =============================
+
+  // GET /broker/item/:itemId/documents
+  // Get documents for an item (broker can view all types)
+  router.get('/item/:itemId/documents', authGuard, requireBrokerRole, async (req, res) => {
+    try {
+      const { itemId } = req.params;
+
+      // Get item
+      const item = await prisma.orderItem.findUnique({
+        where: { id: itemId }
+      });
+
+      if (!item) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+
+      // Get documents
+      const documents = await prisma.itemDocument.findMany({
+        where: { itemId },
+        orderBy: { uploadedAt: 'desc' }
+      });
+
+      // Build checklist
+      const checklist = {};
+      for (const [key, label] of Object.entries(DOCUMENT_TYPE_LABELS)) {
+        const count = documents.filter(d => d.documentType === key).length;
+        checklist[key] = { uploaded: count > 0, count, label };
+      }
+
+      const uploadedRequired = REQUIRED_DOCUMENT_TYPES.filter(
+        type => checklist[type].uploaded
+      ).length;
+
+      res.json({
+        documents,
+        checklist,
+        stats: {
+          complete: uploadedRequired === REQUIRED_DOCUMENT_TYPES.length,
+          uploadedRequired,
+          totalRequired: REQUIRED_DOCUMENT_TYPES.length
+        }
+      });
+    } catch (error) {
+      console.error('Broker get documents error:', error);
+      res.status(500).json({ error: 'Failed to retrieve documents' });
+    }
+  });
+
+  // POST /broker/item/:itemId/documents
+  // Upload document (broker - OTHER type only)
+  router.post('/item/:itemId/documents', authGuard, requireBrokerRole, upload.single('file'), async (req, res) => {
+    try {
+      const { itemId } = req.params;
+      const file = req.file;
+      const username = req.user.name;
+
+      // BROKER CAN ONLY UPLOAD "OTHER" TYPE
+      const documentType = 'OTHER';
+
+      // Validate file
+      const validationErrors = validateFile(file);
+      if (validationErrors.length > 0) {
+        return res.status(400).json({ error: validationErrors.join(', ') });
+      }
+
+      // Verify item exists
+      const item = await prisma.orderItem.findUnique({
+        where: { id: itemId },
+        include: { order: true }
+      });
+
+      if (!item) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+
+      // Upload to S3
+      const s3Data = await uploadFileToS3({
+        fileBuffer: file.buffer,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        orderId: item.orderId,
+        uploadedBy: username
+      });
+
+      // Create document record
+      const document = await prisma.itemDocument.create({
+        data: {
+          itemId,
+          fileName: s3Data.fileName,
+          fileSize: s3Data.fileSize,
+          fileType: s3Data.fileType,
+          documentType,
+          s3Key: s3Data.s3Key,
+          s3Url: s3Data.s3Url,
+          uploadedBy: username
+        }
+      });
+
+      // Log activity
+      await prisma.brokerActivityLog.create({
+        data: {
+          orderItemId: itemId,
+          userId: req.user.id,
+          action: 'DOCUMENT_UPLOADED',
+          notes: `Uploaded: ${file.originalname}`
+        }
+      });
+
+      res.json({ message: 'Document uploaded successfully', document });
+    } catch (error) {
+      console.error('Broker upload error:', error);
+      res.status(500).json({ error: error.message || 'Failed to upload document' });
+    }
+  });
+
+  // GET /broker/item/:itemId/documents/:documentId/download
+  // Get signed download URL
+  router.get('/item/:itemId/documents/:documentId/download', authGuard, requireBrokerRole, async (req, res) => {
+    try {
+      const { itemId, documentId } = req.params;
+
+      const document = await prisma.itemDocument.findUnique({
+        where: { id: documentId }
+      });
+
+      if (!document || document.itemId !== itemId) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      const downloadUrl = await getSignedDownloadUrl(document.s3Key);
+
+      res.json({ downloadUrl, fileName: document.fileName });
+    } catch (error) {
+      console.error('Broker download URL error:', error);
+      res.status(500).json({ error: 'Failed to generate download URL' });
+    }
+  });
+
+  // DELETE /broker/item/:itemId/documents/:documentId
+  // Delete document (broker can only delete own uploads)
+  router.delete('/item/:itemId/documents/:documentId', authGuard, requireBrokerRole, async (req, res) => {
+    try {
+      const { itemId, documentId } = req.params;
+
+      const document = await prisma.itemDocument.findUnique({
+        where: { id: documentId }
+      });
+
+      if (!document || document.itemId !== itemId) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      // Broker can only delete documents they uploaded
+      if (document.uploadedBy !== req.user.name && req.user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Not authorized to delete this document' });
+      }
+
+      // Delete from S3
+      await deleteFileFromS3(document.s3Key);
+
+      // Delete from database
+      await prisma.itemDocument.delete({
+        where: { id: documentId }
+      });
+
+      res.json({ message: 'Document deleted successfully' });
+    } catch (error) {
+      console.error('Broker delete error:', error);
+      res.status(500).json({ error: 'Failed to delete document' });
     }
   });
 
