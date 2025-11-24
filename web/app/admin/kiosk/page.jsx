@@ -109,9 +109,10 @@ export default function KioskPage() {
     flexDirection: 'column',
     gap: '4px',
     padding: '0 4px 4px 4px',
-    overflow: needsPagination ? 'hidden' : 'auto',
+    overflow: 'hidden', // Always hidden for kiosk
     position: 'relative',
     zIndex: 2,
+    maxHeight: '100%', // Enforce height limit
   };
 
   const headerCellStyle = {
