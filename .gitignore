@@ -1,5 +1,21 @@
 # Manufacturing Tracker .gitignore
-# Note: .env files are intentionally NOT ignored as they're needed for the app to run
+# SECURITY: .env files contain secrets and MUST NOT be committed
+
+# Environment variables - NEVER COMMIT THESE!
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+api/.env
+api/.env.local
+api/.env.production
+web/.env
+web/.env.local
+web/.env.production
+**/.env
+**/.env.local
+**/.env.production
 
 # Dependencies (downloaded via npm install)
 node_modules/
@@ -132,7 +148,7 @@ temp/
 *.backup
 *.old
 
-# SSL Certificates (if added later)
+# SSL Certificates
 *.pem
 *.key
 *.crt
@@ -155,9 +171,8 @@ web/backups/
 .vercel/
 .turbo/
 
-# Environment validation
-.env.local.example
-.env.production.example
+# Environment validation - these are OK to commit (no real values)
+# .env.example files contain template/placeholder values only
 
 # Documentation build
 docs/_build/
@@ -176,21 +191,9 @@ healthcheck.txt
 liveness.txt
 readiness.txt
 
-# Note: We're intentionally INCLUDING these files that would normally be ignored:
-# .env
-# .env.local  
-# .env.production
-# .env.development
-# api/.env
-# web/.env
-# web/.env.production
-# These are kept because they're needed for the app to run
-
 # Local development files (DO NOT COMMIT)
 api/prisma/seedUsers.local.js
 api/prisma/dev.db*
-api/.env.local
-web/.env.local
 *.local.*
 
 api/prisma/migrations/20250921184141_mez/
