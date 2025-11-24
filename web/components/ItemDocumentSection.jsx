@@ -208,6 +208,7 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
                     {Object.entries(checklist).map(([type, data]) => {
                       const isRequired = REQUIRED_TYPES.includes(type);
                       const statusClass = data.uploaded ? 'complete' : (isRequired ? 'missing' : 'optional');
+                      const docsOfType = documents.filter(d => d.documentType === type);
 
                       return (
                         <div key={type} className={`checklist-item ${statusClass}`}>
@@ -221,9 +222,24 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
                             )}
                           </span>
                           <span className="checklist-label">{data.label}</span>
-                          <span className={`checklist-count ${!data.uploaded && isRequired ? 'missing' : ''}`}>
-                            {data.uploaded ? `${data.count} file${data.count > 1 ? 's' : ''}` : 'Missing'}
-                          </span>
+                          {data.uploaded ? (
+                            <span
+                              className="checklist-count checklist-link"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (docsOfType.length > 0) {
+                                  handleDownload(docsOfType[0]);
+                                }
+                              }}
+                              style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                              {data.count} file{data.count > 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className={`checklist-count ${isRequired ? 'missing' : ''}`}>
+                              Missing
+                            </span>
+                          )}
                         </div>
                       );
                     })}
