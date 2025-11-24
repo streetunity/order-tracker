@@ -20,7 +20,7 @@ export default function DocumentUpload({ items, onDocumentChange }) {
         <ItemDocumentSection
           key={item.id}
           item={item}
-          defaultExpanded={index === 0}
+          defaultExpanded={false}
           onDocumentChange={onDocumentChange}
         />
       ))}
