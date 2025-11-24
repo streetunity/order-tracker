@@ -396,27 +396,45 @@ export default function KioskPage() {
       }
     }
 
-    pageBreaks.push(allGroups.length); // End marker
+    // Add end marker only if not already at the end
+    if (pageBreaks[pageBreaks.length - 1] !== allGroups.length) {
+      pageBreaks.push(allGroups.length);
+    }
 
     const pages = pageBreaks.length - 1;
     setTotalPages(pages);
 
+    // Ensure currentPage doesn't exceed available pages
+    const safePage = Math.min(currentPage, pages - 1);
+
     // Get customers for current page
-    const startIdx = pageBreaks[currentPage] || 0;
-    const endIdx = pageBreaks[currentPage + 1] || allGroups.length;
+    const startIdx = pageBreaks[safePage] || 0;
+    const endIdx = pageBreaks[safePage + 1] || allGroups.length;
     const customersForPage = allGroups.slice(startIdx, endIdx);
 
     return { grouped: allGroups, currentCustomers: customersForPage };
   }, [orders, currentPage, needsPagination]);
 
+  // Reset currentPage when pagination status changes
+  useEffect(() => {
+    if (!needsPagination) {
+      setCurrentPage(0);
+    } else if (currentPage >= totalPages && totalPages > 0) {
+      setCurrentPage(0);
+    }
+  }, [needsPagination, totalPages]);
+
   // Auto-cycle through pages only if pagination is needed
   useEffect(() => {
     if (!needsPagination || totalPages <= 1) return;
-    
+
     const interval = setInterval(() => {
-      setCurrentPage((prevPage) => (prevPage + 1) % totalPages);
+      setCurrentPage((prevPage) => {
+        const nextPage = (prevPage + 1) % totalPages;
+        return nextPage;
+      });
     }, AUTO_CYCLE_INTERVAL);
-    
+
     return () => clearInterval(interval);
   }, [totalPages, needsPagination]);
 
