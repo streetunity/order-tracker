@@ -32,7 +32,7 @@ const STAGE_LABELS = {
 
 // Kiosk pagination settings
 const ITEMS_PER_PAGE = 40; // Number of items (red boxes) to show per page
-const AUTO_CYCLE_INTERVAL = 45000; // Auto-cycle every 45 seconds (45000ms)
+const AUTO_CYCLE_INTERVAL = 30000; // Auto-cycle every 30 seconds (30000ms)
 
 export default function KioskPage() {
   const [orders, setOrders] = useState([]);
