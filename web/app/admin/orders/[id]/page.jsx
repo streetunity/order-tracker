@@ -1102,26 +1102,6 @@ export default function EditOrderPage({ params }) {
               </div>
             </div>
 
-            {/* Generate Shipping Manifest Button */}
-            <div style={{ marginTop: 16, marginBottom: 16 }}>
-              <button
-                onClick={generateShippingManifest}
-                className="btn"
-                style={{
-                  background: "#dc2626",
-                  color: "white",
-                  border: "none",
-                  padding: "10px 20px",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "600"
-                }}
-              >
-                📄 Generate Manifest
-              </button>
-            </div>
-
             <InternalNotesSection
               order={order}
               internalNotes={internalNotes}
@@ -1196,12 +1176,34 @@ export default function EditOrderPage({ params }) {
 
             {/* Shipping Containers Tab */}
             {activeTab === "containers" && (
-              <MeasurementSection
-                order={order}
-                items={order.items}
-                onRefresh={load}
-                getAuthHeaders={getAuthHeaders}
-              />
+              <>
+                <MeasurementSection
+                  order={order}
+                  items={order.items}
+                  onRefresh={load}
+                  getAuthHeaders={getAuthHeaders}
+                />
+
+                {/* Generate Shipping Manifest Button */}
+                <div style={{ marginTop: 16, marginBottom: 16 }}>
+                  <button
+                    onClick={generateShippingManifest}
+                    className="btn"
+                    style={{
+                      background: "#dc2626",
+                      color: "white",
+                      border: "none",
+                      padding: "10px 20px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "600"
+                    }}
+                  >
+                    📄 Generate Manifest
+                  </button>
+                </div>
+              </>
             )}
 
             {/* Documents Tab */}
