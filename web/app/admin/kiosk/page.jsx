@@ -31,7 +31,6 @@ const STAGE_LABELS = {
 };
 
 // Kiosk pagination settings
-const ITEMS_PER_PAGE = 40; // Number of items (red boxes) to show per page
 const AUTO_CYCLE_INTERVAL = 30000; // Auto-cycle every 30 seconds (30000ms)
 
 export default function KioskPage() {
@@ -334,10 +333,10 @@ export default function KioskPage() {
     return c;
   }, [orders]);
 
-  // Group customers and calculate pagination based on ITEMS
+  // Group customers and calculate pagination based on estimated row heights
   const { grouped, currentCustomers } = useMemo(() => {
     const by = new Map();
-    
+
     // First, group orders by customer
     for (const o of orders) {
       const key = o.account?.id || o.accountId || o.id;
@@ -349,64 +348,64 @@ export default function KioskPage() {
         });
       by.get(key).orders.push(o);
     }
-    
+
     const allGroups = Array.from(by.values()).sort((a, b) =>
       a.accountName.localeCompare(b.accountName)
     );
-    
+
     // If pagination is not needed, show all customers
     if (!needsPagination) {
       setTotalPages(0);
       return { grouped: allGroups, currentCustomers: allGroups };
     }
-    
-    // Count total non-archived items across all customers
-    let totalItems = 0;
-    const itemsPerCustomer = new Map();
-    
-    for (const group of allGroups) {
-      let customerItemCount = 0;
+
+    // Calculate estimated height for each customer row
+    const ITEM_HEIGHT = 22; // minHeight 18px + padding/margin
+    const ROW_GAP = 4;
+    const AVAILABLE_HEIGHT = typeof window !== 'undefined'
+      ? window.innerHeight * 0.85  // ~85% of viewport (accounting for header/footer)
+      : 800;
+
+    const customerHeights = allGroups.map(group => {
+      // Find max items in any single stage for this customer
+      const stageItemCounts = {};
       for (const order of group.orders) {
         for (const item of order.items || []) {
-          if (!item.archivedAt) {
-            customerItemCount++;
-            totalItems++;
-          }
+          if (item.archivedAt) continue;
+          const stage = item.currentStage || order.currentStage || "MANUFACTURING";
+          stageItemCounts[stage] = (stageItemCounts[stage] || 0) + 1;
         }
       }
-      itemsPerCustomer.set(group.accountId || group.accountName, customerItemCount);
+      const maxItemsInOneStage = Math.max(1, ...Object.values(stageItemCounts));
+      return maxItemsInOneStage * ITEM_HEIGHT + ROW_GAP;
+    });
+
+    // Paginate based on cumulative height
+    const pageBreaks = [0];
+    let currentHeight = 0;
+
+    for (let i = 0; i < allGroups.length; i++) {
+      const rowHeight = customerHeights[i];
+
+      if (currentHeight + rowHeight > AVAILABLE_HEIGHT && currentHeight > 0) {
+        // Start new page
+        pageBreaks.push(i);
+        currentHeight = rowHeight;
+      } else {
+        currentHeight += rowHeight;
+      }
     }
-    
-    // Calculate total pages based on items
-    const pages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+    pageBreaks.push(allGroups.length); // End marker
+
+    const pages = pageBreaks.length - 1;
     setTotalPages(pages);
-    
-    // Determine which customers to show on current page based on item pagination
-    const startItemIndex = currentPage * ITEMS_PER_PAGE;
-    const endItemIndex = startItemIndex + ITEMS_PER_PAGE;
-    
-    let currentItemCount = 0;
-    const customersForPage = [];
-    
-    for (const group of allGroups) {
-      const groupItemCount = itemsPerCustomer.get(group.accountId || group.accountName) || 0;
-      
-      // Check if any of this customer's items fall within the current page range
-      const groupStartIndex = currentItemCount;
-      const groupEndIndex = currentItemCount + groupItemCount;
-      
-      if (groupEndIndex > startItemIndex && groupStartIndex < endItemIndex) {
-        customersForPage.push(group);
-      }
-      
-      currentItemCount += groupItemCount;
-      
-      // Stop if we've passed the end of the current page
-      if (currentItemCount >= endItemIndex) {
-        break;
-      }
-    }
-    
+
+    // Get customers for current page
+    const startIdx = pageBreaks[currentPage] || 0;
+    const endIdx = pageBreaks[currentPage + 1] || allGroups.length;
+    const customersForPage = allGroups.slice(startIdx, endIdx);
+
     return { grouped: allGroups, currentCustomers: customersForPage };
   }, [orders, currentPage, needsPagination]);
 
