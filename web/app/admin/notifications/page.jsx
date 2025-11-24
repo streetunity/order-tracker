@@ -35,6 +35,7 @@ export default function NotificationsPage() {
       if (filter === "unread") params.set("unreadOnly", "true");
       if (filter === "commission") params.set("category", "COMMISSION");
       if (filter === "operational") params.set("category", "OPERATIONAL");
+      if (filter === "broker") params.set("category", "BROKER");
       params.set("limit", "100");
 
       const res = await fetch(`/api/notifications?${params.toString()}`, {
@@ -142,6 +143,7 @@ export default function NotificationsPage() {
     switch (category) {
       case "COMMISSION": return "💰";
       case "OPERATIONAL": return "⚠️";
+      case "BROKER": return "🚢";
       case "ALERT": return "🔔";
       case "INFO": return "ℹ️";
       default: return "📬";
@@ -196,6 +198,12 @@ export default function NotificationsPage() {
             >
               ⚠️ Operational
             </button>
+            <button
+              className={`filter-btn ${filter === "broker" ? "active" : ""}`}
+              onClick={() => setFilter("broker")}
+            >
+              🚢 Broker
+            </button>
           </div>
 
           {stats?.unread > 0 && (
@@ -221,6 +229,7 @@ export default function NotificationsPage() {
               {filter === "unread" && "You're all caught up!"}
               {filter === "commission" && "No commission notifications yet"}
               {filter === "operational" && "No operational alerts"}
+              {filter === "broker" && "No broker notifications yet"}
               {filter === "all" && "You don't have any notifications yet"}
             </p>
           </div>
@@ -262,6 +271,12 @@ export default function NotificationsPage() {
                       )}
                       {notif.metadata.stage && (
                         <span className="metadata-tag">{notif.metadata.stage}</span>
+                      )}
+                      {notif.metadata.brokerName && (
+                        <span className="metadata-tag">👨‍💼 {notif.metadata.brokerName}</span>
+                      )}
+                      {notif.metadata.oldStatus && notif.metadata.newStatus && (
+                        <span className="metadata-tag">{notif.metadata.oldStatus} → {notif.metadata.newStatus}</span>
                       )}
                     </div>
                   )}

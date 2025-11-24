@@ -15,7 +15,12 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      router.push('/admin/board');
+      // Redirect broker users to broker portal
+      if (user.role === 'BROKER') {
+        router.push('/broker/dashboard');
+      } else {
+        router.push('/admin/board');
+      }
     }
   }, [user, router]);
 
@@ -26,10 +31,17 @@ export default function LoginPage() {
 
     try {
       const result = await login(email, password);
-      
+
       if (result.success) {
-        // Redirect to admin board on successful login
-        router.push('/admin/board');
+        // Get the user from localStorage (login sets it)
+        const userData = JSON.parse(localStorage.getItem('user'));
+
+        // Redirect based on user role
+        if (userData && userData.role === 'BROKER') {
+          router.push('/broker/dashboard');
+        } else {
+          router.push('/admin/board');
+        }
       } else {
         setError(result.error || 'Login failed');
         setLoading(false);

@@ -35,6 +35,7 @@ import { createManufacturersRouter } from './routes/manufacturers.js';
 import { createCommissionsRouter } from './routes/commissions.js';
 import { createCommissionSettingsRouter } from './routes/commissionSettings.js';
 import { createCommissionPayoutsRouter } from './routes/commissionPayouts.js';
+import { createBrokerRouter } from './routes/broker.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -136,6 +137,7 @@ const manufacturersRouter = createManufacturersRouter(prisma);
 const commissionsRouter = createCommissionsRouter(prisma);
 const commissionSettingsRouter = createCommissionSettingsRouter(prisma);
 const commissionPayoutsRouter = createCommissionPayoutsRouter(prisma);
+const brokerRouter = createBrokerRouter();
 
 // =============================
 // Mount Routes
@@ -237,6 +239,10 @@ app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
 app.use('/commissions', authGuard, commissionsRouter);
 console.log('✅ Commission module loaded');
+
+// Broker portal (auth required, broker role only)
+app.use('/broker', brokerRouter);
+console.log('✅ Broker portal loaded');
 
 // =============================
 // Error Handler

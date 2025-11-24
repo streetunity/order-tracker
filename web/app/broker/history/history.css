@@ -1,0 +1,124 @@
+.broker-container {
+  min-height: 100vh;
+  background: var(--bg-primary, #0f0f0f);
+  color: var(--text-primary, #ffffff);
+}
+
+.broker-content {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.history-header {
+  margin-bottom: 32px;
+}
+
+.history-header h1 {
+  font-size: 32px;
+  font-weight: bold;
+  color: var(--accent, #dc2626);
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #b3b3b3);
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 16px;
+  transition: color 0.2s ease;
+}
+
+.back-button:hover {
+  color: var(--text-primary, #ffffff);
+}
+
+.items-table-container {
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border, #333333);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.items-table thead {
+  background: var(--bg-tertiary, #252525);
+}
+
+.items-table th {
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-secondary, #b3b3b3);
+  border-bottom: 1px solid var(--border, #333333);
+}
+
+.items-table td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border, #333333);
+  font-size: 14px;
+}
+
+.items-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.items-table tbody tr:hover {
+  background: var(--bg-tertiary, #252525);
+}
+
+.items-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-primary, #ffffff);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary, #b3b3b3);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.pagination-btn {
+  padding: 10px 20px;
+  background: var(--bg-tertiary, #2a2a2a);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  padding: 10px 20px;
+  background: var(--bg-secondary, #1a1a1a);
+  border-radius: 6px;
+}

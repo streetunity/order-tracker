@@ -286,7 +286,16 @@ model OrderItem {
   
   // MULTI-CONTAINER SUPPORT - Using String for SQLite compatibility
   containers     String?  @default("[]") // JSON string of container objects
-  
+
+  // BROKER-SPECIFIC FIELDS - For customs processing
+  customsDocumentStatus  String?               @default("PENDING") // PENDING, IN_PROGRESS, FILED, CLEARED, ISSUES
+  customsFiledDate       DateTime?             // When documents were filed with customs
+  customsNotes           String?               // Broker notes about issues/progress
+  brokerNotifiedDate     DateTime?             // When broker was first notified
+  brokerLastViewedDate   DateTime?             // Last time broker viewed this item
+  customsClearedDate     DateTime?             // When customs cleared the shipment
+  billOfLading           String?               // BOL number for tracking
+
   currentStage   String   @default("MANUFACTURING")
   archivedAt     DateTime?
   createdAt      DateTime                @default(now())
@@ -295,10 +304,12 @@ model OrderItem {
   statusEvents   OrderItemStatusEvent[]
   measurementLogs MeasurementAuditLog[]
   itemCommissions ItemCommission[]       // Item commission tracking
-  
+  brokerActivityLogs BrokerActivityLog[]    // Broker activity tracking
+
   @@index([manufacturerId])
   @@index([orderId])
   @@index([currentStage])
+  @@index([customsDocumentStatus])
 }
 
 model OrderStatusEvent {
@@ -385,7 +396,8 @@ model User {
   auditLogs               AuditLog[]
   notifications           Notification[]          // Notifications assigned to this user
   manufacturer            Manufacturer?           // Link to manufacturer profile if role is MANUFACTURER
-  
+  brokerActivityLogs      BrokerActivityLog[]     // Broker activity logs
+
   @@index([role])
   @@index([isActive])
   @@index([showInSalesRepDropdown])
@@ -476,4 +488,23 @@ model Notification {
   @@index([category])
   @@index([priority])
   @@index([relatedOrderId])
+}
+
+// Broker activity logging for customs processing tracking
+model BrokerActivityLog {
+  id          String      @id @default(cuid())
+  orderItemId String
+  orderItem   OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  action      String      // "VIEWED", "STATUS_UPDATED", "NOTE_ADDED", "DOCUMENT_UPLOADED"
+  oldStatus   String?     // Previous customs document status
+  newStatus   String?     // New customs document status
+  notes       String?     // Additional notes about the action
+  createdAt   DateTime    @default(now())
+
+  @@index([orderItemId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
 }
