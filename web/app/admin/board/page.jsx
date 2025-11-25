@@ -48,7 +48,6 @@ export default function AdminBoardPage() {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [salesRepFilter, setSalesRepFilter] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
   const [copiedLink, setCopiedLink] = useState(null);
   const [salesReps, setSalesReps] = useState([]);
 
@@ -138,7 +137,7 @@ export default function AdminBoardPage() {
     // Filter by stage and archived status
     if (!stageFilter) {
       return filtered.map(order => {
-        const activeItems = (order.items || []).filter(item => showArchived || !item.archivedAt);
+        const activeItems = (order.items || []).filter(item => !item.archivedAt);
         if (activeItems.length === 0) return null;
         return { ...order, items: activeItems };
       }).filter(Boolean);
@@ -147,24 +146,24 @@ export default function AdminBoardPage() {
     return filtered.map(order => {
       const filteredItems = (order.items || []).filter(item => {
         const itemStage = item.currentStage || order.currentStage || "MANUFACTURING";
-        return itemStage === stageFilter && (!item.archivedAt || showArchived);
+        return itemStage === stageFilter && !item.archivedAt;
       });
       if (filteredItems.length === 0) return null;
       return { ...order, items: filteredItems };
     }).filter(Boolean);
-  }, [orders, stageFilter, salesRepFilter, showArchived]);
+  }, [orders, stageFilter, salesRepFilter]);
 
   const counts = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
     for (const o of orders) {
       for (const it of o.items || []) {
-        if (!showArchived && it.archivedAt) continue;
+        if (it.archivedAt) continue;
         const s = it.currentStage || o.currentStage || "MANUFACTURING";
         if (c[s] != null) c[s] += 1;
       }
     }
     return c;
-  }, [orders, showArchived]);
+  }, [orders]);
 
   async function changeItemStage(orderId, itemId, nextStage, opts = {}) {
     const res = await fetch(`/api/orders/${orderId}/items/${itemId}/stage`, {
@@ -411,12 +410,6 @@ export default function AdminBoardPage() {
               <button className="btn" onClick={() => setSalesRepFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
             )}
           </div>
-          <div className="tool">
-            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-              Show archived
-            </label>
-          </div>
           {!!err && <div className="errorBox">Failed to load: {err}</div>}
           {loading && <div className="loading">Loading…</div>}
           {!loading && (stageFilter || salesRepFilter) && grouped.length === 0 && (
@@ -524,7 +517,7 @@ export default function AdminBoardPage() {
                   (o.items || [])
                     .filter((it) => {
                       const s = it.currentStage || o.currentStage || "MANUFACTURING";
-                      if (!showArchived && it.archivedAt) return false;
+                      if (it.archivedAt) return false;
                       return s === stageKey;
                     })
                     .map((it) => ({ it, order: o }))
