@@ -70,6 +70,9 @@ export default function EditOrderPage({ params }) {
   const [itemEdits, setItemEdits] = useState({});
   const [manufacturers, setManufacturers] = useState([]);
 
+  // Manifest selection state
+  const [selectedItemsForManifest, setSelectedItemsForManifest] = useState(new Set());
+
   // Notification and modal states
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
@@ -146,7 +149,12 @@ export default function EditOrderPage({ params }) {
       } else {
         setOnsiteInstallationDate("");
       }
-      
+
+      // Initialize all items as selected for manifest generation
+      if (orderData.items) {
+        setSelectedItemsForManifest(new Set(orderData.items.map(item => item.id)));
+      }
+
       setErr("");
     } catch (e) {
       setErr(String(e?.message || e));
@@ -494,6 +502,12 @@ export default function EditOrderPage({ params }) {
   async function generateShippingManifest() {
     if (!order) return;
 
+    // Check if any items are selected
+    if (selectedItemsForManifest.size === 0) {
+      showNotif("Please select at least one item to include in the manifest");
+      return;
+    }
+
     try {
       // Fetch fresh order data to get latest container information
       const orderData = await orderApi.getOrder(id, getAuthHeaders);
@@ -552,10 +566,10 @@ export default function EditOrderPage({ params }) {
 
       yPos += 4; // Add some space before items section
 
-      // Process each item and its containers
+      // Process each item and its containers (only selected items)
       let hasAnyContainers = false;
 
-      orderData.items?.forEach((item, itemIndex) => {
+      orderData.items?.filter(item => selectedItemsForManifest.has(item.id)).forEach((item, itemIndex) => {
         try {
           const containers = item.containers ? JSON.parse(item.containers) : [];
 
@@ -1182,10 +1196,12 @@ export default function EditOrderPage({ params }) {
                   items={order.items}
                   onRefresh={load}
                   getAuthHeaders={getAuthHeaders}
+                  selectedItemsForManifest={selectedItemsForManifest}
+                  setSelectedItemsForManifest={setSelectedItemsForManifest}
                 />
 
                 {/* Generate Shipping Manifest Button */}
-                <div style={{ marginTop: 16, marginBottom: 16 }}>
+                <div style={{ marginTop: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button
                     onClick={generateShippingManifest}
                     className="btn"
@@ -1202,6 +1218,9 @@ export default function EditOrderPage({ params }) {
                   >
                     📄 Generate Manifest
                   </button>
+                  <span style={{ fontSize: '13px', color: '#9ca3af' }}>
+                    ({selectedItemsForManifest.size} of {order.items.length} items selected)
+                  </span>
                 </div>
               </>
             )}

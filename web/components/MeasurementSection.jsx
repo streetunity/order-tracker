@@ -2,7 +2,7 @@
 "use client";
 import { useState, useEffect } from "react";
 
-export default function MeasurementSection({ order, items, onRefresh, getAuthHeaders }) {
+export default function MeasurementSection({ order, items, onRefresh, getAuthHeaders, selectedItemsForManifest, setSelectedItemsForManifest }) {
   const [containerSaving, setContainerSaving] = useState(false);
   const [expandedItems, setExpandedItems] = useState(new Set());
   const [editingContainer, setEditingContainer] = useState(null);
@@ -208,25 +208,60 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
     setExpandedItems(newExpanded);
   };
 
+  const toggleItemForManifest = (itemId) => {
+    const newSelected = new Set(selectedItemsForManifest);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItemsForManifest(newSelected);
+  };
+
+  const toggleAllItems = () => {
+    if (selectedItemsForManifest.size === localItems.length) {
+      // All selected, so deselect all
+      setSelectedItemsForManifest(new Set());
+    } else {
+      // Some or none selected, so select all
+      setSelectedItemsForManifest(new Set(localItems.map(item => item.id)));
+    }
+  };
+
   return (
     <section style={{ marginTop: 32 }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 8
       }}>
         <h2 style={{ margin: 0, fontSize: 16 }}>Shipping Containers</h2>
-        <span style={{ 
-          backgroundColor: '#6b7280', 
-          color: '#fff', 
-          padding: '4px 8px', 
-          borderRadius: '4px',
-          fontSize: '11px',
-          fontWeight: 'bold'
-        }}>
-          Always Editable
-        </span>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            className="btn"
+            onClick={toggleAllItems}
+            style={{
+              fontSize: '12px',
+              padding: '6px 12px',
+              backgroundColor: '#404040',
+              color: '#fff',
+              border: 'none'
+            }}
+          >
+            {selectedItemsForManifest.size === localItems.length ? '☐ Deselect All' : '☑ Select All'}
+          </button>
+          <span style={{
+            backgroundColor: '#6b7280',
+            color: '#fff',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 'bold'
+          }}>
+            Always Editable
+          </span>
+        </div>
       </div>
       
       {order?.isLocked && (
@@ -277,25 +312,38 @@ export default function MeasurementSection({ order, items, onRefresh, getAuthHea
                 overflow: 'hidden'
               }}>
                 {/* Item Header */}
-                <div style={{ 
+                <div style={{
                   padding: '16px',
                   borderBottom: isExpanded ? '1px solid #404040' : 'none',
-                  display: 'flex', 
+                  display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'start'
                 }}>
-                  <div>
-                    <strong style={{ fontSize: '15px', color: '#e4e4e4' }}>{item.productCode}</strong>
-                    {item.serialNumber && (
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                        S/N: {item.serialNumber}
-                      </div>
-                    )}
-                    {item.qty > 1 && (
-                      <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
-                        Quantity: {item.qty}
-                      </div>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItemsForManifest.has(item.id)}
+                      onChange={() => toggleItemForManifest(item.id)}
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        marginTop: '2px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <div>
+                      <strong style={{ fontSize: '15px', color: '#e4e4e4' }}>{item.productCode}</strong>
+                      {item.serialNumber && (
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                          S/N: {item.serialNumber}
+                        </div>
+                      )}
+                      {item.qty > 1 && (
+                        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+                          Quantity: {item.qty}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
