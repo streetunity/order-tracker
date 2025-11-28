@@ -56,6 +56,14 @@ if (process.env.CORS_ORIGIN) {
   allowedOrigins.push(...process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()));
 }
 
+// Add domain-based origins for smt-orders.com
+allowedOrigins.push(
+  'https://smt-orders.com',
+  'http://smt-orders.com',
+  'https://www.smt-orders.com',
+  'http://www.smt-orders.com'
+);
+
 // Add SERVER_IP origins if specified
 if (process.env.SERVER_IP && process.env.SERVER_IP !== 'undefined') {
   allowedOrigins.push(
