@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // Stage keys from API (do not change)
 const STAGES = [
@@ -32,20 +32,20 @@ const STAGE_LABELS = {
 
 // Kiosk pagination settings
 const AUTO_CYCLE_INTERVAL = 30000; // Auto-cycle every 30 seconds (30000ms)
+const HEADER_HEIGHT = 30; // Header row height
+const FOOTER_HEIGHT = 28; // Footer height
+const ROW_BASE_HEIGHT = 34; // Minimum row height for a customer
+const ITEM_HEIGHT = 22; // Height per item in a stage
+const ROW_GAP = 4; // Gap between rows
 
 export default function KioskPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [viewportHeight, setViewportHeight] = useState(800);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [needsPagination, setNeedsPagination] = useState(false);
-  
-  // Refs for measuring content
-  const contentRef = useRef(null);
-  const boardRef = useRef(null);
 
   // Define all styles at the top before any early returns
   const containerStyle = {
@@ -111,7 +111,6 @@ export default function KioskPage() {
     overflow: 'hidden', // Always hidden for kiosk
     position: 'relative',
     zIndex: 2,
-    maxHeight: '95%', // Leave space so footer doesn't hide content
   };
 
   const headerCellStyle = {
@@ -216,9 +215,9 @@ export default function KioskPage() {
     padding: '4px 8px',
     margin: 0,
     textAlign: 'center',
-    height: '20px',
-    minHeight: '20px',
-    maxHeight: '20px',
+    height: '24px',
+    minHeight: '24px',
+    maxHeight: '24px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -228,7 +227,7 @@ export default function KioskPage() {
 
   const footerTextStyle = {
     color: 'var(--text-dim)',
-    fontSize: '8px',
+    fontSize: '10px',
     margin: 0,
     padding: 0,
     lineHeight: '1',
@@ -262,6 +261,20 @@ export default function KioskPage() {
     return truncated + "...";
   };
 
+  // Calculate row height for a customer based on max items in any stage
+  const calculateRowHeight = (group) => {
+    const stageItemCounts = {};
+    for (const order of group.orders) {
+      for (const item of order.items || []) {
+        if (item.archivedAt) continue;
+        const stage = item.currentStage || order.currentStage || "MANUFACTURING";
+        stageItemCounts[stage] = (stageItemCounts[stage] || 0) + 1;
+      }
+    }
+    const maxItemsInOneStage = Math.max(1, ...Object.values(stageItemCounts), 0);
+    return Math.max(ROW_BASE_HEIGHT, maxItemsInOneStage * ITEM_HEIGHT) + ROW_GAP;
+  };
+
   async function load() {
     try {
       const apiUrl = `/api/kiosk/orders`;
@@ -290,51 +303,25 @@ export default function KioskPage() {
     }
   }
 
+  // Get viewport height on mount and resize
+  useEffect(() => {
+    const updateHeight = () => {
+      setViewportHeight(window.innerHeight);
+    };
+    
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
+
   useEffect(() => {
     load();
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Check if content overflows and needs pagination
-  useEffect(() => {
-    if (!boardRef.current || loading) return;
-    
-    const checkOverflow = () => {
-      const boardElement = boardRef.current;
-      if (!boardElement) return;
-      
-      const hasOverflow = boardElement.scrollHeight > boardElement.clientHeight;
-      console.log(`Overflow check: scrollHeight=${boardElement.scrollHeight}, clientHeight=${boardElement.clientHeight}, hasOverflow=${hasOverflow}`);
-      setNeedsPagination(hasOverflow);
-    };
-    
-    // Check after a short delay to ensure content is rendered
-    const timeoutId = setTimeout(checkOverflow, 100);
-    
-    // Also check on window resize
-    window.addEventListener('resize', checkOverflow);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener('resize', checkOverflow);
-    };
-  }, [orders, loading]);
-
-  const counts = useMemo(() => {
-    const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
-    for (const o of orders) {
-      for (const it of o.items || []) {
-        if (it.archivedAt) continue;
-        const s = it.currentStage || o.currentStage || "MANUFACTURING";
-        if (c[s] != null) c[s] += 1;
-      }
-    }
-    return c;
-  }, [orders]);
-
   // Group customers and calculate pagination based on estimated row heights
-  const { grouped, currentCustomers } = useMemo(() => {
+  const { grouped, pages, totalPages } = useMemo(() => {
     const by = new Map();
 
     // First, group orders by customer
@@ -353,90 +340,76 @@ export default function KioskPage() {
       a.accountName.localeCompare(b.accountName)
     );
 
-    // If pagination is not needed, show all customers
-    if (!needsPagination) {
-      setTotalPages(0);
-      return { grouped: allGroups, currentCustomers: allGroups };
+    if (allGroups.length === 0) {
+      return { grouped: [], pages: [[]], totalPages: 1 };
     }
 
-    // Calculate estimated height for each customer row
-    const ITEM_HEIGHT = 22; // minHeight 18px + padding/margin
-    const ROW_GAP = 4;
-    const AVAILABLE_HEIGHT = typeof window !== 'undefined'
-      ? window.innerHeight * 0.85  // ~85% of viewport (accounting for header/footer)
-      : 800;
+    // Calculate available height for content
+    const availableHeight = viewportHeight - HEADER_HEIGHT - FOOTER_HEIGHT - 20; // 20px buffer
+    
+    console.log(`Pagination calc: viewportHeight=${viewportHeight}, availableHeight=${availableHeight}`);
 
-    const customerHeights = allGroups.map(group => {
-      // Find max items in any single stage for this customer
-      const stageItemCounts = {};
-      for (const order of group.orders) {
-        for (const item of order.items || []) {
-          if (item.archivedAt) continue;
-          const stage = item.currentStage || order.currentStage || "MANUFACTURING";
-          stageItemCounts[stage] = (stageItemCounts[stage] || 0) + 1;
-        }
-      }
-      const maxItemsInOneStage = Math.max(1, ...Object.values(stageItemCounts));
-      return maxItemsInOneStage * ITEM_HEIGHT + ROW_GAP;
-    });
-
-    // Paginate based on cumulative height
-    const pageBreaks = [0];
+    // Build pages based on cumulative height
+    const pagesList = [];
+    let currentPageItems = [];
     let currentHeight = 0;
 
-    for (let i = 0; i < allGroups.length; i++) {
-      const rowHeight = customerHeights[i];
-
-      if (currentHeight + rowHeight > AVAILABLE_HEIGHT && currentHeight > 0) {
+    for (const group of allGroups) {
+      const rowHeight = calculateRowHeight(group);
+      
+      if (currentHeight + rowHeight > availableHeight && currentPageItems.length > 0) {
         // Start new page
-        pageBreaks.push(i);
+        pagesList.push(currentPageItems);
+        currentPageItems = [group];
         currentHeight = rowHeight;
       } else {
+        currentPageItems.push(group);
         currentHeight += rowHeight;
       }
     }
 
-    // Add end marker only if not already at the end
-    if (pageBreaks[pageBreaks.length - 1] !== allGroups.length) {
-      pageBreaks.push(allGroups.length);
+    // Don't forget the last page
+    if (currentPageItems.length > 0) {
+      pagesList.push(currentPageItems);
     }
 
-    const pages = pageBreaks.length - 1;
-    setTotalPages(pages);
+    console.log(`Pagination result: ${allGroups.length} customers across ${pagesList.length} pages`);
 
-    // Ensure currentPage doesn't exceed available pages
-    const safePage = Math.min(currentPage, pages - 1);
+    return { 
+      grouped: allGroups, 
+      pages: pagesList, 
+      totalPages: pagesList.length 
+    };
+  }, [orders, viewportHeight]);
 
-    // Get customers for current page
-    const startIdx = pageBreaks[safePage] || 0;
-    const endIdx = pageBreaks[safePage + 1] || allGroups.length;
-    const customersForPage = allGroups.slice(startIdx, endIdx);
+  // Get current page customers
+  const currentCustomers = useMemo(() => {
+    if (pages.length === 0) return [];
+    const safePageIndex = Math.min(currentPage, pages.length - 1);
+    return pages[safePageIndex] || [];
+  }, [pages, currentPage]);
 
-    return { grouped: allGroups, currentCustomers: customersForPage };
-  }, [orders, currentPage, needsPagination]);
-
-  // Reset currentPage when pagination status changes
+  // Reset currentPage when total pages changes
   useEffect(() => {
-    if (!needsPagination) {
-      setCurrentPage(0);
-    } else if (currentPage >= totalPages && totalPages > 0) {
+    if (currentPage >= totalPages && totalPages > 0) {
       setCurrentPage(0);
     }
-  }, [needsPagination, totalPages]);
+  }, [totalPages, currentPage]);
 
-  // Auto-cycle through pages only if pagination is needed
+  // Auto-cycle through pages
   useEffect(() => {
-    if (!needsPagination || totalPages <= 1) return;
+    if (totalPages <= 1) return;
 
     const interval = setInterval(() => {
       setCurrentPage((prevPage) => {
         const nextPage = (prevPage + 1) % totalPages;
+        console.log(`Auto-cycling to page ${nextPage + 1}/${totalPages}`);
         return nextPage;
       });
     }, AUTO_CYCLE_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [totalPages, needsPagination]);
+  }, [totalPages]);
 
   if (loading) {
     return (
@@ -453,13 +426,13 @@ export default function KioskPage() {
     <main style={containerStyle}>
       <div style={backgroundOverlayStyle}></div>
       
-      <div style={contentWrapperStyle} ref={contentRef}>
+      <div style={contentWrapperStyle}>
         {/* Fixed Header Row */}
         <div style={headerSectionStyle}>
           <div style={{ ...headerCellStyle, ...customerColStyle, position: 'relative' }}>
             <div style={headerTextStyle}>Customer</div>
-            {/* Page Indicator in Customer Header - only show if paginating */}
-            {needsPagination && totalPages > 1 && (
+            {/* Page Indicator in Customer Header - always show if multiple pages */}
+            {totalPages > 1 && (
               <div style={{
                 position: 'absolute',
                 top: '2px',
@@ -486,7 +459,7 @@ export default function KioskPage() {
         </div>
 
         {/* Scrollable Content */}
-        <div style={boardStyle} ref={boardRef}>
+        <div style={boardStyle}>
           <div key={`page-${currentPage}`} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {currentCustomers.length === 0 ? (
               <div style={{
@@ -554,7 +527,7 @@ export default function KioskPage() {
       <div style={footerStyle}>
         <div style={footerTextStyle}>
           Manufacturing Tracker • Auto-refreshes every 30 seconds • Last updated: {lastUpdate.toLocaleTimeString()}
-          {needsPagination && ` • Auto-pagination active`}
+          {totalPages > 1 && ` • Page ${currentPage + 1} of ${totalPages}`}
         </div>
       </div>
     </main>
