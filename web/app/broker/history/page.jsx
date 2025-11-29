@@ -27,8 +27,9 @@ export default function BrokerHistory() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      // Note: Using /customs instead of /broker to avoid ad blocker interference
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/broker/history?page=${pagination.page}&limit=20`,
+        `${process.env.NEXT_PUBLIC_API_BASE}/customs/history?page=${pagination.page}&limit=20`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

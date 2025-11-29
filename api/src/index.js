@@ -251,7 +251,8 @@ app.use('/commissions', authGuard, commissionsRouter);
 console.log('✅ Commission module loaded');
 
 // Broker portal (auth required, broker role only)
-app.use('/broker', brokerRouter);
+// Note: Using /customs instead of /broker to avoid ad blocker interference
+app.use('/customs', brokerRouter);
 
 // Document uploads (S3)
 app.use('/api', documentsRouter);

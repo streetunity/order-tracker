@@ -1,5 +1,8 @@
 "use client";
 
+// NOTE: API routes use /customs/ instead of /broker/ to avoid ad blocker interference
+// Ad blockers commonly block URLs containing "broker", "ad", "tracking", etc.
+
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,7 +63,7 @@ export default function BrokerItemDetail() {
   async function loadItem() {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/broker/item/${itemId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -85,7 +88,7 @@ export default function BrokerItemDetail() {
   async function loadActivityLog() {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/broker/activity-log/${itemId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/activity-log/${itemId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -106,7 +109,7 @@ export default function BrokerItemDetail() {
     setDocumentsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/broker/item/${itemId}/documents`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store'
       });
@@ -132,7 +135,7 @@ export default function BrokerItemDetail() {
       formData.append('file', selectedFile);
 
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/broker/item/${itemId}/documents`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
@@ -157,7 +160,7 @@ export default function BrokerItemDetail() {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/broker/item/${itemId}/documents/${doc.id}/download`,
+        `${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents/${doc.id}/download`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -175,7 +178,7 @@ export default function BrokerItemDetail() {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/broker/item/${itemId}/documents/${doc.id}`,
+        `${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents/${doc.id}`,
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
@@ -231,7 +234,7 @@ export default function BrokerItemDetail() {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/broker/update-status/${itemId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/update-status/${itemId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -294,7 +297,7 @@ export default function BrokerItemDetail() {
         {/* Header */}
         <div className="item-header">
           <button
-            onClick={() => router.push('/broker/dashboard')}
+            onClick={() => router.push('/customs/dashboard')}
             className="back-button"
           >
             ← Back to Dashboard
@@ -330,16 +333,16 @@ export default function BrokerItemDetail() {
             Details
           </button>
           <button
-            className={`tab-button ${activeTab === 'activity' ? 'active' : ''}`}
-            onClick={() => setActiveTab('activity')}
-          >
-            Activity Log
-          </button>
-          <button
             className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`}
             onClick={() => setActiveTab('documents')}
           >
             Documents
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'activity' ? 'active' : ''}`}
+            onClick={() => setActiveTab('activity')}
+          >
+            Activity Log
           </button>
         </div>
 
