@@ -1,8 +1,10 @@
 "use client";
+export const dynamic = 'force-dynamic';
 
 // NOTE: Uses Next.js API routes (/api/customs/*) which proxy to backend
 // This follows the same pattern as all other pages in the app
 // Backend routes are at /customs/* (changed from /broker/ to avoid ad blocker interference)
+// Frontend pages remain at /broker/* for user-facing URLs
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -298,7 +300,7 @@ export default function BrokerItemDetail() {
         {/* Header */}
         <div className="item-header">
           <button
-            onClick={() => router.push('/customs/dashboard')}
+            onClick={() => router.push('/broker/dashboard')}
             className="back-button"
           >
             ← Back to Dashboard
