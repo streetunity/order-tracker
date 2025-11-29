@@ -43,8 +43,8 @@ export default function BrokerDashboard() {
       const token = localStorage.getItem('token');
 
       // Fetch items at sea
-      // Note: Using /customs instead of /broker to avoid ad blocker interference
-      const itemsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/items-at-sea`, {
+      // Note: Using Next.js API routes (/api/customs) which proxy to backend
+      const itemsRes = await fetch(`/api/customs/items-at-sea`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -58,7 +58,7 @@ export default function BrokerDashboard() {
       }
 
       // Fetch statistics
-      const statsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/statistics`, {
+      const statsRes = await fetch(`/api/customs/statistics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

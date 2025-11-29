@@ -1,7 +1,8 @@
 "use client";
 
-// NOTE: API routes use /customs/ instead of /broker/ to avoid ad blocker interference
-// Ad blockers commonly block URLs containing "broker", "ad", "tracking", etc.
+// NOTE: Uses Next.js API routes (/api/customs/*) which proxy to backend
+// This follows the same pattern as all other pages in the app
+// Backend routes are at /customs/* (changed from /broker/ to avoid ad blocker interference)
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -63,7 +64,7 @@ export default function BrokerItemDetail() {
   async function loadItem() {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}`, {
+      const res = await fetch(`/api/customs/item/${itemId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -88,7 +89,7 @@ export default function BrokerItemDetail() {
   async function loadActivityLog() {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/activity-log/${itemId}`, {
+      const res = await fetch(`/api/customs/activity-log/${itemId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -109,7 +110,7 @@ export default function BrokerItemDetail() {
     setDocumentsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents`, {
+      const res = await fetch(`/api/customs/item/${itemId}/documents`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store'
       });
@@ -135,7 +136,7 @@ export default function BrokerItemDetail() {
       formData.append('file', selectedFile);
 
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents`, {
+      const res = await fetch(`/api/customs/item/${itemId}/documents`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
@@ -160,7 +161,7 @@ export default function BrokerItemDetail() {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents/${doc.id}/download`,
+        `/api/customs/item/${itemId}/documents/${doc.id}/download`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -178,7 +179,7 @@ export default function BrokerItemDetail() {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/customs/item/${itemId}/documents/${doc.id}`,
+        `/api/customs/item/${itemId}/documents/${doc.id}`,
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
@@ -234,7 +235,7 @@ export default function BrokerItemDetail() {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/customs/update-status/${itemId}`, {
+      const res = await fetch(`/api/customs/update-status/${itemId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
