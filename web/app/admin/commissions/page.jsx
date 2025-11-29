@@ -1254,14 +1254,14 @@ export default function CommissionsPage() {
                 <div style={{ background: "#1a1a1a", borderRadius: "8px", border: "1px solid #333", overflow: "hidden" }}>
                   <table style={{ width: "100%", tableLayout: "fixed" }}>
                     <colgroup>
-                      <col style={{ width: "20%" }} />
-                      <col style={{ width: "20%" }} />
+                      <col style={{ width: "17%" }} />
+                      <col style={{ width: "23%" }} />
                       <col style={{ width: "13%" }} />
+                      <col style={{ width: "55px" }} />
+                      <col style={{ width: "120px" }} />
                       <col style={{ width: "70px" }} />
-                      <col style={{ width: "100px" }} />
-                      <col style={{ width: "100px" }} />
-                      <col style={{ width: "100px" }} />
-                      <col style={{ width: "13%" }} />
+                      <col style={{ width: "85px" }} />
+                      <col style={{ width: "10%" }} />
                     </colgroup>
                     <thead>
                       <tr style={{ background: "#252525", borderBottom: "1px solid #333" }}>
