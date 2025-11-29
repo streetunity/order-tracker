@@ -44,7 +44,8 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents`, {
+      // Use Next.js API proxy route instead of calling backend directly
+      const res = await fetch(`/api/items/${item.id}/documents`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -74,7 +75,8 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
       formData.append('documentType', selectedType);
 
       const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents`, {
+      // Use Next.js API proxy route instead of calling backend directly
+      const res = await fetch(`/api/items/${item.id}/documents`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
@@ -100,8 +102,9 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
   async function handleDownload(doc) {
     try {
       const token = localStorage.getItem('token');
+      // Use Next.js API proxy route instead of calling backend directly
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents/${doc.id}/download`,
+        `/api/items/${item.id}/documents/${doc.id}/download`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -118,8 +121,9 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
     try {
       setDeleting(true);
       const token = localStorage.getItem('token');
+      // Use Next.js API proxy route instead of calling backend directly
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents/${doc.id}`,
+        `/api/items/${item.id}/documents/${doc.id}`,
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
