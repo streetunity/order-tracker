@@ -15,7 +15,8 @@ export async function GET(request, { params }) {
       headers['Authorization'] = authHeader;
     }
 
-    const apiUrl = `${API_BASE_URL}/api/items/${id}/documents`;
+    // Note: Backend routes don't have /api prefix (Nginx strips it, and we bypass Nginx here)
+    const apiUrl = `${API_BASE_URL}/items/${id}/documents`;
     console.log('[Items Documents Route] Fetching from:', apiUrl);
 
     const res = await fetch(apiUrl, {
@@ -47,7 +48,8 @@ export async function POST(request, { params }) {
     // Forward the FormData directly
     const formData = await request.formData();
 
-    const apiUrl = `${API_BASE_URL}/api/items/${id}/documents`;
+    // Note: Backend routes don't have /api prefix (Nginx strips it, and we bypass Nginx here)
+    const apiUrl = `${API_BASE_URL}/items/${id}/documents`;
     console.log('[Items Documents Route] Uploading to:', apiUrl);
 
     const res = await fetch(apiUrl, {
