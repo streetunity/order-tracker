@@ -3,7 +3,8 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function DELETE(request, { params }) {
   try {
-    const { id, documentId } = params;
+    // Next.js 14+ requires awaiting params
+    const { id, documentId } = await params;
     const authHeader = request.headers.get('authorization');
 
     if (!authHeader) {
