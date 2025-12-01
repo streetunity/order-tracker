@@ -3,7 +3,8 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
 
     const headers = {
@@ -32,7 +33,8 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
 
     if (!authHeader) {
