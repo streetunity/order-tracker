@@ -255,8 +255,10 @@ console.log('✅ Commission module loaded');
 app.use('/customs', brokerRouter);
 
 // Document uploads (S3)
-app.use('/api', documentsRouter);
-app.use('/api', itemDocumentsRouter);
+// NOTE: Nginx strips /api/ prefix before forwarding to backend
+// So mount at root - routes in these files start with /items/ and /orders/
+app.use(documentsRouter);
+app.use(itemDocumentsRouter);
 console.log('✅ Document upload routes loaded');
 
 // =============================
