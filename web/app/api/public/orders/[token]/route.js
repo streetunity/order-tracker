@@ -3,7 +3,8 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
-    const { token } = params;
+    // Next.js 14+ requires awaiting params
+    const { token } = await params;
     const apiUrl = `${API_BASE_URL}/public/orders/${token}`;
     
     console.log('[Public Order Route] Fetching from:', apiUrl);
