@@ -21,6 +21,34 @@ const requireBrokerRole = (req, res, next) => {
   next();
 };
 
+// Helper function to calculate days at sea and priority
+// Used by both /items-at-sea and /statistics endpoints for consistency
+function calculateDaysAtSeaAndPriority(item, now) {
+  // Get the date item entered AT_SEA stage
+  let atSeaDate;
+  if (item.statusEvents && item.statusEvents.length > 0) {
+    atSeaDate = new Date(item.statusEvents[0].createdAt);
+  } else {
+    // Fallback: use item creation date (for legacy items without status events)
+    atSeaDate = new Date(item.createdAt);
+  }
+
+  // Calculate days at sea
+  const daysAtSea = Math.floor((now - atSeaDate) / (1000 * 60 * 60 * 24));
+
+  // Determine priority based on days at sea
+  let priority = 'NORMAL';
+  if (daysAtSea >= 15) {
+    priority = 'CRITICAL';
+  } else if (daysAtSea >= 10) {
+    priority = 'HIGH';
+  } else if (daysAtSea >= 5) {
+    priority = 'MEDIUM';
+  }
+
+  return { daysAtSea, priority, atSeaDate };
+}
+
 export function createBrokerRouter() {
   const router = express.Router();
 
@@ -28,12 +56,6 @@ export function createBrokerRouter() {
   // Returns all items currently at "AT_SEA" stage
   router.get('/items-at-sea', authGuard, requireBrokerRole, async (req, res) => {
     try {
-      // Get SHIPPING stage threshold for warning days
-      const shippingThreshold = await prisma.stageThreshold.findUnique({
-        where: { stage: 'SHIPPING' }
-      });
-      const shippingWarningDays = shippingThreshold?.warningDays || 30; // Default to 30 if not set
-
       const items = await prisma.orderItem.findMany({
         where: {
           currentStage: 'AT_SEA',
@@ -74,50 +96,26 @@ export function createBrokerRouter() {
         ]
       });
 
-      // Calculate priority based on calculated ETA
+      // Calculate priority based on days at sea
       const now = new Date();
       const itemsWithPriority = items.map(item => {
-        let priority = 'NORMAL';
-        let daysUntilArrival = null;
-        let calculatedEtaDate = null;
-
-        // Calculate ETA: date item entered AT_SEA + shipping warning days
-        // Use StatusEvent if available, otherwise fall back to item.createdAt
-        let atSeaDate;
-        if (item.statusEvents.length > 0) {
-          atSeaDate = new Date(item.statusEvents[0].createdAt);
-        } else {
-          // Fallback: use item creation date (for legacy items without status events)
-          atSeaDate = new Date(item.createdAt);
-        }
-
-        calculatedEtaDate = new Date(atSeaDate);
-        calculatedEtaDate.setDate(calculatedEtaDate.getDate() + shippingWarningDays);
-
-        daysUntilArrival = Math.ceil(
-          (calculatedEtaDate - now) / (1000 * 60 * 60 * 24)
-        );
-
-        if (daysUntilArrival <= 3) {
-          priority = 'CRITICAL';
-        } else if (daysUntilArrival <= 7) {
-          priority = 'HIGH';
-        } else if (daysUntilArrival <= 14) {
-          priority = 'MEDIUM';
-        }
+        const { daysAtSea, priority } = calculateDaysAtSeaAndPriority(item, now);
 
         return {
           ...item,
           priority,
-          daysUntilArrival,
-          etaDate: calculatedEtaDate
+          daysAtSea,
+          // Keep daysUntilArrival for backwards compatibility (negative means overdue)
+          daysUntilArrival: 15 - daysAtSea
         };
       });
 
-      // Sort by priority (critical first)
+      // Sort by priority (critical first), then by days at sea (longest first)
       const priorityOrder = { 'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'NORMAL': 3 };
       itemsWithPriority.sort((a, b) => {
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
+        const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        return b.daysAtSea - a.daysAtSea; // Longest at sea first within same priority
       });
 
       console.log(`[BROKER] Found ${itemsWithPriority.length} items at AT_SEA stage`);
@@ -387,30 +385,30 @@ export function createBrokerRouter() {
         }
       });
 
-      // Count critical items (arriving within 3 days)
-      // Note: Using order.etaDate since estimatedDeliveryDate doesn't exist on OrderItem
-      const threeDaysFromNow = new Date();
-      threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-
-      // Get all items at sea with order ETA
+      // Get all items at sea with their status events to calculate days at sea
       const itemsAtSea = await prisma.orderItem.findMany({
         where: {
           currentStage: 'AT_SEA',
           archivedAt: null
         },
         include: {
-          order: {
-            select: {
-              etaDate: true
-            }
+          statusEvents: {
+            where: {
+              stage: 'AT_SEA'
+            },
+            orderBy: {
+              createdAt: 'desc'
+            },
+            take: 1
           }
         }
       });
 
-      // Count critical items (ETA within 3 days)
+      // Count critical items (at sea for 15+ days) using same logic as /items-at-sea
+      const now = new Date();
       const critical = itemsAtSea.filter(item => {
-        if (!item.order.etaDate) return false;
-        return new Date(item.order.etaDate) <= threeDaysFromNow;
+        const { priority } = calculateDaysAtSeaAndPriority(item, now);
+        return priority === 'CRITICAL';
       }).length;
 
       res.json({
