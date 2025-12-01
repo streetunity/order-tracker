@@ -87,7 +87,9 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
         setSelectedType('');
         if (fileInputRef.current) fileInputRef.current.value = '';
         await loadDocuments();
-        if (onDocumentChange) onDocumentChange();
+        // Note: We intentionally don't call onDocumentChange() here
+        // The component already refreshes its own documents list
+        // Calling onDocumentChange would reload the entire order page and collapse all sections
       } else {
         const data = await res.json();
         setError(data.error || 'Failed to upload');
@@ -133,7 +135,9 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
       if (res.ok) {
         setDeleteConfirm(null);
         await loadDocuments();
-        if (onDocumentChange) onDocumentChange();
+        // Note: We intentionally don't call onDocumentChange() here
+        // The component already refreshes its own documents list
+        // Calling onDocumentChange would reload the entire order page and collapse all sections
       }
     } catch (err) {
       console.error('Delete failed:', err);
