@@ -3,7 +3,9 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
-    const path = params.path?.join('/') || '';
+    // Next.js 14+ requires awaiting params
+    const resolvedParams = await params;
+    const path = resolvedParams.path?.join('/') || '';
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
     const authHeader = request.headers.get('authorization');
@@ -49,7 +51,9 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   try {
-    const path = params.path?.join('/') || '';
+    // Next.js 14+ requires awaiting params
+    const resolvedParams = await params;
+    const path = resolvedParams.path?.join('/') || '';
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
     
@@ -76,7 +80,9 @@ export async function POST(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const path = params.path?.join('/') || '';
+    // Next.js 14+ requires awaiting params
+    const resolvedParams = await params;
+    const path = resolvedParams.path?.join('/') || '';
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
     
@@ -103,7 +109,9 @@ export async function PUT(request, { params }) {
 
 export async function PATCH(request, { params }) {
   try {
-    const path = params.path?.join('/') || '';
+    // Next.js 14+ requires awaiting params
+    const resolvedParams = await params;
+    const path = resolvedParams.path?.join('/') || '';
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
     
@@ -130,7 +138,9 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const path = params.path?.join('/') || '';
+    // Next.js 14+ requires awaiting params
+    const resolvedParams = await params;
+    const path = resolvedParams.path?.join('/') || '';
     const authHeader = request.headers.get('authorization');
     
     if (!authHeader) {
