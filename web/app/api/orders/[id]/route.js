@@ -3,7 +3,8 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
     
     const headers = {
@@ -29,7 +30,8 @@ export async function GET(request, { params }) {
 
 export async function PATCH(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
     
@@ -60,7 +62,8 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
     
     // Authorization required for deleting orders
