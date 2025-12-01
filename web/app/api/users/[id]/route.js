@@ -4,7 +4,8 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
     
     if (!authHeader) {
@@ -31,7 +32,8 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
     
@@ -73,7 +75,8 @@ export async function PUT(request, { params }) {
 // Add PATCH method that calls PUT
 export async function PATCH(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
     
@@ -114,7 +117,8 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
     
     if (!authHeader) {
