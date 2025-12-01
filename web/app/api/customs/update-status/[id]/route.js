@@ -3,7 +3,8 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function POST(request, { params }) {
   try {
-    const { id } = params;
+    // Next.js 14+ requires awaiting params
+    const { id } = await params;
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
 
