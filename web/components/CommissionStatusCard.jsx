@@ -5,8 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import "./CommissionStatusCard.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000';
-
 export default function CommissionStatusCard({ orderId, user }) {
   const { getAuthHeaders } = useAuth();
   const [commission, setCommission] = useState(null);
@@ -29,7 +27,8 @@ export default function CommissionStatusCard({ orderId, user }) {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(`${API_BASE}/commissions/order/${orderId}`, {
+      // Use Next.js API proxy route instead of calling backend directly
+      const res = await fetch(`/api/commissions/order/${orderId}`, {
         headers: getAuthHeaders(),
       });
 
