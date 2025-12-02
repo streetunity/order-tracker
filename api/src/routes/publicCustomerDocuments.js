@@ -5,12 +5,12 @@
  * Used on the public tracking page for customers to view/download their documents.
  */
 
-const express = require('express');
-const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+const router = express.Router();
 const prisma = new PrismaClient();
 
 // S3 Configuration
@@ -271,4 +271,4 @@ router.get('/track/:trackingToken/customer-documents/:documentId/download', asyn
   }
 });
 
-module.exports = router;
+export default router;
