@@ -363,10 +363,6 @@ export default function BrokerItemDetail() {
             <div className="info-card">
               <h2>Order Information</h2>
               <div className="info-row">
-                <span className="info-label">Order Number:</span>
-                <span className="info-value mono">{item.order.poNumber || 'N/A'}</span>
-              </div>
-              <div className="info-row">
                 <span className="info-label">Customer:</span>
                 <span className="info-value">{item.order.account.name}</span>
               </div>
@@ -437,10 +433,8 @@ export default function BrokerItemDetail() {
                   className="form-select"
                 >
                   <option value="PENDING">Pending</option>
-                  <option value="IN_PROGRESS">In Progress</option>
                   <option value="FILED">Filed</option>
-                  <option value="CLEARED">Cleared</option>
-                  <option value="ISSUES">Issues</option>
+                  <option value="UNDER_EXAM">Under Exam</option>
                 </select>
               </div>
 
