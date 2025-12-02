@@ -1,0 +1,274 @@
+/**
+ * Public Customer Documents Routes
+ * 
+ * These routes are accessible WITHOUT authentication.
+ * Used on the public tracking page for customers to view/download their documents.
+ */
+
+const express = require('express');
+const router = express.Router();
+const { PrismaClient } = require('@prisma/client');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+
+const prisma = new PrismaClient();
+
+// S3 Configuration
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1'
+});
+
+const DOWNLOAD_URL_EXPIRY = 3600; // 1 hour for download URLs
+
+// Helper: Format file size for display
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+// Helper: Get file icon based on MIME type
+function getFileIcon(mimeType) {
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'spreadsheet';
+  if (mimeType.includes('document') || mimeType.includes('word')) return 'document';
+  if (mimeType.includes('zip') || mimeType.includes('archive') || mimeType.includes('compressed')) return 'archive';
+  return 'file';
+}
+
+/**
+ * GET /public/order/:poNumber/customer-documents
+ * List customer documents for public tracking page
+ * No authentication required - uses PO number for lookup
+ */
+router.get('/order/:poNumber/customer-documents', async (req, res) => {
+  try {
+    const { poNumber } = req.params;
+
+    // Find order by PO number
+    const order = await prisma.order.findFirst({
+      where: { 
+        poNumber: poNumber,
+        isArchived: false
+      },
+      select: {
+        id: true,
+        poNumber: true,
+        customerDocsLink: true // Include legacy link during transition
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Get completed, non-expired documents
+    const now = new Date();
+    const documents = await prisma.customerDocument.findMany({
+      where: {
+        orderId: order.id,
+        isComplete: true,
+        expiresAt: { gt: now }
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    // Format response for public consumption (no internal details)
+    const formattedDocs = documents.map(doc => ({
+      id: doc.id,
+      fileName: doc.fileName,
+      fileSize: Number(doc.fileSize),
+      fileSizeFormatted: formatFileSize(Number(doc.fileSize)),
+      mimeType: doc.mimeType,
+      fileType: getFileIcon(doc.mimeType),
+      description: doc.description,
+      uploadedAt: doc.uploadedAt
+    }));
+
+    res.json({
+      documents: formattedDocs,
+      count: formattedDocs.length,
+      // Include legacy Dropbox link if no new documents exist
+      legacyLink: formattedDocs.length === 0 ? order.customerDocsLink : null
+    });
+  } catch (error) {
+    console.error('Error listing public customer documents:', error);
+    res.status(500).json({ error: 'Failed to list documents' });
+  }
+});
+
+/**
+ * GET /public/order/:poNumber/customer-documents/:documentId/download
+ * Get a presigned download URL for public access
+ * No authentication required - validates document belongs to PO number
+ */
+router.get('/order/:poNumber/customer-documents/:documentId/download', async (req, res) => {
+  try {
+    const { poNumber, documentId } = req.params;
+
+    // Find order by PO number
+    const order = await prisma.order.findFirst({
+      where: { 
+        poNumber: poNumber,
+        isArchived: false
+      },
+      select: { id: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Find document and verify it belongs to this order
+    const document = await prisma.customerDocument.findFirst({
+      where: {
+        id: documentId,
+        orderId: order.id,
+        isComplete: true,
+        expiresAt: { gt: new Date() }
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found or expired' });
+    }
+
+    // Generate presigned download URL
+    const command = new GetObjectCommand({
+      Bucket: document.s3Bucket,
+      Key: document.s3Key,
+      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
+    });
+
+    const downloadUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: DOWNLOAD_URL_EXPIRY
+    });
+
+    res.json({
+      downloadUrl,
+      fileName: document.fileName,
+      fileSize: Number(document.fileSize),
+      mimeType: document.mimeType
+    });
+  } catch (error) {
+    console.error('Error generating public download URL:', error);
+    res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
+/**
+ * GET /public/track/:trackingToken/customer-documents
+ * Alternative: List documents using tracking token instead of PO number
+ */
+router.get('/track/:trackingToken/customer-documents', async (req, res) => {
+  try {
+    const { trackingToken } = req.params;
+
+    // Find order by tracking token
+    const order = await prisma.order.findUnique({
+      where: { trackingToken },
+      select: {
+        id: true,
+        poNumber: true,
+        customerDocsLink: true
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Get completed, non-expired documents
+    const now = new Date();
+    const documents = await prisma.customerDocument.findMany({
+      where: {
+        orderId: order.id,
+        isComplete: true,
+        expiresAt: { gt: now }
+      },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    // Format response
+    const formattedDocs = documents.map(doc => ({
+      id: doc.id,
+      fileName: doc.fileName,
+      fileSize: Number(doc.fileSize),
+      fileSizeFormatted: formatFileSize(Number(doc.fileSize)),
+      mimeType: doc.mimeType,
+      fileType: getFileIcon(doc.mimeType),
+      description: doc.description,
+      uploadedAt: doc.uploadedAt
+    }));
+
+    res.json({
+      documents: formattedDocs,
+      count: formattedDocs.length,
+      legacyLink: formattedDocs.length === 0 ? order.customerDocsLink : null
+    });
+  } catch (error) {
+    console.error('Error listing public customer documents:', error);
+    res.status(500).json({ error: 'Failed to list documents' });
+  }
+});
+
+/**
+ * GET /public/track/:trackingToken/customer-documents/:documentId/download
+ * Download using tracking token
+ */
+router.get('/track/:trackingToken/customer-documents/:documentId/download', async (req, res) => {
+  try {
+    const { trackingToken, documentId } = req.params;
+
+    // Find order by tracking token
+    const order = await prisma.order.findUnique({
+      where: { trackingToken },
+      select: { id: true }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Find document
+    const document = await prisma.customerDocument.findFirst({
+      where: {
+        id: documentId,
+        orderId: order.id,
+        isComplete: true,
+        expiresAt: { gt: new Date() }
+      }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found or expired' });
+    }
+
+    // Generate presigned download URL
+    const command = new GetObjectCommand({
+      Bucket: document.s3Bucket,
+      Key: document.s3Key,
+      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
+    });
+
+    const downloadUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: DOWNLOAD_URL_EXPIRY
+    });
+
+    res.json({
+      downloadUrl,
+      fileName: document.fileName,
+      fileSize: Number(document.fileSize),
+      mimeType: document.mimeType
+    });
+  } catch (error) {
+    console.error('Error generating public download URL:', error);
+    res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
+module.exports = router;
