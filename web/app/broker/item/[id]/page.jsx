@@ -263,6 +263,11 @@ export default function BrokerItemDetail() {
     setSaving(false);
   }
 
+  // Helper to get the first document of a specific type for download
+  function getFirstDocOfType(type) {
+    return documents.find(d => d.documentType === type);
+  }
+
   if (!user) {
     return null;
   }
@@ -545,6 +550,7 @@ export default function BrokerItemDetail() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {Object.entries(docChecklist).map(([type, data]) => {
                         const isRequired = REQUIRED_TYPES.includes(type);
+                        const firstDoc = getFirstDocOfType(type);
                         return (
                           <div key={type} style={{
                             display: 'flex',
@@ -558,9 +564,33 @@ export default function BrokerItemDetail() {
                               {data.uploaded ? <CheckCircle size={18} /> : isRequired ? <XCircle size={18} /> : <Circle size={18} />}
                             </span>
                             <span style={{ flex: 1, fontSize: '13px', color: '#e5e7eb' }}>{data.label}</span>
-                            <span style={{ fontSize: '12px', color: data.uploaded ? '#9ca3af' : (isRequired ? '#ef4444' : '#9ca3af') }}>
-                              {data.uploaded ? `${data.count} file${data.count > 1 ? 's' : ''}` : 'Missing'}
-                            </span>
+                            {data.uploaded && firstDoc ? (
+                              <button
+                                onClick={() => handleDownload(firstDoc)}
+                                style={{
+                                  fontSize: '12px',
+                                  color: '#dc2626',
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.target.style.background = 'rgba(220, 38, 38, 0.1)'}
+                                onMouseLeave={(e) => e.target.style.background = 'none'}
+                              >
+                                <Download size={14} />
+                                {data.count} file{data.count > 1 ? 's' : ''}
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '12px', color: isRequired ? '#ef4444' : '#9ca3af' }}>
+                                Missing
+                              </span>
+                            )}
                           </div>
                         );
                       })}
