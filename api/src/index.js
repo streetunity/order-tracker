@@ -38,6 +38,8 @@ import { createCommissionPayoutsRouter } from './routes/commissionPayouts.js';
 import { createBrokerRouter } from './routes/broker.js';
 import documentsRouter from './routes/documents.js';
 import itemDocumentsRouter from './routes/itemDocuments.js';
+import customerDocumentsRouter from './routes/customerDocuments.js';
+import publicCustomerDocumentsRouter from './routes/publicCustomerDocuments.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -164,6 +166,8 @@ app.get('/health', (req, res) => {
 
 // Public routes (no auth, rate limited)
 app.use('/public', publicRouter);
+app.use('/public', publicCustomerDocumentsRouter);
+console.log('✅ Public customer documents routes loaded');
 
 // Authentication routes - mixed auth requirements
 app.use('/auth', (req, res, next) => {
@@ -260,6 +264,11 @@ app.use('/customs', brokerRouter);
 app.use(documentsRouter);
 app.use(itemDocumentsRouter);
 console.log('✅ Document upload routes loaded');
+
+// Customer documents (large file multipart uploads)
+// Auth is handled inside the router
+app.use('/customer-documents', customerDocumentsRouter);
+console.log('✅ Customer documents routes loaded');
 
 // =============================
 // Error Handler
