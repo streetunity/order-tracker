@@ -6,12 +6,13 @@
  * Replaces the old Dropbox customerDocsLink approach.
  */
 
-const express = require('express');
-const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { authGuard } from '../middleware/auth.js';
 
+const router = express.Router();
 const prisma = new PrismaClient();
 
 // S3 Configuration
@@ -55,7 +56,7 @@ function formatFileSize(bytes) {
  * GET /customer-documents/:orderId
  * List all customer documents for an order
  */
-router.get('/:orderId', async (req, res) => {
+router.get('/:orderId', authGuard, async (req, res) => {
   try {
     const { orderId } = req.params;
 
@@ -112,7 +113,7 @@ router.get('/:orderId', async (req, res) => {
  * Start a multipart upload session
  * Body: { fileName, fileSize, mimeType, description? }
  */
-router.post('/:orderId/initiate', async (req, res) => {
+router.post('/:orderId/initiate', authGuard, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { fileName, fileSize, mimeType, description } = req.body;
@@ -172,6 +173,7 @@ router.post('/:orderId/initiate', async (req, res) => {
       documentId: document.id,
       uploadId: UploadId,
       s3Key,
+      bucket: CUSTOMER_DOCS_BUCKET,
       chunkSize: CHUNK_SIZE,
       totalParts: numParts,
       message: 'Multipart upload initiated'
@@ -187,7 +189,7 @@ router.post('/:orderId/initiate', async (req, res) => {
  * Get a presigned URL for uploading a specific part
  * Body: { documentId, uploadId, partNumber, s3Key }
  */
-router.post('/:orderId/sign-part', async (req, res) => {
+router.post('/:orderId/sign-part', authGuard, async (req, res) => {
   try {
     const { documentId, uploadId, partNumber, s3Key } = req.body;
 
@@ -232,7 +234,7 @@ router.post('/:orderId/sign-part', async (req, res) => {
  * Complete the multipart upload
  * Body: { documentId, uploadId, s3Key, parts: [{ PartNumber, ETag }] }
  */
-router.post('/:orderId/complete', async (req, res) => {
+router.post('/:orderId/complete', authGuard, async (req, res) => {
   try {
     const { documentId, uploadId, s3Key, parts } = req.body;
 
@@ -290,7 +292,7 @@ router.post('/:orderId/complete', async (req, res) => {
  * Abort an in-progress upload
  * Body: { documentId, uploadId, s3Key }
  */
-router.post('/:orderId/abort', async (req, res) => {
+router.post('/:orderId/abort', authGuard, async (req, res) => {
   try {
     const { documentId, uploadId, s3Key } = req.body;
 
@@ -329,7 +331,7 @@ router.post('/:orderId/abort', async (req, res) => {
  * GET /customer-documents/:orderId/:documentId/download
  * Get a presigned download URL
  */
-router.get('/:orderId/:documentId/download', async (req, res) => {
+router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
   try {
     const { documentId } = req.params;
 
@@ -368,7 +370,7 @@ router.get('/:orderId/:documentId/download', async (req, res) => {
  * DELETE /customer-documents/:orderId/:documentId
  * Delete a customer document
  */
-router.delete('/:orderId/:documentId', async (req, res) => {
+router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
     const { documentId } = req.params;
     const user = req.user;
@@ -423,7 +425,7 @@ router.delete('/:orderId/:documentId', async (req, res) => {
  * Update document description
  * Body: { description }
  */
-router.patch('/:orderId/:documentId', async (req, res) => {
+router.patch('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
     const { documentId } = req.params;
     const { description } = req.body;
@@ -444,4 +446,4 @@ router.patch('/:orderId/:documentId', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
