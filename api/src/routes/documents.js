@@ -133,8 +133,9 @@ router.get("/documents/:documentId/download", authGuard, async (req, res) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    // Generate signed URL
-    const downloadUrl = await getSignedDownloadUrl(document.s3Key);
+    // Generate signed URL with original filename for proper download name
+    // Supports Chinese and other Unicode characters via RFC 5987 encoding
+    const downloadUrl = await getSignedDownloadUrl(document.s3Key, document.fileName);
 
     res.json({
       downloadUrl,
