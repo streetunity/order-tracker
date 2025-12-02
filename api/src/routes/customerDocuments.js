@@ -27,30 +27,33 @@ const DOWNLOAD_URL_EXPIRY = 3600; // 1 hour for download URLs
 const RETENTION_DAYS = 365;
 
 /**
- * Sanitize string for S3 metadata (must be ASCII-safe)
- * Uses URL encoding to handle non-ASCII characters like Chinese
+ * Sanitize filename by removing non-ASCII characters (Chinese, etc.)
+ * Keeps alphanumeric, dots, dashes, underscores, and spaces
+ * If result is empty, generates a timestamp-based name
  */
-function sanitizeForMetadata(str) {
-  if (!str) return '';
-  return encodeURIComponent(str).substring(0, 1024);
-}
-
-/**
- * Encode filename for Content-Disposition header using RFC 5987
- * This properly handles Unicode characters (Chinese, etc.)
- */
-function encodeRFC5987(filename) {
-  return `UTF-8''${encodeURIComponent(filename).replace(/['()]/g, escape).replace(/\*/g, '%2A')}`;
-}
-
-/**
- * Build Content-Disposition header with proper encoding for Unicode filenames
- */
-function buildContentDisposition(filename) {
-  // Provide both ASCII fallback and UTF-8 encoded version for browser compatibility
-  const asciiName = filename.replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
-  const encodedName = encodeRFC5987(filename);
-  return `attachment; filename="${asciiName}"; filename*=${encodedName}`;
+function sanitizeFileName(originalName) {
+  if (!originalName) return `file-${Date.now()}`;
+  
+  // Get extension
+  const lastDot = originalName.lastIndexOf('.');
+  const extension = lastDot > 0 ? originalName.substring(lastDot) : '';
+  const baseName = lastDot > 0 ? originalName.substring(0, lastDot) : originalName;
+  
+  // Remove non-ASCII characters, keep alphanumeric, spaces, dashes, underscores
+  let sanitized = baseName.replace(/[^\x20-\x7E]/g, ''); // Keep printable ASCII only
+  
+  // Replace multiple spaces/special chars with single underscore
+  sanitized = sanitized.replace(/[\s]+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
+  
+  // Remove leading/trailing underscores and collapse multiple underscores
+  sanitized = sanitized.replace(/^_+|_+$/g, '').replace(/_+/g, '_');
+  
+  // If nothing left after sanitization, use timestamp
+  if (!sanitized || sanitized.length === 0) {
+    sanitized = `file-${Date.now()}`;
+  }
+  
+  return sanitized + extension.toLowerCase();
 }
 
 // Helper: Generate S3 key for customer document
@@ -159,29 +162,31 @@ router.post('/:orderId/initiate', authGuard, async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    // Generate S3 key
-    const s3Key = generateS3Key(orderId, fileName);
+    // Sanitize filename - removes Chinese and other non-ASCII characters
+    const sanitizedFileName = sanitizeFileName(fileName);
 
-    // Create multipart upload in S3
-    // Use URL-encoded metadata for ASCII safety (handles Chinese characters)
+    // Generate S3 key
+    const s3Key = generateS3Key(orderId, sanitizedFileName);
+
+    // Create multipart upload in S3 with ASCII-safe metadata
     const createCommand = new CreateMultipartUploadCommand({
       Bucket: CUSTOMER_DOCS_BUCKET,
       Key: s3Key,
       ContentType: mimeType,
       Metadata: {
-        'original-filename': sanitizeForMetadata(fileName),
+        'original-filename': sanitizedFileName,
         'order-id': String(orderId || ''),
-        'uploaded-by': sanitizeForMetadata(user.name)
+        'uploaded-by': user.name ? user.name.replace(/[^\x20-\x7E]/g, '') : 'unknown'
       }
     });
 
     const { UploadId } = await s3Client.send(createCommand);
 
-    // Create database record (stores original filename as-is)
+    // Create database record with sanitized filename
     const document = await prisma.customerDocument.create({
       data: {
         orderId,
-        fileName, // Original filename preserved in database
+        fileName: sanitizedFileName,
         fileSize: BigInt(fileSize),
         mimeType,
         s3Bucket: CUSTOMER_DOCS_BUCKET,
@@ -204,6 +209,7 @@ router.post('/:orderId/initiate', authGuard, async (req, res) => {
       bucket: CUSTOMER_DOCS_BUCKET,
       chunkSize: CHUNK_SIZE,
       totalParts: numParts,
+      sanitizedFileName, // Let frontend know the cleaned filename
       message: 'Multipart upload initiated'
     });
   } catch (error) {
@@ -371,12 +377,11 @@ router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    // Generate presigned download URL with RFC 5987 encoded filename
-    // This properly handles Unicode filenames (Chinese, etc.)
+    // Generate presigned download URL - filename already sanitized on upload
     const command = new GetObjectCommand({
       Bucket: document.s3Bucket,
       Key: document.s3Key,
-      ResponseContentDisposition: buildContentDisposition(document.fileName)
+      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
     });
 
     const downloadUrl = await getSignedUrl(s3Client, command, {
