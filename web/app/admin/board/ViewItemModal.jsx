@@ -273,15 +273,19 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     }
   };
 
-  // Document functions
+  // Document functions - using Next.js API proxy routes
   const loadDocuments = async () => {
     if (!item?.id) return;
     try {
       setLoadingDocs(true);
+      const token = localStorage.getItem('token');
+      // Use Next.js API proxy routes instead of calling backend directly
       const endpoint = isManufacturer
-        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents`
-        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents`;
-      const res = await fetch(endpoint, { headers: getAuthHeaders() });
+        ? `/api/manufacturer/item/${item.id}/documents`
+        : `/api/items/${item.id}/documents`;
+      const res = await fetch(endpoint, { 
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         // API returns { documents, checklist, stats } - extract the documents array
@@ -309,13 +313,15 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       formData.append("file", selectedFile);
       formData.append("documentType", selectedDocType);
 
+      const token = localStorage.getItem('token');
+      // Use Next.js API proxy routes instead of calling backend directly
       const endpoint = isManufacturer
-        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents`
-        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents`;
+        ? `/api/manufacturer/item/${item.id}/documents`
+        : `/api/items/${item.id}/documents`;
 
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: { Authorization: `Bearer ${token}` },
         body: formData
       });
 
@@ -336,10 +342,14 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
 
   const handleDownload = async (doc) => {
     try {
+      const token = localStorage.getItem('token');
+      // Use Next.js API proxy routes instead of calling backend directly
       const endpoint = isManufacturer
-        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents/${doc.id}/download`
-        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents/${doc.id}/download`;
-      const res = await fetch(endpoint, { headers: getAuthHeaders() });
+        ? `/api/manufacturer/item/${item.id}/documents/${doc.id}/download`
+        : `/api/items/${item.id}/documents/${doc.id}/download`;
+      const res = await fetch(endpoint, { 
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
         // API returns { downloadUrl, fileName } - use downloadUrl
@@ -352,12 +362,14 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
 
   const handleDeleteDoc = async (docId) => {
     try {
+      const token = localStorage.getItem('token');
+      // Use Next.js API proxy routes instead of calling backend directly
       const endpoint = isManufacturer
-        ? `${process.env.NEXT_PUBLIC_API_BASE}/api/manufacturer/item/${item.id}/documents/${docId}`
-        : `${process.env.NEXT_PUBLIC_API_BASE}/api/items/${item.id}/documents/${docId}`;
+        ? `/api/manufacturer/item/${item.id}/documents/${docId}`
+        : `/api/items/${item.id}/documents/${docId}`;
       const res = await fetch(endpoint, {
         method: "DELETE",
-        headers: getAuthHeaders()
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         setShowDeleteConfirm(null);
