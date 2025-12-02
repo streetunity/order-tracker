@@ -195,7 +195,8 @@ router.get("/items/:itemId/documents/:documentId/download", authGuard, async (re
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const downloadUrl = await getSignedDownloadUrl(document.s3Key);
+    // Pass original filename to preserve it in downloads (supports Chinese characters)
+    const downloadUrl = await getSignedDownloadUrl(document.s3Key, document.fileName);
 
     res.json({ downloadUrl, fileName: document.fileName });
   } catch (error) {
@@ -422,7 +423,8 @@ router.get("/manufacturer/item/:itemId/documents/:documentId/download", authGuar
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    const downloadUrl = await getSignedDownloadUrl(document.s3Key);
+    // Pass original filename to preserve it in downloads (supports Chinese characters)
+    const downloadUrl = await getSignedDownloadUrl(document.s3Key, document.fileName);
 
     res.json({ downloadUrl, fileName: document.fileName });
   } catch (error) {
