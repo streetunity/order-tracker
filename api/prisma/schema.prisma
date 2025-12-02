@@ -220,7 +220,7 @@ model Order {
   poNumber        String?
   sku             String?             // Stores sales person name (keep as-is for commission)
   orderDate       DateTime?           // Actual order date from customer
-  customerDocsLink String?            // Customer Documents Link (Dropbox URL)
+  customerDocsLink String?            // Customer Documents Link (Dropbox URL) - DEPRECATED: Use customerDocuments relation
   brokerDocsLink  String?             // Broker Documents Link (SUPER_ADMIN only, not visible to customers)
   internalNotes   String?             // Internal notes for the order
   discount        Float?              @default(0) // Discount amount (stored as positive, calculated as negative)
@@ -246,6 +246,7 @@ model Order {
   createdBy       User?               @relation(fields: [createdByUserId], references: [id])
   commissions     Commission[]        // Commission relation
   documents       OrderDocument[]     // S3 document uploads
+  customerDocuments CustomerDocument[] // Customer-viewable documents (replaces Dropbox)
 }
 
 model OrderItem {
@@ -399,6 +400,7 @@ model User {
   notifications           Notification[]          // Notifications assigned to this user
   manufacturer            Manufacturer?           // Link to manufacturer profile if role is MANUFACTURER
   brokerActivityLogs      BrokerActivityLog[]     // Broker activity logs
+  customerDocuments       CustomerDocument[]      // Customer documents uploaded by this user
 
   @@index([role])
   @@index([isActive])
@@ -549,4 +551,45 @@ model ItemDocument {
   @@index([itemId])
   @@index([documentType])
   @@map("item_documents")
+}
+
+// ============================================
+// CUSTOMER DOCUMENTS - Large file uploads for customer viewing
+// Replaces Dropbox customerDocsLink
+// ============================================
+
+model CustomerDocument {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  // File info
+  fileName        String   // Original filename
+  fileSize        BigInt   // Size in bytes (BigInt for files > 2GB)
+  mimeType        String   // MIME type (video/mp4, application/pdf, etc.)
+  
+  // S3 storage
+  s3Bucket        String   // Bucket name
+  s3Key           String   // Object key path
+  
+  // Optional metadata
+  description     String?  // Admin can add a note about the file
+  
+  // Upload tracking
+  uploadedById    String
+  uploadedBy      User     @relation(fields: [uploadedById], references: [id])
+  uploadedAt      DateTime @default(now())
+  
+  // Multipart upload tracking (for resumable uploads)
+  uploadId        String?  // S3 multipart upload ID (null when complete)
+  isComplete      Boolean  @default(false) // False during upload, true when finalized
+  
+  // Retention - auto-delete after 365 days
+  expiresAt       DateTime // Set to uploadedAt + 365 days
+  
+  @@index([orderId])
+  @@index([uploadedById])
+  @@index([isComplete])
+  @@index([expiresAt])
+  @@map("customer_documents")
 }
