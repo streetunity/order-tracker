@@ -41,6 +41,24 @@ function getFileIcon(mimeType) {
 }
 
 /**
+ * Encode filename for Content-Disposition header using RFC 5987
+ * This properly handles Unicode characters (Chinese, etc.)
+ */
+function encodeRFC5987(filename) {
+  return `UTF-8''${encodeURIComponent(filename).replace(/['()]/g, escape).replace(/\*/g, '%2A')}`;
+}
+
+/**
+ * Build Content-Disposition header with proper encoding for Unicode filenames
+ */
+function buildContentDisposition(filename) {
+  // Provide both ASCII fallback and UTF-8 encoded version for browser compatibility
+  const asciiName = filename.replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
+  const encodedName = encodeRFC5987(filename);
+  return `attachment; filename="${asciiName}"; filename*=${encodedName}`;
+}
+
+/**
  * GET /public/order/:poNumber/customer-documents
  * List customer documents for public tracking page
  * No authentication required - uses PO number for lookup
@@ -137,11 +155,12 @@ router.get('/order/:poNumber/customer-documents/:documentId/download', async (re
       return res.status(404).json({ error: 'Document not found or expired' });
     }
 
-    // Generate presigned download URL
+    // Generate presigned download URL with RFC 5987 encoded filename
+    // This properly handles Unicode filenames (Chinese, etc.)
     const command = new GetObjectCommand({
       Bucket: document.s3Bucket,
       Key: document.s3Key,
-      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
+      ResponseContentDisposition: buildContentDisposition(document.fileName)
     });
 
     const downloadUrl = await getSignedUrl(s3Client, command, {
@@ -248,11 +267,12 @@ router.get('/track/:trackingToken/customer-documents/:documentId/download', asyn
       return res.status(404).json({ error: 'Document not found or expired' });
     }
 
-    // Generate presigned download URL
+    // Generate presigned download URL with RFC 5987 encoded filename
+    // This properly handles Unicode filenames (Chinese, etc.)
     const command = new GetObjectCommand({
       Bucket: document.s3Bucket,
       Key: document.s3Key,
-      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
+      ResponseContentDisposition: buildContentDisposition(document.fileName)
     });
 
     const downloadUrl = await getSignedUrl(s3Client, command, {
