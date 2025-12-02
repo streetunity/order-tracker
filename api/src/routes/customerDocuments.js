@@ -26,6 +26,33 @@ const PRESIGNED_URL_EXPIRY = 3600; // 1 hour for upload URLs
 const DOWNLOAD_URL_EXPIRY = 3600; // 1 hour for download URLs
 const RETENTION_DAYS = 365;
 
+/**
+ * Sanitize string for S3 metadata (must be ASCII-safe)
+ * Uses URL encoding to handle non-ASCII characters like Chinese
+ */
+function sanitizeForMetadata(str) {
+  if (!str) return '';
+  return encodeURIComponent(str).substring(0, 1024);
+}
+
+/**
+ * Encode filename for Content-Disposition header using RFC 5987
+ * This properly handles Unicode characters (Chinese, etc.)
+ */
+function encodeRFC5987(filename) {
+  return `UTF-8''${encodeURIComponent(filename).replace(/['()]/g, escape).replace(/\*/g, '%2A')}`;
+}
+
+/**
+ * Build Content-Disposition header with proper encoding for Unicode filenames
+ */
+function buildContentDisposition(filename) {
+  // Provide both ASCII fallback and UTF-8 encoded version for browser compatibility
+  const asciiName = filename.replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
+  const encodedName = encodeRFC5987(filename);
+  return `attachment; filename="${asciiName}"; filename*=${encodedName}`;
+}
+
 // Helper: Generate S3 key for customer document
 function generateS3Key(orderId, fileName) {
   const timestamp = Date.now();
@@ -136,24 +163,25 @@ router.post('/:orderId/initiate', authGuard, async (req, res) => {
     const s3Key = generateS3Key(orderId, fileName);
 
     // Create multipart upload in S3
+    // Use URL-encoded metadata for ASCII safety (handles Chinese characters)
     const createCommand = new CreateMultipartUploadCommand({
       Bucket: CUSTOMER_DOCS_BUCKET,
       Key: s3Key,
       ContentType: mimeType,
       Metadata: {
-        'original-filename': fileName,
-        'order-id': orderId,
-        'uploaded-by': user.name
+        'original-filename': sanitizeForMetadata(fileName),
+        'order-id': String(orderId || ''),
+        'uploaded-by': sanitizeForMetadata(user.name)
       }
     });
 
     const { UploadId } = await s3Client.send(createCommand);
 
-    // Create database record
+    // Create database record (stores original filename as-is)
     const document = await prisma.customerDocument.create({
       data: {
         orderId,
-        fileName,
+        fileName, // Original filename preserved in database
         fileSize: BigInt(fileSize),
         mimeType,
         s3Bucket: CUSTOMER_DOCS_BUCKET,
@@ -343,11 +371,12 @@ router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    // Generate presigned download URL
+    // Generate presigned download URL with RFC 5987 encoded filename
+    // This properly handles Unicode filenames (Chinese, etc.)
     const command = new GetObjectCommand({
       Bucket: document.s3Bucket,
       Key: document.s3Key,
-      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
+      ResponseContentDisposition: buildContentDisposition(document.fileName)
     });
 
     const downloadUrl = await getSignedUrl(s3Client, command, {
