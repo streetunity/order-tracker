@@ -615,7 +615,8 @@ export function createBrokerRouter() {
         return res.status(404).json({ error: 'Document not found' });
       }
 
-      const downloadUrl = await getSignedDownloadUrl(document.s3Key);
+      // Pass original filename for proper download name (supports Chinese characters)
+      const downloadUrl = await getSignedDownloadUrl(document.s3Key, document.fileName);
 
       res.json({ downloadUrl, fileName: document.fileName });
     } catch (error) {
