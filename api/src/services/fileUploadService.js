@@ -21,22 +21,33 @@ const ALLOWED_TYPES = [
 ];
 
 /**
- * Sanitize string for S3 metadata (must be ASCII-safe)
- * Uses URL encoding to handle non-ASCII characters like Chinese
+ * Sanitize filename by removing non-ASCII characters (Chinese, etc.)
+ * Keeps alphanumeric, dots, dashes, underscores, and spaces
+ * If result is empty, generates a timestamp-based name
  */
-function sanitizeForMetadata(str) {
-  if (!str) return '';
-  // URL encode to make ASCII-safe, then limit length
-  return encodeURIComponent(str).substring(0, 1024);
-}
-
-/**
- * Encode filename for Content-Disposition header using RFC 5987
- * This properly handles Unicode characters (Chinese, etc.)
- */
-function encodeRFC5987(filename) {
-  // RFC 5987 encoding: UTF-8''url-encoded-filename
-  return `UTF-8''${encodeURIComponent(filename).replace(/['()]/g, escape).replace(/\*/g, '%2A')}`;
+function sanitizeFileName(originalName) {
+  if (!originalName) return `file-${Date.now()}`;
+  
+  // Get extension
+  const lastDot = originalName.lastIndexOf('.');
+  const extension = lastDot > 0 ? originalName.substring(lastDot) : '';
+  const baseName = lastDot > 0 ? originalName.substring(0, lastDot) : originalName;
+  
+  // Remove non-ASCII characters, keep alphanumeric, spaces, dashes, underscores
+  let sanitized = baseName.replace(/[^\x20-\x7E]/g, ''); // Keep printable ASCII only
+  
+  // Replace multiple spaces/special chars with single underscore
+  sanitized = sanitized.replace(/[\s]+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
+  
+  // Remove leading/trailing underscores and collapse multiple underscores
+  sanitized = sanitized.replace(/^_+|_+$/g, '').replace(/_+/g, '_');
+  
+  // If nothing left after sanitization, use timestamp
+  if (!sanitized || sanitized.length === 0) {
+    sanitized = `file-${Date.now()}`;
+  }
+  
+  return sanitized + extension.toLowerCase();
 }
 
 /**
@@ -54,34 +65,35 @@ export async function uploadFileToS3({ fileBuffer, originalName, mimeType, order
       throw new Error('File type not allowed. Allowed types: PDF, JPG, PNG, WEBP, DOCX, XLSX');
     }
 
-    // Generate unique S3 key (use safe characters only)
-    const fileExtension = originalName.split('.').pop();
+    // Sanitize filename - removes Chinese and other non-ASCII characters
+    const sanitizedFileName = sanitizeFileName(originalName);
+
+    // Generate unique S3 key
+    const fileExtension = sanitizedFileName.split('.').pop();
     const uniqueId = crypto.randomBytes(16).toString('hex');
     const timestamp = Date.now();
     const s3Key = `orders/${orderId}/${timestamp}-${uniqueId}.${fileExtension}`;
 
     // Upload to S3 with ASCII-safe metadata
-    // Non-ASCII characters (Chinese, etc.) must be URL-encoded
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: s3Key,
       Body: fileBuffer,
       ContentType: mimeType,
       Metadata: {
-        'original-name': sanitizeForMetadata(originalName),
-        'uploaded-by': sanitizeForMetadata(uploadedBy),
+        'original-name': sanitizedFileName,
+        'uploaded-by': uploadedBy ? uploadedBy.replace(/[^\x20-\x7E]/g, '') : 'unknown',
         'order-id': String(orderId || '')
       }
     });
 
     await s3Client.send(command);
 
-    // Return file metadata
-    // The original filename is returned as-is for database storage
+    // Return file metadata with sanitized filename
     return {
       s3Key,
       s3Url: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`,
-      fileName: originalName, // Original filename preserved for DB
+      fileName: sanitizedFileName, // Store sanitized name in database
       fileSize: fileBuffer.length,
       fileType: mimeType
     };
@@ -112,22 +124,18 @@ export async function deleteFileFromS3(s3Key) {
 /**
  * Generate signed URL for secure download (expires in 1 hour)
  * @param {string} s3Key - The S3 object key
- * @param {string} originalFileName - Optional original filename for Content-Disposition
+ * @param {string} fileName - Optional filename for Content-Disposition
  */
-export async function getSignedDownloadUrl(s3Key, originalFileName = null) {
+export async function getSignedDownloadUrl(s3Key, fileName = null) {
   try {
     const commandParams = {
       Bucket: BUCKET_NAME,
       Key: s3Key
     };
 
-    // If original filename provided, set Content-Disposition to suggest download filename
-    // Uses RFC 5987 encoding for proper Unicode (Chinese, etc.) support
-    if (originalFileName) {
-      // Provide both ASCII fallback and UTF-8 encoded version for browser compatibility
-      const asciiName = originalFileName.replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
-      const encodedName = encodeRFC5987(originalFileName);
-      commandParams.ResponseContentDisposition = `attachment; filename="${asciiName}"; filename*=${encodedName}`;
+    // If filename provided, set Content-Disposition to suggest download filename
+    if (fileName) {
+      commandParams.ResponseContentDisposition = `attachment; filename="${fileName}"`;
     }
 
     const command = new GetObjectCommand(commandParams);
