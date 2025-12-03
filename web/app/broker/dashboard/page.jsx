@@ -95,6 +95,7 @@ export default function BrokerDashboard() {
       return (
         item.order.poNumber?.toLowerCase().includes(search) ||
         item.order.account.name?.toLowerCase().includes(search) ||
+        item.order.account.contactName?.toLowerCase().includes(search) ||
         item.productCode?.toLowerCase().includes(search) ||
         item.containers?.toLowerCase().includes(search)
       );
@@ -185,7 +186,7 @@ export default function BrokerDashboard() {
           <div className="filters-row">
             <input
               type="text"
-              placeholder="Search by order #, customer, product code..."
+              placeholder="Search by contact name, customer, product code..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
@@ -210,7 +211,7 @@ export default function BrokerDashboard() {
             <thead>
               <tr>
                 <th>Priority</th>
-                <th>Order #</th>
+                <th>Contact Name</th>
                 <th>Customer</th>
                 <th>Product Code</th>
                 <th>Arrival</th>
@@ -238,8 +239,8 @@ export default function BrokerDashboard() {
                         )}
                       </span>
                     </td>
-                    <td style={{ fontFamily: 'monospace' }}>
-                      {item.order.poNumber || 'N/A'}
+                    <td>
+                      {item.order.account.contactName || '-'}
                     </td>
                     <td>{item.order.account.name}</td>
                     <td>{item.productCode || 'N/A'}</td>
