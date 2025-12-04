@@ -99,7 +99,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key', 'x-auth-token'],
   exposedHeaders: ['Content-Type', 'Authorization'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH']
 }));
@@ -113,7 +113,7 @@ app.use(cookieParser());
 // Request logging for debugging
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`, {
-    hasAuth: !!req.headers.authorization,
+    hasAuth: !!req.headers.authorization || !!req.headers['x-auth-token'],
     origin: req.headers.origin
   });
   next();
