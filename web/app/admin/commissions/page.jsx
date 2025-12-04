@@ -448,7 +448,8 @@ export default function CommissionsPage() {
 
   const fetchAvailableAgents = async () => {
     try {
-      const res = await fetch("/api/users?role=SALES_AGENT", {
+      // Use /api/users/sales-reps which returns users with showInSalesRepDropdown=true
+      const res = await fetch("/api/users/sales-reps", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -456,7 +457,7 @@ export default function CommissionsPage() {
         setAvailableAgents(data);
       }
     } catch (error) {
-      console.error("Error fetching agents:", error);
+      console.error("Error fetching sales reps:", error);
     }
   };
 
