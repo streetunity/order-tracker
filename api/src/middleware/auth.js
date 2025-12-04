@@ -32,10 +32,20 @@ export function verifyToken(token) {
 // Extract user from request
 async function getUserFromRequest(req) {
   try {
-    // Check for JWT token in Authorization header
+    let token = null;
+    
+    // Check for JWT token in Authorization header (Bearer token)
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+      token = authHeader.substring(7);
+    }
+    
+    // Also check for x-auth-token header (used by frontend)
+    if (!token && req.headers['x-auth-token']) {
+      token = req.headers['x-auth-token'];
+    }
+    
+    if (token) {
       const decoded = verifyToken(token);
       
       if (decoded) {
