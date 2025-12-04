@@ -1,4 +1,6 @@
 'use client';
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -63,10 +65,40 @@ export default function CommissionReportsPage() {
     }
   }, [user, router]);
 
-  // Fetch report data
+  // Fetch agent list on mount
   useEffect(() => {
-    fetchReportData();
-  }, [selectedYear, selectedAgent]);
+    fetchAgentList();
+  }, []);
+
+  // Fetch report data when filters change
+  useEffect(() => {
+    if (user && ['SUPER_ADMIN', 'ACCOUNTANT'].includes(user.role)) {
+      fetchReportData();
+    }
+  }, [selectedYear, selectedAgent, user]);
+
+  const fetchAgentList = async () => {
+    try {
+      const headers = { 'x-auth-token': localStorage.getItem('token') };
+      
+      // Fetch from sales-reps endpoint which returns ALL sales reps
+      // (not just those with custom rates)
+      const agentsRes = await fetch('/api/commission-settings/sales-reps', { headers });
+      if (agentsRes.ok) {
+        const salesReps = await agentsRes.json();
+        setAgents(salesReps.map(r => ({ name: r.name, rate: r.commissionRate })));
+      } else {
+        // Fallback to rates endpoint if sales-reps fails
+        const ratesRes = await fetch('/api/commission-settings/rates', { headers });
+        if (ratesRes.ok) {
+          const ratesData = await ratesRes.json();
+          setAgents(ratesData.map(r => ({ name: r.salesPersonName, rate: r.rate })));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching agent list:', err);
+    }
+  };
 
   const fetchReportData = async () => {
     setLoading(true);
@@ -100,13 +132,6 @@ export default function CommissionReportsPage() {
         if (agentRes.ok) {
           setAgentData(await agentRes.json());
         }
-      }
-
-      // Fetch agent list for filter
-      const agentsRes = await fetch('/api/commission-settings/rates', { headers });
-      if (agentsRes.ok) {
-        const ratesData = await agentsRes.json();
-        setAgents(ratesData.map(r => ({ name: r.salesPersonName, rate: r.rate })));
       }
     } catch (err) {
       console.error('Error fetching report data:', err);
@@ -247,7 +272,7 @@ export default function CommissionReportsPage() {
     }
   };
 
-  if (loading) {
+  if (loading && agents.length === 0) {
     return (
       <div className="reports-container">
         <div className="loading-spinner">Loading reports...</div>
