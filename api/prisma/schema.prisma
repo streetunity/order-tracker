@@ -61,7 +61,7 @@ model Commission {
 model ItemCommission {
   id                    String              @id @default(cuid())
   commissionId          String              // Parent aggregate commission
-  itemId                String              // OrderItem this applies to
+  itemId                String?             // OrderItem this applies to (nullable for deleted items)
   orderId               String              // Denormalized for queries
   
   // Item details (snapshot at calculation time)
@@ -84,7 +84,7 @@ model ItemCommission {
   
   // Relations
   commission            Commission          @relation(fields: [commissionId], references: [id], onDelete: Cascade)
-  item                  OrderItem?          @relation(fields: [itemId], references: [id])
+  item                  OrderItem?          @relation(fields: [itemId], references: [id], onDelete: SetNull)
   payouts               CommissionPayout[]  // Payouts for this specific item
   
   createdAt             DateTime            @default(now())
