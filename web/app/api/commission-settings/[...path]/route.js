@@ -1,20 +1,32 @@
 import { NextResponse } from 'next/server';
 import { API_BASE_URL } from '@/lib/api-config';
 
+// Helper to get auth token from either header format
+function getAuthHeaders(request) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Check for x-auth-token first (used by frontend), then Authorization
+  const xAuthToken = request.headers.get('x-auth-token');
+  const authHeader = request.headers.get('authorization');
+  
+  if (xAuthToken) {
+    headers['x-auth-token'] = xAuthToken;
+  } else if (authHeader) {
+    headers['Authorization'] = authHeader;
+  }
+  
+  return headers;
+}
+
 export async function GET(request, { params }) {
   try {
     const path = params.path?.join('/') || '';
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
-    const authHeader = request.headers.get('authorization');
     
-    const headers = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (authHeader) {
-      headers['Authorization'] = authHeader;
-    }
+    const headers = getAuthHeaders(request);
     
     const apiUrl = `${API_BASE_URL}/commission-settings/${path}${queryString ? `?${queryString}` : ''}`;
     console.log('[Commission Settings Catch-All Route] Fetching from:', apiUrl);
@@ -33,18 +45,16 @@ export async function POST(request, { params }) {
   try {
     const path = params.path?.join('/') || '';
     const body = await request.json();
-    const authHeader = request.headers.get('authorization');
     
-    if (!authHeader) {
+    const headers = getAuthHeaders(request);
+    
+    if (!headers['x-auth-token'] && !headers['Authorization']) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
     const res = await fetch(`${API_BASE_URL}/commission-settings/${path}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -60,18 +70,16 @@ export async function PUT(request, { params }) {
   try {
     const path = params.path?.join('/') || '';
     const body = await request.json();
-    const authHeader = request.headers.get('authorization');
     
-    if (!authHeader) {
+    const headers = getAuthHeaders(request);
+    
+    if (!headers['x-auth-token'] && !headers['Authorization']) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
     const res = await fetch(`${API_BASE_URL}/commission-settings/${path}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -87,18 +95,16 @@ export async function PATCH(request, { params }) {
   try {
     const path = params.path?.join('/') || '';
     const body = await request.json();
-    const authHeader = request.headers.get('authorization');
     
-    if (!authHeader) {
+    const headers = getAuthHeaders(request);
+    
+    if (!headers['x-auth-token'] && !headers['Authorization']) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
     const res = await fetch(`${API_BASE_URL}/commission-settings/${path}`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -113,18 +119,16 @@ export async function PATCH(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const path = params.path?.join('/') || '';
-    const authHeader = request.headers.get('authorization');
     
-    if (!authHeader) {
+    const headers = getAuthHeaders(request);
+    
+    if (!headers['x-auth-token'] && !headers['Authorization']) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
     const res = await fetch(`${API_BASE_URL}/commission-settings/${path}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers,
     });
 
     const data = await res.json();
