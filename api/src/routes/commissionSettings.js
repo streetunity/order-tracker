@@ -19,11 +19,11 @@ export function createCommissionSettingsRouter(prisma) {
   // COMMISSION RATES
   // ==========================================
   
-  // Get all commission rates
+  // Get all commission rates (ACCOUNTANT can view for reports dropdown, only SUPER_ADMIN can edit)
   router.get('/rates', async (req, res) => {
     try {
-      if (!canManageSettings(req.user.role)) {
-        return res.status(403).json({ error: 'Only Super Admins can manage commission rates' });
+      if (!canViewSettings(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied' });
       }
       
       const rates = await prisma.commissionRate.findMany({
@@ -40,8 +40,8 @@ export function createCommissionSettingsRouter(prisma) {
   // Get specific rate for sales person
   router.get('/rates/:name', async (req, res) => {
     try {
-      if (!canManageSettings(req.user.role)) {
-        return res.status(403).json({ error: 'Only Super Admins can view commission rates' });
+      if (!canViewSettings(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied' });
       }
       
       const rate = await prisma.commissionRate.findUnique({
@@ -329,8 +329,8 @@ export function createCommissionSettingsRouter(prisma) {
   // Get global commission settings
   router.get('/global', async (req, res) => {
     try {
-      if (!canManageSettings(req.user.role)) {
-        return res.status(403).json({ error: 'Only Super Admins can view global settings' });
+      if (!canViewSettings(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied' });
       }
       
       let settings = await prisma.commissionSettings.findFirst();
@@ -452,8 +452,8 @@ export function createCommissionSettingsRouter(prisma) {
   // Get list of all sales reps (users who can have commissions)
   router.get('/sales-reps', async (req, res) => {
     try {
-      if (!canManageSettings(req.user.role)) {
-        return res.status(403).json({ error: 'Only Super Admins can view sales rep list' });
+      if (!canViewSettings(req.user.role)) {
+        return res.status(403).json({ error: 'Access denied' });
       }
       
       // Get all users who are flagged to show in sales rep dropdown
