@@ -1,19 +1,31 @@
 import { NextResponse } from 'next/server';
 import { API_BASE_URL } from '@/lib/api-config';
 
+// Helper to get auth token from either header format
+function getAuthHeaders(request) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Check for x-auth-token first (used by frontend), then Authorization
+  const xAuthToken = request.headers.get('x-auth-token');
+  const authHeader = request.headers.get('authorization');
+  
+  if (xAuthToken) {
+    headers['x-auth-token'] = xAuthToken;
+  } else if (authHeader) {
+    headers['Authorization'] = authHeader;
+  }
+  
+  return headers;
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const queryString = searchParams.toString();
-    const authHeader = request.headers.get('authorization');
     
-    const headers = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (authHeader) {
-      headers['Authorization'] = authHeader;
-    }
+    const headers = getAuthHeaders(request);
     
     const apiUrl = `${API_BASE_URL}/commission-settings${queryString ? `?${queryString}` : ''}`;
     console.log('[Commission Settings Route] Fetching from:', apiUrl);
@@ -31,18 +43,15 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const authHeader = request.headers.get('authorization');
+    const headers = getAuthHeaders(request);
     
-    if (!authHeader) {
+    if (!headers['x-auth-token'] && !headers['Authorization']) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
     const res = await fetch(`${API_BASE_URL}/commission-settings`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -57,18 +66,15 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const authHeader = request.headers.get('authorization');
+    const headers = getAuthHeaders(request);
     
-    if (!authHeader) {
+    if (!headers['x-auth-token'] && !headers['Authorization']) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
     const res = await fetch(`${API_BASE_URL}/commission-settings`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -83,18 +89,15 @@ export async function PUT(request) {
 export async function PATCH(request) {
   try {
     const body = await request.json();
-    const authHeader = request.headers.get('authorization');
+    const headers = getAuthHeaders(request);
     
-    if (!authHeader) {
+    if (!headers['x-auth-token'] && !headers['Authorization']) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
     
     const res = await fetch(`${API_BASE_URL}/commission-settings`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
