@@ -39,6 +39,12 @@ const STAGE_LABELS = {
   FOLLOW_UP: "Follow Up",
 };
 
+// Helper function to check if measurements are complete
+// Returns true if all four measurement fields have values
+const hasMeasurements = (item) => {
+  return item.height != null && item.width != null && item.length != null && item.weight != null;
+};
+
 export default function AdminBoardPage() {
   const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
@@ -535,12 +541,14 @@ export default function AdminBoardPage() {
                           const prev = prevStageOf(s);
                           const isArchived = !!it.archivedAt;
                           const isOrderLocked = order.isLocked;
+                          const measurementsComplete = hasMeasurements(it);
                           
                           let tooltipText = `${it.productCode || "Item"} - ${s}`;
                           if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
                           if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
                           if (it.voltage) tooltipText += `\nPower: ${it.voltage}`;
                           if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
+                          if (measurementsComplete) tooltipText += `\n📐 Measurements: ${it.length}×${it.width}×${it.height}, ${it.weight}${it.weightUnit || 'lbs'}`;
                           if (isOrderLocked) tooltipText += "\n(Order Locked)";
                           
                           return (
@@ -579,7 +587,12 @@ export default function AdminBoardPage() {
                                 textAlign: 'center',
                                 minHeight: '100%'
                               }}>
-                                <span style={{ wordBreak: 'break-word' }}>{it.productCode || "Item"}</span>
+                                <span style={{ 
+                                  wordBreak: 'break-word',
+                                  color: measurementsComplete ? '#dc2626' : undefined
+                                }}>
+                                  {it.productCode || "Item"}
+                                </span>
                               </div>
 
                               {/* Magnifying glass - top right */}
