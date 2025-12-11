@@ -343,6 +343,10 @@ model Shipment {
   customsClearedDate    DateTime?           // When customs cleared the shipment
   customsNotes          String?             // Broker notes
   
+  // Archive support - hide old shipments from dropdowns
+  archivedAt            DateTime?           // When archived (null = active)
+  archivedBy            String?             // Who archived it
+  
   // Audit
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
@@ -357,6 +361,7 @@ model Shipment {
   @@index([containerNumber])
   @@index([billOfLading])
   @@index([customsDocumentStatus])
+  @@index([archivedAt])
 }
 
 // Shared shipping documents for multi-item containers
