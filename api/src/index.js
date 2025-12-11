@@ -40,6 +40,7 @@ import documentsRouter from './routes/documents.js';
 import itemDocumentsRouter from './routes/itemDocuments.js';
 import customerDocumentsRouter from './routes/customerDocuments.js';
 import publicCustomerDocumentsRouter from './routes/publicCustomerDocuments.js';
+import shipmentsRouter from './routes/shipments.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
 const prisma = new PrismaClient();
@@ -257,6 +258,11 @@ console.log('✅ Commission module loaded');
 // Broker portal (auth required, broker role only)
 // Note: Using /customs instead of /broker to avoid ad blocker interference
 app.use('/customs', brokerRouter);
+
+// Shipments (shared shipping documents across orders)
+// Auth is handled inside the router
+app.use('/shipments', shipmentsRouter);
+console.log('✅ Shipments API loaded');
 
 // Document uploads (S3)
 // NOTE: Nginx strips /api/ prefix before forwarding to backend
