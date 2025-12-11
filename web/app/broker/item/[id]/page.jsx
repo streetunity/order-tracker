@@ -11,7 +11,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import NotificationBar from "@/components/NotificationBar";
-import { CheckCircle, XCircle, Circle, Upload, File, Download, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Circle, Upload, File, Download, Trash2, Package, Link2 } from "lucide-react";
 import "./item.css";
 
 // All document type labels (for displaying existing documents)
@@ -62,6 +62,10 @@ export default function BrokerItemDetail() {
   const [dragActive, setDragActive] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Shared shipment info
+  const [isSharedShipment, setIsSharedShipment] = useState(false);
+  const [shipmentInfo, setShipmentInfo] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -134,6 +138,8 @@ export default function BrokerItemDetail() {
         setDocuments(data.documents);
         setDocChecklist(data.checklist);
         setDocStats(data.stats);
+        setIsSharedShipment(data.isSharedShipment || false);
+        setShipmentInfo(data.shipmentInfo || null);
       }
     } catch (error) {
       console.error('Error loading documents:', error);
@@ -343,6 +349,29 @@ export default function BrokerItemDetail() {
               </a>
             )}
           </div>
+          
+          {/* Shared Shipment Badge */}
+          {item.shipment && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginTop: '8px',
+              padding: '8px 12px',
+              background: 'rgba(220, 38, 38, 0.1)',
+              border: '1px solid rgba(220, 38, 38, 0.3)',
+              borderRadius: '6px',
+              fontSize: '13px',
+              color: '#dc2626'
+            }}>
+              <Link2 size={16} />
+              <span>
+                Shared shipment with {item.shipment._count?.items - 1 || 0} other item{item.shipment._count?.items !== 2 ? 's' : ''}
+                {item.shipment.containerNumber && ` • Container: ${item.shipment.containerNumber}`}
+                {item.shipment.billOfLading && ` • BOL: ${item.shipment.billOfLading}`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Tab Navigation */}
@@ -547,6 +576,47 @@ export default function BrokerItemDetail() {
               </div>
             ) : (
               <>
+                {/* Shared Shipment Notice */}
+                {isSharedShipment && shipmentInfo && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                    background: 'rgba(220, 38, 38, 0.1)',
+                    border: '1px solid rgba(220, 38, 38, 0.3)',
+                    borderRadius: '8px'
+                  }}>
+                    <Package size={24} style={{ color: '#dc2626', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#fff', marginBottom: '4px' }}>
+                        Shared Shipment Documents
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '8px' }}>
+                        This item shares shipping documents with {shipmentInfo.itemCount - 1} other item{shipmentInfo.itemCount !== 2 ? 's' : ''}.
+                        Documents uploaded here will be visible to all items in this shipment.
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {shipmentInfo.containerNumber && <span>Container: {shipmentInfo.containerNumber}</span>}
+                        {shipmentInfo.containerNumber && shipmentInfo.billOfLading && <span> • </span>}
+                        {shipmentInfo.billOfLading && <span>BOL: {shipmentInfo.billOfLading}</span>}
+                      </div>
+                      {shipmentInfo.items && shipmentInfo.items.length > 1 && (
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                          <strong>Items in shipment:</strong>{' '}
+                          {shipmentInfo.items.map((i, idx) => (
+                            <span key={i.id}>
+                              {i.productCode}
+                              {idx < shipmentInfo.items.length - 1 ? ', ' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Document Checklist */}
                 {docChecklist && (
                   <div className="info-card">
@@ -610,6 +680,11 @@ export default function BrokerItemDetail() {
                   <h2>Upload Document</h2>
                   <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '16px' }}>
                     Select a document type and upload the file.
+                    {isSharedShipment && (
+                      <span style={{ color: '#dc2626' }}>
+                        {' '}Documents will be shared with all items in this shipment.
+                      </span>
+                    )}
                   </p>
 
                   {/* Document Type Dropdown */}
@@ -783,6 +858,11 @@ export default function BrokerItemDetail() {
               <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', color: '#fff' }}>Delete Document?</h3>
               <p style={{ margin: '0 0 20px 0', color: '#9ca3af', fontSize: '14px' }}>
                 Are you sure you want to delete "{deleteConfirm.fileName}"?
+                {isSharedShipment && (
+                  <span style={{ display: 'block', marginTop: '8px', color: '#dc2626' }}>
+                    This will remove the document from all items in the shared shipment.
+                  </span>
+                )}
               </p>
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <button
