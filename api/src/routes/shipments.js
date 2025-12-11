@@ -93,6 +93,9 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
                   select: { name: true }
                 }
               }
+            },
+            _count: {
+              select: { documents: true }
             }
           }
         },
@@ -109,7 +112,20 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json(shipments);
+    // Calculate total item documents for each shipment
+    const shipmentsWithDocCounts = shipments.map(shipment => {
+      const itemDocCount = shipment.items.reduce((total, item) => {
+        return total + (item._count?.documents || 0);
+      }, 0);
+      
+      return {
+        ...shipment,
+        itemDocCount,
+        totalDocCount: (shipment._count?.documents || 0) + itemDocCount
+      };
+    });
+
+    res.json(shipmentsWithDocCounts);
   } catch (error) {
     console.error('Error fetching shipments:', error);
     res.status(500).json({ error: 'Failed to fetch shipments' });
@@ -208,6 +224,9 @@ router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
                   select: { id: true, name: true, email: true, phone: true }
                 }
               }
+            },
+            _count: {
+              select: { documents: true }
             }
           }
         },
@@ -225,7 +244,16 @@ router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
       return res.status(404).json({ error: 'Shipment not found' });
     }
 
-    res.json(shipment);
+    // Calculate item document count
+    const itemDocCount = shipment.items.reduce((total, item) => {
+      return total + (item._count?.documents || 0);
+    }, 0);
+
+    res.json({
+      ...shipment,
+      itemDocCount,
+      totalDocCount: shipment.documents.length + itemDocCount
+    });
   } catch (error) {
     console.error('Error fetching shipment:', error);
     res.status(500).json({ error: 'Failed to fetch shipment' });
