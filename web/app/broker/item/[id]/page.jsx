@@ -24,6 +24,9 @@ const DOCUMENT_TYPE_LABELS = {
   OTHER: 'Other'
 };
 
+// All document types available for broker upload
+const ALL_DOCUMENT_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER', 'OTHER'];
+
 const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER'];
 
 export default function BrokerItemDetail() {
@@ -47,6 +50,7 @@ export default function BrokerItemDetail() {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedDocType, setSelectedDocType] = useState('ISF'); // Default to ISF
   const [dragActive, setDragActive] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -136,6 +140,7 @@ export default function BrokerItemDetail() {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
+      formData.append('documentType', selectedDocType);
 
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/customs/item/${itemId}/documents`, {
@@ -594,10 +599,37 @@ export default function BrokerItemDetail() {
 
                 {/* Upload Section */}
                 <div className="info-card">
-                  <h2>Upload Additional Documents</h2>
+                  <h2>Upload Document</h2>
                   <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '16px' }}>
-                    Brokers can upload supplementary documents here. Required documents are uploaded by the vendor or admin.
+                    Select a document type and upload the file.
                   </p>
+
+                  {/* Document Type Dropdown */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', color: '#9ca3af', marginBottom: '6px' }}>
+                      Document Type
+                    </label>
+                    <select
+                      value={selectedDocType}
+                      onChange={(e) => setSelectedDocType(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        background: '#1a1a1a',
+                        border: '1px solid #404040',
+                        borderRadius: '6px',
+                        color: '#fff',
+                        fontSize: '14px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {ALL_DOCUMENT_TYPES.map(type => (
+                        <option key={type} value={type}>
+                          {DOCUMENT_TYPE_LABELS[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   <div
                     style={{
@@ -637,7 +669,7 @@ export default function BrokerItemDetail() {
                     disabled={!selectedFile || uploadingDoc}
                     className="broker-btn broker-btn-primary full-width"
                   >
-                    {uploadingDoc ? 'Uploading...' : 'Upload as "Other"'}
+                    {uploadingDoc ? 'Uploading...' : `Upload as "${DOCUMENT_TYPE_LABELS[selectedDocType]}"`}
                   </button>
                 </div>
 
