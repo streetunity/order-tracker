@@ -264,6 +264,10 @@ model OrderItem {
   manufacturerId String?
   manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id])
   
+  // SHARED SHIPMENT - Links items across orders that share shipping documents
+  shipmentId     String?
+  shipment       Shipment? @relation(fields: [shipmentId], references: [id])
+  
   // PRICE AND PRIVATE NOTE FIELDS
   itemPrice      Float?   // Price for this item (total, not per unit)
   privateItemNote String? // Private internal notes for this item (purchasing notes)
@@ -313,6 +317,87 @@ model OrderItem {
   @@index([orderId])
   @@index([currentStage])
   @@index([customsDocumentStatus])
+  @@index([shipmentId])
+}
+
+// ============================================
+// SHARED SHIPMENT - For multi-item containers
+// ============================================
+
+model Shipment {
+  id                    String              @id @default(cuid())
+  
+  // Identifiers
+  containerNumber       String?             // Container number (e.g., MSKU1234567)
+  billOfLading          String?             // Bill of Lading number
+  
+  // Shipping details
+  etaDate               DateTime?           // Expected arrival date
+  vesselName            String?             // Name of the vessel
+  portOfOrigin          String?             // Port of departure
+  portOfDestination     String?             // Port of arrival
+  
+  // Customs tracking (shared across all items)
+  customsDocumentStatus String              @default("PENDING") // PENDING, IN_PROGRESS, FILED, CLEARED, ISSUES
+  customsFiledDate      DateTime?           // When documents were filed with customs
+  customsClearedDate    DateTime?           // When customs cleared the shipment
+  customsNotes          String?             // Broker notes
+  
+  // Audit
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  createdByUserId       String?
+  createdByName         String?
+  
+  // Relations
+  items                 OrderItem[]         // Items in this shipment
+  documents             ShipmentDocument[]  // Shared shipping documents
+  activityLogs          ShipmentActivityLog[] // Activity tracking
+
+  @@index([containerNumber])
+  @@index([billOfLading])
+  @@index([customsDocumentStatus])
+}
+
+// Shared shipping documents for multi-item containers
+model ShipmentDocument {
+  id           String    @id @default(cuid())
+  shipmentId   String
+  shipment     Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  fileName     String    // Original filename
+  fileSize     Int       // Size in bytes
+  fileType     String    // MIME type
+  documentType String    // ISF, ARRIVAL_NOTICE, BILL_OF_LADING, COMMERCIAL_INVOICE, PACKING_LIST, DELIVERY_ORDER, ISF_REPORT, ENTRY_SUMMARY, BROKER_INVOICE, OTHER
+  s3Key        String    // S3 object key
+  s3Url        String    // Full S3 URL
+
+  uploadedBy   String    // Username who uploaded
+  uploadedAt   DateTime  @default(now())
+
+  @@index([shipmentId])
+  @@index([documentType])
+  @@map("shipment_documents")
+}
+
+// Activity log for shared shipments
+model ShipmentActivityLog {
+  id          String    @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  userId      String
+  userName    String
+  action      String    // "CREATED", "VIEWED", "STATUS_UPDATED", "NOTE_ADDED", "DOCUMENT_UPLOADED", "ITEM_LINKED", "ITEM_UNLINKED"
+  oldStatus   String?   // Previous status
+  newStatus   String?   // New status
+  notes       String?   // Additional notes
+  metadata    String?   // JSON for additional context (e.g., item IDs)
+  createdAt   DateTime  @default(now())
+
+  @@index([shipmentId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("shipment_activity_logs")
 }
 
 model OrderStatusEvent {
