@@ -81,6 +81,14 @@ export function createBrokerRouter() {
               }
             }
           },
+          shipment: {
+            select: {
+              id: true,
+              containerNumber: true,
+              billOfLading: true,
+              _count: { select: { items: true } }
+            }
+          },
           statusEvents: {
             where: {
               stage: 'AT_SEA'
@@ -147,6 +155,24 @@ export function createBrokerRouter() {
                   containers: true
                 }
               }
+            }
+          },
+          shipment: {
+            include: {
+              items: {
+                where: { archivedAt: null },
+                select: {
+                  id: true,
+                  productCode: true,
+                  order: {
+                    select: {
+                      poNumber: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              _count: { select: { items: true, documents: true } }
             }
           }
         }
@@ -488,25 +514,56 @@ export function createBrokerRouter() {
   // =============================
 
   // GET /broker/item/:itemId/documents
-  // Get documents for an item (broker can view all types)
+  // Get documents for an item (returns shipment docs if item is linked to shipment)
   router.get('/item/:itemId/documents', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { itemId } = req.params;
 
-      // Get item
+      // Get item with shipment info
       const item = await prisma.orderItem.findUnique({
-        where: { id: itemId }
+        where: { id: itemId },
+        include: {
+          shipment: {
+            include: {
+              items: {
+                where: { archivedAt: null },
+                select: { id: true, productCode: true }
+              }
+            }
+          }
+        }
       });
 
       if (!item) {
         return res.status(404).json({ error: 'Item not found' });
       }
 
-      // Get documents
-      const documents = await prisma.itemDocument.findMany({
-        where: { itemId },
-        orderBy: { uploadedAt: 'desc' }
-      });
+      let documents = [];
+      let isSharedShipment = false;
+      let shipmentInfo = null;
+
+      // If item is linked to a shipment, get shipment documents
+      if (item.shipmentId) {
+        isSharedShipment = true;
+        shipmentInfo = {
+          id: item.shipment.id,
+          containerNumber: item.shipment.containerNumber,
+          billOfLading: item.shipment.billOfLading,
+          itemCount: item.shipment.items.length,
+          items: item.shipment.items
+        };
+
+        documents = await prisma.shipmentDocument.findMany({
+          where: { shipmentId: item.shipmentId },
+          orderBy: { uploadedAt: 'desc' }
+        });
+      } else {
+        // Get item-level documents
+        documents = await prisma.itemDocument.findMany({
+          where: { itemId },
+          orderBy: { uploadedAt: 'desc' }
+        });
+      }
 
       // Build checklist
       const checklist = {};
@@ -516,7 +573,7 @@ export function createBrokerRouter() {
       }
 
       const uploadedRequired = REQUIRED_DOCUMENT_TYPES.filter(
-        type => checklist[type].uploaded
+        type => checklist[type]?.uploaded
       ).length;
 
       res.json({
@@ -526,7 +583,9 @@ export function createBrokerRouter() {
           complete: uploadedRequired === REQUIRED_DOCUMENT_TYPES.length,
           uploadedRequired,
           totalRequired: REQUIRED_DOCUMENT_TYPES.length
-        }
+        },
+        isSharedShipment,
+        shipmentInfo
       });
     } catch (error) {
       console.error('Broker get documents error:', error);
@@ -535,7 +594,7 @@ export function createBrokerRouter() {
   });
 
   // POST /broker/item/:itemId/documents
-  // Upload document (broker can only upload broker-specific document types)
+  // Upload document (to shipment if linked, otherwise to item)
   router.post('/item/:itemId/documents', authGuard, requireBrokerRole, upload.single('file'), async (req, res) => {
     try {
       const { itemId } = req.params;
@@ -556,50 +615,86 @@ export function createBrokerRouter() {
         return res.status(400).json({ error: validationErrors.join(', ') });
       }
 
-      // Verify item exists
+      // Verify item exists and check for shipment link
       const item = await prisma.orderItem.findUnique({
         where: { id: itemId },
-        include: { order: true }
+        include: { order: true, shipment: true }
       });
 
       if (!item) {
         return res.status(404).json({ error: 'Item not found' });
       }
 
+      // Determine upload destination
+      const isSharedShipment = !!item.shipmentId;
+
       // Upload to S3
       const s3Data = await uploadFileToS3({
         fileBuffer: file.buffer,
         originalName: file.originalname,
         mimeType: file.mimetype,
-        orderId: item.orderId,
+        orderId: isSharedShipment ? `shipment-${item.shipmentId}` : item.orderId,
         uploadedBy: username
       });
 
-      // Create document record
-      const document = await prisma.itemDocument.create({
-        data: {
-          itemId,
-          fileName: s3Data.fileName,
-          fileSize: s3Data.fileSize,
-          fileType: s3Data.fileType,
-          documentType,
-          s3Key: s3Data.s3Key,
-          s3Url: s3Data.s3Url,
-          uploadedBy: username
-        }
-      });
+      let document;
 
-      // Log activity
+      if (isSharedShipment) {
+        // Create shipment document
+        document = await prisma.shipmentDocument.create({
+          data: {
+            shipmentId: item.shipmentId,
+            fileName: s3Data.fileName,
+            fileSize: s3Data.fileSize,
+            fileType: s3Data.fileType,
+            documentType,
+            s3Key: s3Data.s3Key,
+            s3Url: s3Data.s3Url,
+            uploadedBy: username
+          }
+        });
+
+        // Log to shipment activity
+        await prisma.shipmentActivityLog.create({
+          data: {
+            shipmentId: item.shipmentId,
+            userId: req.user.id,
+            userName: req.user.name,
+            action: 'DOCUMENT_UPLOADED',
+            notes: `Uploaded ${DOCUMENT_TYPE_LABELS[documentType] || documentType}: ${file.originalname}`
+          }
+        });
+      } else {
+        // Create item document
+        document = await prisma.itemDocument.create({
+          data: {
+            itemId,
+            fileName: s3Data.fileName,
+            fileSize: s3Data.fileSize,
+            fileType: s3Data.fileType,
+            documentType,
+            s3Key: s3Data.s3Key,
+            s3Url: s3Data.s3Url,
+            uploadedBy: username
+          }
+        });
+      }
+
+      // Log activity to item
       await prisma.brokerActivityLog.create({
         data: {
           orderItemId: itemId,
           userId: req.user.id,
           action: 'DOCUMENT_UPLOADED',
-          notes: `Uploaded ${DOCUMENT_TYPE_LABELS[documentType] || documentType}: ${file.originalname}`
+          notes: `Uploaded ${DOCUMENT_TYPE_LABELS[documentType] || documentType}: ${file.originalname}${isSharedShipment ? ' (to shared shipment)' : ''}`
         }
       });
 
-      res.json({ message: 'Document uploaded successfully', document });
+      res.json({ 
+        message: 'Document uploaded successfully', 
+        document,
+        uploadedToShipment: isSharedShipment
+      });
     } catch (error) {
       console.error('Broker upload error:', error);
       res.status(500).json({ error: error.message || 'Failed to upload document' });
@@ -607,16 +702,37 @@ export function createBrokerRouter() {
   });
 
   // GET /broker/item/:itemId/documents/:documentId/download
-  // Get signed download URL
+  // Get signed download URL (handles both item and shipment documents)
   router.get('/item/:itemId/documents/:documentId/download', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { itemId, documentId } = req.params;
 
-      const document = await prisma.itemDocument.findUnique({
+      // First check item documents
+      let document = await prisma.itemDocument.findUnique({
         where: { id: documentId }
       });
 
-      if (!document || document.itemId !== itemId) {
+      // If not found, check shipment documents
+      if (!document) {
+        const item = await prisma.orderItem.findUnique({
+          where: { id: itemId },
+          select: { shipmentId: true }
+        });
+
+        if (item?.shipmentId) {
+          document = await prisma.shipmentDocument.findUnique({
+            where: { id: documentId }
+          });
+
+          if (document && document.shipmentId !== item.shipmentId) {
+            return res.status(404).json({ error: 'Document not found' });
+          }
+        }
+      } else if (document.itemId !== itemId) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      if (!document) {
         return res.status(404).json({ error: 'Document not found' });
       }
 
@@ -631,16 +747,39 @@ export function createBrokerRouter() {
   });
 
   // DELETE /broker/item/:itemId/documents/:documentId
-  // Delete document (broker can only delete own uploads)
+  // Delete document (handles both item and shipment documents)
   router.delete('/item/:itemId/documents/:documentId', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { itemId, documentId } = req.params;
 
-      const document = await prisma.itemDocument.findUnique({
+      // First check item documents
+      let document = await prisma.itemDocument.findUnique({
         where: { id: documentId }
       });
+      let isShipmentDoc = false;
 
-      if (!document || document.itemId !== itemId) {
+      // If not found, check shipment documents
+      if (!document) {
+        const item = await prisma.orderItem.findUnique({
+          where: { id: itemId },
+          select: { shipmentId: true }
+        });
+
+        if (item?.shipmentId) {
+          document = await prisma.shipmentDocument.findUnique({
+            where: { id: documentId }
+          });
+
+          if (document && document.shipmentId !== item.shipmentId) {
+            return res.status(404).json({ error: 'Document not found' });
+          }
+          isShipmentDoc = true;
+        }
+      } else if (document.itemId !== itemId) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      if (!document) {
         return res.status(404).json({ error: 'Document not found' });
       }
 
@@ -653,9 +792,11 @@ export function createBrokerRouter() {
       await deleteFileFromS3(document.s3Key);
 
       // Delete from database
-      await prisma.itemDocument.delete({
-        where: { id: documentId }
-      });
+      if (isShipmentDoc) {
+        await prisma.shipmentDocument.delete({ where: { id: documentId } });
+      } else {
+        await prisma.itemDocument.delete({ where: { id: documentId } });
+      }
 
       res.json({ message: 'Document deleted successfully' });
     } catch (error) {
