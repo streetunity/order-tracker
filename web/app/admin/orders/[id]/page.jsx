@@ -1039,9 +1039,12 @@ export default function EditOrderPage({ params }) {
               }}
               onSaveAllChanges={saveAllChanges}
               onAddItem={addItem}
+              onRefresh={load}
               disabled={saving}
               isAdmin={isAdmin}
+              isAgent={user?.role === "AGENT"}
               manufacturers={manufacturers}
+              getAuthHeaders={getAuthHeaders}
             />
 
             {/* Discount and Total - Right Justified */}
