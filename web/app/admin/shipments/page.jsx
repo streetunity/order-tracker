@@ -310,12 +310,6 @@ export default function ShipmentManagementPage() {
     return styles[status] || styles.PENDING;
   };
 
-  // Count total documents from linked items
-  const getItemDocsCount = (items) => {
-    if (!items) return 0;
-    return items.reduce((total, item) => total + (item._count?.documents || 0), 0);
-  };
-
   if (authLoading || !user) {
     return (
       <>
@@ -640,7 +634,8 @@ export default function ShipmentManagementPage() {
             {shipments.map((shipment) => {
               const statusStyle = getStatusStyle(shipment.customsDocumentStatus);
               const itemCount = shipment._count?.items || 0;
-              const shipmentDocCount = shipment._count?.documents || 0;
+              // Use totalDocCount (includes item docs) or fall back to just shipment docs
+              const totalDocCount = shipment.totalDocCount || shipment._count?.documents || 0;
               
               return (
                 <div
@@ -711,7 +706,7 @@ export default function ShipmentManagementPage() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255, 255, 255, 0.5)", fontSize: 13 }}>
                         <span>📄</span>
-                        <span>{shipmentDocCount} docs</span>
+                        <span>{totalDocCount} docs</span>
                       </div>
                       <span style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 16 }}>
                         {expandedShipment === shipment.id ? "▲" : "▼"}
@@ -883,13 +878,12 @@ export default function ShipmentManagementPage() {
                                       borderTop: idx > 0 ? "1px solid rgba(255, 255, 255, 0.06)" : "none"
                                     }}
                                   >
-                                    <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                       <span style={{ fontWeight: 600, color: "#fff" }}>{item.productCode}</span>
-                                      <span style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13, marginLeft: 12 }}>
+                                      <span style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13 }}>
                                         {item.order?.account?.name} • {item.order?.poNumber || "No PO"}
                                       </span>
                                       <span style={{
-                                        marginLeft: 10,
                                         fontSize: 11,
                                         padding: "2px 8px",
                                         borderRadius: 4,
@@ -901,6 +895,11 @@ export default function ShipmentManagementPage() {
                                       }}>
                                         {item.currentStage}
                                       </span>
+                                      {item._count?.documents > 0 && (
+                                        <span style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.4)" }}>
+                                          📄 {item._count.documents}
+                                        </span>
+                                      )}
                                     </div>
                                     <div style={{ display: "flex", gap: 8 }}>
                                       <Link
