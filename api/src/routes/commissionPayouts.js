@@ -379,6 +379,75 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
+  // Unpay a payout (move back to approved)
+  router.post('/:id/unpay', adminGuard, async (req, res) => {
+    try {
+      if (!canManageCommissions(req.user.role)) {
+        return res.status(403).json({ error: 'Only Super Admins and Accountants can unpay payouts' });
+      }
+
+      const payout = await prisma.commissionPayout.findUnique({
+        where: { id: req.params.id },
+        include: {
+          itemCommission: {
+            include: {
+              commission: true
+            }
+          }
+        }
+      });
+
+      if (!payout) {
+        return res.status(404).json({ error: 'Payout not found' });
+      }
+
+      if (payout.status !== 'PAID') {
+        return res.status(400).json({ error: 'Only paid payouts can be moved back to approved' });
+      }
+
+      // Store previous payment info for audit log
+      const previousPaymentInfo = {
+        paidAt: payout.paidAt,
+        paidByUserId: payout.paidByUserId,
+        paidByName: payout.paidByName,
+        paymentMethod: payout.paymentMethod,
+        paymentNotes: payout.paymentNotes
+      };
+
+      const updatedPayout = await prisma.commissionPayout.update({
+        where: { id: req.params.id },
+        data: {
+          status: 'APPROVED',
+          paidAt: null,
+          paidByUserId: null,
+          paidByName: null,
+          paymentMethod: null,
+          paymentNotes: null
+        }
+      });
+
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'CommissionPayout',
+          entityId: updatedPayout.id,
+          action: 'UNPAID',
+          metadata: JSON.stringify({
+            reason: 'Moved back to approved status',
+            previousPaymentInfo
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+
+      res.json(updatedPayout);
+    } catch (error) {
+      console.error('Error unpaying payout:', error);
+      res.status(500).json({ error: 'Failed to unpay payout' });
+    }
+  });
+
   // Bulk approve payouts
   router.post('/bulk-approve', adminGuard, async (req, res) => {
     try {
