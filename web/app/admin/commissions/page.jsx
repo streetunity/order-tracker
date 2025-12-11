@@ -43,6 +43,9 @@ export default function CommissionsPage() {
   const [showUnapproveModal, setShowUnapproveModal] = useState(false);
   const [unapprovePayoutId, setUnapprovePayoutId] = useState(null);
 
+  const [showUnpayModal, setShowUnpayModal] = useState(false);
+  const [unpayPayoutId, setUnpayPayoutId] = useState(null);
+
   // PDF Report Modal state
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfAgent, setPdfAgent] = useState("");
@@ -360,6 +363,38 @@ export default function CommissionsPage() {
     } catch (error) {
       console.error("Error unapproving payout:", error);
       showNotif("Error unapproving payout", "error");
+    }
+  };
+
+  const handleUnpay = (payoutId) => {
+    setUnpayPayoutId(payoutId);
+    setShowUnpayModal(true);
+  };
+
+  const executeUnpay = async () => {
+    try {
+      const res = await fetch(`/api/commissions/payouts/${unpayPayoutId}/unpay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+      });
+
+      if (res.ok) {
+        // Update local state to remove from paid list
+        setRecentlyPaid(prev => prev.filter(p => p.id !== unpayPayoutId));
+
+        showNotif("Payment moved back to approved status");
+        setShowUnpayModal(false);
+        setUnpayPayoutId(null);
+      } else {
+        const error = await res.json().catch(() => ({}));
+        showNotif(`Failed to unpay: ${error.error || 'Unknown error'}`, "error");
+      }
+    } catch (error) {
+      console.error("Error unpaying payout:", error);
+      showNotif("Error unpaying payout", "error");
     }
   };
 
@@ -1255,25 +1290,27 @@ export default function CommissionsPage() {
                 <div style={{ background: "#1a1a1a", borderRadius: "8px", border: "1px solid #333", overflow: "hidden" }}>
                   <table style={{ width: "100%", tableLayout: "fixed" }}>
                     <colgroup>
-                      <col style={{ width: "17%" }} />
-                      <col style={{ width: "23%" }} />
-                      <col style={{ width: "13%" }} />
-                      <col style={{ width: "55px" }} />
-                      <col style={{ width: "120px" }} />
-                      <col style={{ width: "70px" }} />
-                      <col style={{ width: "85px" }} />
+                      <col style={{ width: "15%" }} />
+                      <col style={{ width: "20%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "50px" }} />
+                      <col style={{ width: "100px" }} />
+                      <col style={{ width: "65px" }} />
+                      <col style={{ width: "80px" }} />
                       <col style={{ width: "10%" }} />
+                      <col style={{ width: "50px" }} />
                     </colgroup>
                     <thead>
                       <tr style={{ background: "#252525", borderBottom: "1px solid #333" }}>
                         <th style={{ padding: "8px", textAlign: "left", color: "#999", fontSize: "12px" }}>Customer Name</th>
                         <th style={{ padding: "8px", textAlign: "left", color: "#999", fontSize: "12px" }}>Item Name</th>
                         <th style={{ padding: "8px", textAlign: "left", color: "#999", fontSize: "12px" }}>Sales Rep</th>
-                        <th style={{ padding: "8px 4px", textAlign: "center", color: "#fff", fontSize: "12px" }}>Payment</th>
+                        <th style={{ padding: "8px 4px", textAlign: "center", color: "#fff", fontSize: "12px" }}>Pmt</th>
                         <th style={{ padding: "8px 4px", textAlign: "right", color: "#999", fontSize: "12px" }}>Amount</th>
                         <th style={{ padding: "8px 4px", textAlign: "left", color: "#999", fontSize: "12px" }}>Method</th>
                         <th style={{ padding: "8px 4px", textAlign: "left", color: "#999", fontSize: "12px" }}>Paid Date</th>
                         <th style={{ padding: "8px", textAlign: "left", color: "#999", fontSize: "12px" }}>Paid By</th>
+                        <th style={{ padding: "4px", textAlign: "center", color: "#999", fontSize: "11px" }}>Undo</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1314,6 +1351,23 @@ export default function CommissionsPage() {
                             </td>
                             <td style={{ padding: "8px", color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px" }}>
                               {payout.paidByName || "N/A"}
+                            </td>
+                            <td style={{ padding: "4px 2px", textAlign: "center" }}>
+                              <button
+                                onClick={() => handleUnpay(payout.id)}
+                                title="Undo Payment (Move back to Approved)"
+                                style={{
+                                  padding: "4px 8px",
+                                  background: "#f59e0b",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "3px",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                }}
+                              >
+                                ↶
+                              </button>
                             </td>
                           </tr>
                         );
@@ -1932,6 +1986,92 @@ export default function CommissionsPage() {
                 }}
               >
                 Undo Approval
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unpay Payment Modal */}
+      {showUnpayModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}
+          onClick={() => setShowUnpayModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1f1f1f",
+              border: "1px solid #404040",
+              borderRadius: "8px",
+              padding: "2rem",
+              maxWidth: "500px",
+              width: "90%",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+              ↶ Undo Payment
+            </h3>
+            <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
+              Are you sure you want to move this payment back to approved status?
+            </p>
+            <div style={{
+              padding: "1rem",
+              backgroundColor: "rgba(245, 158, 11, 0.1)",
+              border: "1px solid rgba(245, 158, 11, 0.3)",
+              borderRadius: "6px",
+              marginBottom: "1rem"
+            }}>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#f59e0b" }}>
+                <strong>Note:</strong> This will:
+              </p>
+              <ul style={{ margin: "0", paddingLeft: "1.5rem", fontSize: "13px", color: "#f59e0b" }}>
+                <li>Move the payment back to APPROVED status</li>
+                <li>Clear payment information (paid date, method, etc.)</li>
+                <li>Allow the payment to be re-processed</li>
+                <li>Log this action in the audit trail</li>
+              </ul>
+            </div>
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+              <button
+                onClick={() => setShowUnpayModal(false)}
+                style={{
+                  background: "#2d2d2d",
+                  color: "#fff",
+                  border: "1px solid #404040",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px"
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeUnpay}
+                style={{
+                  backgroundColor: "#f59e0b",
+                  color: "white",
+                  border: "none",
+                  padding: "0.5rem 1.5rem",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px"
+                }}
+              >
+                Undo Payment
               </button>
             </div>
           </div>
