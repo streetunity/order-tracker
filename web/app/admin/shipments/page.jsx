@@ -5,11 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { 
-  Ship, Package, FileText, Search, Plus, Archive, ArchiveRestore, 
-  Trash2, ChevronDown, ChevronUp, Edit2, X, Check, Link2, Unlink,
-  Calendar, Anchor, MapPin, AlertCircle, ExternalLink
-} from "lucide-react";
+import TopNav from "@/components/TopNav";
 
 export default function ShipmentManagementPage() {
   const { user, getAuthHeaders, loading: authLoading } = useAuth();
@@ -22,7 +18,7 @@ export default function ShipmentManagementPage() {
   
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewFilter, setViewFilter] = useState("active"); // active, archived, all
+  const [viewFilter, setViewFilter] = useState("active");
   const [statusFilter, setStatusFilter] = useState("");
   
   // UI State
@@ -68,7 +64,6 @@ export default function ShipmentManagementPage() {
       } else if (viewFilter === "all") {
         params.append("includeArchived", "true");
       }
-      // active is default (no params needed)
       
       if (statusFilter) {
         params.append("status", statusFilter);
@@ -304,97 +299,171 @@ export default function ShipmentManagementPage() {
     });
   }
 
-  const statusColors = {
-    PENDING: "bg-gray-600",
-    IN_PROGRESS: "bg-blue-600",
-    FILED: "bg-yellow-600",
-    CLEARED: "bg-green-600",
-    ISSUES: "bg-red-600"
+  const getStatusStyle = (status) => {
+    const styles = {
+      PENDING: { background: "rgba(107, 114, 128, 0.3)", color: "#9ca3af" },
+      IN_PROGRESS: { background: "rgba(59, 130, 246, 0.3)", color: "#60a5fa" },
+      FILED: { background: "rgba(234, 179, 8, 0.3)", color: "#fbbf24" },
+      CLEARED: { background: "rgba(34, 197, 94, 0.3)", color: "#4ade80" },
+      ISSUES: { background: "rgba(239, 68, 68, 0.3)", color: "#f87171" }
+    };
+    return styles[status] || styles.PENDING;
+  };
+
+  // Count total documents from linked items
+  const getItemDocsCount = (items) => {
+    if (!items) return 0;
+    return items.reduce((total, item) => total + (item._count?.documents || 0), 0);
   };
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
+      <>
+        <TopNav />
+        <div style={{ maxWidth: "1400px", margin: "0 auto", padding: 24 }}>
+          <div style={{ color: "rgba(255, 255, 255, 0.6)" }}>Loading...</div>
+        </div>
+      </>
     );
   }
 
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 14px",
+    background: "rgba(255, 255, 255, 0.05)",
+    border: "1px solid rgba(255, 255, 255, 0.1)",
+    borderRadius: "8px",
+    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: "14px"
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: "6px",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.6)"
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <div className="bg-zinc-900 border-b border-zinc-800 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/admin" className="text-gray-400 hover:text-white">
-              ← Back to Admin
-            </Link>
-            <div className="flex items-center gap-2">
-              <Ship className="w-6 h-6 text-red-500" />
-              <h1 className="text-xl font-bold">Shipment Management</h1>
-            </div>
+    <>
+      <TopNav />
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: 24 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#ef4444", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: "32px" }}>🚢</span>
+              Shipment Management
+            </h1>
+            <p style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: "14px" }}>
+              Manage shared shipments and track customs clearance
+            </p>
           </div>
           
           <button
             onClick={() => setShowCreateForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 20px",
+              background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "600",
+              fontSize: "14px"
+            }}
           >
-            <Plus className="w-4 h-4" />
+            <span style={{ fontSize: "18px" }}>+</span>
             New Shipment
           </button>
         </div>
-      </div>
 
-      <div className="p-6">
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <div className="text-2xl font-bold text-white">{stats.active}</div>
-              <div className="text-sm text-gray-400">Active Shipments</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+            <div style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "12px",
+              padding: "20px"
+            }}>
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: 4 }}>{stats.active}</div>
+              <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.5)" }}>Active Shipments</div>
             </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <div className="text-2xl font-bold text-white">{stats.archived}</div>
-              <div className="text-sm text-gray-400">Archived</div>
+            <div style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "12px",
+              padding: "20px"
+            }}>
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: 4 }}>{stats.archived}</div>
+              <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.5)" }}>Archived</div>
             </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <div className="text-2xl font-bold text-white">{stats.linkedItems}</div>
-              <div className="text-sm text-gray-400">Linked Items</div>
+            <div style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "12px",
+              padding: "20px"
+            }}>
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: 4 }}>{stats.linkedItems}</div>
+              <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.5)" }}>Linked Items</div>
             </div>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-              <div className="text-2xl font-bold text-green-500">{stats.byStatus?.CLEARED || 0}</div>
-              <div className="text-sm text-gray-400">Cleared</div>
+            <div style={{
+              background: "rgba(34, 197, 94, 0.1)",
+              border: "1px solid rgba(34, 197, 94, 0.3)",
+              borderRadius: "12px",
+              padding: "20px"
+            }}>
+              <div style={{ fontSize: "32px", fontWeight: "700", color: "#4ade80", marginBottom: 4 }}>{stats.byStatus?.CLEARED || 0}</div>
+              <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.5)" }}>Cleared</div>
             </div>
           </div>
         )}
 
         {/* Error Message */}
         {error && (
-          <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg flex items-center justify-between">
-            <span className="text-red-300">{error}</span>
-            <button onClick={() => setError("")} className="text-red-300 hover:text-white">
-              <X className="w-4 h-4" />
+          <div style={{
+            padding: "12px 16px",
+            marginBottom: "20px",
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            borderRadius: "8px",
+            color: "#ef4444",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <span>{error}</span>
+            <button 
+              onClick={() => setError("")}
+              style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "18px" }}
+            >
+              ×
             </button>
           </div>
         )}
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: "250px" }}>
+            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)" }}>🔍</span>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search container, BOL, vessel..."
-              className="w-full pl-10 pr-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-500"
+              style={{ ...inputStyle, paddingLeft: 40 }}
             />
           </div>
           
           <select
             value={viewFilter}
             onChange={(e) => setViewFilter(e.target.value)}
-            className="px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white"
+            style={{ ...inputStyle, width: "auto", minWidth: "150px", cursor: "pointer" }}
           >
             <option value="active">Active Only</option>
             <option value="archived">Archived Only</option>
@@ -404,7 +473,7 @@ export default function ShipmentManagementPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white"
+            style={{ ...inputStyle, width: "auto", minWidth: "150px", cursor: "pointer" }}
           >
             <option value="">All Statuses</option>
             <option value="PENDING">Pending</option>
@@ -417,93 +486,136 @@ export default function ShipmentManagementPage() {
 
         {/* Create Form Modal */}
         {showCreateForm && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-lg w-full max-w-lg">
-              <div className="flex items-center justify-between p-4 border-b border-zinc-700">
-                <h2 className="text-lg font-semibold">Create New Shipment</h2>
-                <button onClick={() => setShowCreateForm(false)} className="text-gray-400 hover:text-white">
-                  <X className="w-5 h-5" />
+          <div style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1100
+          }} onClick={() => setShowCreateForm(false)}>
+            <div style={{
+              backgroundColor: "#1a1a1a",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "12px",
+              width: "100%",
+              maxWidth: "600px",
+              margin: "20px"
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "20px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.1)"
+              }}>
+                <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#fff", margin: 0 }}>Create New Shipment</h2>
+                <button 
+                  onClick={() => setShowCreateForm(false)}
+                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "24px" }}
+                >
+                  ×
                 </button>
               </div>
               
-              <form onSubmit={handleCreateShipment} className="p-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleCreateShipment} style={{ padding: "20px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Container Number</label>
+                    <label style={labelStyle}>Container Number</label>
                     <input
                       type="text"
                       value={formData.containerNumber}
                       onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
                       placeholder="MSKU1234567"
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
+                      style={inputStyle}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Bill of Lading</label>
+                    <label style={labelStyle}>Bill of Lading</label>
                     <input
                       type="text"
                       value={formData.billOfLading}
                       onChange={(e) => setFormData({ ...formData, billOfLading: e.target.value })}
                       placeholder="BOL-123456"
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
+                      style={inputStyle}
                     />
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Vessel Name</label>
+                    <label style={labelStyle}>Vessel Name</label>
                     <input
                       type="text"
                       value={formData.vesselName}
                       onChange={(e) => setFormData({ ...formData, vesselName: e.target.value })}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
+                      style={inputStyle}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">ETA Date</label>
+                    <label style={labelStyle}>ETA Date</label>
                     <input
                       type="date"
                       value={formData.etaDate}
                       onChange={(e) => setFormData({ ...formData, etaDate: e.target.value })}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
+                      style={inputStyle}
                     />
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Port of Origin</label>
+                    <label style={labelStyle}>Port of Origin</label>
                     <input
                       type="text"
                       value={formData.portOfOrigin}
                       onChange={(e) => setFormData({ ...formData, portOfOrigin: e.target.value })}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
+                      style={inputStyle}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">Port of Destination</label>
+                    <label style={labelStyle}>Port of Destination</label>
                     <input
                       type="text"
                       value={formData.portOfDestination}
                       onChange={(e) => setFormData({ ...formData, portOfDestination: e.target.value })}
-                      className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
+                      style={inputStyle}
                     />
                   </div>
                 </div>
                 
-                <div className="flex justify-end gap-2 pt-4">
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
                   <button
                     type="button"
                     onClick={() => setShowCreateForm(false)}
-                    className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded"
+                    style={{
+                      padding: "10px 20px",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      color: "rgba(255, 255, 255, 0.9)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "8px",
+                      cursor: "pointer"
+                    }}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={actionLoading === "create"}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded disabled:opacity-50"
+                    style={{
+                      padding: "10px 20px",
+                      background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: actionLoading === "create" ? "not-allowed" : "pointer",
+                      opacity: actionLoading === "create" ? 0.7 : 1,
+                      fontWeight: "600"
+                    }}
                   >
                     {actionLoading === "create" ? "Creating..." : "Create Shipment"}
                   </button>
@@ -515,296 +627,418 @@ export default function ShipmentManagementPage() {
 
         {/* Shipments List */}
         {loading ? (
-          <div className="text-center py-12 text-gray-400">Loading shipments...</div>
+          <div style={{ textAlign: "center", padding: 48, color: "rgba(255, 255, 255, 0.5)" }}>
+            Loading shipments...
+          </div>
         ) : shipments.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <Ship className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <div style={{ textAlign: "center", padding: 48, color: "rgba(255, 255, 255, 0.5)" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🚢</div>
             <p>No shipments found</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {shipments.map((shipment) => (
-              <div
-                key={shipment.id}
-                className={`bg-zinc-900 border rounded-lg overflow-hidden ${
-                  shipment.archivedAt ? "border-zinc-700 opacity-75" : "border-zinc-800"
-                }`}
-              >
-                {/* Shipment Header */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {shipments.map((shipment) => {
+              const statusStyle = getStatusStyle(shipment.customsDocumentStatus);
+              const itemCount = shipment._count?.items || 0;
+              const shipmentDocCount = shipment._count?.documents || 0;
+              
+              return (
                 <div
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-800/50"
-                  onClick={() => setExpandedShipment(expandedShipment === shipment.id ? null : shipment.id)}
+                  key={shipment.id}
+                  style={{
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "12px",
+                    background: shipment.archivedAt ? "rgba(255, 255, 255, 0.01)" : "rgba(255, 255, 255, 0.03)",
+                    opacity: shipment.archivedAt ? 0.7 : 1,
+                    overflow: "hidden"
+                  }}
                 >
-                  <div className="flex items-center gap-4">
-                    <Ship className={`w-5 h-5 ${shipment.archivedAt ? "text-gray-500" : "text-red-500"}`} />
-                    
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
-                          {shipment.containerNumber || shipment.billOfLading || "No identifier"}
-                        </span>
-                        {shipment.archivedAt && (
-                          <span className="text-xs px-2 py-0.5 bg-zinc-700 text-gray-400 rounded">
-                            Archived
+                  {/* Shipment Header */}
+                  <div
+                    style={{
+                      padding: "16px 20px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      cursor: "pointer"
+                    }}
+                    onClick={() => setExpandedShipment(expandedShipment === shipment.id ? null : shipment.id)}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                      <span style={{ fontSize: 24, opacity: shipment.archivedAt ? 0.5 : 1 }}>🚢</span>
+                      
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                          <span style={{ fontWeight: "600", fontSize: 16, color: "#fff" }}>
+                            {shipment.containerNumber || shipment.billOfLading || "No identifier"}
                           </span>
-                        )}
-                        <span className={`text-xs px-2 py-0.5 rounded ${statusColors[shipment.customsDocumentStatus]}`}>
-                          {shipment.customsDocumentStatus}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-400 flex items-center gap-3 mt-1">
-                        {shipment.vesselName && (
-                          <span className="flex items-center gap-1">
-                            <Anchor className="w-3 h-3" />
-                            {shipment.vesselName}
-                          </span>
-                        )}
-                        {shipment.etaDate && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            ETA: {new Date(shipment.etaDate).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <Package className="w-4 h-4" />
-                      {shipment._count?.items || 0} items
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <FileText className="w-4 h-4" />
-                      {shipment._count?.documents || 0} docs
-                    </div>
-                    {expandedShipment === shipment.id ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Expanded Content */}
-                {expandedShipment === shipment.id && (
-                  <div className="border-t border-zinc-800 p-4">
-                    {editingShipment === shipment.id ? (
-                      /* Edit Form */
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-sm text-gray-400 mb-1">Container Number</label>
-                            <input
-                              type="text"
-                              value={formData.containerNumber}
-                              onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
-                              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-400 mb-1">Bill of Lading</label>
-                            <input
-                              type="text"
-                              value={formData.billOfLading}
-                              onChange={(e) => setFormData({ ...formData, billOfLading: e.target.value })}
-                              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-400 mb-1">Vessel Name</label>
-                            <input
-                              type="text"
-                              value={formData.vesselName}
-                              onChange={(e) => setFormData({ ...formData, vesselName: e.target.value })}
-                              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-400 mb-1">ETA Date</label>
-                            <input
-                              type="date"
-                              value={formData.etaDate}
-                              onChange={(e) => setFormData({ ...formData, etaDate: e.target.value })}
-                              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-400 mb-1">Port of Origin</label>
-                            <input
-                              type="text"
-                              value={formData.portOfOrigin}
-                              onChange={(e) => setFormData({ ...formData, portOfOrigin: e.target.value })}
-                              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-400 mb-1">Port of Destination</label>
-                            <input
-                              type="text"
-                              value={formData.portOfDestination}
-                              onChange={(e) => setFormData({ ...formData, portOfDestination: e.target.value })}
-                              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleUpdateShipment(shipment.id)}
-                            disabled={actionLoading === shipment.id}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm"
-                          >
-                            <Check className="w-4 h-4" />
-                            Save
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-sm"
-                          >
-                            <X className="w-4 h-4" />
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* View Details */
-                      <div className="space-y-4">
-                        {/* Details Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-400">Container:</span>
-                            <span className="ml-2">{shipment.containerNumber || "—"}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">BOL:</span>
-                            <span className="ml-2">{shipment.billOfLading || "—"}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Vessel:</span>
-                            <span className="ml-2">{shipment.vesselName || "—"}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">ETA:</span>
-                            <span className="ml-2">
-                              {shipment.etaDate ? new Date(shipment.etaDate).toLocaleDateString() : "—"}
+                          {shipment.archivedAt && (
+                            <span style={{
+                              fontSize: 11,
+                              padding: "2px 8px",
+                              background: "rgba(107, 114, 128, 0.3)",
+                              color: "#9ca3af",
+                              borderRadius: 4
+                            }}>
+                              Archived
                             </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Origin:</span>
-                            <span className="ml-2">{shipment.portOfOrigin || "—"}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Destination:</span>
-                            <span className="ml-2">{shipment.portOfDestination || "—"}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Created:</span>
-                            <span className="ml-2">{new Date(shipment.createdAt).toLocaleDateString()}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">By:</span>
-                            <span className="ml-2">{shipment.createdByName || "—"}</span>
-                          </div>
+                          )}
+                          <span style={{
+                            fontSize: 11,
+                            padding: "3px 10px",
+                            borderRadius: 4,
+                            fontWeight: 500,
+                            ...statusStyle
+                          }}>
+                            {shipment.customsDocumentStatus}
+                          </span>
                         </div>
-
-                        {/* Linked Items */}
-                        {shipment.items && shipment.items.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-400 mb-2">Linked Items ({shipment.items.length})</h4>
-                            <div className="bg-zinc-800 rounded-lg divide-y divide-zinc-700">
-                              {shipment.items.map((item) => (
-                                <div key={item.id} className="p-3 flex items-center justify-between">
-                                  <div>
-                                    <span className="font-medium">{item.productCode}</span>
-                                    <span className="text-gray-400 text-sm ml-2">
-                                      {item.order?.account?.name} • {item.order?.poNumber || "No PO"}
-                                    </span>
-                                    <span className={`ml-2 text-xs px-2 py-0.5 rounded ${
-                                      item.currentStage === "AT_SEA" ? "bg-blue-600" :
-                                      item.currentStage === "Delivered" ? "bg-green-600" : "bg-zinc-600"
-                                    }`}>
-                                      {item.currentStage}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Link
-                                      href={`/admin/orders/${item.order?.id}`}
-                                      className="text-gray-400 hover:text-white p-1"
-                                      title="View Order"
-                                    >
-                                      <ExternalLink className="w-4 h-4" />
-                                    </Link>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleUnlinkItem(shipment.id, item.id);
-                                      }}
-                                      disabled={actionLoading === item.id}
-                                      className="text-gray-400 hover:text-red-400 p-1"
-                                      title="Unlink Item"
-                                    >
-                                      <Unlink className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-800">
-                          <button
-                            onClick={() => startEdit(shipment)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-sm"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Edit
-                          </button>
-                          
-                          {isAdmin && (
-                            <>
-                              {shipment.archivedAt ? (
-                                <button
-                                  onClick={() => handleUnarchive(shipment.id)}
-                                  disabled={actionLoading === shipment.id}
-                                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm"
-                                >
-                                  <ArchiveRestore className="w-4 h-4" />
-                                  Restore
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleArchive(shipment.id)}
-                                  disabled={actionLoading === shipment.id}
-                                  className="flex items-center gap-1 px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 rounded text-sm"
-                                >
-                                  <Archive className="w-4 h-4" />
-                                  Archive
-                                </button>
-                              )}
-                              
-                              <button
-                                onClick={() => handleDelete(shipment.id, shipment._count?.items || 0)}
-                                disabled={actionLoading === shipment.id || (shipment._count?.items || 0) > 0}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={shipment._count?.items > 0 ? "Unlink all items first" : "Delete shipment"}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Delete
-                              </button>
-                            </>
+                        <div style={{ fontSize: 13, color: "rgba(255, 255, 255, 0.5)", display: "flex", gap: 16 }}>
+                          {shipment.vesselName && (
+                            <span>⚓ {shipment.vesselName}</span>
+                          )}
+                          {shipment.etaDate && (
+                            <span>📅 ETA: {new Date(shipment.etaDate).toLocaleDateString()}</span>
                           )}
                         </div>
                       </div>
-                    )}
+                    </div>
+                    
+                    <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255, 255, 255, 0.5)", fontSize: 13 }}>
+                        <span>📦</span>
+                        <span>{itemCount} items</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255, 255, 255, 0.5)", fontSize: 13 }}>
+                        <span>📄</span>
+                        <span>{shipmentDocCount} docs</span>
+                      </div>
+                      <span style={{ color: "rgba(255, 255, 255, 0.4)", fontSize: 16 }}>
+                        {expandedShipment === shipment.id ? "▲" : "▼"}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {/* Expanded Content */}
+                  {expandedShipment === shipment.id && (
+                    <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)", padding: "20px" }}>
+                      {editingShipment === shipment.id ? (
+                        /* Edit Form */
+                        <div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
+                            <div>
+                              <label style={labelStyle}>Container Number</label>
+                              <input
+                                type="text"
+                                value={formData.containerNumber}
+                                onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Bill of Lading</label>
+                              <input
+                                type="text"
+                                value={formData.billOfLading}
+                                onChange={(e) => setFormData({ ...formData, billOfLading: e.target.value })}
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Vessel Name</label>
+                              <input
+                                type="text"
+                                value={formData.vesselName}
+                                onChange={(e) => setFormData({ ...formData, vesselName: e.target.value })}
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>ETA Date</label>
+                              <input
+                                type="date"
+                                value={formData.etaDate}
+                                onChange={(e) => setFormData({ ...formData, etaDate: e.target.value })}
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Port of Origin</label>
+                              <input
+                                type="text"
+                                value={formData.portOfOrigin}
+                                onChange={(e) => setFormData({ ...formData, portOfOrigin: e.target.value })}
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Port of Destination</label>
+                              <input
+                                type="text"
+                                value={formData.portOfDestination}
+                                onChange={(e) => setFormData({ ...formData, portOfDestination: e.target.value })}
+                                style={inputStyle}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button
+                              onClick={() => handleUpdateShipment(shipment.id)}
+                              disabled={actionLoading === shipment.id}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "8px 16px",
+                                background: "rgba(34, 197, 94, 0.2)",
+                                border: "1px solid rgba(34, 197, 94, 0.4)",
+                                color: "#4ade80",
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                fontSize: 13
+                              }}
+                            >
+                              ✓ Save
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "8px 16px",
+                                background: "rgba(255, 255, 255, 0.05)",
+                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                color: "rgba(255, 255, 255, 0.7)",
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                fontSize: 13
+                              }}
+                            >
+                              ✕ Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* View Details */
+                        <div>
+                          {/* Details Grid */}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>Container</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>{shipment.containerNumber || "—"}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>BOL</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>{shipment.billOfLading || "—"}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>Vessel</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>{shipment.vesselName || "—"}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>ETA</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>
+                                {shipment.etaDate ? new Date(shipment.etaDate).toLocaleDateString() : "—"}
+                              </div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>Origin</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>{shipment.portOfOrigin || "—"}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>Destination</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>{shipment.portOfDestination || "—"}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>Created</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>{new Date(shipment.createdAt).toLocaleDateString()}</div>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>By</span>
+                              <div style={{ color: "#fff", marginTop: 4 }}>{shipment.createdByName || "—"}</div>
+                            </div>
+                          </div>
+
+                          {/* Linked Items */}
+                          {shipment.items && shipment.items.length > 0 && (
+                            <div style={{ marginBottom: 20 }}>
+                              <h4 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255, 255, 255, 0.6)", marginBottom: 12 }}>
+                                Linked Items ({shipment.items.length})
+                              </h4>
+                              <div style={{
+                                background: "rgba(255, 255, 255, 0.02)",
+                                border: "1px solid rgba(255, 255, 255, 0.08)",
+                                borderRadius: 8,
+                                overflow: "hidden"
+                              }}>
+                                {shipment.items.map((item, idx) => (
+                                  <div 
+                                    key={item.id} 
+                                    style={{
+                                      padding: "12px 16px",
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                      borderTop: idx > 0 ? "1px solid rgba(255, 255, 255, 0.06)" : "none"
+                                    }}
+                                  >
+                                    <div>
+                                      <span style={{ fontWeight: 600, color: "#fff" }}>{item.productCode}</span>
+                                      <span style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 13, marginLeft: 12 }}>
+                                        {item.order?.account?.name} • {item.order?.poNumber || "No PO"}
+                                      </span>
+                                      <span style={{
+                                        marginLeft: 10,
+                                        fontSize: 11,
+                                        padding: "2px 8px",
+                                        borderRadius: 4,
+                                        background: item.currentStage === "AT_SEA" ? "rgba(59, 130, 246, 0.3)" :
+                                                   item.currentStage === "Delivered" ? "rgba(34, 197, 94, 0.3)" : 
+                                                   "rgba(107, 114, 128, 0.3)",
+                                        color: item.currentStage === "AT_SEA" ? "#60a5fa" :
+                                               item.currentStage === "Delivered" ? "#4ade80" : "#9ca3af"
+                                      }}>
+                                        {item.currentStage}
+                                      </span>
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                      <Link
+                                        href={`/admin/orders/${item.order?.id}`}
+                                        style={{
+                                          padding: "4px 10px",
+                                          background: "rgba(255, 255, 255, 0.05)",
+                                          border: "1px solid rgba(255, 255, 255, 0.1)",
+                                          borderRadius: 4,
+                                          color: "rgba(255, 255, 255, 0.7)",
+                                          textDecoration: "none",
+                                          fontSize: 12
+                                        }}
+                                        title="View Order"
+                                      >
+                                        View →
+                                      </Link>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleUnlinkItem(shipment.id, item.id);
+                                        }}
+                                        disabled={actionLoading === item.id}
+                                        style={{
+                                          padding: "4px 10px",
+                                          background: "rgba(239, 68, 68, 0.1)",
+                                          border: "1px solid rgba(239, 68, 68, 0.3)",
+                                          borderRadius: 4,
+                                          color: "#ef4444",
+                                          cursor: "pointer",
+                                          fontSize: 12
+                                        }}
+                                        title="Unlink Item"
+                                      >
+                                        Unlink
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingTop: 16, borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                            <button
+                              onClick={() => startEdit(shipment)}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "8px 16px",
+                                background: "rgba(255, 255, 255, 0.05)",
+                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                color: "rgba(255, 255, 255, 0.9)",
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                fontSize: 13
+                              }}
+                            >
+                              ✏️ Edit
+                            </button>
+                            
+                            {isAdmin && (
+                              <>
+                                {shipment.archivedAt ? (
+                                  <button
+                                    onClick={() => handleUnarchive(shipment.id)}
+                                    disabled={actionLoading === shipment.id}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      padding: "8px 16px",
+                                      background: "rgba(34, 197, 94, 0.2)",
+                                      border: "1px solid rgba(34, 197, 94, 0.4)",
+                                      color: "#4ade80",
+                                      borderRadius: 6,
+                                      cursor: "pointer",
+                                      fontSize: 13
+                                    }}
+                                  >
+                                    📤 Restore
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleArchive(shipment.id)}
+                                    disabled={actionLoading === shipment.id}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      padding: "8px 16px",
+                                      background: "rgba(234, 179, 8, 0.2)",
+                                      border: "1px solid rgba(234, 179, 8, 0.4)",
+                                      color: "#fbbf24",
+                                      borderRadius: 6,
+                                      cursor: "pointer",
+                                      fontSize: 13
+                                    }}
+                                  >
+                                    📥 Archive
+                                  </button>
+                                )}
+                                
+                                <button
+                                  onClick={() => handleDelete(shipment.id, itemCount)}
+                                  disabled={actionLoading === shipment.id || itemCount > 0}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    padding: "8px 16px",
+                                    background: "rgba(239, 68, 68, 0.2)",
+                                    border: "1px solid rgba(239, 68, 68, 0.4)",
+                                    color: "#ef4444",
+                                    borderRadius: 6,
+                                    cursor: itemCount > 0 ? "not-allowed" : "pointer",
+                                    opacity: itemCount > 0 ? 0.5 : 1,
+                                    fontSize: 13
+                                  }}
+                                  title={itemCount > 0 ? "Unlink all items first" : "Delete shipment"}
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
