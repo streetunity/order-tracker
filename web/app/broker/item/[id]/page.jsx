@@ -14,19 +14,27 @@ import NotificationBar from "@/components/NotificationBar";
 import { CheckCircle, XCircle, Circle, Upload, File, Download, Trash2 } from "lucide-react";
 import "./item.css";
 
+// All document type labels (for displaying existing documents)
 const DOCUMENT_TYPE_LABELS = {
+  // Vendor/Manufacturer types
   ISF: 'ISF (International Security Filing)',
   ARRIVAL_NOTICE: 'Arrival Notice',
   BILL_OF_LADING: 'Bill of Lading',
   COMMERCIAL_INVOICE: 'Commercial Invoice',
   PACKING_LIST: 'Packing List',
   DELIVERY_ORDER: 'Delivery Order',
+  // Broker-specific types
+  ISF_REPORT: 'ISF Report',
+  ENTRY_SUMMARY: 'Entry Summary',
+  BROKER_INVOICE: 'Broker Invoice',
+  // General
   OTHER: 'Other'
 };
 
-// All document types available for broker upload
-const ALL_DOCUMENT_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER', 'OTHER'];
+// Broker-specific document types for upload dropdown
+const BROKER_DOCUMENT_TYPES = ['ISF_REPORT', 'ENTRY_SUMMARY', 'DELIVERY_ORDER', 'BROKER_INVOICE', 'OTHER'];
 
+// Required documents from vendor/manufacturer (for checklist display)
 const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER'];
 
 export default function BrokerItemDetail() {
@@ -50,7 +58,7 @@ export default function BrokerItemDetail() {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [selectedDocType, setSelectedDocType] = useState('ISF'); // Default to ISF
+  const [selectedDocType, setSelectedDocType] = useState('ISF_REPORT'); // Default to ISF Report
   const [dragActive, setDragActive] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -623,7 +631,7 @@ export default function BrokerItemDetail() {
                         cursor: 'pointer'
                       }}
                     >
-                      {ALL_DOCUMENT_TYPES.map(type => (
+                      {BROKER_DOCUMENT_TYPES.map(type => (
                         <option key={type} value={type}>
                           {DOCUMENT_TYPE_LABELS[type]}
                         </option>
@@ -698,7 +706,7 @@ export default function BrokerItemDetail() {
                               {doc.fileName}
                             </div>
                             <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '4px' }}>
-                              {DOCUMENT_TYPE_LABELS[doc.documentType]}
+                              {DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}
                             </div>
                             <div style={{ fontSize: '12px', color: '#6b7280' }}>
                               {formatFileSize(doc.fileSize)} - Uploaded by {doc.uploadedBy} - {new Date(doc.uploadedAt).toLocaleDateString()}
