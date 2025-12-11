@@ -14,7 +14,15 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-// Middleware for admin-only routes
+// Middleware for internal staff (admin + agent) - can manage shipments
+const requireInternalStaff = (req, res, next) => {
+  if (!['SUPER_ADMIN', 'ADMIN', 'AGENT'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  next();
+};
+
+// Middleware for admin-only routes (delete shipment)
 const requireAdmin = (req, res, next) => {
   if (!['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -22,9 +30,9 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// Middleware for broker or admin
-const requireBrokerOrAdmin = (req, res, next) => {
-  if (!['SUPER_ADMIN', 'ADMIN', 'BROKER'].includes(req.user.role)) {
+// Middleware for broker, admin, or agent (can view/upload docs)
+const requireBrokerOrStaff = (req, res, next) => {
+  if (!['SUPER_ADMIN', 'ADMIN', 'AGENT', 'BROKER'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Access denied' });
   }
   next();
@@ -38,7 +46,7 @@ const requireBrokerOrAdmin = (req, res, next) => {
  * GET /api/shipments
  * List all shipments with item counts
  */
-router.get('/', authGuard, requireBrokerOrAdmin, async (req, res) => {
+router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { status, search } = req.query;
 
@@ -97,7 +105,7 @@ router.get('/', authGuard, requireBrokerOrAdmin, async (req, res) => {
  * GET /api/shipments/:id
  * Get single shipment with full details
  */
-router.get('/:id', authGuard, requireBrokerOrAdmin, async (req, res) => {
+router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -142,9 +150,9 @@ router.get('/:id', authGuard, requireBrokerOrAdmin, async (req, res) => {
 
 /**
  * POST /api/shipments
- * Create a new shipment
+ * Create a new shipment (Admin or Agent)
  */
-router.post('/', authGuard, requireAdmin, async (req, res) => {
+router.post('/', authGuard, requireInternalStaff, async (req, res) => {
   try {
     const { containerNumber, billOfLading, etaDate, vesselName, portOfOrigin, portOfDestination } = req.body;
 
@@ -187,7 +195,7 @@ router.post('/', authGuard, requireAdmin, async (req, res) => {
  * PUT /api/shipments/:id
  * Update shipment details
  */
-router.put('/:id', authGuard, requireBrokerOrAdmin, async (req, res) => {
+router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { id } = req.params;
     const { containerNumber, billOfLading, etaDate, vesselName, portOfOrigin, portOfDestination, customsDocumentStatus, customsNotes } = req.body;
@@ -252,7 +260,7 @@ router.put('/:id', authGuard, requireBrokerOrAdmin, async (req, res) => {
 
 /**
  * DELETE /api/shipments/:id
- * Delete a shipment (only if no items linked)
+ * Delete a shipment (only if no items linked) - Admin only
  */
 router.delete('/:id', authGuard, requireAdmin, async (req, res) => {
   try {
@@ -287,9 +295,9 @@ router.delete('/:id', authGuard, requireAdmin, async (req, res) => {
 
 /**
  * POST /api/shipments/:id/link-item
- * Link an item to a shipment
+ * Link an item to a shipment (Admin or Agent)
  */
-router.post('/:id/link-item', authGuard, requireAdmin, async (req, res) => {
+router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) => {
   try {
     const { id } = req.params;
     const { itemId } = req.body;
@@ -341,9 +349,9 @@ router.post('/:id/link-item', authGuard, requireAdmin, async (req, res) => {
 
 /**
  * POST /api/shipments/:id/unlink-item
- * Unlink an item from a shipment
+ * Unlink an item from a shipment (Admin or Agent)
  */
-router.post('/:id/unlink-item', authGuard, requireAdmin, async (req, res) => {
+router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res) => {
   try {
     const { id } = req.params;
     const { itemId } = req.body;
@@ -387,9 +395,9 @@ router.post('/:id/unlink-item', authGuard, requireAdmin, async (req, res) => {
 
 /**
  * GET /api/shipments/search-items
- * Search for items that can be linked (not already linked, at sea)
+ * Search for items that can be linked (not already linked)
  */
-router.get('/search-items', authGuard, requireAdmin, async (req, res) => {
+router.get('/search-items', authGuard, requireInternalStaff, async (req, res) => {
   try {
     const { search, stage } = req.query;
 
@@ -442,7 +450,7 @@ router.get('/search-items', authGuard, requireAdmin, async (req, res) => {
  * GET /api/shipments/:id/documents
  * Get documents for a shipment with checklist
  */
-router.get('/:id/documents', authGuard, requireBrokerOrAdmin, async (req, res) => {
+router.get('/:id/documents', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -485,7 +493,7 @@ router.get('/:id/documents', authGuard, requireBrokerOrAdmin, async (req, res) =
  * POST /api/shipments/:id/documents
  * Upload document to shipment
  */
-router.post('/:id/documents', authGuard, requireBrokerOrAdmin, upload.single('file'), async (req, res) => {
+router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
     const { documentType } = req.body;
@@ -554,7 +562,7 @@ router.post('/:id/documents', authGuard, requireBrokerOrAdmin, upload.single('fi
  * GET /api/shipments/:id/documents/:documentId/download
  * Get signed download URL for shipment document
  */
-router.get('/:id/documents/:documentId/download', authGuard, requireBrokerOrAdmin, async (req, res) => {
+router.get('/:id/documents/:documentId/download', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { id, documentId } = req.params;
 
@@ -578,7 +586,7 @@ router.get('/:id/documents/:documentId/download', authGuard, requireBrokerOrAdmi
  * DELETE /api/shipments/:id/documents/:documentId
  * Delete shipment document
  */
-router.delete('/:id/documents/:documentId', authGuard, requireBrokerOrAdmin, async (req, res) => {
+router.delete('/:id/documents/:documentId', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { id, documentId } = req.params;
 
