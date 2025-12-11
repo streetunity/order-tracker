@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { API_BASE_URL } from '@/lib/api-config';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/shipments/search-items - Search for items to link
 export async function GET(request) {
   try {
