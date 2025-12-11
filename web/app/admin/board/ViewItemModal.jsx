@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { CheckCircle, XCircle, Circle, Upload, File, Download, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Circle, Upload, File, Download, Trash2, Ship } from "lucide-react";
 
 const DOCUMENT_TYPE_LABELS = {
   ISF: 'ISF (International Security Filing)',
@@ -10,7 +10,11 @@ const DOCUMENT_TYPE_LABELS = {
   BILL_OF_LADING: 'Bill of Lading',
   COMMERCIAL_INVOICE: 'Commercial Invoice',
   PACKING_LIST: 'Packing List',
-  DELIVERY_ORDER: 'Delivery Order'
+  DELIVERY_ORDER: 'Delivery Order',
+  ISF_REPORT: 'ISF Report',
+  ENTRY_SUMMARY: 'Entry Summary',
+  BROKER_INVOICE: 'Broker Invoice',
+  OTHER: 'Other'
 };
 
 const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER'];
@@ -36,10 +40,33 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const [isDragging, setIsDragging] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const fileInputRef = useRef(null);
+  
+  // Shared shipment document info
+  const [isSharedShipment, setIsSharedShipment] = useState(false);
+  const [shipmentInfo, setShipmentInfo] = useState(null);
+
+  // Shipping tab state
+  const [shipments, setShipments] = useState([]);
+  const [loadingShipments, setLoadingShipments] = useState(false);
+  const [showCreateShipmentForm, setShowCreateShipmentForm] = useState(false);
+  const [createShipmentLoading, setCreateShipmentLoading] = useState(false);
+  const [shipmentError, setShipmentError] = useState(null);
+  const [newShipment, setNewShipment] = useState({
+    containerNumber: "",
+    billOfLading: "",
+    etaDate: "",
+    vesselName: "",
+    portOfOrigin: "",
+    portOfDestination: ""
+  });
+  // Local item state to track shipment changes
+  const [localItem, setLocalItem] = useState(item);
 
   const isManufacturer = user?.role === "MANUFACTURER";
   const isBroker = user?.role === "BROKER";
+  const isAgent = user?.role === "AGENT";
   const canSeeBrokerLink = user?.role === "SUPER_ADMIN" || user?.role === "BROKER";
+  const canManageShipments = isAdmin || isAgent;
   const isOrderLocked = order?.isLocked || false;
   
   // Format ordered date if it exists
@@ -86,6 +113,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       notes: item?.notes || "",
       privateItemNote: item?.privateItemNote || ""
     });
+    setLocalItem(item);
   }, [item]);
 
   const handleInputChange = (field, value) => {
@@ -288,8 +316,10 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       });
       if (res.ok) {
         const data = await res.json();
-        // API returns { documents, checklist, stats } - extract the documents array
+        // API returns { documents, checklist, stats, isSharedShipment, shipmentInfo }
         setDocuments(data.documents || []);
+        setIsSharedShipment(data.isSharedShipment || false);
+        setShipmentInfo(data.shipmentInfo || null);
       }
     } catch (e) {
       console.error("Failed to load documents:", e);
@@ -397,6 +427,163 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     });
   };
 
+  // Shipping tab functions
+  const loadShipments = async () => {
+    try {
+      setLoadingShipments(true);
+      const res = await fetch("/api/shipments", {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setShipments(data);
+      }
+    } catch (err) {
+      console.error("Failed to load shipments:", err);
+    } finally {
+      setLoadingShipments(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "shipping" && canManageShipments) {
+      loadShipments();
+    }
+  }, [activeTab]);
+
+  const handleLinkToShipment = async (shipmentId) => {
+    if (!shipmentId) return;
+    
+    setLoadingShipments(true);
+    setShipmentError(null);
+    try {
+      const res = await fetch(`/api/shipments/${shipmentId}/link-item`, {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ itemId: item.id })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to link item");
+      }
+      
+      // Get the shipment details
+      const shipmentRes = await fetch(`/api/shipments/${shipmentId}`, {
+        headers: getAuthHeaders()
+      });
+      if (shipmentRes.ok) {
+        const shipmentData = await shipmentRes.json();
+        setLocalItem(prev => ({ ...prev, shipmentId, shipment: shipmentData }));
+      }
+      
+      if (onUpdate) await onUpdate();
+      await loadShipments();
+    } catch (err) {
+      setShipmentError(err.message);
+    } finally {
+      setLoadingShipments(false);
+    }
+  };
+
+  const handleUnlinkShipment = async () => {
+    if (!localItem.shipmentId) return;
+    
+    setLoadingShipments(true);
+    setShipmentError(null);
+    try {
+      const res = await fetch(`/api/shipments/${localItem.shipmentId}/unlink-item`, {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ itemId: item.id })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to unlink item");
+      }
+      
+      setLocalItem(prev => ({ ...prev, shipmentId: null, shipment: null }));
+      if (onUpdate) await onUpdate();
+      await loadShipments();
+    } catch (err) {
+      setShipmentError(err.message);
+    } finally {
+      setLoadingShipments(false);
+    }
+  };
+
+  const handleCreateShipment = async (e) => {
+    e.preventDefault();
+    
+    if (!newShipment.containerNumber && !newShipment.billOfLading) {
+      setShipmentError("Container number or Bill of Lading is required");
+      return;
+    }
+    
+    setCreateShipmentLoading(true);
+    setShipmentError(null);
+    try {
+      // Create the shipment
+      const createRes = await fetch("/api/shipments", {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(newShipment)
+      });
+      
+      if (!createRes.ok) {
+        const data = await createRes.json();
+        throw new Error(data.error || "Failed to create shipment");
+      }
+      
+      const shipment = await createRes.json();
+      
+      // Link the current item to it
+      const linkRes = await fetch(`/api/shipments/${shipment.id}/link-item`, {
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ itemId: item.id })
+      });
+      
+      if (!linkRes.ok) {
+        const data = await linkRes.json();
+        throw new Error(data.error || "Shipment created but failed to link item");
+      }
+      
+      // Update local item state
+      setLocalItem(prev => ({ ...prev, shipmentId: shipment.id, shipment }));
+      
+      // Reset form
+      setNewShipment({
+        containerNumber: "",
+        billOfLading: "",
+        etaDate: "",
+        vesselName: "",
+        portOfOrigin: "",
+        portOfDestination: ""
+      });
+      setShowCreateShipmentForm(false);
+      if (onUpdate) await onUpdate();
+      await loadShipments();
+    } catch (err) {
+      setShipmentError(err.message);
+    } finally {
+      setCreateShipmentLoading(false);
+    }
+  };
+
   if (!item) return null;
 
   return (
@@ -404,7 +591,25 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       <div className="confirm-overlay" onClick={handleClose}>
         <div className="view-item-modal-wide" onClick={(e) => e.stopPropagation()}>
           <div className="view-item-header">
-            <h3>🔍 Item Details</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <h3>🔍 Item Details</h3>
+              {localItem?.shipmentId && (
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "4px 8px",
+                  backgroundColor: "rgba(220, 38, 38, 0.2)",
+                  border: "1px solid #dc2626",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  color: "#dc2626"
+                }}>
+                  <Ship size={12} />
+                  Shared Shipment
+                </span>
+              )}
+            </div>
             <button 
               className="close-button" 
               onClick={handleClose}
@@ -507,6 +712,35 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
             >
               Documents
             </button>
+            {canManageShipments && (
+              <button
+                onClick={() => setActiveTab("shipping")}
+                style={{
+                  padding: "8px 16px",
+                  background: activeTab === "shipping" ? "#dc2626" : "#2d2d2d",
+                  color: "#fff",
+                  border: activeTab === "shipping" ? "none" : "1px solid #404040",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                <Ship size={14} />
+                Shipping
+                {localItem?.shipmentId && (
+                  <span style={{
+                    width: "8px",
+                    height: "8px",
+                    backgroundColor: "#dc2626",
+                    borderRadius: "50%"
+                  }} />
+                )}
+              </button>
+            )}
           </div>
 
           {activeTab === "details" && (
@@ -712,6 +946,37 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                 <div style={{ textAlign: "center", color: "#9ca3af", padding: "2rem" }}>Loading documents...</div>
               ) : (
                 <>
+                  {/* Shared Shipment Notice */}
+                  {isSharedShipment && shipmentInfo && (
+                    <div style={{
+                      padding: "12px",
+                      marginBottom: "16px",
+                      backgroundColor: "rgba(220, 38, 38, 0.1)",
+                      border: "1px solid #dc2626",
+                      borderRadius: "6px"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                        <Ship size={18} color="#dc2626" />
+                        <strong style={{ color: "#dc2626" }}>Shared Shipment Documents</strong>
+                      </div>
+                      <p style={{ fontSize: "13px", color: "#e4e4e4", margin: "0 0 8px 0" }}>
+                        This item is part of a shared shipment. Some documents may be shared with other items.
+                      </p>
+                      <div style={{ fontSize: "12px", color: "#9ca3af" }}>
+                        <div><strong>Container:</strong> {shipmentInfo.containerNumber || '—'}</div>
+                        {shipmentInfo.billOfLading && (
+                          <div><strong>BOL:</strong> {shipmentInfo.billOfLading}</div>
+                        )}
+                        {shipmentInfo.linkedItems && shipmentInfo.linkedItems.length > 0 && (
+                          <div style={{ marginTop: "4px" }}>
+                            <strong>Also in this shipment:</strong>{' '}
+                            {shipmentInfo.linkedItems.map(i => i.productCode || 'Item').join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Checklist */}
                   <div style={{ background: "#252525", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
@@ -791,10 +1056,31 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column" }}>
                         {documents.map(doc => (
-                          <div key={doc.id} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "14px 16px", borderBottom: "1px solid #404040" }}>
+                          <div key={doc.id} style={{ 
+                            display: "flex", 
+                            alignItems: "flex-start", 
+                            gap: "12px", 
+                            padding: "14px 16px", 
+                            borderBottom: "1px solid #404040",
+                            borderLeft: doc.isShipmentDocument ? "3px solid #dc2626" : "none"
+                          }}>
                             <File size={18} color="#9ca3af" style={{ marginTop: "2px" }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", marginBottom: "4px", wordBreak: "break-word" }}>{doc.fileName}</div>
+                              <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff", marginBottom: "4px", wordBreak: "break-word" }}>
+                                {doc.fileName}
+                                {doc.isShipmentDocument && (
+                                  <span style={{
+                                    marginLeft: "8px",
+                                    padding: "1px 6px",
+                                    backgroundColor: "rgba(220, 38, 38, 0.2)",
+                                    borderRadius: "3px",
+                                    fontSize: "10px",
+                                    color: "#dc2626"
+                                  }}>
+                                    Shared
+                                  </span>
+                                )}
+                              </div>
                               <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "4px" }}>{DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}</div>
                               <div style={{ fontSize: "12px", color: "#6b7280" }}>
                                 {(doc.fileSize / 1024).toFixed(1)} KB • {new Date(doc.uploadedAt).toLocaleDateString()}
@@ -804,7 +1090,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                               <button onClick={() => handleDownload(doc)} style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}>
                                 <Download size={14} />
                               </button>
-                              <button onClick={() => setShowDeleteConfirm(doc.id)} style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}>
+                              <button onClick={() => setShowDeleteConfirm(doc)} style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}>
                                 <Trash2 size={14} />
                               </button>
                             </div>
@@ -814,6 +1100,319 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                     )}
                   </div>
                 </>
+              )}
+            </div>
+          )}
+
+          {/* Shipping Tab */}
+          {activeTab === "shipping" && canManageShipments && (
+            <div style={{ padding: "1.5rem", maxHeight: "60vh", overflowY: "auto" }}>
+              {loadingShipments ? (
+                <div style={{ textAlign: "center", color: "#9ca3af", padding: "2rem" }}>Loading...</div>
+              ) : localItem?.shipmentId && localItem?.shipment ? (
+                // Item is linked to a shipment
+                <div style={{
+                  padding: "20px",
+                  backgroundColor: "rgba(220, 38, 38, 0.1)",
+                  border: "1px solid rgba(220, 38, 38, 0.3)",
+                  borderRadius: "8px"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                        <Ship size={20} color="#dc2626" />
+                        <span style={{ fontWeight: "600", fontSize: "16px", color: "#dc2626" }}>Linked to Shared Shipment</span>
+                      </div>
+                      <p style={{ fontSize: "13px", color: "#e4e4e4", margin: 0 }}>
+                        This item is sharing shipping documents with other items in the same container.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleUnlinkShipment}
+                      disabled={loadingShipments}
+                      style={{
+                        padding: "8px 16px",
+                        fontSize: "13px",
+                        backgroundColor: "transparent",
+                        border: "1px solid #ef4444",
+                        color: "#ef4444",
+                        borderRadius: "6px",
+                        cursor: loadingShipments ? "not-allowed" : "pointer",
+                        opacity: loadingShipments ? 0.5 : 1
+                      }}
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                  
+                  <div style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "1fr 1fr", 
+                    gap: "16px",
+                    padding: "16px",
+                    backgroundColor: "#1f1f1f",
+                    borderRadius: "6px"
+                  }}>
+                    <div>
+                      <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "4px" }}>Container Number</div>
+                      <div style={{ fontSize: "14px", color: "#fff" }}>{localItem.shipment.containerNumber || "—"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "4px" }}>Bill of Lading</div>
+                      <div style={{ fontSize: "14px", color: "#fff" }}>{localItem.shipment.billOfLading || "—"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "4px" }}>Vessel Name</div>
+                      <div style={{ fontSize: "14px", color: "#fff" }}>{localItem.shipment.vesselName || "—"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "4px" }}>ETA</div>
+                      <div style={{ fontSize: "14px", color: "#fff" }}>
+                        {localItem.shipment.etaDate ? new Date(localItem.shipment.etaDate).toLocaleDateString() : "—"}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {localItem.shipment.items && localItem.shipment.items.length > 1 && (
+                    <div style={{ marginTop: "16px" }}>
+                      <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "8px" }}>Other items in this shipment:</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {localItem.shipment.items
+                          .filter(i => i.id !== item.id)
+                          .map(i => (
+                            <span key={i.id} style={{
+                              padding: "4px 10px",
+                              backgroundColor: "#2d2d2d",
+                              border: "1px solid #404040",
+                              borderRadius: "4px",
+                              fontSize: "12px",
+                              color: "#e4e4e4"
+                            }}>
+                              {i.productCode || "Unnamed Item"}
+                            </span>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Item not linked - show link/create options
+                <div>
+                  <div style={{ marginBottom: "20px" }}>
+                    <h4 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: 600, color: "#fff" }}>
+                      <Ship size={18} style={{ display: "inline", marginRight: "8px", verticalAlign: "middle" }} />
+                      Shared Shipment
+                    </h4>
+                    <p style={{ fontSize: "13px", color: "#9ca3af", margin: 0 }}>
+                      Link this item to a shared shipment when multiple items are shipping in the same container.
+                      Documents uploaded to the shipment will be shared across all linked items.
+                    </p>
+                  </div>
+
+                  {shipmentError && (
+                    <div style={{
+                      padding: "12px",
+                      marginBottom: "16px",
+                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                      border: "1px solid rgba(239, 68, 68, 0.3)",
+                      borderRadius: "6px",
+                      color: "#ef4444",
+                      fontSize: "13px"
+                    }}>
+                      {shipmentError}
+                    </div>
+                  )}
+
+                  {!showCreateShipmentForm ? (
+                    <div style={{
+                      padding: "20px",
+                      backgroundColor: "#252525",
+                      borderRadius: "8px"
+                    }}>
+                      <div style={{ marginBottom: "16px" }}>
+                        <label style={{ display: "block", fontSize: "13px", color: "#e4e4e4", marginBottom: "8px" }}>
+                          Link to existing shipment:
+                        </label>
+                        <select
+                          onChange={(e) => handleLinkToShipment(e.target.value)}
+                          disabled={loadingShipments}
+                          defaultValue=""
+                          style={{
+                            width: "100%",
+                            padding: "10px 12px",
+                            fontSize: "14px",
+                            backgroundColor: "#1f1f1f",
+                            border: "1px solid #404040",
+                            borderRadius: "6px",
+                            color: "#fff"
+                          }}
+                        >
+                          <option value="">Select a shipment...</option>
+                          {shipments.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.containerNumber || s.billOfLading} ({s._count?.items || 0} items)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
+                        <div style={{ flex: 1, height: "1px", backgroundColor: "#404040" }} />
+                        <span style={{ color: "#6b7280", fontSize: "13px" }}>or</span>
+                        <div style={{ flex: 1, height: "1px", backgroundColor: "#404040" }} />
+                      </div>
+
+                      <button
+                        onClick={() => setShowCreateShipmentForm(true)}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          fontSize: "14px",
+                          backgroundColor: "#dc2626",
+                          border: "none",
+                          color: "#fff",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontWeight: 500
+                        }}
+                      >
+                        + Create New Shipment
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCreateShipment} style={{
+                      padding: "20px",
+                      backgroundColor: "#252525",
+                      borderRadius: "8px"
+                    }}>
+                      <h5 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: 600, color: "#fff" }}>
+                        Create New Shipment
+                      </h5>
+                      
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: "12px", color: "#9ca3af", marginBottom: "6px" }}>
+                            Container Number *
+                          </label>
+                          <input
+                            type="text"
+                            value={newShipment.containerNumber}
+                            onChange={(e) => setNewShipment(s => ({ ...s, containerNumber: e.target.value }))}
+                            placeholder="e.g., MSKU1234567"
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              fontSize: "14px",
+                              backgroundColor: "#1f1f1f",
+                              border: "1px solid #404040",
+                              borderRadius: "6px",
+                              color: "#fff"
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", fontSize: "12px", color: "#9ca3af", marginBottom: "6px" }}>
+                            Bill of Lading *
+                          </label>
+                          <input
+                            type="text"
+                            value={newShipment.billOfLading}
+                            onChange={(e) => setNewShipment(s => ({ ...s, billOfLading: e.target.value }))}
+                            placeholder="e.g., BOL-2024-ABC"
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              fontSize: "14px",
+                              backgroundColor: "#1f1f1f",
+                              border: "1px solid #404040",
+                              borderRadius: "6px",
+                              color: "#fff"
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", fontSize: "12px", color: "#9ca3af", marginBottom: "6px" }}>
+                            ETA Date
+                          </label>
+                          <input
+                            type="date"
+                            value={newShipment.etaDate}
+                            onChange={(e) => setNewShipment(s => ({ ...s, etaDate: e.target.value }))}
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              fontSize: "14px",
+                              backgroundColor: "#1f1f1f",
+                              border: "1px solid #404040",
+                              borderRadius: "6px",
+                              color: "#fff"
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", fontSize: "12px", color: "#9ca3af", marginBottom: "6px" }}>
+                            Vessel Name
+                          </label>
+                          <input
+                            type="text"
+                            value={newShipment.vesselName}
+                            onChange={(e) => setNewShipment(s => ({ ...s, vesselName: e.target.value }))}
+                            placeholder="e.g., Ever Given"
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              fontSize: "14px",
+                              backgroundColor: "#1f1f1f",
+                              border: "1px solid #404040",
+                              borderRadius: "6px",
+                              color: "#fff"
+                            }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <p style={{ fontSize: "11px", color: "#6b7280", marginBottom: "16px" }}>
+                        * At least one of Container Number or Bill of Lading is required
+                      </p>
+                      
+                      <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowCreateShipmentForm(false)}
+                          style={{
+                            padding: "10px 20px",
+                            fontSize: "14px",
+                            backgroundColor: "transparent",
+                            border: "1px solid #404040",
+                            color: "#9ca3af",
+                            borderRadius: "6px",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={createShipmentLoading}
+                          style={{
+                            padding: "10px 20px",
+                            fontSize: "14px",
+                            backgroundColor: "#dc2626",
+                            border: "none",
+                            color: "#fff",
+                            borderRadius: "6px",
+                            cursor: createShipmentLoading ? "not-allowed" : "pointer",
+                            opacity: createShipmentLoading ? 0.7 : 1,
+                            fontWeight: 500
+                          }}
+                        >
+                          {createShipmentLoading ? "Creating..." : "Create & Link"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -1153,9 +1752,22 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#fff", margin: "0 0 1rem 0" }}>Delete Document?</h3>
-            <p style={{ fontSize: "14px", color: "#d1d5db", marginBottom: "1.5rem" }}>
+            <p style={{ fontSize: "14px", color: "#d1d5db", marginBottom: "1rem" }}>
               This action cannot be undone. The document will be permanently deleted.
             </p>
+            {showDeleteConfirm.isShipmentDocument && (
+              <div style={{
+                padding: '10px',
+                marginBottom: '16px',
+                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                border: '1px solid #dc2626',
+                borderRadius: '6px'
+              }}>
+                <p style={{ margin: 0, fontSize: '13px', color: '#dc2626' }}>
+                  <strong>Warning:</strong> This is a shared shipment document. Deleting it will remove it from all items in this shipment.
+                </p>
+              </div>
+            )}
             <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
               <button
                 onClick={() => setShowDeleteConfirm(null)}
@@ -1164,7 +1776,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
                 Cancel
               </button>
               <button
-                onClick={() => handleDeleteDoc(showDeleteConfirm)}
+                onClick={() => handleDeleteDoc(showDeleteConfirm.id)}
                 style={{ backgroundColor: "#dc2626", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}
               >
                 Delete
