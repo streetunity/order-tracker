@@ -35,7 +35,8 @@ export default function SharedShipmentSection({
 
   async function loadShipments() {
     try {
-      const res = await fetch("/api/shipments", {
+      // Use /active endpoint to exclude archived shipments from dropdown
+      const res = await fetch("/api/shipments/active", {
         headers: getAuthHeaders()
       });
       if (res.ok) {
