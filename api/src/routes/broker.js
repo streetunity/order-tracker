@@ -3,7 +3,7 @@ import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl, validateFile } from '../services/fileUploadService.js';
-import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES } from './itemDocuments.js';
+import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES, BROKER_DOCUMENT_TYPES } from './itemDocuments.js';
 
 const prisma = new PrismaClient();
 
@@ -535,7 +535,7 @@ export function createBrokerRouter() {
   });
 
   // POST /broker/item/:itemId/documents
-  // Upload document (broker can upload any document type)
+  // Upload document (broker can only upload broker-specific document types)
   router.post('/item/:itemId/documents', authGuard, requireBrokerRole, upload.single('file'), async (req, res) => {
     try {
       const { itemId } = req.params;
@@ -543,10 +543,10 @@ export function createBrokerRouter() {
       const file = req.file;
       const username = req.user.name;
 
-      // Validate documentType - broker can upload any type
-      if (!documentType || !DOCUMENT_TYPES[documentType]) {
+      // Validate documentType - broker can only upload broker-specific types
+      if (!documentType || !BROKER_DOCUMENT_TYPES.includes(documentType)) {
         return res.status(400).json({ 
-          error: 'Invalid document type. Allowed types: ' + Object.keys(DOCUMENT_TYPES).join(', ')
+          error: 'Invalid document type. Allowed types: ISF Report, Entry Summary, Delivery Order, Broker Invoice, Other'
         });
       }
 
