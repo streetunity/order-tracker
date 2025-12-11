@@ -1,6 +1,7 @@
 // Component for displaying and editing a single order item row
 // Handles both locked and unlocked states, admin-only fields, and extended shipping
 import { useState } from "react";
+import SharedShipmentSection from "./SharedShipmentSection";
 
 export default function EditableRow({ 
   item, 
@@ -11,8 +12,11 @@ export default function EditableRow({
   onUnmarkOrdered, 
   disabled, 
   isLocked, 
-  isAdmin, 
-  manufacturers 
+  isAdmin,
+  isAgent,
+  manufacturers,
+  getAuthHeaders,
+  onRefresh
 }) {
   // Use itemEdits for current values, fallback to item's original values
   const getValue = (field) => {
@@ -37,6 +41,9 @@ export default function EditableRow({
   const hasChanges = Object.keys(itemEdits).length > 0;
   const isOrdered = item.isOrdered;
   const orderedDate = item.orderedAt ? new Date(item.orderedAt).toLocaleDateString() : null;
+
+  // Check if user can manage shipments (admin or agent)
+  const canManageShipments = isAdmin || isAgent;
 
   const handlePriceChange = (e) => {
     const value = e.target.value;
@@ -260,7 +267,6 @@ export default function EditableRow({
       {/* Lines 5-7: Extended Shipping checkbox + Purchasing Notes (3 rows, admin only) */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", 
-        borderBottom: "2px solid #404040",
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
         <td colSpan="7" style={{ padding: "8px" }}>
@@ -319,6 +325,31 @@ export default function EditableRow({
           )}
         </td>
       </tr>
+
+      {/* Shared Shipment Section - only for admin/agent */}
+      {canManageShipments && getAuthHeaders && (
+        <tr style={{ 
+          backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent",
+          borderBottom: "2px solid #404040",
+          ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
+        }}>
+          <td colSpan="7" style={{ padding: "8px" }}>
+            <SharedShipmentSection
+              item={item}
+              onShipmentChange={onRefresh}
+              disabled={disabled}
+              getAuthHeaders={getAuthHeaders}
+            />
+          </td>
+        </tr>
+      )}
+
+      {/* Border row if no shipment section */}
+      {!canManageShipments && (
+        <tr style={{ borderBottom: "2px solid #404040" }}>
+          <td colSpan="7" style={{ padding: 0 }}></td>
+        </tr>
+      )}
     </>
   );
 }
