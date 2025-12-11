@@ -39,8 +39,27 @@ const STAGE_LABELS = {
   FOLLOW_UP: "Follow Up",
 };
 
+// Helper to check if a container has complete measurement info
+// Returns true if container has EITHER:
+// 1. All 4 dimensions (height, width, length, weight) - for individual items
+// 2. Weight + notes - for whole container items
+const containerHasMeasurements = (container) => {
+  const hasAllDimensions = 
+    container.height != null && 
+    container.width != null && 
+    container.length != null && 
+    container.weight != null;
+  
+  const hasWeightAndNotes = 
+    container.weight != null && 
+    container.notes != null && 
+    container.notes.trim() !== '';
+  
+  return hasAllDimensions || hasWeightAndNotes;
+};
+
 // Helper function to check if measurements are complete
-// Returns true if at least one container has all four measurement fields filled
+// Returns true if at least one container has complete measurement info
 const hasMeasurements = (item) => {
   try {
     const containers = typeof item.containers === 'string' 
@@ -51,13 +70,8 @@ const hasMeasurements = (item) => {
       return false;
     }
     
-    // Check if at least one container has all measurements
-    return containers.some(container => 
-      container.height != null && 
-      container.width != null && 
-      container.length != null && 
-      container.weight != null
-    );
+    // Check if at least one container has complete measurements
+    return containers.some(containerHasMeasurements);
   } catch {
     return false;
   }
@@ -74,15 +88,22 @@ const getMeasurementSummary = (item) => {
       return null;
     }
     
-    const measured = containers.filter(c => 
-      c.height != null && c.width != null && c.length != null && c.weight != null
-    );
+    const measured = containers.filter(containerHasMeasurements);
     
     if (measured.length === 0) return null;
     
     const c = measured[0];
-    const unit = c.unit || 'in';
-    return `${c.length}x${c.width}x${c.height} ${unit}, ${c.weight} lbs${measured.length > 1 ? ` (+${measured.length - 1} more)` : ''}`;
+    
+    // Check which type of measurement it has
+    const hasAllDimensions = c.height != null && c.width != null && c.length != null && c.weight != null;
+    
+    if (hasAllDimensions) {
+      const unit = c.unit || 'in';
+      return `${c.length}x${c.width}x${c.height} ${unit}, ${c.weight} lbs${measured.length > 1 ? ` (+${measured.length - 1} more)` : ''}`;
+    } else {
+      // Weight + notes case (whole container)
+      return `${c.weight} lbs (${c.notes})${measured.length > 1 ? ` (+${measured.length - 1} more)` : ''}`;
+    }
   } catch {
     return null;
   }
