@@ -427,11 +427,11 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     });
   };
 
-  // Shipping tab functions
+  // Shipping tab functions - use /active endpoint to exclude archived shipments
   const loadShipments = async () => {
     try {
       setLoadingShipments(true);
-      const res = await fetch("/api/shipments", {
+      const res = await fetch("/api/shipments/active", {
         headers: getAuthHeaders()
       });
       if (res.ok) {
