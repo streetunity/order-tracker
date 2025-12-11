@@ -13,17 +13,24 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-// Document type constants
+// Document type constants (all types across the system)
 export const DOCUMENT_TYPES = {
+  // Vendor/Manufacturer document types
   ISF: 'ISF',
   ARRIVAL_NOTICE: 'ARRIVAL_NOTICE',
   BILL_OF_LADING: 'BILL_OF_LADING',
   COMMERCIAL_INVOICE: 'COMMERCIAL_INVOICE',
   PACKING_LIST: 'PACKING_LIST',
   DELIVERY_ORDER: 'DELIVERY_ORDER',
+  // Broker-specific document types
+  ISF_REPORT: 'ISF_REPORT',
+  ENTRY_SUMMARY: 'ENTRY_SUMMARY',
+  BROKER_INVOICE: 'BROKER_INVOICE',
+  // General
   OTHER: 'OTHER'
 };
 
+// Required documents from vendor/manufacturer
 export const REQUIRED_DOCUMENT_TYPES = [
   'ISF',
   'ARRIVAL_NOTICE',
@@ -33,13 +40,29 @@ export const REQUIRED_DOCUMENT_TYPES = [
   'DELIVERY_ORDER'
 ];
 
+// Broker-specific document types
+export const BROKER_DOCUMENT_TYPES = [
+  'ISF_REPORT',
+  'ENTRY_SUMMARY',
+  'DELIVERY_ORDER',
+  'BROKER_INVOICE',
+  'OTHER'
+];
+
+// Labels for all document types
 export const DOCUMENT_TYPE_LABELS = {
+  // Vendor/Manufacturer types
   ISF: 'ISF (International Security Filing)',
   ARRIVAL_NOTICE: 'Arrival Notice',
   BILL_OF_LADING: 'Bill of Lading',
   COMMERCIAL_INVOICE: 'Commercial Invoice',
   PACKING_LIST: 'Packing List',
   DELIVERY_ORDER: 'Delivery Order',
+  // Broker types
+  ISF_REPORT: 'ISF Report',
+  ENTRY_SUMMARY: 'Entry Summary',
+  BROKER_INVOICE: 'Broker Invoice',
+  // General
   OTHER: 'Other'
 };
 
