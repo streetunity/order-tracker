@@ -40,9 +40,52 @@ const STAGE_LABELS = {
 };
 
 // Helper function to check if measurements are complete
-// Returns true if all four measurement fields have values
+// Returns true if at least one container has all four measurement fields filled
 const hasMeasurements = (item) => {
-  return item.height != null && item.width != null && item.length != null && item.weight != null;
+  try {
+    const containers = typeof item.containers === 'string' 
+      ? JSON.parse(item.containers) 
+      : (item.containers || []);
+    
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return false;
+    }
+    
+    // Check if at least one container has all measurements
+    return containers.some(container => 
+      container.height != null && 
+      container.width != null && 
+      container.length != null && 
+      container.weight != null
+    );
+  } catch {
+    return false;
+  }
+};
+
+// Helper to get measurement summary from containers
+const getMeasurementSummary = (item) => {
+  try {
+    const containers = typeof item.containers === 'string' 
+      ? JSON.parse(item.containers) 
+      : (item.containers || []);
+    
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return null;
+    }
+    
+    const measured = containers.filter(c => 
+      c.height != null && c.width != null && c.length != null && c.weight != null
+    );
+    
+    if (measured.length === 0) return null;
+    
+    const c = measured[0];
+    const unit = c.unit || 'in';
+    return `${c.length}x${c.width}x${c.height} ${unit}, ${c.weight} lbs${measured.length > 1 ? ` (+${measured.length - 1} more)` : ''}`;
+  } catch {
+    return null;
+  }
 };
 
 export default function AdminBoardPage() {
@@ -542,13 +585,14 @@ export default function AdminBoardPage() {
                           const isArchived = !!it.archivedAt;
                           const isOrderLocked = order.isLocked;
                           const measurementsComplete = hasMeasurements(it);
+                          const measurementSummary = getMeasurementSummary(it);
                           
                           let tooltipText = `${it.productCode || "Item"} - ${s}`;
                           if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
                           if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
                           if (it.voltage) tooltipText += `\nPower: ${it.voltage}`;
                           if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
-                          if (measurementsComplete) tooltipText += `\n📐 Measurements: ${it.length}×${it.width}×${it.height}, ${it.weight}${it.weightUnit || 'lbs'}`;
+                          if (measurementSummary) tooltipText += `\n📐 Measurements: ${measurementSummary}`;
                           if (isOrderLocked) tooltipText += "\n(Order Locked)";
                           
                           return (
