@@ -325,7 +325,7 @@ export default function BrokerItemDetail() {
           </button>
           <div className="header-row">
             <h1 className="item-title">
-              {item.order.poNumber || 'N/A'} - {item.productCode}
+              {item.productCode || 'Unnamed Item'}
             </h1>
             {item.order.brokerDocsLink && item.order.brokerDocsLink.trim() !== '' && (
               <a
