@@ -22,7 +22,7 @@ const requireInternalStaff = (req, res, next) => {
   next();
 };
 
-// Middleware for admin-only routes (delete shipment)
+// Middleware for admin-only routes (delete shipment, archive)
 const requireAdmin = (req, res, next) => {
   if (!['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Admin access required' });
@@ -45,19 +45,34 @@ const requireBrokerOrStaff = (req, res, next) => {
 /**
  * GET /api/shipments
  * List all shipments with item counts
+ * Query params:
+ *   - status: filter by customs status
+ *   - search: search by container/BOL
+ *   - includeArchived: include archived shipments (default: false)
+ *   - archivedOnly: show only archived shipments
  */
 router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, includeArchived, archivedOnly } = req.query;
 
     const where = {};
+    
+    // Archive filtering
+    if (archivedOnly === 'true') {
+      where.archivedAt = { not: null };
+    } else if (includeArchived !== 'true') {
+      where.archivedAt = null; // Default: only show active shipments
+    }
+    // If includeArchived === 'true', no filter on archivedAt (show all)
+
     if (status) {
       where.customsDocumentStatus = status;
     }
     if (search) {
       where.OR = [
         { containerNumber: { contains: search } },
-        { billOfLading: { contains: search } }
+        { billOfLading: { contains: search } },
+        { vesselName: { contains: search } }
       ];
     }
 
@@ -98,6 +113,75 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
   } catch (error) {
     console.error('Error fetching shipments:', error);
     res.status(500).json({ error: 'Failed to fetch shipments' });
+  }
+});
+
+/**
+ * GET /api/shipments/active
+ * Get only active (non-archived) shipments for dropdowns
+ * Lightweight response for select boxes
+ */
+router.get('/active', authGuard, requireInternalStaff, async (req, res) => {
+  try {
+    const shipments = await prisma.shipment.findMany({
+      where: { archivedAt: null },
+      select: {
+        id: true,
+        containerNumber: true,
+        billOfLading: true,
+        vesselName: true,
+        etaDate: true,
+        _count: { select: { items: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(shipments);
+  } catch (error) {
+    console.error('Error fetching active shipments:', error);
+    res.status(500).json({ error: 'Failed to fetch active shipments' });
+  }
+});
+
+/**
+ * GET /api/shipments/stats
+ * Get shipment statistics for dashboard
+ */
+router.get('/stats', authGuard, requireBrokerOrStaff, async (req, res) => {
+  try {
+    const [total, active, archived, byStatus] = await Promise.all([
+      prisma.shipment.count(),
+      prisma.shipment.count({ where: { archivedAt: null } }),
+      prisma.shipment.count({ where: { archivedAt: { not: null } } }),
+      prisma.shipment.groupBy({
+        by: ['customsDocumentStatus'],
+        where: { archivedAt: null },
+        _count: true
+      })
+    ]);
+
+    // Get total items across all active shipments
+    const itemStats = await prisma.orderItem.aggregate({
+      where: { 
+        shipmentId: { not: null },
+        archivedAt: null
+      },
+      _count: true
+    });
+
+    res.json({
+      total,
+      active,
+      archived,
+      linkedItems: itemStats._count,
+      byStatus: byStatus.reduce((acc, s) => {
+        acc[s.customsDocumentStatus] = s._count;
+        return acc;
+      }, {})
+    });
+  } catch (error) {
+    console.error('Error fetching shipment stats:', error);
+    res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
 
@@ -259,6 +343,92 @@ router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
 });
 
 /**
+ * POST /api/shipments/:id/archive
+ * Archive a shipment (Admin only)
+ */
+router.post('/:id/archive', authGuard, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const shipment = await prisma.shipment.findUnique({ where: { id } });
+    if (!shipment) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+
+    if (shipment.archivedAt) {
+      return res.status(400).json({ error: 'Shipment is already archived' });
+    }
+
+    const updated = await prisma.shipment.update({
+      where: { id },
+      data: {
+        archivedAt: new Date(),
+        archivedBy: req.user.name
+      }
+    });
+
+    // Log archive action
+    await prisma.shipmentActivityLog.create({
+      data: {
+        shipmentId: id,
+        userId: req.user.id,
+        userName: req.user.name,
+        action: 'ARCHIVED',
+        notes: `Shipment archived by ${req.user.name}`
+      }
+    });
+
+    res.json({ message: 'Shipment archived successfully', shipment: updated });
+  } catch (error) {
+    console.error('Error archiving shipment:', error);
+    res.status(500).json({ error: 'Failed to archive shipment' });
+  }
+});
+
+/**
+ * POST /api/shipments/:id/unarchive
+ * Restore an archived shipment (Admin only)
+ */
+router.post('/:id/unarchive', authGuard, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const shipment = await prisma.shipment.findUnique({ where: { id } });
+    if (!shipment) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+
+    if (!shipment.archivedAt) {
+      return res.status(400).json({ error: 'Shipment is not archived' });
+    }
+
+    const updated = await prisma.shipment.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        archivedBy: null
+      }
+    });
+
+    // Log unarchive action
+    await prisma.shipmentActivityLog.create({
+      data: {
+        shipmentId: id,
+        userId: req.user.id,
+        userName: req.user.name,
+        action: 'UNARCHIVED',
+        notes: `Shipment restored by ${req.user.name}`
+      }
+    });
+
+    res.json({ message: 'Shipment restored successfully', shipment: updated });
+  } catch (error) {
+    console.error('Error unarchiving shipment:', error);
+    res.status(500).json({ error: 'Failed to restore shipment' });
+  }
+});
+
+/**
  * DELETE /api/shipments/:id
  * Delete a shipment (only if no items linked) - Admin only
  */
@@ -309,6 +479,11 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
     const shipment = await prisma.shipment.findUnique({ where: { id } });
     if (!shipment) {
       return res.status(404).json({ error: 'Shipment not found' });
+    }
+
+    // Prevent linking to archived shipments
+    if (shipment.archivedAt) {
+      return res.status(400).json({ error: 'Cannot link items to archived shipments. Restore the shipment first.' });
     }
 
     const item = await prisma.orderItem.findUnique({
