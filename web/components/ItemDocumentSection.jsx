@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle, XCircle, Circle, ChevronDown, ChevronUp,
-  Upload, File, Download, Trash2, AlertCircle
+  Upload, File, Download, Trash2, AlertCircle, Ship
 } from "lucide-react";
 
 const DOCUMENT_TYPE_LABELS = {
@@ -13,6 +13,9 @@ const DOCUMENT_TYPE_LABELS = {
   COMMERCIAL_INVOICE: 'Commercial Invoice',
   PACKING_LIST: 'Packing List',
   DELIVERY_ORDER: 'Delivery Order',
+  ISF_REPORT: 'ISF Report',
+  ENTRY_SUMMARY: 'Entry Summary',
+  BROKER_INVOICE: 'Broker Invoice',
   OTHER: 'Other'
 };
 
@@ -31,6 +34,10 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
   const [error, setError] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Shared shipment info
+  const [isSharedShipment, setIsSharedShipment] = useState(false);
+  const [shipmentInfo, setShipmentInfo] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -54,6 +61,8 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
         setDocuments(data.documents);
         setChecklist(data.checklist);
         setStats(data.stats);
+        setIsSharedShipment(data.isSharedShipment || false);
+        setShipmentInfo(data.shipmentInfo || null);
       }
     } catch (err) {
       console.error('Failed to load documents:', err);
@@ -185,6 +194,20 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
         <div className="item-document-title">
           <span className="item-name">{itemName}</span>
           <span className="item-manufacturer">({manufacturerName})</span>
+          {item.shipmentId && (
+            <span style={{
+              marginLeft: '8px',
+              padding: '2px 6px',
+              backgroundColor: 'rgba(220, 38, 38, 0.2)',
+              border: '1px solid #dc2626',
+              borderRadius: '4px',
+              fontSize: '11px',
+              color: '#dc2626'
+            }}>
+              <Ship size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+              Shared
+            </span>
+          )}
         </div>
         <div className="item-document-header-right">
           {stats && (
@@ -203,6 +226,37 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
             <div className="loading-text">Loading documents...</div>
           ) : (
             <>
+              {/* Shared Shipment Notice */}
+              {isSharedShipment && shipmentInfo && (
+                <div style={{
+                  padding: '12px',
+                  marginBottom: '16px',
+                  backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                  border: '1px solid #dc2626',
+                  borderRadius: '6px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Ship size={18} color="#dc2626" />
+                    <strong style={{ color: '#dc2626' }}>Shared Shipment Documents</strong>
+                  </div>
+                  <p style={{ fontSize: '13px', color: '#e4e4e4', margin: '0 0 8px 0' }}>
+                    This item is part of a shared shipment. Documents uploaded here are shared with other items in the same container.
+                  </p>
+                  <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+                    <div><strong>Container:</strong> {shipmentInfo.containerNumber || '—'}</div>
+                    {shipmentInfo.billOfLading && (
+                      <div><strong>BOL:</strong> {shipmentInfo.billOfLading}</div>
+                    )}
+                    {shipmentInfo.linkedItems && shipmentInfo.linkedItems.length > 0 && (
+                      <div style={{ marginTop: '4px' }}>
+                        <strong>Also in this shipment:</strong>{' '}
+                        {shipmentInfo.linkedItems.map(i => i.productCode || 'Item').join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Checklist */}
               {checklist && (
                 <div className="document-checklist">
@@ -324,10 +378,26 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
                 ) : (
                   <div className="documents-items">
                     {documents.map(doc => (
-                      <div key={doc.id} className="document-item">
+                      <div key={doc.id} className="document-item" style={{
+                        borderLeft: doc.isShipmentDocument ? '3px solid #dc2626' : undefined
+                      }}>
                         <File size={20} className="document-icon" />
                         <div className="document-info">
-                          <div className="document-name">{doc.fileName}</div>
+                          <div className="document-name">
+                            {doc.fileName}
+                            {doc.isShipmentDocument && (
+                              <span style={{
+                                marginLeft: '8px',
+                                padding: '1px 6px',
+                                backgroundColor: 'rgba(220, 38, 38, 0.2)',
+                                borderRadius: '3px',
+                                fontSize: '10px',
+                                color: '#dc2626'
+                              }}>
+                                Shared
+                              </span>
+                            )}
+                          </div>
                           <div className="document-type">{DOCUMENT_TYPE_LABELS[doc.documentType]}</div>
                           <div className="document-meta">
                             {formatFileSize(doc.fileSize)} - Uploaded by {doc.uploadedBy} - {new Date(doc.uploadedAt).toLocaleDateString()}
@@ -383,6 +453,19 @@ export default function ItemDocumentSection({ item, defaultExpanded = false, onD
             <p style={{ margin: "0 0 20px 0", color: "#9ca3af", fontSize: "14px" }}>
               Are you sure you want to delete "{deleteConfirm.fileName}"?
             </p>
+            {deleteConfirm.isShipmentDocument && (
+              <div style={{
+                padding: '10px',
+                marginBottom: '16px',
+                backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                border: '1px solid #dc2626',
+                borderRadius: '6px'
+              }}>
+                <p style={{ margin: 0, fontSize: '13px', color: '#dc2626' }}>
+                  <strong>Warning:</strong> This is a shared shipment document. Deleting it will remove it from all items in this shipment.
+                </p>
+              </div>
+            )}
             <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
               <button
                 onClick={() => setDeleteConfirm(null)}
