@@ -12,9 +12,12 @@ export default function ItemsTable({
   onUnmarkOrdered,
   onSaveAllChanges,
   onAddItem,
+  onRefresh,
   disabled,
   isAdmin,
-  manufacturers
+  isAgent,
+  manufacturers,
+  getAuthHeaders
 }) {
   const [newItem, setNewItem] = useState({ 
     productCode: "", 
@@ -154,7 +157,10 @@ export default function ItemsTable({
                   disabled={disabled}
                   isLocked={order.isLocked}
                   isAdmin={isAdmin}
+                  isAgent={isAgent}
                   manufacturers={manufacturers}
+                  getAuthHeaders={getAuthHeaders}
+                  onRefresh={onRefresh}
                 />
               ))
             )}
