@@ -269,6 +269,7 @@ export default function CommissionsPage() {
           return newSet;
         });
 
+        showNotif("Payment denied - moved to Flagged tab for review");
         setShowRejectModal(false);
         setRejectPayoutId(null);
         setRejectionReason("");
@@ -752,6 +753,19 @@ export default function CommissionsPage() {
     }).format(amount || 0);
   };
 
+  // Helper to check if flag reason is a payment denial
+  const isPaymentDenied = (flagReason) => {
+    return flagReason && flagReason.startsWith("PAYMENT_DENIED:");
+  };
+
+  // Helper to extract denial details from flag reason
+  const parseDenialReason = (flagReason) => {
+    if (!isPaymentDenied(flagReason)) return null;
+    // Format: "PAYMENT_DENIED: {reason} (Item: {item}, Stage: {stage}, Amount: ${amount}, Denied by: {name})"
+    const reasonPart = flagReason.replace("PAYMENT_DENIED: ", "");
+    return reasonPart;
+  };
+
   if (!user) return null;
   if (user.role !== "SUPER_ADMIN" && user.role !== "ACCOUNTANT") return null;
 
@@ -822,42 +836,82 @@ export default function CommissionsPage() {
                     key={commission.id}
                     style={{
                       background: "#1a1a1a",
-                      border: "1px solid #333",
+                      border: isPaymentDenied(commission.flagReason) ? "1px solid #dc2626" : "1px solid #333",
                       borderRadius: "8px",
                       padding: "20px",
                       marginBottom: "16px",
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                      <div>
-                        <h3 style={{ color: "#f59e0b", marginBottom: "8px" }}>
-                          ⚠️ Order #{commission.order?.poNumber || "Deleted"} - {commission.salesPersonName}
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{ color: isPaymentDenied(commission.flagReason) ? "#dc2626" : "#f59e0b", marginBottom: "8px" }}>
+                          {isPaymentDenied(commission.flagReason) ? "🚫" : "⚠️"} Order #{commission.order?.poNumber || "Deleted"} - {commission.salesPersonName}
                         </h3>
-                        <div style={{ color: "#999", marginBottom: "8px" }}>
-                          Flag Reason: <span style={{ color: "#f59e0b" }}>{commission.flagReason}</span>
-                        </div>
-                        {commission.flagReason === "AWAITING_PRICES" && (
-                          <div style={{ color: "#999" }}>
-                            Missing prices for order items
-                          </div>
-                        )}
-                        {commission.flagReason === "PRICE_CHANGED" && (
-                          <div style={{ color: "#999" }}>
-                            Prices changed after commission calculation
-                            <div style={{ marginTop: "8px", fontSize: "14px" }}>
-                              Old total: {formatCurrency(commission.orderTotalAmount)} →{" "}
-                              New total: Check current prices
+                        
+                        {/* Payment Denied - Special Display */}
+                        {isPaymentDenied(commission.flagReason) && (
+                          <div>
+                            <div style={{ 
+                              color: "#dc2626", 
+                              fontWeight: "600", 
+                              marginBottom: "8px",
+                              fontSize: "15px"
+                            }}>
+                              Payment Denied
+                            </div>
+                            <div style={{ 
+                              color: "#ccc", 
+                              marginBottom: "8px",
+                              fontSize: "14px",
+                              lineHeight: "1.5"
+                            }}>
+                              {parseDenialReason(commission.flagReason)}
+                            </div>
+                            <div style={{
+                              padding: "12px",
+                              backgroundColor: "rgba(220, 38, 38, 0.1)",
+                              border: "1px solid rgba(220, 38, 38, 0.3)",
+                              borderRadius: "6px",
+                              marginTop: "12px"
+                            }}>
+                              <p style={{ margin: "0", fontSize: "13px", color: "#ef4444" }}>
+                                The payout has been reset to WAITING status. It will be retriggered when the item reaches the appropriate stage again, or you can unflag this commission to clear the denial.
+                              </p>
                             </div>
                           </div>
                         )}
-                        {commission.flagReason === "ORDER_DELETED" && (
-                          <div style={{ color: "#999" }}>
-                            Order was deleted - commission is orphaned
-                          </div>
+
+                        {/* Standard flag reasons */}
+                        {!isPaymentDenied(commission.flagReason) && (
+                          <>
+                            <div style={{ color: "#999", marginBottom: "8px" }}>
+                              Flag Reason: <span style={{ color: "#f59e0b" }}>{commission.flagReason}</span>
+                            </div>
+                            {commission.flagReason === "AWAITING_PRICES" && (
+                              <div style={{ color: "#999" }}>
+                                Missing prices for order items
+                              </div>
+                            )}
+                            {commission.flagReason === "PRICE_CHANGED" && (
+                              <div style={{ color: "#999" }}>
+                                Prices changed after commission calculation
+                                <div style={{ marginTop: "8px", fontSize: "14px" }}>
+                                  Old total: {formatCurrency(commission.orderTotalAmount)} →{" "}
+                                  New total: Check current prices
+                                </div>
+                              </div>
+                            )}
+                            {commission.flagReason === "ORDER_DELETED" && (
+                              <div style={{ color: "#999" }}>
+                                Order was deleted - commission is orphaned
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        {commission.flagReason === "AWAITING_PRICES" && commission.orderId && (
+                      <div style={{ display: "flex", gap: "8px", marginLeft: "16px" }}>
+                        {/* View Order button - show for payment denied and awaiting prices */}
+                        {(isPaymentDenied(commission.flagReason) || commission.flagReason === "AWAITING_PRICES") && commission.orderId && (
                           <button
                             onClick={() => router.push(`/admin/orders/${commission.orderId}`)}
                             style={{
@@ -1585,7 +1639,7 @@ export default function CommissionsPage() {
               marginBottom: "1rem"
             }}>
               <p style={{ margin: "0", fontSize: "14px", color: "#ef4444" }}>
-                <strong>Note:</strong> Denied payments will be reset to WAITING status and can be retriggered.
+                <strong>Note:</strong> Denied payments will appear in the Flagged tab for review. The payout will be reset to WAITING status and can be retriggered.
               </p>
             </div>
             <p style={{ fontSize: "14px", marginBottom: "0.5rem", color: "#d1d5db" }}>
