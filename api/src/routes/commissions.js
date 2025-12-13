@@ -452,7 +452,7 @@ export function createCommissionsRouter(prisma) {
             }
           }
         },
-        orderBy: { flaggedAt: 'desc' }
+        orderBy: { updatedAt: 'desc' }
       });
 
       res.json(commissions);
@@ -635,18 +635,16 @@ export function createCommissionsRouter(prisma) {
         return res.status(403).json({ error: 'Only Super Admins and Accountants can unflag commissions' });
       }
 
-      const { unflagReason } = req.body;
+      const { reviewNotes } = req.body;
 
       const commission = await prisma.commission.update({
         where: { id: req.params.id },
         data: {
           isFlagged: false,
-          flaggedAt: null,
           flagReason: null,
-          unflaggedByUserId: req.user.id,
-          unflaggedByName: req.user.name,
-          unflagReason,
-          unflaggedAt: new Date()
+          lastReviewedAt: new Date(),
+          lastReviewedBy: req.user.name,
+          reviewNotes: reviewNotes || null
         }
       });
 
@@ -656,7 +654,7 @@ export function createCommissionsRouter(prisma) {
           entityType: 'Commission',
           entityId: commission.id,
           action: 'UNFLAGGED',
-          metadata: JSON.stringify({ unflagReason }),
+          metadata: JSON.stringify({ reviewNotes }),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
