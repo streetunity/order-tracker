@@ -637,6 +637,45 @@ export function createCommissionsRouter(prisma) {
 
       const { reviewNotes } = req.body;
 
+      // Get the commission with its current flag reason and payouts
+      const existingCommission = await prisma.commission.findUnique({
+        where: { id: req.params.id },
+        include: {
+          itemCommissions: {
+            include: {
+              payouts: true
+            }
+          }
+        }
+      });
+
+      if (!existingCommission) {
+        return res.status(404).json({ error: 'Commission not found' });
+      }
+
+      const wasPaymentDenied = existingCommission.flagReason && existingCommission.flagReason.startsWith('PAYMENT_DENIED:');
+
+      // If this was a payment denial, reset the denied payouts back to PENDING
+      if (wasPaymentDenied) {
+        // Find all WAITING payouts that have a rejectedAt date (these are the denied ones)
+        for (const itemComm of existingCommission.itemCommissions) {
+          for (const payout of itemComm.payouts) {
+            if (payout.status === 'WAITING' && payout.rejectedAt) {
+              await prisma.commissionPayout.update({
+                where: { id: payout.id },
+                data: {
+                  status: 'PENDING',
+                  rejectedAt: null,
+                  rejectionReason: null,
+                  rejectedByUserId: null,
+                  rejectedByName: null
+                }
+              });
+            }
+          }
+        }
+      }
+
       const commission = await prisma.commission.update({
         where: { id: req.params.id },
         data: {
@@ -654,7 +693,11 @@ export function createCommissionsRouter(prisma) {
           entityType: 'Commission',
           entityId: commission.id,
           action: 'UNFLAGGED',
-          metadata: JSON.stringify({ reviewNotes }),
+          metadata: JSON.stringify({ 
+            reviewNotes,
+            wasPaymentDenied,
+            payoutsResetToPending: wasPaymentDenied
+          }),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
