@@ -766,6 +766,20 @@ export default function CommissionsPage() {
     return reasonPart;
   };
 
+  // Helper to get display name for commission (customer name or fallback)
+  const getCommissionDisplayName = (commission) => {
+    // First try account name
+    if (commission.order?.account?.name) {
+      return commission.order.account.name;
+    }
+    // Then try PO number
+    if (commission.order?.poNumber) {
+      return `PO #${commission.order.poNumber}`;
+    }
+    // Fallback for deleted orders
+    return "Order Deleted";
+  };
+
   if (!user) return null;
   if (user.role !== "SUPER_ADMIN" && user.role !== "ACCOUNTANT") return null;
 
@@ -845,7 +859,7 @@ export default function CommissionsPage() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                       <div style={{ flex: 1 }}>
                         <h3 style={{ color: isPaymentDenied(commission.flagReason) ? "#dc2626" : "#f59e0b", marginBottom: "8px" }}>
-                          {isPaymentDenied(commission.flagReason) ? "🚫" : "⚠️"} Order #{commission.order?.poNumber || "Deleted"} - {commission.salesPersonName}
+                          {isPaymentDenied(commission.flagReason) ? "🚫" : "⚠️"} {getCommissionDisplayName(commission)} - {commission.salesPersonName}
                         </h3>
                         
                         {/* Payment Denied - Special Display */}
