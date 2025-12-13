@@ -509,6 +509,15 @@ export default function CommissionsPage() {
     doc.line(145, startY, 190, startY); // Date line
   };
 
+  // Helper function to format date string (YYYY-MM-DD) to locale date without timezone shift
+  const formatDateString = (dateStr) => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split("-").map(Number);
+    // Create date with explicit components to avoid timezone issues
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString();
+  };
+
   const generatePdfReport = async () => {
     if (!pdfAgent) {
       showNotif("Please select an agent", "error");
@@ -567,11 +576,11 @@ export default function CommissionsPage() {
       doc.setFont(undefined, "bold");
       doc.text("Commission Payout Report", 14, 20);
 
-      // Agent and date range info
+      // Agent and date range info - use formatDateString to avoid timezone shift
       doc.setFontSize(12);
       doc.setFont(undefined, "normal");
       doc.text(`Sales Agent: ${pdfAgent}`, 14, 35);
-      doc.text(`Pay Period: ${new Date(pdfStartDate).toLocaleDateString()} - ${new Date(pdfEndDate).toLocaleDateString()}`, 14, 42);
+      doc.text(`Pay Period: ${formatDateString(pdfStartDate)} - ${formatDateString(pdfEndDate)}`, 14, 42);
       doc.text(`Report Generated: ${new Date().toLocaleDateString()}`, 14, 49);
 
       // Helper to convert number to ordinal (1st, 2nd, 3rd, etc.)
