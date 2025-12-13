@@ -290,7 +290,6 @@ export function createCommissionPayoutsRouter(prisma) {
         where: { id: commissionId },
         data: {
           isFlagged: true,
-          flaggedAt: new Date(),
           flagReason: `PAYMENT_DENIED: ${rejectionReason} (Item: ${itemName}, Stage: ${existingPayout.stage}, Amount: $${existingPayout.amount.toFixed(2)}, Denied by: ${req.user.name})`
         }
       });
