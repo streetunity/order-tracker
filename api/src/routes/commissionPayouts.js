@@ -661,12 +661,24 @@ export function createCommissionPayoutsRouter(prisma) {
         return res.status(400).json({ error: 'salesPerson, startDate, and endDate are required' });
       }
 
+      // Parse dates to create proper date range
+      // startDate and endDate come as YYYY-MM-DD strings
+      // We need to create dates that represent the full day range in local time
+      const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+      const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+      
+      // Create start date at beginning of day (00:00:00.000)
+      const startDateTime = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+      
+      // Create end date at end of day (23:59:59.999)
+      const endDateTime = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+
       const payouts = await prisma.commissionPayout.findMany({
         where: {
           status: 'PAID',
           paidAt: {
-            gte: new Date(startDate),
-            lte: new Date(endDate + 'T23:59:59.999Z'), // Include entire end date
+            gte: startDateTime,
+            lte: endDateTime,
           },
           itemCommission: {
             commission: {
