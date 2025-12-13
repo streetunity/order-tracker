@@ -230,7 +230,7 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
-  // Reject a payout
+  // Reject a payout (deny) - flags the parent commission for review
   router.post('/:id/reject', adminGuard, async (req, res) => {
     try {
       if (!canManageCommissions(req.user.role)) {
@@ -239,6 +239,37 @@ export function createCommissionPayoutsRouter(prisma) {
 
       const { rejectionReason } = req.body;
 
+      // First, get the payout with its parent commission info
+      const existingPayout = await prisma.commissionPayout.findUnique({
+        where: { id: req.params.id },
+        include: {
+          itemCommission: {
+            include: {
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      poNumber: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              item: {
+                select: {
+                  productCode: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!existingPayout) {
+        return res.status(404).json({ error: 'Payout not found' });
+      }
+
+      // Update the payout status
       const payout = await prisma.commissionPayout.update({
         where: { id: req.params.id },
         data: {
@@ -250,17 +281,68 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
+      // Flag the parent Commission record so it appears in the Flagged tab
+      const commissionId = existingPayout.itemCommission.commissionId;
+      const itemName = existingPayout.itemCommission.item?.productCode || 'Unknown Item';
+      const orderPO = existingPayout.itemCommission.commission.order?.poNumber || 'Unknown';
+      
+      await prisma.commission.update({
+        where: { id: commissionId },
+        data: {
+          isFlagged: true,
+          flaggedAt: new Date(),
+          flagReason: `PAYMENT_DENIED: ${rejectionReason} (Item: ${itemName}, Stage: ${existingPayout.stage}, Amount: $${existingPayout.amount.toFixed(2)}, Denied by: ${req.user.name})`
+        }
+      });
+
       // Create audit log
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: payout.id,
           action: 'REJECTED',
-          metadata: JSON.stringify({ rejectionReason }),
+          metadata: JSON.stringify({ 
+            rejectionReason,
+            commissionId,
+            stage: existingPayout.stage,
+            amount: existingPayout.amount,
+            itemName,
+            orderPO
+          }),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
       });
+
+      // Notify the sales agent about the denied payment
+      const salesPersonName = existingPayout.itemCommission.commission.salesPersonName;
+      const salesAgent = await prisma.user.findFirst({
+        where: {
+          name: salesPersonName,
+          isActive: true
+        }
+      });
+
+      if (salesAgent) {
+        await prisma.notification.create({
+          data: {
+            userId: salesAgent.id,
+            type: 'COMMISSION',
+            category: 'WARNING',
+            title: 'Commission Payment Denied',
+            message: `Your commission payment of $${existingPayout.amount.toFixed(2)} for order ${orderPO} (${existingPayout.itemCommission.commission.order?.account?.name || 'N/A'}) has been denied. Reason: ${rejectionReason}`,
+            metadata: JSON.stringify({
+              payoutId: payout.id,
+              amount: existingPayout.amount,
+              stage: existingPayout.stage,
+              orderId: existingPayout.itemCommission.commission.orderId,
+              rejectionReason,
+              deniedBy: req.user.name
+            }),
+            priority: 'HIGH'
+          }
+        });
+      }
 
       res.json(payout);
     } catch (error) {
