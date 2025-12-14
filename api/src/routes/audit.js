@@ -481,6 +481,314 @@ export function createAuditRouter() {
     }
   });
 
+  // SYNTHETIC BACKFILL: Create audit log entries for documents uploaded before logging was enabled
+  // POST /api/audit/backfill-documents-synthetic
+  router.post('/backfill-documents-synthetic', async (req, res) => {
+    try {
+      console.log('🔄 Starting SYNTHETIC document audit backfill...');
+      console.log('📋 This will create audit log entries for documents that were never logged');
+
+      // Document type labels for display
+      const DOC_TYPE_LABELS = {
+        'ISF': 'ISF (10+2)',
+        'ARRIVAL_NOTICE': 'Arrival Notice',
+        'BILL_OF_LADING': 'Bill of Lading',
+        'COMMERCIAL_INVOICE': 'Commercial Invoice',
+        'PACKING_LIST': 'Packing List',
+        'DELIVERY_ORDER': 'Delivery Order',
+        'ISF_REPORT': 'ISF Report',
+        'ENTRY_SUMMARY': 'Entry Summary',
+        'BROKER_INVOICE': 'Broker Invoice',
+        'OTHER': 'Other'
+      };
+
+      let created = 0;
+      let skipped = 0;
+      let errors = 0;
+      const details = {
+        itemDocuments: { created: 0, skipped: 0 },
+        orderDocuments: { created: 0, skipped: 0 },
+        shipmentDocuments: { created: 0, skipped: 0 },
+        customerDocuments: { created: 0, skipped: 0 }
+      };
+
+      // Get all existing document audit log entityIds to avoid duplicates
+      const existingLogs = await prisma.auditLog.findMany({
+        where: {
+          entityType: {
+            in: ['Document', 'ItemDocument', 'ShipmentDocument', 'CustomerDocument', 'OrderDocument']
+          }
+        },
+        select: { entityId: true, entityType: true }
+      });
+      const existingEntityIds = new Set(existingLogs.map(l => `${l.entityType}:${l.entityId}`));
+      console.log(`📊 Found ${existingLogs.length} existing document audit logs`);
+
+      // 1. Process ItemDocuments
+      console.log('📄 Processing ItemDocuments...');
+      const itemDocs = await prisma.itemDocument.findMany({
+        include: {
+          item: {
+            include: {
+              order: {
+                include: {
+                  account: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      for (const doc of itemDocs) {
+        try {
+          const key = `ItemDocument:${doc.id}`;
+          if (existingEntityIds.has(key)) {
+            skipped++;
+            details.itemDocuments.skipped++;
+            continue;
+          }
+
+          const metadata = {
+            fileName: doc.fileName,
+            documentType: doc.documentType,
+            documentTypeLabel: DOC_TYPE_LABELS[doc.documentType] || doc.documentType,
+            fileSize: doc.fileSize,
+            fileType: doc.fileType,
+            productCode: doc.item?.productCode,
+            itemId: doc.item?.id,
+            orderId: doc.item?.order?.id,
+            orderPO: doc.item?.order?.poNumber,
+            customerName: doc.item?.order?.account?.name,
+            _retroactiveBackfill: true,
+            _backfilledAt: new Date().toISOString()
+          };
+
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'ItemDocument',
+              entityId: doc.id,
+              parentEntityId: doc.item?.orderId || null,
+              action: 'DOCUMENT_UPLOADED',
+              changes: null,
+              metadata: JSON.stringify(metadata),
+              performedByName: doc.uploadedBy || 'System',
+              createdAt: doc.uploadedAt
+            }
+          });
+
+          created++;
+          details.itemDocuments.created++;
+          console.log(`  ✅ Created log for ItemDocument: ${doc.fileName}`);
+        } catch (e) {
+          console.error(`  ❌ Error processing ItemDocument ${doc.id}:`, e.message);
+          errors++;
+        }
+      }
+
+      // 2. Process OrderDocuments
+      console.log('📄 Processing OrderDocuments...');
+      const orderDocs = await prisma.orderDocument.findMany({
+        include: {
+          order: {
+            include: {
+              account: true
+            }
+          }
+        }
+      });
+
+      for (const doc of orderDocs) {
+        try {
+          const key = `OrderDocument:${doc.id}`;
+          if (existingEntityIds.has(key)) {
+            skipped++;
+            details.orderDocuments.skipped++;
+            continue;
+          }
+
+          const metadata = {
+            fileName: doc.fileName,
+            documentTypeLabel: 'Order Document',
+            fileSize: doc.fileSize,
+            fileType: doc.fileType,
+            orderId: doc.order?.id,
+            orderPO: doc.order?.poNumber,
+            customerName: doc.order?.account?.name,
+            _retroactiveBackfill: true,
+            _backfilledAt: new Date().toISOString()
+          };
+
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'OrderDocument',
+              entityId: doc.id,
+              parentEntityId: doc.orderId,
+              action: 'DOCUMENT_UPLOADED',
+              changes: null,
+              metadata: JSON.stringify(metadata),
+              performedByName: doc.uploadedBy || 'System',
+              createdAt: doc.uploadedAt
+            }
+          });
+
+          created++;
+          details.orderDocuments.created++;
+          console.log(`  ✅ Created log for OrderDocument: ${doc.fileName}`);
+        } catch (e) {
+          console.error(`  ❌ Error processing OrderDocument ${doc.id}:`, e.message);
+          errors++;
+        }
+      }
+
+      // 3. Process ShipmentDocuments
+      console.log('📄 Processing ShipmentDocuments...');
+      const shipmentDocs = await prisma.shipmentDocument.findMany({
+        include: {
+          shipment: {
+            include: {
+              items: {
+                take: 1,
+                include: {
+                  order: {
+                    include: {
+                      account: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      for (const doc of shipmentDocs) {
+        try {
+          const key = `ShipmentDocument:${doc.id}`;
+          if (existingEntityIds.has(key)) {
+            skipped++;
+            details.shipmentDocuments.skipped++;
+            continue;
+          }
+
+          const firstItem = doc.shipment?.items?.[0];
+          const metadata = {
+            fileName: doc.fileName,
+            documentType: doc.documentType,
+            documentTypeLabel: DOC_TYPE_LABELS[doc.documentType] || doc.documentType,
+            fileSize: doc.fileSize,
+            fileType: doc.fileType,
+            shipmentId: doc.shipment?.id,
+            containerNumber: doc.shipment?.containerNumber,
+            billOfLading: doc.shipment?.billOfLading,
+            productCode: firstItem?.productCode,
+            orderId: firstItem?.order?.id,
+            orderPO: firstItem?.order?.poNumber,
+            customerName: firstItem?.order?.account?.name,
+            _retroactiveBackfill: true,
+            _backfilledAt: new Date().toISOString()
+          };
+
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'ShipmentDocument',
+              entityId: doc.id,
+              parentEntityId: doc.shipmentId,
+              action: 'DOCUMENT_UPLOADED',
+              changes: null,
+              metadata: JSON.stringify(metadata),
+              performedByName: doc.uploadedBy || 'System',
+              createdAt: doc.uploadedAt
+            }
+          });
+
+          created++;
+          details.shipmentDocuments.created++;
+          console.log(`  ✅ Created log for ShipmentDocument: ${doc.fileName}`);
+        } catch (e) {
+          console.error(`  ❌ Error processing ShipmentDocument ${doc.id}:`, e.message);
+          errors++;
+        }
+      }
+
+      // 4. Process CustomerDocuments
+      console.log('📄 Processing CustomerDocuments...');
+      const customerDocs = await prisma.customerDocument.findMany({
+        include: {
+          order: {
+            include: {
+              account: true
+            }
+          },
+          uploadedBy: {
+            select: { name: true, email: true }
+          }
+        }
+      });
+
+      for (const doc of customerDocs) {
+        try {
+          const key = `CustomerDocument:${doc.id}`;
+          if (existingEntityIds.has(key)) {
+            skipped++;
+            details.customerDocuments.skipped++;
+            continue;
+          }
+
+          const metadata = {
+            fileName: doc.fileName,
+            documentTypeLabel: 'Customer Document',
+            fileSize: Number(doc.fileSize), // BigInt to Number
+            fileType: doc.mimeType,
+            description: doc.description,
+            orderId: doc.order?.id,
+            orderPO: doc.order?.poNumber,
+            customerName: doc.order?.account?.name,
+            uploadedByName: doc.uploadedBy?.name || doc.uploadedBy?.email,
+            _retroactiveBackfill: true,
+            _backfilledAt: new Date().toISOString()
+          };
+
+          await prisma.auditLog.create({
+            data: {
+              entityType: 'CustomerDocument',
+              entityId: doc.id,
+              parentEntityId: doc.orderId,
+              action: 'DOCUMENT_UPLOADED',
+              changes: null,
+              metadata: JSON.stringify(metadata),
+              performedByUserId: doc.uploadedById,
+              performedByName: doc.uploadedBy?.name || doc.uploadedBy?.email || 'System',
+              createdAt: doc.uploadedAt
+            }
+          });
+
+          created++;
+          details.customerDocuments.created++;
+          console.log(`  ✅ Created log for CustomerDocument: ${doc.fileName}`);
+        } catch (e) {
+          console.error(`  ❌ Error processing CustomerDocument ${doc.id}:`, e.message);
+          errors++;
+        }
+      }
+
+      const summary = {
+        totalDocuments: itemDocs.length + orderDocs.length + shipmentDocs.length + customerDocs.length,
+        created,
+        skipped,
+        errors,
+        details,
+        message: `Synthetic backfill complete: ${created} audit logs created, ${skipped} skipped (already logged), ${errors} errors`
+      };
+
+      console.log('🏁 Synthetic document backfill complete:', summary);
+      res.json(summary);
+    } catch (e) {
+      console.error('Synthetic backfill error:', e);
+      res.status(500).json({ error: 'Failed to create synthetic document audit logs', details: e.message });
+    }
+  });
+
   // ONE-TIME BACKFILL: Populate missing metadata on document audit logs
   // POST /api/audit/backfill-document-metadata
   router.post('/backfill-document-metadata', async (req, res) => {
