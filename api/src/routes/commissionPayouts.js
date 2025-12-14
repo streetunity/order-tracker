@@ -11,34 +11,75 @@ export function createCommissionPayoutsRouter(prisma) {
     return ['SUPER_ADMIN', 'ACCOUNTANT'].includes(role);
   };
 
+  // Standard include structure for payouts with all needed relations
+  const payoutInclude = {
+    itemCommission: {
+      include: {
+        commission: {
+          include: {
+            order: {
+              select: {
+                id: true,
+                poNumber: true,
+                orderDate: true,
+                account: { select: { name: true } }
+              }
+            }
+          }
+        },
+        item: {
+          select: {
+            productCode: true,
+            serialNumber: true,
+            currentStage: true
+          }
+        }
+      }
+    }
+  };
+
   // Helper function to build rich audit metadata for commission payouts
   const buildPayoutAuditMetadata = (payout, extraData = {}) => {
-    const commission = payout.itemCommission?.commission;
-    const order = commission?.order;
-    const item = payout.itemCommission?.item;
+    // Debug logging
+    console.log('📝 Building payout audit metadata...');
+    console.log('  - payout.id:', payout?.id);
+    console.log('  - payout.itemCommission:', payout?.itemCommission ? 'exists' : 'undefined');
+    console.log('  - payout.itemCommission?.commission:', payout?.itemCommission?.commission ? 'exists' : 'undefined');
     
-    return {
+    const itemCommission = payout?.itemCommission;
+    const commission = itemCommission?.commission;
+    const order = commission?.order;
+    const item = itemCommission?.item;
+    
+    console.log('  - commission?.salesPersonName:', commission?.salesPersonName);
+    console.log('  - order?.poNumber:', order?.poNumber);
+    console.log('  - order?.account?.name:', order?.account?.name);
+    console.log('  - item?.productCode:', item?.productCode);
+    
+    const metadata = {
       // Agent/Sales Person info
-      salesPerson: commission?.salesPersonName || 'Unknown',
-      salesPersonName: commission?.salesPersonName || 'Unknown',
+      salesPerson: commission?.salesPersonName || null,
+      salesPersonName: commission?.salesPersonName || null,
       
-      // Order info
+      // Order info - skip orderPO per user request
       orderId: commission?.orderId || null,
-      orderPO: order?.poNumber || 'N/A',
-      customerName: order?.account?.name || 'N/A',
+      customerName: order?.account?.name || null,
       
       // Item info
-      itemId: payout.itemCommission?.itemId || null,
-      itemName: item?.productCode || 'N/A',
+      itemId: itemCommission?.itemId || null,
+      itemName: item?.productCode || null,
       
       // Payout specific info
-      payoutId: payout.id,
-      stage: payout.stage,
-      amount: payout.amount,
+      payoutId: payout?.id || null,
+      stage: payout?.stage || null,
+      amount: payout?.amount ?? null,
       
       // Any extra data passed in
       ...extraData
     };
+    
+    console.log('  - Final metadata:', JSON.stringify(metadata));
+    return metadata;
   };
 
   // DEBUG ENDPOINT - Remove after testing
@@ -65,31 +106,7 @@ export function createCommissionPayoutsRouter(prisma) {
       console.log('✅ Fetching pending payouts from database...');
       const payouts = await prisma.commissionPayout.findMany({
         where: { status: 'PENDING' },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      id: true,
-                      poNumber: true,
-                      orderDate: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true,
-                  serialNumber: true,
-                  currentStage: true
-                }
-              }
-            }
-          }
-        },
+        include: payoutInclude,
         orderBy: [
           { createdAt: 'asc' }
         ]
@@ -133,6 +150,17 @@ export function createCommissionPayoutsRouter(prisma) {
 
       const { approvalNotes } = req.body;
 
+      // First fetch the full payout with includes
+      const existingPayout = await prisma.commissionPayout.findUnique({
+        where: { id: req.params.id },
+        include: payoutInclude
+      });
+
+      if (!existingPayout) {
+        return res.status(404).json({ error: 'Payout not found' });
+      }
+
+      // Update the payout
       const payout = await prisma.commissionPayout.update({
         where: { id: req.params.id },
         data: {
@@ -142,32 +170,10 @@ export function createCommissionPayoutsRouter(prisma) {
           approvedByName: req.user.name,
           approvalNotes
         },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true,
-                  serialNumber: true,
-                  currentStage: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
-      // Create audit log with rich metadata
+      // Create audit log with rich metadata - use the payout with includes
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
@@ -224,29 +230,7 @@ export function createCommissionPayoutsRouter(prisma) {
 
       const payout = await prisma.commissionPayout.findUnique({
         where: { id: req.params.id },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true,
-                  serialNumber: true,
-                  currentStage: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
       if (!payout) {
@@ -268,7 +252,7 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log with rich metadata
+      // Create audit log with rich metadata - use prefetched payout which has includes
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
@@ -302,27 +286,7 @@ export function createCommissionPayoutsRouter(prisma) {
       // First, get the payout with its parent commission info
       const existingPayout = await prisma.commissionPayout.findUnique({
         where: { id: req.params.id },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
       if (!existingPayout) {
@@ -354,7 +318,7 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log with rich metadata
+      // Create audit log with rich metadata - use prefetched payout
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
@@ -415,34 +379,17 @@ export function createCommissionPayoutsRouter(prisma) {
 
       const { paymentMethod, paymentNotes } = req.body;
 
-      const payout = await prisma.commissionPayout.findUnique({
+      // Prefetch the payout with all includes
+      const existingPayout = await prisma.commissionPayout.findUnique({
         where: { id: req.params.id },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true,
-                  serialNumber: true,
-                  currentStage: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
-      if (payout.status !== 'APPROVED') {
+      if (!existingPayout) {
+        return res.status(404).json({ error: 'Payout not found' });
+      }
+
+      if (existingPayout.status !== 'APPROVED') {
         return res.status(400).json({ error: 'Payout must be approved before marking as paid' });
       }
 
@@ -456,32 +403,11 @@ export function createCommissionPayoutsRouter(prisma) {
           paymentMethod,
           paymentNotes
         },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true,
-                  serialNumber: true,
-                  currentStage: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
-      // Create audit log with rich metadata
+      // Create audit log with rich metadata - use updatedPayout which has fresh data with includes
+      console.log('💰 Creating PAID audit log...');
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
@@ -539,29 +465,7 @@ export function createCommissionPayoutsRouter(prisma) {
 
       const payout = await prisma.commissionPayout.findUnique({
         where: { id: req.params.id },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true,
-                  serialNumber: true,
-                  currentStage: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
       if (!payout) {
@@ -593,7 +497,7 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log with rich metadata
+      // Create audit log with rich metadata - use prefetched payout
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
@@ -630,27 +534,7 @@ export function createCommissionPayoutsRouter(prisma) {
           id: { in: payoutIds },
           status: 'PENDING'
         },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
       const result = await prisma.commissionPayout.updateMany({
@@ -688,7 +572,6 @@ export function createCommissionPayoutsRouter(prisma) {
               salesPerson: p.itemCommission.commission.salesPersonName,
               amount: p.amount,
               stage: p.stage,
-              orderPO: p.itemCommission.commission.order?.poNumber,
               customerName: p.itemCommission.commission.order?.account?.name,
               itemName: p.itemCommission.item?.productCode
             }))
@@ -762,27 +645,7 @@ export function createCommissionPayoutsRouter(prisma) {
           id: { in: payoutIds },
           status: 'APPROVED'
         },
-        include: {
-          itemCommission: {
-            include: {
-              commission: {
-                include: {
-                  order: {
-                    select: {
-                      poNumber: true,
-                      account: { select: { name: true } }
-                    }
-                  }
-                }
-              },
-              item: {
-                select: {
-                  productCode: true
-                }
-              }
-            }
-          }
-        }
+        include: payoutInclude
       });
 
       const result = await prisma.commissionPayout.updateMany({
@@ -822,7 +685,6 @@ export function createCommissionPayoutsRouter(prisma) {
               salesPerson: p.itemCommission.commission.salesPersonName,
               amount: p.amount,
               stage: p.stage,
-              orderPO: p.itemCommission.commission.order?.poNumber,
               customerName: p.itemCommission.commission.order?.account?.name,
               itemName: p.itemCommission.item?.productCode
             }))
