@@ -547,15 +547,26 @@ export default function AuditHistoryViewer() {
     // Document entities
     if (log.entityType?.includes('Document') && log.metadata) {
       info.title = log.metadata.fileName || '';
-      const docTypeLabel = log.metadata.documentTypeLabel || log.metadata.documentType || '';
-      if (docTypeLabel) {
-        info.subtitle = docTypeLabel;
+      
+      // Build subtitle with document type and customer
+      const subtitleParts = [];
+      if (log.metadata.documentTypeLabel || log.metadata.documentType) {
+        subtitleParts.push(log.metadata.documentTypeLabel || log.metadata.documentType);
+      }
+      if (log.metadata.customerName) {
+        subtitleParts.push(log.metadata.customerName);
+      }
+      info.subtitle = subtitleParts.join(' • ');
+      
+      // Show order info in details
+      if (log.metadata.orderPO) {
+        info.details.push(`Order: ${log.metadata.orderPO}`);
       }
       if (log.metadata.productCode) {
         info.details.push(`Item: ${log.metadata.productCode}`);
       }
-      if (log.metadata.orderPO) {
-        info.details.push(`Order: ${log.metadata.orderPO}`);
+      if (log.metadata.containerNumber) {
+        info.details.push(`Container: ${log.metadata.containerNumber}`);
       }
     }
 
