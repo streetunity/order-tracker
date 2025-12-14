@@ -481,6 +481,265 @@ export function createAuditRouter() {
     }
   });
 
+  // ONE-TIME BACKFILL: Populate missing metadata on document audit logs
+  // POST /api/audit/backfill-document-metadata
+  router.post('/backfill-document-metadata', async (req, res) => {
+    try {
+      console.log('🔄 Starting document audit metadata backfill...');
+      
+      // Find all document-related audit logs
+      const documentLogs = await prisma.auditLog.findMany({
+        where: {
+          entityType: {
+            in: ['Document', 'ItemDocument', 'ShipmentDocument', 'CustomerDocument', 'OrderDocument']
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      console.log(`📋 Found ${documentLogs.length} document audit logs to process`);
+
+      // Document type labels for display
+      const DOC_TYPE_LABELS = {
+        'ISF': 'ISF (10+2)',
+        'ARRIVAL_NOTICE': 'Arrival Notice',
+        'BILL_OF_LADING': 'Bill of Lading',
+        'COMMERCIAL_INVOICE': 'Commercial Invoice',
+        'PACKING_LIST': 'Packing List',
+        'DELIVERY_ORDER': 'Delivery Order',
+        'ISF_REPORT': 'ISF Report',
+        'ENTRY_SUMMARY': 'Entry Summary',
+        'BROKER_INVOICE': 'Broker Invoice',
+        'OTHER': 'Other'
+      };
+
+      let updated = 0;
+      let skipped = 0;
+      let notFound = 0;
+      let errors = 0;
+
+      for (const log of documentLogs) {
+        try {
+          // Parse existing metadata
+          let existingMetadata = {};
+          try {
+            if (log.metadata) existingMetadata = JSON.parse(log.metadata);
+          } catch {}
+
+          // Check if already has enriched metadata (skip if complete)
+          if (existingMetadata.fileName && existingMetadata.documentTypeLabel) {
+            skipped++;
+            continue;
+          }
+
+          // Build enriched metadata starting with existing
+          const enrichedMetadata = { ...existingMetadata };
+          let foundDocument = false;
+
+          // Try to find the document based on entity type
+          if (log.entityType === 'ItemDocument') {
+            try {
+              const doc = await prisma.itemDocument.findUnique({
+                where: { id: log.entityId },
+                include: {
+                  item: {
+                    include: {
+                      order: {
+                        include: {
+                          account: true
+                        }
+                      }
+                    }
+                  }
+                }
+              });
+
+              if (doc) {
+                foundDocument = true;
+                enrichedMetadata.fileName = doc.fileName;
+                enrichedMetadata.documentType = doc.documentType;
+                enrichedMetadata.documentTypeLabel = DOC_TYPE_LABELS[doc.documentType] || doc.documentType;
+                enrichedMetadata.fileSize = doc.fileSize;
+                enrichedMetadata.fileType = doc.fileType;
+                if (doc.item) {
+                  enrichedMetadata.productCode = doc.item.productCode;
+                  enrichedMetadata.itemId = doc.item.id;
+                  if (doc.item.order) {
+                    enrichedMetadata.orderId = doc.item.order.id;
+                    enrichedMetadata.orderPO = doc.item.order.poNumber;
+                    if (doc.item.order.account) {
+                      enrichedMetadata.customerName = doc.item.order.account.name;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.log(`  ⚠️ ItemDocument lookup failed for ${log.entityId}: ${e.message}`);
+            }
+          } else if (log.entityType === 'OrderDocument') {
+            try {
+              const doc = await prisma.orderDocument.findUnique({
+                where: { id: log.entityId },
+                include: {
+                  order: {
+                    include: {
+                      account: true
+                    }
+                  }
+                }
+              });
+
+              if (doc) {
+                foundDocument = true;
+                enrichedMetadata.fileName = doc.fileName;
+                enrichedMetadata.fileSize = doc.fileSize;
+                enrichedMetadata.fileType = doc.fileType;
+                enrichedMetadata.documentTypeLabel = 'Order Document';
+                if (doc.order) {
+                  enrichedMetadata.orderId = doc.order.id;
+                  enrichedMetadata.orderPO = doc.order.poNumber;
+                  if (doc.order.account) {
+                    enrichedMetadata.customerName = doc.order.account.name;
+                  }
+                }
+              }
+            } catch (e) {
+              console.log(`  ⚠️ OrderDocument lookup failed for ${log.entityId}: ${e.message}`);
+            }
+          } else if (log.entityType === 'ShipmentDocument') {
+            try {
+              const doc = await prisma.shipmentDocument.findUnique({
+                where: { id: log.entityId },
+                include: {
+                  shipment: {
+                    include: {
+                      items: {
+                        take: 1,
+                        include: {
+                          order: {
+                            include: {
+                              account: true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              });
+
+              if (doc) {
+                foundDocument = true;
+                enrichedMetadata.fileName = doc.fileName;
+                enrichedMetadata.documentType = doc.documentType;
+                enrichedMetadata.documentTypeLabel = DOC_TYPE_LABELS[doc.documentType] || doc.documentType;
+                enrichedMetadata.fileSize = doc.fileSize;
+                enrichedMetadata.fileType = doc.fileType;
+                if (doc.shipment) {
+                  enrichedMetadata.shipmentId = doc.shipment.id;
+                  enrichedMetadata.containerNumber = doc.shipment.containerNumber;
+                  enrichedMetadata.billOfLading = doc.shipment.billOfLading;
+                  // Get order info from first item in shipment
+                  if (doc.shipment.items && doc.shipment.items.length > 0) {
+                    const firstItem = doc.shipment.items[0];
+                    enrichedMetadata.productCode = firstItem.productCode;
+                    if (firstItem.order) {
+                      enrichedMetadata.orderId = firstItem.order.id;
+                      enrichedMetadata.orderPO = firstItem.order.poNumber;
+                      if (firstItem.order.account) {
+                        enrichedMetadata.customerName = firstItem.order.account.name;
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.log(`  ⚠️ ShipmentDocument lookup failed for ${log.entityId}: ${e.message}`);
+            }
+          } else if (log.entityType === 'CustomerDocument') {
+            try {
+              const doc = await prisma.customerDocument.findUnique({
+                where: { id: log.entityId },
+                include: {
+                  order: {
+                    include: {
+                      account: true
+                    }
+                  },
+                  uploadedBy: {
+                    select: { name: true, email: true }
+                  }
+                }
+              });
+
+              if (doc) {
+                foundDocument = true;
+                enrichedMetadata.fileName = doc.fileName;
+                enrichedMetadata.fileSize = Number(doc.fileSize); // BigInt to Number
+                enrichedMetadata.fileType = doc.mimeType;
+                enrichedMetadata.documentTypeLabel = 'Customer Document';
+                enrichedMetadata.description = doc.description;
+                if (doc.order) {
+                  enrichedMetadata.orderId = doc.order.id;
+                  enrichedMetadata.orderPO = doc.order.poNumber;
+                  if (doc.order.account) {
+                    enrichedMetadata.customerName = doc.order.account.name;
+                  }
+                }
+                if (doc.uploadedBy) {
+                  enrichedMetadata.uploadedByName = doc.uploadedBy.name || doc.uploadedBy.email;
+                }
+              }
+            } catch (e) {
+              console.log(`  ⚠️ CustomerDocument lookup failed for ${log.entityId}: ${e.message}`);
+            }
+          }
+
+          // If we couldn't find the document, mark it
+          if (!foundDocument) {
+            notFound++;
+            enrichedMetadata._backfillAttempted = true;
+            enrichedMetadata._recordNotFound = true;
+          }
+
+          // Check if we actually added any new data
+          const newMetadataStr = JSON.stringify(enrichedMetadata);
+          const oldMetadataStr = log.metadata || '{}';
+          
+          if (newMetadataStr !== oldMetadataStr) {
+            // Update the audit log
+            await prisma.auditLog.update({
+              where: { id: log.id },
+              data: { metadata: newMetadataStr }
+            });
+            updated++;
+            console.log(`✅ Updated log ${log.id}: ${log.action} - ${enrichedMetadata.fileName || 'unknown'} (${enrichedMetadata.documentTypeLabel || 'unknown type'})`);
+          } else {
+            skipped++;
+          }
+        } catch (logError) {
+          console.error(`❌ Error processing log ${log.id}:`, logError.message);
+          errors++;
+        }
+      }
+
+      const summary = {
+        total: documentLogs.length,
+        updated,
+        skipped,
+        notFound,
+        errors,
+        message: `Backfill complete: ${updated} updated, ${skipped} skipped, ${notFound} records not found, ${errors} errors`
+      };
+
+      console.log('🏁 Document backfill complete:', summary);
+      res.json(summary);
+    } catch (e) {
+      console.error('Document backfill error:', e);
+      res.status(500).json({ error: 'Failed to backfill document metadata', details: e.message });
+    }
+  });
+
   // ONE-TIME BACKFILL: Populate missing metadata on user audit logs
   // POST /api/audit/backfill-user-metadata
   router.post('/backfill-user-metadata', async (req, res) => {
