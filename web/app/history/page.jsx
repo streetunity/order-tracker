@@ -82,7 +82,7 @@ export default function AuditHistoryViewer() {
   const router = useRouter();
   const { user, getAuthHeaders, isAdmin } = useAuth();
 
-  // Debounced search
+  // Debounced search - for API calls only
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Redirect to login if not authenticated or not admin
@@ -439,6 +439,25 @@ export default function AuditHistoryViewer() {
       }
     }
 
+    // Container entity - try to find related order
+    if (log.entityType === 'Container') {
+      // Check metadata for order info
+      if (log.metadata?.orderName) {
+        info.title = log.metadata.orderName;
+      }
+      if (log.metadata?.salesPerson) {
+        info.subtitle = log.metadata.salesPerson;
+      }
+      // If we have parentEntityId, try to find the order
+      if (log.parentEntityId) {
+        const order = orders.find(o => o.id === log.parentEntityId);
+        if (order) {
+          info.title = order.account?.name || info.title || 'Unknown Customer';
+          info.subtitle = order.sku || info.subtitle || '';
+        }
+      }
+    }
+
     // Account entity
     if (log.entityType === 'Account') {
       const account = accounts.find(a => a.id === log.entityId);
@@ -694,8 +713,9 @@ export default function AuditHistoryViewer() {
   }
 
   // Determine if we should show the sidebar view or unified search results view
+  // Use searchQuery directly (not debounced) so UI switches immediately when typing
   // Show unified view when: search is active OR not on orders/customers tab
-  const isSearchActive = debouncedSearch && debouncedSearch.trim().length > 0;
+  const isSearchActive = searchQuery && searchQuery.trim().length > 0;
   const showSidebarView = (activeTab === 'orders' || activeTab === 'customers') && !isSearchActive;
 
   return (
