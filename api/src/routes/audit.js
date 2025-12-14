@@ -45,14 +45,19 @@ export function createAuditRouter() {
 
       let updated = 0;
       let skipped = 0;
-      let errors = 0;
+      let notFound = 0;
+      const errorDetails = [];
 
       for (const log of commissionLogs) {
         try {
-          // Parse existing metadata
+          // Parse existing metadata and changes
           let existingMetadata = {};
+          let existingChanges = [];
           try {
             if (log.metadata) existingMetadata = JSON.parse(log.metadata);
+          } catch {}
+          try {
+            if (log.changes) existingChanges = JSON.parse(log.changes);
           } catch {}
 
           // Check if already has enriched metadata (skip if complete)
@@ -61,7 +66,7 @@ export function createAuditRouter() {
             continue;
           }
 
-          // Try to find the payout record
+          // Try to find the related records
           let payout = null;
           let itemCommission = null;
           let orderItem = null;
@@ -70,63 +75,78 @@ export function createAuditRouter() {
 
           // entityId could be a CommissionPayout ID or ItemCommission ID
           if (log.entityType === 'CommissionPayout') {
-            payout = await prisma.commissionPayout.findUnique({
-              where: { id: log.entityId },
-              include: {
-                itemCommission: {
-                  include: {
-                    orderItem: {
-                      include: {
-                        order: {
-                          include: {
-                            account: true
+            try {
+              payout = await prisma.commissionPayout.findUnique({
+                where: { id: log.entityId },
+                include: {
+                  itemCommission: {
+                    include: {
+                      orderItem: {
+                        include: {
+                          order: {
+                            include: {
+                              account: true
+                            }
                           }
                         }
                       }
                     }
                   }
                 }
-              }
-            });
+              });
 
-            if (payout) {
-              itemCommission = payout.itemCommission;
-              orderItem = itemCommission?.orderItem;
-              order = orderItem?.order;
-              account = order?.account;
+              if (payout) {
+                itemCommission = payout.itemCommission;
+                orderItem = itemCommission?.orderItem;
+                order = orderItem?.order;
+                account = order?.account;
+              }
+            } catch (e) {
+              console.log(`  ⚠️ Payout lookup failed for ${log.entityId}: ${e.message}`);
             }
-          } else if (log.entityType === 'ItemCommission') {
-            itemCommission = await prisma.itemCommission.findUnique({
-              where: { id: log.entityId },
-              include: {
-                orderItem: {
-                  include: {
-                    order: {
-                      include: {
-                        account: true
+          } else if (log.entityType === 'ItemCommission' || log.entityType === 'Commission') {
+            try {
+              itemCommission = await prisma.itemCommission.findUnique({
+                where: { id: log.entityId },
+                include: {
+                  orderItem: {
+                    include: {
+                      order: {
+                        include: {
+                          account: true
+                        }
                       }
                     }
-                  }
+                  },
+                  payouts: true
+                }
+              });
+
+              if (itemCommission) {
+                orderItem = itemCommission.orderItem;
+                order = orderItem?.order;
+                account = order?.account;
+                // Get the first payout for stage/amount info
+                if (itemCommission.payouts && itemCommission.payouts.length > 0) {
+                  payout = itemCommission.payouts[0];
                 }
               }
-            });
-
-            if (itemCommission) {
-              orderItem = itemCommission.orderItem;
-              order = orderItem?.order;
-              account = order?.account;
+            } catch (e) {
+              console.log(`  ⚠️ ItemCommission lookup failed for ${log.entityId}: ${e.message}`);
             }
           }
 
-          // Build enriched metadata
+          // Build enriched metadata starting with existing
           const enrichedMetadata = { ...existingMetadata };
 
-          // Sales person (agent)
+          // Sales person (agent) - try multiple sources
           if (!enrichedMetadata.salesPerson) {
             if (itemCommission?.salesPerson) {
               enrichedMetadata.salesPerson = itemCommission.salesPerson;
             } else if (order?.sku) {
               enrichedMetadata.salesPerson = order.sku;
+            } else if (existingMetadata.agent) {
+              enrichedMetadata.salesPerson = existingMetadata.agent;
             }
           }
 
@@ -136,38 +156,58 @@ export function createAuditRouter() {
           }
 
           // Item name
-          if (!enrichedMetadata.itemName && orderItem?.productCode) {
-            enrichedMetadata.itemName = orderItem.productCode;
+          if (!enrichedMetadata.itemName) {
+            if (orderItem?.productCode) {
+              enrichedMetadata.itemName = orderItem.productCode;
+            } else if (existingMetadata.item) {
+              enrichedMetadata.itemName = existingMetadata.item;
+            }
           }
 
           // Stage (P1/P2)
-          if (enrichedMetadata.stage === undefined && payout?.stage) {
-            enrichedMetadata.stage = payout.stage;
+          if (enrichedMetadata.stage === undefined) {
+            if (payout?.stage) {
+              enrichedMetadata.stage = payout.stage;
+            } else if (existingMetadata.phase) {
+              enrichedMetadata.stage = existingMetadata.phase;
+            }
           }
 
           // Amount
-          if (enrichedMetadata.amount === undefined && payout?.amount !== undefined) {
-            enrichedMetadata.amount = payout.amount;
+          if (enrichedMetadata.amount === undefined) {
+            if (payout?.amount !== undefined) {
+              enrichedMetadata.amount = payout.amount;
+            } else if (existingMetadata.payoutAmount !== undefined) {
+              enrichedMetadata.amount = existingMetadata.payoutAmount;
+            }
+          }
+
+          // If we couldn't find the record and have no useful data, mark it
+          if (!itemCommission && !payout && !enrichedMetadata.salesPerson && !enrichedMetadata.itemName) {
+            notFound++;
+            // Still save a marker that we tried
+            enrichedMetadata._backfillAttempted = true;
+            enrichedMetadata._recordNotFound = true;
           }
 
           // Check if we actually added any new data
           const newMetadataStr = JSON.stringify(enrichedMetadata);
           const oldMetadataStr = log.metadata || '{}';
           
-          if (newMetadataStr !== oldMetadataStr && Object.keys(enrichedMetadata).length > Object.keys(existingMetadata).length) {
+          if (newMetadataStr !== oldMetadataStr) {
             // Update the audit log
             await prisma.auditLog.update({
               where: { id: log.id },
               data: { metadata: newMetadataStr }
             });
             updated++;
-            console.log(`✅ Updated log ${log.id}: ${log.action} - added metadata for ${enrichedMetadata.salesPerson || 'unknown agent'}`);
+            console.log(`✅ Updated log ${log.id}: ${log.action} - ${enrichedMetadata.salesPerson || 'unknown'} / ${enrichedMetadata.itemName || 'unknown item'}`);
           } else {
             skipped++;
           }
         } catch (logError) {
           console.error(`❌ Error processing log ${log.id}:`, logError.message);
-          errors++;
+          errorDetails.push({ logId: log.id, error: logError.message });
         }
       }
 
@@ -175,8 +215,10 @@ export function createAuditRouter() {
         total: commissionLogs.length,
         updated,
         skipped,
-        errors,
-        message: `Backfill complete: ${updated} updated, ${skipped} skipped, ${errors} errors`
+        notFound,
+        errors: errorDetails.length,
+        errorDetails: errorDetails.slice(0, 10), // Show first 10 errors
+        message: `Backfill complete: ${updated} updated, ${skipped} skipped, ${notFound} records not found, ${errorDetails.length} errors`
       };
 
       console.log('🏁 Backfill complete:', summary);
