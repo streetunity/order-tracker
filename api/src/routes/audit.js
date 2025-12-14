@@ -10,7 +10,7 @@ export function createAuditRouter() {
   function getEntityTypeFilter(tab) {
     switch (tab) {
       case 'orders':
-        return ['Order', 'OrderItem'];
+        return ['Order', 'OrderItem', 'Container'];
       case 'customers':
         return ['Account'];
       case 'users':
