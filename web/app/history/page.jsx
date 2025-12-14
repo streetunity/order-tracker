@@ -38,6 +38,16 @@ const DATE_PRESETS = [
   { id: 'custom', label: 'Custom Range' },
 ];
 
+// Role display names
+const ROLE_LABELS = {
+  'SUPER_ADMIN': 'Super Admin',
+  'ACCOUNTANT': 'Accountant',
+  'ADMIN': 'Admin',
+  'AGENT': 'Agent',
+  'BROKER': 'Broker',
+  'MANUFACTURER': 'Manufacturer'
+};
+
 export default function AuditHistoryViewer() {
   // State
   const [logs, setLogs] = useState([]);
@@ -126,7 +136,7 @@ export default function AuditHistoryViewer() {
     };
   }, [datePreset, customStartDate, customEndDate]);
 
-  // Load logs from new search endpoint
+  // Load logs from search endpoint - use raw endpoint when searching for better JSON field matching
   const loadLogs = useCallback(async (page = 1, append = false) => {
     if (!user || !isAdmin) return;
 
@@ -148,7 +158,10 @@ export default function AuditHistoryViewer() {
       if (endDate) params.append('endDate', endDate);
       if (debouncedSearch) params.append('search', debouncedSearch);
 
-      const res = await fetch(`/api/audit/search?${params.toString()}`, {
+      // Use raw SQL search endpoint when searching for better JSON field matching
+      const endpoint = debouncedSearch ? '/api/audit/search-raw' : '/api/audit/search';
+      
+      const res = await fetch(`${endpoint}?${params.toString()}`, {
         headers: getAuthHeaders(),
         cache: 'no-store',
       });
@@ -333,6 +346,13 @@ export default function AuditHistoryViewer() {
       'USER_DEACTIVATED': 'User Deactivated',
       'USER_ACTIVATED': 'User Activated',
       // Commission actions
+      'APPROVED': 'Payout Approved',
+      'UNAPPROVED': 'Payout Unapproved',
+      'REJECTED': 'Payout Denied',
+      'PAID': 'Payout Paid',
+      'UNPAID': 'Payout Unpaid',
+      'BULK_APPROVED': 'Bulk Approved',
+      'BULK_PAID': 'Bulk Paid',
       'COMMISSION_APPROVED': 'Commission Approved',
       'COMMISSION_DENIED': 'Commission Denied',
       'COMMISSION_RECALCULATED': 'Commission Recalculated',
@@ -351,8 +371,8 @@ export default function AuditHistoryViewer() {
     if (action.includes('CREATED') || action.includes('UPLOADED')) return 'badge-created';
     if (action.includes('UPDATED') || action.includes('CHANGED')) return 'badge-updated';
     if (action.includes('DELETED')) return 'badge-deleted';
-    if (action.includes('LOCKED') || action.includes('BLOCKED') || action.includes('DENIED')) return 'badge-locked';
-    if (action.includes('UNLOCKED') || action.includes('ACTIVATED')) return 'badge-unlocked';
+    if (action.includes('LOCKED') || action.includes('BLOCKED') || action.includes('DENIED') || action.includes('REJECTED')) return 'badge-locked';
+    if (action.includes('UNLOCKED') || action.includes('ACTIVATED') || action.includes('UNAPPROVED') || action.includes('UNPAID')) return 'badge-unlocked';
     if (action.includes('ORDERED') || action.includes('APPROVED') || action.includes('PAID')) return 'badge-ordered';
     return 'badge-default';
   }
@@ -406,9 +426,11 @@ export default function AuditHistoryViewer() {
     return null;
   }
 
+  // Get entity info for display - enhanced for users and commissions
   function getEntityInfo(log) {
-    const info = { title: '', subtitle: '' };
+    const info = { title: '', subtitle: '', details: [] };
 
+    // Order entity
     if (log.entityType === 'Order' && !log.parentEntityId) {
       const order = orders.find(o => o.id === log.entityId);
       if (order) {
@@ -417,6 +439,7 @@ export default function AuditHistoryViewer() {
       }
     }
 
+    // Account entity
     if (log.entityType === 'Account') {
       const account = accounts.find(a => a.id === log.entityId);
       if (account) {
@@ -428,6 +451,7 @@ export default function AuditHistoryViewer() {
       }
     }
 
+    // OrderItem entity
     if (log.entityType === 'OrderItem') {
       if (log.parentEntityId) {
         const order = orders.find(o => o.id === log.parentEntityId);
@@ -438,20 +462,80 @@ export default function AuditHistoryViewer() {
       }
     }
 
-    // For new entity types, show metadata info
-    if (log.entityType === 'User' && log.metadata?.userName) {
-      info.title = log.metadata.userName;
-      info.subtitle = log.metadata.userEmail || '';
+    // User entity - show username and role
+    if (log.entityType === 'User') {
+      // Try to get from metadata first
+      if (log.metadata?.data) {
+        info.title = log.metadata.data.name || log.metadata.data.email || 'Unknown User';
+        const role = log.metadata.data.role;
+        info.subtitle = role ? (ROLE_LABELS[role] || role) : '';
+      } else if (log.metadata?.userName) {
+        info.title = log.metadata.userName;
+        info.subtitle = log.metadata.userEmail || '';
+      }
+      // Also check changes for role info
+      if (log.changes && log.changes.length > 0) {
+        const nameChange = log.changes.find(c => c.field === 'name');
+        const roleChange = log.changes.find(c => c.field === 'role');
+        if (nameChange && !info.title) {
+          info.title = nameChange.newValue || nameChange.oldValue;
+        }
+        if (roleChange) {
+          const oldRole = ROLE_LABELS[roleChange.oldValue] || roleChange.oldValue;
+          const newRole = ROLE_LABELS[roleChange.newValue] || roleChange.newValue;
+          info.details.push(`Role: ${oldRole} → ${newRole}`);
+        }
+      }
     }
 
-    if ((log.entityType === 'Commission' || log.entityType === 'CommissionPayout') && log.metadata) {
-      info.title = log.metadata.salesPerson || log.metadata.orderName || '';
-      info.subtitle = log.metadata.amount ? `$${parseFloat(log.metadata.amount).toFixed(2)}` : '';
+    // Commission/CommissionPayout entity - show order, phase, amount, agent
+    if (log.entityType === 'Commission' || log.entityType === 'CommissionPayout' || log.entityType === 'ItemCommission') {
+      const meta = log.metadata || {};
+      
+      // Build title from sales person / agent
+      if (meta.salesPersonName || meta.salesPerson) {
+        info.title = meta.salesPersonName || meta.salesPerson;
+      }
+      
+      // Build subtitle from order info
+      const orderInfo = [];
+      if (meta.orderPO) orderInfo.push(meta.orderPO);
+      if (meta.customerName) orderInfo.push(meta.customerName);
+      if (meta.itemName) orderInfo.push(meta.itemName);
+      if (orderInfo.length > 0) {
+        info.subtitle = orderInfo.join(' • ');
+      }
+      
+      // Build details array for phase and amount
+      if (meta.stage) {
+        const stageLabel = meta.stage === 'SHIPPING' ? 'P1 (Shipping)' : 
+                          meta.stage === 'DELIVERED' ? 'P2 (Delivered)' : meta.stage;
+        info.details.push(`Phase: ${stageLabel}`);
+      }
+      if (meta.amount !== undefined && meta.amount !== null) {
+        info.details.push(`Amount: $${parseFloat(meta.amount).toFixed(2)}`);
+      }
+      if (meta.rejectionReason) {
+        info.details.push(`Reason: ${meta.rejectionReason}`);
+      }
+      if (meta.paymentMethod) {
+        info.details.push(`Method: ${meta.paymentMethod}`);
+      }
     }
 
+    // Document entities
     if (log.entityType?.includes('Document') && log.metadata) {
       info.title = log.metadata.fileName || '';
-      info.subtitle = log.metadata.documentType || '';
+      const docTypeLabel = log.metadata.documentTypeLabel || log.metadata.documentType || '';
+      if (docTypeLabel) {
+        info.subtitle = docTypeLabel;
+      }
+      if (log.metadata.productCode) {
+        info.details.push(`Item: ${log.metadata.productCode}`);
+      }
+      if (log.metadata.orderPO) {
+        info.details.push(`Order: ${log.metadata.orderPO}`);
+      }
     }
 
     return info;
@@ -496,6 +580,8 @@ export default function AuditHistoryViewer() {
       'rate': 'Commission Rate',
       'status': 'Status',
       'amount': 'Amount',
+      'showInSalesRepDropdown': 'Show in Sales Rep Dropdown',
+      'password': 'Password',
     };
     return labels[field] || field;
   }
@@ -505,6 +591,9 @@ export default function AuditHistoryViewer() {
     if (value === true || value === 'true') return 'Yes';
     if (value === false || value === 'false') return 'No';
     if (value === '') return '(blank)';
+    if (value === '[hidden]' || value === '[changed]') return value;
+    // Check if it's a role value
+    if (ROLE_LABELS[value]) return ROLE_LABELS[value];
     return value;
   }
 
@@ -546,10 +635,18 @@ export default function AuditHistoryViewer() {
           </div>
         </div>
 
-        {(entityInfo.title || entityInfo.subtitle) && (
+        {/* Entity info section - title, subtitle, and details */}
+        {(entityInfo.title || entityInfo.subtitle || entityInfo.details.length > 0) && (
           <div className="log-entity-info">
             {entityInfo.title && <div className="entity-info-title">{entityInfo.title}</div>}
             {entityInfo.subtitle && <div className="entity-info-subtitle">{entityInfo.subtitle}</div>}
+            {entityInfo.details.length > 0 && (
+              <div className="entity-info-details">
+                {entityInfo.details.map((detail, idx) => (
+                  <span key={idx} className="entity-detail-item">{detail}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
