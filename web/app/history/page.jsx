@@ -509,7 +509,7 @@ export default function AuditHistoryViewer() {
       }
     }
 
-    // Commission/CommissionPayout entity - show order, phase, amount, agent
+    // Commission/CommissionPayout entity - show customer, item, phase, amount, agent
     if (log.entityType === 'Commission' || log.entityType === 'CommissionPayout' || log.entityType === 'ItemCommission') {
       const meta = log.metadata || {};
       
@@ -518,9 +518,8 @@ export default function AuditHistoryViewer() {
         info.title = meta.salesPersonName || meta.salesPerson;
       }
       
-      // Build subtitle from order info
+      // Build subtitle from customer and item info
       const orderInfo = [];
-      if (meta.orderPO) orderInfo.push(meta.orderPO);
       if (meta.customerName) orderInfo.push(meta.customerName);
       if (meta.itemName) orderInfo.push(meta.itemName);
       if (orderInfo.length > 0) {
@@ -558,10 +557,7 @@ export default function AuditHistoryViewer() {
       }
       info.subtitle = subtitleParts.join(' • ');
       
-      // Show order info in details
-      if (log.metadata.orderPO) {
-        info.details.push(`Order: ${log.metadata.orderPO}`);
-      }
+      // Show item and container info in details
       if (log.metadata.productCode) {
         info.details.push(`Item: ${log.metadata.productCode}`);
       }
