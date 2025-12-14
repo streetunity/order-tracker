@@ -102,6 +102,7 @@ export function createAuditRouter() {
       console.log(`📋 Found ${commissionLogs.length} commission audit logs to process`);
 
       // Get ALL payouts with full data for matching
+      // Note: ItemCommission.item is the relation to OrderItem (not orderItem)
       const allPayouts = await prisma.commissionPayout.findMany({
         include: {
           itemCommission: {
@@ -115,7 +116,7 @@ export function createAuditRouter() {
                   }
                 }
               },
-              orderItem: true
+              item: true  // This is the OrderItem relation
             }
           }
         }
@@ -213,13 +214,14 @@ export function createAuditRouter() {
           if (matchedPayout) {
             const commission = matchedPayout.itemCommission?.commission;
             const order = commission?.order;
-            const item = matchedPayout.itemCommission?.orderItem;
+            // Note: it's 'item' not 'orderItem' per the Prisma schema
+            const orderItem = matchedPayout.itemCommission?.item;
 
             const enrichedMetadata = {
               ...existingMetadata,
               salesPerson: commission?.salesPersonName || null,
               customerName: order?.account?.name || null,
-              itemName: item?.productCode || null,
+              itemName: orderItem?.productCode || null,
               stage: matchedPayout.stage,
               amount: matchedPayout.amount,
               payoutId: matchedPayout.id,
@@ -329,7 +331,7 @@ export function createAuditRouter() {
                 include: {
                   itemCommission: {
                     include: {
-                      orderItem: {
+                      item: {
                         include: {
                           order: {
                             include: {
@@ -337,7 +339,8 @@ export function createAuditRouter() {
                             }
                           }
                         }
-                      }
+                      },
+                      commission: true
                     }
                   }
                 }
@@ -345,7 +348,7 @@ export function createAuditRouter() {
 
               if (payout) {
                 itemCommission = payout.itemCommission;
-                orderItem = itemCommission?.orderItem;
+                orderItem = itemCommission?.item;
                 order = orderItem?.order;
                 account = order?.account;
               }
@@ -357,7 +360,7 @@ export function createAuditRouter() {
               itemCommission = await prisma.itemCommission.findUnique({
                 where: { id: log.entityId },
                 include: {
-                  orderItem: {
+                  item: {
                     include: {
                       order: {
                         include: {
@@ -366,12 +369,13 @@ export function createAuditRouter() {
                       }
                     }
                   },
-                  payouts: true
+                  payouts: true,
+                  commission: true
                 }
               });
 
               if (itemCommission) {
-                orderItem = itemCommission.orderItem;
+                orderItem = itemCommission.item;
                 order = orderItem?.order;
                 account = order?.account;
                 // Get the first payout for stage/amount info
@@ -389,8 +393,8 @@ export function createAuditRouter() {
 
           // Sales person (agent) - try multiple sources
           if (!enrichedMetadata.salesPerson) {
-            if (itemCommission?.salesPerson) {
-              enrichedMetadata.salesPerson = itemCommission.salesPerson;
+            if (itemCommission?.commission?.salesPersonName) {
+              enrichedMetadata.salesPerson = itemCommission.commission.salesPersonName;
             } else if (order?.sku) {
               enrichedMetadata.salesPerson = order.sku;
             } else if (existingMetadata.agent) {
