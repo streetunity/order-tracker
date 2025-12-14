@@ -169,6 +169,8 @@ export function createAuditRouter() {
         search
       } = req.query;
 
+      console.log('🔍 Raw search called with:', { tab, page, limit, startDate, endDate, search });
+
       const pageNum = Math.max(1, parseInt(page) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
       const offset = (pageNum - 1) * limitNum;
@@ -198,25 +200,38 @@ export function createAuditRouter() {
       }
 
       // Text search - use LIKE with % wildcards for SQLite
+      // Search in both changes and metadata fields, plus other text fields
       if (search && search.trim()) {
-        const searchPattern = `%${search.trim()}%`;
+        const searchTerm = search.trim();
+        const searchPattern = `%${searchTerm}%`;
+        
+        // Build a comprehensive OR clause for searching
+        // Using INSTR for more reliable substring matching in SQLite
         conditions.push(`(
-          changes LIKE ? COLLATE NOCASE OR
-          metadata LIKE ? COLLATE NOCASE OR
-          performedByName LIKE ? COLLATE NOCASE OR
-          action LIKE ? COLLATE NOCASE OR
-          entityId LIKE ? COLLATE NOCASE OR
-          parentEntityId LIKE ? COLLATE NOCASE
+          INSTR(LOWER(COALESCE(changes, '')), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(metadata, '')), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(performedByName, '')), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(action, '')), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(entityId, '')), LOWER(?)) > 0 OR
+          INSTR(LOWER(COALESCE(parentEntityId, '')), LOWER(?)) > 0
         )`);
-        params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+        // Push the search term 6 times (once for each field)
+        params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+        
+        console.log('🔍 Search term:', searchTerm);
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      
+      console.log('🔍 WHERE clause:', whereClause);
+      console.log('🔍 Params:', params);
 
       // Get total count
       const countQuery = `SELECT COUNT(*) as count FROM AuditLog ${whereClause}`;
       const countResult = await prisma.$queryRawUnsafe(countQuery, ...params);
       const totalCount = Number(countResult[0]?.count || 0);
+      
+      console.log('🔍 Total count:', totalCount);
 
       // Fetch logs
       const dataQuery = `
@@ -226,6 +241,8 @@ export function createAuditRouter() {
         LIMIT ? OFFSET ?
       `;
       const logs = await prisma.$queryRawUnsafe(dataQuery, ...params, limitNum, offset);
+      
+      console.log('🔍 Logs found:', logs.length);
 
       // Fetch OrderItem details
       const orderItemIds = logs
@@ -278,7 +295,8 @@ export function createAuditRouter() {
       });
     } catch (e) {
       console.error('Audit raw search error:', e);
-      res.status(500).json({ error: 'Failed to search audit logs' });
+      console.error('Error stack:', e.stack);
+      res.status(500).json({ error: 'Failed to search audit logs', details: e.message });
     }
   });
 
