@@ -25,6 +25,254 @@ export function createAuditRouter() {
     }
   }
 
+  // DIAGNOSTIC: Check what commission payouts exist in the database
+  router.get('/diagnose-commission-data', async (req, res) => {
+    try {
+      // Get sample audit logs
+      const auditLogs = await prisma.auditLog.findMany({
+        where: { entityType: 'CommissionPayout' },
+        take: 5,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Get sample payouts
+      const payouts = await prisma.commissionPayout.findMany({
+        take: 10,
+        include: {
+          itemCommission: {
+            include: {
+              commission: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Check if any audit log entityIds match payout IDs
+      const auditEntityIds = auditLogs.map(l => l.entityId);
+      const payoutIds = payouts.map(p => p.id);
+      
+      const matchingIds = auditEntityIds.filter(id => payoutIds.includes(id));
+
+      res.json({
+        auditLogCount: await prisma.auditLog.count({ where: { entityType: 'CommissionPayout' } }),
+        payoutCount: await prisma.commissionPayout.count(),
+        sampleAuditLogs: auditLogs.map(l => ({
+          id: l.id,
+          entityId: l.entityId,
+          action: l.action,
+          createdAt: l.createdAt
+        })),
+        samplePayouts: payouts.map(p => ({
+          id: p.id,
+          status: p.status,
+          amount: p.amount,
+          stage: p.stage,
+          salesPerson: p.itemCommission?.commission?.salesPersonName,
+          paidAt: p.paidAt,
+          createdAt: p.createdAt
+        })),
+        matchingIds,
+        message: matchingIds.length > 0 
+          ? `Found ${matchingIds.length} matching IDs` 
+          : 'No audit log entityIds match any payout IDs - records may have been recreated'
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // SMART BACKFILL: Try multiple strategies to enrich commission audit logs
+  router.post('/backfill-commission-smart', async (req, res) => {
+    try {
+      console.log('🔄 Starting SMART commission audit metadata backfill...');
+      
+      // Get all commission audit logs that need enrichment
+      const commissionLogs = await prisma.auditLog.findMany({
+        where: {
+          entityType: 'CommissionPayout',
+          OR: [
+            { metadata: null },
+            { metadata: { not: { contains: 'salesPerson' } } }
+          ]
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      console.log(`📋 Found ${commissionLogs.length} commission audit logs to process`);
+
+      // Get ALL payouts with full data for matching
+      const allPayouts = await prisma.commissionPayout.findMany({
+        include: {
+          itemCommission: {
+            include: {
+              commission: {
+                include: {
+                  order: {
+                    include: {
+                      account: true
+                    }
+                  }
+                }
+              },
+              orderItem: true
+            }
+          }
+        }
+      });
+
+      console.log(`📊 Loaded ${allPayouts.length} payouts for matching`);
+
+      // Create lookup maps
+      const payoutById = new Map(allPayouts.map(p => [p.id, p]));
+      const payoutsByPaidAt = new Map();
+      const payoutsByApprovedAt = new Map();
+      
+      allPayouts.forEach(p => {
+        if (p.paidAt) {
+          const key = p.paidAt.toISOString().substring(0, 16); // Match by minute
+          if (!payoutsByPaidAt.has(key)) payoutsByPaidAt.set(key, []);
+          payoutsByPaidAt.get(key).push(p);
+        }
+        if (p.approvedAt) {
+          const key = p.approvedAt.toISOString().substring(0, 16);
+          if (!payoutsByApprovedAt.has(key)) payoutsByApprovedAt.set(key, []);
+          payoutsByApprovedAt.get(key).push(p);
+        }
+      });
+
+      let updated = 0;
+      let skipped = 0;
+      let matchedById = 0;
+      let matchedByTime = 0;
+      let notFound = 0;
+
+      for (const log of commissionLogs) {
+        try {
+          let existingMetadata = {};
+          try {
+            if (log.metadata) existingMetadata = JSON.parse(log.metadata);
+          } catch {}
+
+          // Skip if already has good metadata
+          if (existingMetadata.salesPerson && existingMetadata.itemName && !existingMetadata._recordNotFound) {
+            skipped++;
+            continue;
+          }
+
+          let matchedPayout = null;
+
+          // Strategy 1: Direct ID lookup
+          matchedPayout = payoutById.get(log.entityId);
+          if (matchedPayout) {
+            matchedById++;
+          }
+
+          // Strategy 2: Match by timestamp (within same minute)
+          if (!matchedPayout) {
+            const logTime = log.createdAt.toISOString().substring(0, 16);
+            
+            if (log.action === 'PAID') {
+              const candidates = payoutsByPaidAt.get(logTime) || [];
+              if (candidates.length === 1) {
+                matchedPayout = candidates[0];
+                matchedByTime++;
+              } else if (candidates.length > 1) {
+                // Multiple matches - try to narrow down
+                console.log(`  ⚠️ Multiple paid payouts at ${logTime}, skipping`);
+              }
+            } else if (log.action === 'APPROVED') {
+              const candidates = payoutsByApprovedAt.get(logTime) || [];
+              if (candidates.length === 1) {
+                matchedPayout = candidates[0];
+                matchedByTime++;
+              }
+            }
+          }
+
+          // Strategy 3: Try nearby minutes (±2 minutes)
+          if (!matchedPayout) {
+            const logDate = new Date(log.createdAt);
+            for (let offset = -2; offset <= 2; offset++) {
+              if (matchedPayout) break;
+              const checkDate = new Date(logDate.getTime() + offset * 60000);
+              const checkKey = checkDate.toISOString().substring(0, 16);
+              
+              const candidates = log.action === 'PAID' 
+                ? payoutsByPaidAt.get(checkKey) || []
+                : payoutsByApprovedAt.get(checkKey) || [];
+              
+              if (candidates.length === 1) {
+                matchedPayout = candidates[0];
+                matchedByTime++;
+                console.log(`  ✅ Matched by nearby time (offset ${offset} min)`);
+              }
+            }
+          }
+
+          if (matchedPayout) {
+            const commission = matchedPayout.itemCommission?.commission;
+            const order = commission?.order;
+            const item = matchedPayout.itemCommission?.orderItem;
+
+            const enrichedMetadata = {
+              ...existingMetadata,
+              salesPerson: commission?.salesPersonName || null,
+              customerName: order?.account?.name || null,
+              itemName: item?.productCode || null,
+              stage: matchedPayout.stage,
+              amount: matchedPayout.amount,
+              payoutId: matchedPayout.id,
+              _matchedBy: payoutById.has(log.entityId) ? 'id' : 'timestamp'
+            };
+
+            // Remove old backfill markers
+            delete enrichedMetadata._backfillAttempted;
+            delete enrichedMetadata._recordNotFound;
+
+            await prisma.auditLog.update({
+              where: { id: log.id },
+              data: { metadata: JSON.stringify(enrichedMetadata) }
+            });
+            updated++;
+            console.log(`✅ Updated ${log.id}: ${enrichedMetadata.salesPerson} / ${enrichedMetadata.itemName} ($${enrichedMetadata.amount})`);
+          } else {
+            notFound++;
+            // Mark as attempted but not found
+            const enrichedMetadata = {
+              ...existingMetadata,
+              _backfillAttempted: true,
+              _recordNotFound: true,
+              _attemptedAt: new Date().toISOString()
+            };
+            await prisma.auditLog.update({
+              where: { id: log.id },
+              data: { metadata: JSON.stringify(enrichedMetadata) }
+            });
+          }
+        } catch (logError) {
+          console.error(`❌ Error processing log ${log.id}:`, logError.message);
+        }
+      }
+
+      const summary = {
+        total: commissionLogs.length,
+        updated,
+        skipped,
+        matchedById,
+        matchedByTime,
+        notFound,
+        message: `Smart backfill complete: ${updated} updated (${matchedById} by ID, ${matchedByTime} by timestamp), ${skipped} skipped, ${notFound} not found`
+      };
+
+      console.log('🏁 Smart backfill complete:', summary);
+      res.json(summary);
+    } catch (e) {
+      console.error('Backfill error:', e);
+      res.status(500).json({ error: 'Failed to backfill commission metadata', details: e.message });
+    }
+  });
+
   // ONE-TIME BACKFILL: Populate missing metadata on commission audit logs
   // POST /api/audit/backfill-commission-metadata
   router.post('/backfill-commission-metadata', async (req, res) => {
