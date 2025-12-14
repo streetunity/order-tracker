@@ -25,6 +25,280 @@ export function createAuditRouter() {
     }
   }
 
+  // ONE-TIME BACKFILL: Populate missing metadata on commission audit logs
+  // POST /api/audit/backfill-commission-metadata
+  router.post('/backfill-commission-metadata', async (req, res) => {
+    try {
+      console.log('🔄 Starting commission audit metadata backfill...');
+      
+      // Find all commission-related audit logs
+      const commissionLogs = await prisma.auditLog.findMany({
+        where: {
+          entityType: {
+            in: ['Commission', 'CommissionPayout', 'ItemCommission']
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      console.log(`📋 Found ${commissionLogs.length} commission audit logs to process`);
+
+      let updated = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const log of commissionLogs) {
+        try {
+          // Parse existing metadata
+          let existingMetadata = {};
+          try {
+            if (log.metadata) existingMetadata = JSON.parse(log.metadata);
+          } catch {}
+
+          // Check if already has enriched metadata (skip if complete)
+          if (existingMetadata.salesPerson && existingMetadata.itemName && existingMetadata.stage !== undefined) {
+            skipped++;
+            continue;
+          }
+
+          // Try to find the payout record
+          let payout = null;
+          let itemCommission = null;
+          let orderItem = null;
+          let order = null;
+          let account = null;
+
+          // entityId could be a CommissionPayout ID or ItemCommission ID
+          if (log.entityType === 'CommissionPayout') {
+            payout = await prisma.commissionPayout.findUnique({
+              where: { id: log.entityId },
+              include: {
+                itemCommission: {
+                  include: {
+                    orderItem: {
+                      include: {
+                        order: {
+                          include: {
+                            account: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            });
+
+            if (payout) {
+              itemCommission = payout.itemCommission;
+              orderItem = itemCommission?.orderItem;
+              order = orderItem?.order;
+              account = order?.account;
+            }
+          } else if (log.entityType === 'ItemCommission') {
+            itemCommission = await prisma.itemCommission.findUnique({
+              where: { id: log.entityId },
+              include: {
+                orderItem: {
+                  include: {
+                    order: {
+                      include: {
+                        account: true
+                      }
+                    }
+                  }
+                }
+              }
+            });
+
+            if (itemCommission) {
+              orderItem = itemCommission.orderItem;
+              order = orderItem?.order;
+              account = order?.account;
+            }
+          }
+
+          // Build enriched metadata
+          const enrichedMetadata = { ...existingMetadata };
+
+          // Sales person (agent)
+          if (!enrichedMetadata.salesPerson) {
+            if (itemCommission?.salesPerson) {
+              enrichedMetadata.salesPerson = itemCommission.salesPerson;
+            } else if (order?.sku) {
+              enrichedMetadata.salesPerson = order.sku;
+            }
+          }
+
+          // Customer name
+          if (!enrichedMetadata.customerName && account?.name) {
+            enrichedMetadata.customerName = account.name;
+          }
+
+          // Item name
+          if (!enrichedMetadata.itemName && orderItem?.productCode) {
+            enrichedMetadata.itemName = orderItem.productCode;
+          }
+
+          // Stage (P1/P2)
+          if (enrichedMetadata.stage === undefined && payout?.stage) {
+            enrichedMetadata.stage = payout.stage;
+          }
+
+          // Amount
+          if (enrichedMetadata.amount === undefined && payout?.amount !== undefined) {
+            enrichedMetadata.amount = payout.amount;
+          }
+
+          // Check if we actually added any new data
+          const newMetadataStr = JSON.stringify(enrichedMetadata);
+          const oldMetadataStr = log.metadata || '{}';
+          
+          if (newMetadataStr !== oldMetadataStr && Object.keys(enrichedMetadata).length > Object.keys(existingMetadata).length) {
+            // Update the audit log
+            await prisma.auditLog.update({
+              where: { id: log.id },
+              data: { metadata: newMetadataStr }
+            });
+            updated++;
+            console.log(`✅ Updated log ${log.id}: ${log.action} - added metadata for ${enrichedMetadata.salesPerson || 'unknown agent'}`);
+          } else {
+            skipped++;
+          }
+        } catch (logError) {
+          console.error(`❌ Error processing log ${log.id}:`, logError.message);
+          errors++;
+        }
+      }
+
+      const summary = {
+        total: commissionLogs.length,
+        updated,
+        skipped,
+        errors,
+        message: `Backfill complete: ${updated} updated, ${skipped} skipped, ${errors} errors`
+      };
+
+      console.log('🏁 Backfill complete:', summary);
+      res.json(summary);
+    } catch (e) {
+      console.error('Backfill error:', e);
+      res.status(500).json({ error: 'Failed to backfill commission metadata', details: e.message });
+    }
+  });
+
+  // ONE-TIME BACKFILL: Populate missing metadata on user audit logs
+  // POST /api/audit/backfill-user-metadata
+  router.post('/backfill-user-metadata', async (req, res) => {
+    try {
+      console.log('🔄 Starting user audit metadata backfill...');
+      
+      // Find all user-related audit logs
+      const userLogs = await prisma.auditLog.findMany({
+        where: {
+          entityType: 'User'
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      console.log(`📋 Found ${userLogs.length} user audit logs to process`);
+
+      let updated = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const log of userLogs) {
+        try {
+          // Parse existing metadata
+          let existingMetadata = {};
+          try {
+            if (log.metadata) existingMetadata = JSON.parse(log.metadata);
+          } catch {}
+
+          // Check if already has enriched metadata (skip if complete)
+          if (existingMetadata.userName && existingMetadata.userRole) {
+            skipped++;
+            continue;
+          }
+
+          // Try to find the user record
+          const user = await prisma.user.findUnique({
+            where: { id: log.entityId },
+            select: { id: true, name: true, email: true, role: true }
+          });
+
+          // Build enriched metadata
+          const enrichedMetadata = { ...existingMetadata };
+
+          if (user) {
+            if (!enrichedMetadata.userName) {
+              enrichedMetadata.userName = user.name || user.email;
+            }
+            if (!enrichedMetadata.userEmail) {
+              enrichedMetadata.userEmail = user.email;
+            }
+            if (!enrichedMetadata.userRole) {
+              enrichedMetadata.userRole = user.role;
+            }
+          }
+
+          // Also try to extract from changes if available
+          if (!enrichedMetadata.userName || !enrichedMetadata.userRole) {
+            let changes = [];
+            try {
+              if (log.changes) changes = JSON.parse(log.changes);
+            } catch {}
+
+            for (const change of changes) {
+              if (change.field === 'name' && !enrichedMetadata.userName) {
+                enrichedMetadata.userName = change.newValue || change.oldValue;
+              }
+              if (change.field === 'role' && !enrichedMetadata.userRole) {
+                enrichedMetadata.userRole = change.newValue || change.oldValue;
+              }
+              if (change.field === 'email' && !enrichedMetadata.userEmail) {
+                enrichedMetadata.userEmail = change.newValue || change.oldValue;
+              }
+            }
+          }
+
+          // Check if we actually added any new data
+          const newMetadataStr = JSON.stringify(enrichedMetadata);
+          const oldMetadataStr = log.metadata || '{}';
+          
+          if (newMetadataStr !== oldMetadataStr && Object.keys(enrichedMetadata).length > Object.keys(existingMetadata).length) {
+            // Update the audit log
+            await prisma.auditLog.update({
+              where: { id: log.id },
+              data: { metadata: newMetadataStr }
+            });
+            updated++;
+            console.log(`✅ Updated log ${log.id}: ${log.action} - added metadata for ${enrichedMetadata.userName || 'unknown user'}`);
+          } else {
+            skipped++;
+          }
+        } catch (logError) {
+          console.error(`❌ Error processing log ${log.id}:`, logError.message);
+          errors++;
+        }
+      }
+
+      const summary = {
+        total: userLogs.length,
+        updated,
+        skipped,
+        errors,
+        message: `Backfill complete: ${updated} updated, ${skipped} skipped, ${errors} errors`
+      };
+
+      console.log('🏁 Backfill complete:', summary);
+      res.json(summary);
+    } catch (e) {
+      console.error('Backfill error:', e);
+      res.status(500).json({ error: 'Failed to backfill user metadata', details: e.message });
+    }
+  });
+
   // Enhanced search endpoint with filtering, pagination, date range, and text search
   router.get('/search', async (req, res) => {
     try {
@@ -203,7 +477,6 @@ export function createAuditRouter() {
       // Search in both changes and metadata fields, plus other text fields
       if (search && search.trim()) {
         const searchTerm = search.trim();
-        const searchPattern = `%${searchTerm}%`;
         
         // Build a comprehensive OR clause for searching
         // Using INSTR for more reliable substring matching in SQLite
