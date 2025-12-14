@@ -11,6 +11,36 @@ export function createCommissionPayoutsRouter(prisma) {
     return ['SUPER_ADMIN', 'ACCOUNTANT'].includes(role);
   };
 
+  // Helper function to build rich audit metadata for commission payouts
+  const buildPayoutAuditMetadata = (payout, extraData = {}) => {
+    const commission = payout.itemCommission?.commission;
+    const order = commission?.order;
+    const item = payout.itemCommission?.item;
+    
+    return {
+      // Agent/Sales Person info
+      salesPerson: commission?.salesPersonName || 'Unknown',
+      salesPersonName: commission?.salesPersonName || 'Unknown',
+      
+      // Order info
+      orderId: commission?.orderId || null,
+      orderPO: order?.poNumber || 'N/A',
+      customerName: order?.account?.name || 'N/A',
+      
+      // Item info
+      itemId: payout.itemCommission?.itemId || null,
+      itemName: item?.productCode || 'N/A',
+      
+      // Payout specific info
+      payoutId: payout.id,
+      stage: payout.stage,
+      amount: payout.amount,
+      
+      // Any extra data passed in
+      ...extraData
+    };
+  };
+
   // DEBUG ENDPOINT - Remove after testing
   router.get('/test', (req, res) => {
     res.json({ 
@@ -124,19 +154,26 @@ export function createCommissionPayoutsRouter(prisma) {
                     }
                   }
                 }
+              },
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
               }
             }
           }
         }
       });
 
-      // Create audit log
+      // Create audit log with rich metadata
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: payout.id,
           action: 'APPROVED',
-          metadata: JSON.stringify({ approvalNotes }),
+          metadata: JSON.stringify(buildPayoutAuditMetadata(payout, { approvalNotes })),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
@@ -186,7 +223,30 @@ export function createCommissionPayoutsRouter(prisma) {
       }
 
       const payout = await prisma.commissionPayout.findUnique({
-        where: { id: req.params.id }
+        where: { id: req.params.id },
+        include: {
+          itemCommission: {
+            include: {
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      poNumber: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
+              }
+            }
+          }
+        }
       });
 
       if (!payout) {
@@ -208,16 +268,16 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log
+      // Create audit log with rich metadata
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: updatedPayout.id,
           action: 'UNAPPROVED',
-          metadata: JSON.stringify({
+          metadata: JSON.stringify(buildPayoutAuditMetadata(payout, {
             reason: 'Moved back to pending',
             previouslyApprovedBy: payout.approvedByName
-          }),
+          })),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
@@ -294,20 +354,16 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log
+      // Create audit log with rich metadata
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: payout.id,
           action: 'REJECTED',
-          metadata: JSON.stringify({ 
+          metadata: JSON.stringify(buildPayoutAuditMetadata(existingPayout, {
             rejectionReason,
-            commissionId,
-            stage: existingPayout.stage,
-            amount: existingPayout.amount,
-            itemName,
-            orderPO
-          }),
+            commissionId
+          })),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
@@ -373,6 +429,13 @@ export function createCommissionPayoutsRouter(prisma) {
                     }
                   }
                 }
+              },
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
               }
             }
           }
@@ -405,19 +468,26 @@ export function createCommissionPayoutsRouter(prisma) {
                     }
                   }
                 }
+              },
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
               }
             }
           }
         }
       });
 
-      // Create audit log
+      // Create audit log with rich metadata
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: updatedPayout.id,
           action: 'PAID',
-          metadata: JSON.stringify({ paymentMethod, paymentNotes }),
+          metadata: JSON.stringify(buildPayoutAuditMetadata(updatedPayout, { paymentMethod, paymentNotes })),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
@@ -472,7 +542,23 @@ export function createCommissionPayoutsRouter(prisma) {
         include: {
           itemCommission: {
             include: {
-              commission: true
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      poNumber: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              item: {
+                select: {
+                  productCode: true,
+                  serialNumber: true,
+                  currentStage: true
+                }
+              }
             }
           }
         }
@@ -507,16 +593,16 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log
+      // Create audit log with rich metadata
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: updatedPayout.id,
           action: 'UNPAID',
-          metadata: JSON.stringify({
+          metadata: JSON.stringify(buildPayoutAuditMetadata(payout, {
             reason: 'Moved back to approved status',
             previousPaymentInfo
-          }),
+          })),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
@@ -547,7 +633,21 @@ export function createCommissionPayoutsRouter(prisma) {
         include: {
           itemCommission: {
             include: {
-              commission: true
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      poNumber: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              item: {
+                select: {
+                  productCode: true
+                }
+              }
             }
           }
         }
@@ -567,13 +667,32 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log
+      // Build summary data for audit log
+      const totalAmount = payoutsToApprove.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const salesPersons = [...new Set(payoutsToApprove.map(p => p.itemCommission.commission.salesPersonName))];
+
+      // Create audit log with rich metadata
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: 'BULK',
           action: 'BULK_APPROVED',
-          metadata: JSON.stringify({ payoutIds, count: result.count, approvalNotes }),
+          metadata: JSON.stringify({
+            payoutIds,
+            count: result.count,
+            totalAmount,
+            salesPersons,
+            approvalNotes,
+            payoutDetails: payoutsToApprove.map(p => ({
+              payoutId: p.id,
+              salesPerson: p.itemCommission.commission.salesPersonName,
+              amount: p.amount,
+              stage: p.stage,
+              orderPO: p.itemCommission.commission.order?.poNumber,
+              customerName: p.itemCommission.commission.order?.account?.name,
+              itemName: p.itemCommission.item?.productCode
+            }))
+          }),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
@@ -646,7 +765,21 @@ export function createCommissionPayoutsRouter(prisma) {
         include: {
           itemCommission: {
             include: {
-              commission: true
+              commission: {
+                include: {
+                  order: {
+                    select: {
+                      poNumber: true,
+                      account: { select: { name: true } }
+                    }
+                  }
+                }
+              },
+              item: {
+                select: {
+                  productCode: true
+                }
+              }
             }
           }
         }
@@ -667,13 +800,33 @@ export function createCommissionPayoutsRouter(prisma) {
         }
       });
 
-      // Create audit log
+      // Build summary data for audit log
+      const totalAmount = payoutsToPay.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const salesPersons = [...new Set(payoutsToPay.map(p => p.itemCommission.commission.salesPersonName))];
+
+      // Create audit log with rich metadata
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout',
           entityId: 'BULK',
           action: 'BULK_PAID',
-          metadata: JSON.stringify({ payoutIds, count: result.count, paymentMethod, paymentNotes }),
+          metadata: JSON.stringify({
+            payoutIds,
+            count: result.count,
+            totalAmount,
+            salesPersons,
+            paymentMethod,
+            paymentNotes,
+            payoutDetails: payoutsToPay.map(p => ({
+              payoutId: p.id,
+              salesPerson: p.itemCommission.commission.salesPersonName,
+              amount: p.amount,
+              stage: p.stage,
+              orderPO: p.itemCommission.commission.order?.poNumber,
+              customerName: p.itemCommission.commission.order?.account?.name,
+              itemName: p.itemCommission.item?.productCode
+            }))
+          }),
           performedByUserId: req.user.id,
           performedByName: req.user.name
         }
