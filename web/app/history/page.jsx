@@ -464,14 +464,16 @@ export default function AuditHistoryViewer() {
 
     // User entity - show username and role
     if (log.entityType === 'User') {
-      // Try to get from metadata first
-      if (log.metadata?.data) {
+      // Try to get from metadata first (new format)
+      if (log.metadata?.userName) {
+        info.title = log.metadata.userName;
+        const role = log.metadata.userRole;
+        info.subtitle = role ? (ROLE_LABELS[role] || role) : '';
+      } else if (log.metadata?.data) {
+        // Legacy format
         info.title = log.metadata.data.name || log.metadata.data.email || 'Unknown User';
         const role = log.metadata.data.role;
         info.subtitle = role ? (ROLE_LABELS[role] || role) : '';
-      } else if (log.metadata?.userName) {
-        info.title = log.metadata.userName;
-        info.subtitle = log.metadata.userEmail || '';
       }
       // Also check changes for role info
       if (log.changes && log.changes.length > 0) {
@@ -691,8 +693,10 @@ export default function AuditHistoryViewer() {
     );
   }
 
-  // Check if using legacy sidebar view
-  const useLegacySidebar = (activeTab === 'orders' || activeTab === 'customers') && selectedEntity;
+  // Determine if we should show the sidebar view or unified search results view
+  // Show unified view when: search is active OR not on orders/customers tab
+  const isSearchActive = debouncedSearch && debouncedSearch.trim().length > 0;
+  const showSidebarView = (activeTab === 'orders' || activeTab === 'customers') && !isSearchActive;
 
   return (
     <>
@@ -774,14 +778,14 @@ export default function AuditHistoryViewer() {
           </div>
 
           {/* Main Content */}
-          {(activeTab === 'orders' || activeTab === 'customers') ? (
-            // Legacy sidebar view for Orders/Customers
+          {showSidebarView ? (
+            // Legacy sidebar view for Orders/Customers (when no search active)
             <div className="history-grid">
               <div className="entity-list-sidebar">
                 <div className="entity-search">
                   <input
                     type="text"
-                    placeholder={`Search ${activeTab}...`}
+                    placeholder={`Filter ${activeTab}...`}
                     value={sidebarSearch}
                     onChange={(e) => setSidebarSearch(e.target.value)}
                   />
@@ -860,7 +864,7 @@ export default function AuditHistoryViewer() {
               </div>
             </div>
           ) : (
-            // New unified log view for all other tabs
+            // Unified log view - for search results or non-sidebar tabs
             <div className="logs-container">
               {loading ? (
                 <div className="logs-loading">Loading logs...</div>
