@@ -418,7 +418,7 @@
   text-align: right;
 }
 
-/* Entity Info Display */
+/* Entity Info Display - Enhanced for Commission and User logs */
 .log-entity-info {
   background-color: #2d2d2d;
   border-left: 3px solid #3b82f6;
@@ -438,6 +438,34 @@
   font-size: 12px;
   color: #ef4444;
   font-weight: 500;
+  margin-bottom: 6px;
+}
+
+/* Details list for commission phase, amount, etc. */
+.entity-info-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.entity-detail-item {
+  font-size: 12px;
+  color: #a0a0a0;
+  background-color: #383838;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #404040;
+}
+
+/* Commission-specific styling */
+.log-entity-info[data-type="commission"] {
+  border-left-color: #eab308;
+}
+
+/* User-specific styling */
+.log-entity-info[data-type="user"] {
+  border-left-color: #a855f7;
 }
 
 /* Changes */
@@ -776,5 +804,10 @@
   
   .filter-custom-dates span {
     display: none;
+  }
+  
+  .entity-info-details {
+    flex-direction: column;
+    gap: 4px;
   }
 }
