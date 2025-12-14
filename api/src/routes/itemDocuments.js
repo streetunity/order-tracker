@@ -91,7 +91,11 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
     // Get item and check access
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
-      include: { order: true }
+      include: { 
+        order: {
+          include: { account: { select: { name: true } } }
+        }
+      }
     });
 
     if (!item) {
@@ -115,18 +119,45 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
       uploadedBy: username
     });
 
-    // Create document record
-    const document = await prisma.itemDocument.create({
-      data: {
-        itemId,
-        fileName: s3Data.fileName,
-        fileSize: s3Data.fileSize,
-        fileType: s3Data.fileType,
-        documentType,
-        s3Key: s3Data.s3Key,
-        s3Url: s3Data.s3Url,
-        uploadedBy: username
-      }
+    // Create document record with audit log
+    const document = await prisma.$transaction(async (tx) => {
+      const doc = await tx.itemDocument.create({
+        data: {
+          itemId,
+          fileName: s3Data.fileName,
+          fileSize: s3Data.fileSize,
+          fileType: s3Data.fileType,
+          documentType,
+          s3Key: s3Data.s3Key,
+          s3Url: s3Data.s3Url,
+          uploadedBy: username
+        }
+      });
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          entityType: 'ItemDocument',
+          entityId: doc.id,
+          parentEntityId: item.orderId,
+          action: 'DOCUMENT_UPLOADED',
+          metadata: JSON.stringify({
+            fileName: s3Data.fileName,
+            fileSize: s3Data.fileSize,
+            fileType: s3Data.fileType,
+            documentType,
+            documentTypeLabel: DOCUMENT_TYPE_LABELS[documentType],
+            itemId,
+            productCode: item.productCode,
+            orderPO: item.order?.poNumber,
+            customerName: item.order?.account?.name
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+
+      return doc;
     });
 
     res.json({ message: "Document uploaded successfully", document });
@@ -368,7 +399,9 @@ router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
       include: { 
-        order: true,
+        order: {
+          include: { account: { select: { name: true } } }
+        },
         shipment: {
           include: {
             items: { select: { id: true } }
@@ -400,7 +433,34 @@ router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res
       }
 
       await deleteFileFromS3(document.s3Key);
-      await prisma.itemDocument.delete({ where: { id: documentId } });
+      
+      await prisma.$transaction(async (tx) => {
+        await tx.itemDocument.delete({ where: { id: documentId } });
+        
+        // Create audit log
+        await tx.auditLog.create({
+          data: {
+            entityType: 'ItemDocument',
+            entityId: documentId,
+            parentEntityId: item.orderId,
+            action: 'DOCUMENT_DELETED',
+            metadata: JSON.stringify({
+              fileName: document.fileName,
+              fileSize: document.fileSize,
+              documentType: document.documentType,
+              documentTypeLabel: DOCUMENT_TYPE_LABELS[document.documentType],
+              itemId,
+              productCode: item.productCode,
+              orderPO: item.order?.poNumber,
+              customerName: item.order?.account?.name,
+              originalUploader: document.uploadedBy
+            }),
+            performedByUserId: req.user.id,
+            performedByName: req.user.name
+          }
+        });
+      });
+      
       return res.json({ message: "Document deleted successfully" });
     }
 
@@ -421,7 +481,32 @@ router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res
         }
 
         await deleteFileFromS3(shipmentDoc.s3Key);
-        await prisma.shipmentDocument.delete({ where: { id: documentId } });
+        
+        await prisma.$transaction(async (tx) => {
+          await tx.shipmentDocument.delete({ where: { id: documentId } });
+          
+          // Create audit log
+          await tx.auditLog.create({
+            data: {
+              entityType: 'ShipmentDocument',
+              entityId: documentId,
+              parentEntityId: item.shipmentId,
+              action: 'DOCUMENT_DELETED',
+              metadata: JSON.stringify({
+                fileName: shipmentDoc.fileName,
+                fileSize: shipmentDoc.fileSize,
+                documentType: shipmentDoc.documentType,
+                documentTypeLabel: DOCUMENT_TYPE_LABELS[shipmentDoc.documentType],
+                shipmentId: item.shipmentId,
+                containerNumber: item.shipment?.containerNumber,
+                originalUploader: shipmentDoc.uploadedBy
+              }),
+              performedByUserId: req.user.id,
+              performedByName: req.user.name
+            }
+          });
+        });
+        
         return res.json({ message: "Shipment document deleted successfully" });
       }
 
@@ -441,7 +526,32 @@ router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res
           }
 
           await deleteFileFromS3(document.s3Key);
-          await prisma.itemDocument.delete({ where: { id: documentId } });
+          
+          await prisma.$transaction(async (tx) => {
+            await tx.itemDocument.delete({ where: { id: documentId } });
+            
+            // Create audit log
+            await tx.auditLog.create({
+              data: {
+                entityType: 'ItemDocument',
+                entityId: documentId,
+                parentEntityId: item.orderId,
+                action: 'DOCUMENT_DELETED',
+                metadata: JSON.stringify({
+                  fileName: document.fileName,
+                  fileSize: document.fileSize,
+                  documentType: document.documentType,
+                  documentTypeLabel: DOCUMENT_TYPE_LABELS[document.documentType],
+                  itemId: document.itemId,
+                  deletedFromShipmentContext: true,
+                  originalUploader: document.uploadedBy
+                }),
+                performedByUserId: req.user.id,
+                performedByName: req.user.name
+              }
+            });
+          });
+          
           return res.json({ message: "Document deleted successfully" });
         }
       }
@@ -560,7 +670,11 @@ router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('fi
     // Verify item is assigned to this manufacturer
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
-      include: { order: true }
+      include: { 
+        order: {
+          include: { account: { select: { name: true } } }
+        }
+      }
     });
 
     if (!item || item.manufacturerId !== manufacturerId) {
@@ -576,18 +690,47 @@ router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('fi
       uploadedBy: username
     });
 
-    // Create document record
-    const document = await prisma.itemDocument.create({
-      data: {
-        itemId,
-        fileName: s3Data.fileName,
-        fileSize: s3Data.fileSize,
-        fileType: s3Data.fileType,
-        documentType,
-        s3Key: s3Data.s3Key,
-        s3Url: s3Data.s3Url,
-        uploadedBy: username
-      }
+    // Create document record with audit log
+    const document = await prisma.$transaction(async (tx) => {
+      const doc = await tx.itemDocument.create({
+        data: {
+          itemId,
+          fileName: s3Data.fileName,
+          fileSize: s3Data.fileSize,
+          fileType: s3Data.fileType,
+          documentType,
+          s3Key: s3Data.s3Key,
+          s3Url: s3Data.s3Url,
+          uploadedBy: username
+        }
+      });
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          entityType: 'ItemDocument',
+          entityId: doc.id,
+          parentEntityId: item.orderId,
+          action: 'DOCUMENT_UPLOADED',
+          metadata: JSON.stringify({
+            fileName: s3Data.fileName,
+            fileSize: s3Data.fileSize,
+            fileType: s3Data.fileType,
+            documentType,
+            documentTypeLabel: DOCUMENT_TYPE_LABELS[documentType],
+            itemId,
+            productCode: item.productCode,
+            orderPO: item.order?.poNumber,
+            customerName: item.order?.account?.name,
+            uploadedByRole: 'MANUFACTURER',
+            manufacturerName: req.user.manufacturer?.name
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
+
+      return doc;
     });
 
     res.json({ message: "Document uploaded successfully", document });
@@ -662,7 +805,15 @@ router.delete("/manufacturer/item/:itemId/documents/:documentId", authGuard, asy
     // Get document and verify access
     const document = await prisma.itemDocument.findUnique({
       where: { id: documentId },
-      include: { item: true }
+      include: { 
+        item: {
+          include: {
+            order: {
+              include: { account: { select: { name: true } } }
+            }
+          }
+        }
+      }
     });
 
     if (!document || document.itemId !== itemId) {
@@ -681,9 +832,35 @@ router.delete("/manufacturer/item/:itemId/documents/:documentId", authGuard, asy
     // Delete from S3
     await deleteFileFromS3(document.s3Key);
 
-    // Delete from database
-    await prisma.itemDocument.delete({
-      where: { id: documentId }
+    // Delete from database with audit log
+    await prisma.$transaction(async (tx) => {
+      await tx.itemDocument.delete({
+        where: { id: documentId }
+      });
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          entityType: 'ItemDocument',
+          entityId: documentId,
+          parentEntityId: document.item.orderId,
+          action: 'DOCUMENT_DELETED',
+          metadata: JSON.stringify({
+            fileName: document.fileName,
+            fileSize: document.fileSize,
+            documentType: document.documentType,
+            documentTypeLabel: DOCUMENT_TYPE_LABELS[document.documentType],
+            itemId,
+            productCode: document.item.productCode,
+            orderPO: document.item.order?.poNumber,
+            customerName: document.item.order?.account?.name,
+            deletedByRole: 'MANUFACTURER',
+            manufacturerName: req.user.manufacturer?.name
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name
+        }
+      });
     });
 
     res.json({ message: "Document deleted successfully" });
