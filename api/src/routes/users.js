@@ -161,8 +161,9 @@ export function createUsersRouter() {
             entityId: user.id,
             action: 'USER_CREATED',
             metadata: JSON.stringify({
-              entity: 'User',
-              entityId: user.id,
+              userName: user.name,
+              userEmail: user.email,
+              userRole: user.role,
               data: {
                 email: user.email,
                 name: user.name,
@@ -270,8 +271,11 @@ export function createUsersRouter() {
             entityId: newUser.id,
             action: 'USER_CREATED',
             metadata: JSON.stringify({
-              entity: 'User',
-              entityId: newUser.id,
+              // Primary display fields for audit history UI
+              userName: newUser.name,
+              userEmail: newUser.email,
+              userRole: newUser.role,
+              // Detailed data
               data: {
                 email: newUser.email,
                 name: newUser.name,
@@ -440,12 +444,29 @@ export function createUsersRouter() {
         });
         
         if (changes.length > 0) {
+          // Determine the appropriate action based on what changed
+          let action = 'USER_UPDATED';
+          if (changes.some(c => c.field === 'role')) {
+            action = 'USER_ROLE_CHANGED';
+          } else if (changes.some(c => c.field === 'isActive')) {
+            action = data.isActive === false ? 'USER_DEACTIVATED' : 'USER_ACTIVATED';
+          }
+
           await tx.auditLog.create({
             data: {
               entityType: 'User',
               entityId: req.params.id,
-              action: 'USER_UPDATED',
+              action: action,
               changes: JSON.stringify(changes),
+              metadata: JSON.stringify({
+                // Primary display fields for audit history UI
+                userName: updated.name,
+                userEmail: updated.email,
+                userRole: updated.role,
+                previousRole: original.role,
+                // Include what was changed
+                changedFields: changes.map(c => c.field)
+              }),
               performedByUserId: req.user.id,
               performedByName: req.user.name
             }
