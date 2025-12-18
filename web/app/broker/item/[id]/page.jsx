@@ -48,6 +48,7 @@ export default function BrokerItemDetail() {
   const [loading, setLoading] = useState(true);
   const [newStatus, setNewStatus] = useState('');
   const [notes, setNotes] = useState('');
+  const [entryNumber, setEntryNumber] = useState('');
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
 
@@ -95,6 +96,7 @@ export default function BrokerItemDetail() {
         setItem(data);
         setNewStatus(data.customsDocumentStatus || 'PENDING');
         setNotes(data.customsNotes || '');
+        setEntryNumber(data.entryNumber || '');
       }
 
       setLoading(false);
@@ -264,7 +266,8 @@ export default function BrokerItemDetail() {
         },
         body: JSON.stringify({
           status: newStatus,
-          notes: notes
+          notes: notes,
+          entryNumber: entryNumber
         })
       });
 
@@ -487,6 +490,26 @@ export default function BrokerItemDetail() {
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Add notes about customs processing, issues, or special instructions..."
                   className="form-textarea notes-textarea"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Entry Number</label>
+                <input
+                  type="text"
+                  value={entryNumber}
+                  onChange={(e) => setEntryNumber(e.target.value)}
+                  placeholder="Enter customs entry number..."
+                  className="form-input"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#1a1a1a',
+                    border: '1px solid #404040',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '14px'
+                  }}
                 />
               </div>
 
