@@ -97,7 +97,8 @@ export default function BrokerDashboard() {
         item.order.account.name?.toLowerCase().includes(search) ||
         item.order.account.contactName?.toLowerCase().includes(search) ||
         item.productCode?.toLowerCase().includes(search) ||
-        item.containers?.toLowerCase().includes(search)
+        item.containers?.toLowerCase().includes(search) ||
+        item.entryNumber?.toLowerCase().includes(search)
       );
     }
 
@@ -186,7 +187,7 @@ export default function BrokerDashboard() {
           <div className="filters-row">
             <input
               type="text"
-              placeholder="Search by contact name, customer, product code..."
+              placeholder="Search by contact name, customer, product code, entry number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
@@ -214,7 +215,7 @@ export default function BrokerDashboard() {
                 <th>Contact Name</th>
                 <th>Customer</th>
                 <th>Product Code</th>
-                <th>Arrival</th>
+                <th>Entry Number</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -245,10 +246,13 @@ export default function BrokerDashboard() {
                     <td>{item.order.account.name}</td>
                     <td>{item.productCode || 'N/A'}</td>
                     <td>
-                      {item.etaDate
-                        ? new Date(item.etaDate).toLocaleDateString()
-                        : 'TBD'
-                      }
+                      <span style={{ 
+                        fontFamily: 'monospace', 
+                        fontSize: '13px',
+                        color: item.entryNumber ? '#fff' : '#6b7280'
+                      }}>
+                        {item.entryNumber || '-'}
+                      </span>
                     </td>
                     <td>
                       <span className={`status-text ${(item.customsDocumentStatus || 'pending').toLowerCase().replace('_', '-')}`}>
