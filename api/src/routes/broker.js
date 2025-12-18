@@ -211,7 +211,7 @@ export function createBrokerRouter() {
       const { id } = req.params;
       const { status, notes, entryNumber } = req.body;
 
-      const validStatuses = ['PENDING', 'IN_PROGRESS', 'FILED', 'CLEARED', 'ISSUES'];
+      const validStatuses = ['PENDING', 'IN_PROGRESS', 'FILED', 'RELEASED', 'ISSUES'];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
       }
@@ -248,8 +248,8 @@ export function createBrokerRouter() {
         updateData.customsFiledDate = new Date();
       }
 
-      // Set cleared date when status changes to CLEARED
-      if (status === 'CLEARED' && currentItem.customsDocumentStatus !== 'CLEARED') {
+      // Set cleared date when status changes to RELEASED
+      if (status === 'RELEASED' && currentItem.customsDocumentStatus !== 'RELEASED') {
         updateData.customsClearedDate = new Date();
       }
 
@@ -294,9 +294,9 @@ export function createBrokerRouter() {
       let priority = 'NORMAL';
       let type = 'BROKER_STATUS_UPDATE';
 
-      if (status === 'CLEARED') {
+      if (status === 'RELEASED') {
         priority = 'HIGH';
-        type = 'BROKER_CLEARED';
+        type = 'BROKER_RELEASED';
       } else if (status === 'ISSUES') {
         priority = 'CRITICAL';
         type = 'BROKER_ISSUES';
@@ -464,7 +464,10 @@ export function createBrokerRouter() {
             { currentStage: 'Quality Control' },
             { currentStage: 'Delivered' }
           ],
-          customsDocumentStatus: 'CLEARED',
+          OR: [
+            { customsDocumentStatus: 'CLEARED' },
+            { customsDocumentStatus: 'RELEASED' }
+          ],
           archivedAt: null
         },
         include: {
@@ -491,7 +494,10 @@ export function createBrokerRouter() {
             { currentStage: 'Quality Control' },
             { currentStage: 'Delivered' }
           ],
-          customsDocumentStatus: 'CLEARED',
+          OR: [
+            { customsDocumentStatus: 'CLEARED' },
+            { customsDocumentStatus: 'RELEASED' }
+          ],
           archivedAt: null
         }
       });
