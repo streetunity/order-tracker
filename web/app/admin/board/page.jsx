@@ -10,6 +10,7 @@ import NotificationBar from "@/components/NotificationBar";
 import "./board.css";
 import { OrderedIndicator } from './OrderedIndicator';
 import { ViewItemModal } from './ViewItemModal';
+import { CustomerOrdersModal } from './CustomerOrdersModal';
 
 // Stage keys from API (do not change)
 const STAGES = [
@@ -134,6 +135,9 @@ export default function AdminBoardPage() {
 
   // View item modal states
   const [viewItemModal, setViewItemModal] = useState({ show: false, item: null, order: null });
+
+  // Customer orders modal state (for multi-order customers)
+  const [customerOrdersModal, setCustomerOrdersModal] = useState({ show: false, customerName: "", orders: [] });
 
   // Notification state
   const [showNotification, setShowNotification] = useState(false);
@@ -278,6 +282,26 @@ export default function AdminBoardPage() {
   // Close view item modal
   const closeViewItemModal = () => {
     setViewItemModal({ show: false, item: null, order: null });
+  };
+
+  // Handle customer magnifying glass click - show modal if multiple orders, navigate if single
+  const handleCustomerOrdersClick = (group) => {
+    if (group.orders.length === 1) {
+      // Single order - navigate directly
+      router.push(`/admin/orders/${group.orders[0].id}`);
+    } else {
+      // Multiple orders - show modal
+      setCustomerOrdersModal({
+        show: true,
+        customerName: group.accountName,
+        orders: group.orders
+      });
+    }
+  };
+
+  // Close customer orders modal
+  const closeCustomerOrdersModal = () => {
+    setCustomerOrdersModal({ show: false, customerName: "", orders: [] });
   };
 
   // Handle archive button click
@@ -507,19 +531,24 @@ export default function AdminBoardPage() {
 
         {grouped.map((group) => {
           const hasLockedOrder = group.orders.some(o => o.isLocked);
+          const orderCount = group.orders.length;
           return (
             <div className="customerRow" key={group.accountId || group.accountName}>
               <div className="stageCol stickyCol">
                 <div className="customerHeader">
-                  {/* Magnifying glass icon - top right corner */}
+                  {/* Magnifying glass icon with order count badge - top right corner */}
                   {!isLimitedAccess && group.orders?.[0] && (
-                    <Link
-                      href={`/admin/orders/${group.orders[0].id}`}
-                      title={hasLockedOrder ? "Edit order (locked)" : "Edit order"}
+                    <button
+                      onClick={() => handleCustomerOrdersClick(group)}
+                      title={orderCount > 1 ? `View ${orderCount} orders` : (hasLockedOrder ? "Edit order (locked)" : "Edit order")}
                       style={{
                         position: 'absolute',
                         top: '4px',
                         right: '4px',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
                         textDecoration: 'none',
                         fontSize: '22px',
                         lineHeight: 1,
@@ -530,7 +559,29 @@ export default function AdminBoardPage() {
                       onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
                     >
                       🔍
-                    </Link>
+                      {/* Badge showing order count when > 1 */}
+                      {orderCount > 1 && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '-4px',
+                            right: '-6px',
+                            backgroundColor: '#dc2626',
+                            color: 'white',
+                            fontSize: '10px',
+                            fontWeight: 'bold',
+                            minWidth: '16px',
+                            height: '16px',
+                            lineHeight: '16px',
+                            textAlign: 'center',
+                            borderRadius: '50%',
+                            padding: '0 3px'
+                          }}
+                        >
+                          {orderCount}
+                        </span>
+                      )}
+                    </button>
                   )}
 
                   {/* Trash icon - bottom right corner */}
@@ -786,6 +837,15 @@ export default function AdminBoardPage() {
           order={viewItemModal.order}
           onClose={closeViewItemModal}
           onUpdate={load}
+        />
+      )}
+
+      {/* Customer Orders Modal (for multi-order customers) */}
+      {customerOrdersModal.show && (
+        <CustomerOrdersModal
+          customerName={customerOrdersModal.customerName}
+          orders={customerOrdersModal.orders}
+          onClose={closeCustomerOrdersModal}
         />
       )}
 
