@@ -105,14 +105,10 @@ export default function BrokerHistory() {
                   ) : (
                     items.map(item => (
                       <tr key={item.id}>
-                        <td style={{ fontFamily: 'monospace' }}>
-                          {item.order.poNumber || 'N/A'}
-                        </td>
+                        <td>{item.order.poNumber || 'N/A'}</td>
                         <td>{item.order.account.name}</td>
                         <td>{item.productCode || 'N/A'}</td>
-                        <td style={{ fontFamily: 'monospace', color: item.entryNumber ? '#fff' : '#6b7280' }}>
-                          {item.entryNumber || '-'}
-                        </td>
+                        <td>{item.entryNumber || '-'}</td>
                         <td>
                           {item.customsClearedDate
                             ? new Date(item.customsClearedDate).toLocaleDateString()
