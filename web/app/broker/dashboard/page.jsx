@@ -245,15 +245,7 @@ export default function BrokerDashboard() {
                     </td>
                     <td>{item.order.account.name}</td>
                     <td>{item.productCode || 'N/A'}</td>
-                    <td>
-                      <span style={{ 
-                        fontFamily: 'monospace', 
-                        fontSize: '13px',
-                        color: item.entryNumber ? '#fff' : '#6b7280'
-                      }}>
-                        {item.entryNumber || '-'}
-                      </span>
-                    </td>
+                    <td>{item.entryNumber || '-'}</td>
                     <td>
                       <span className={`status-text ${(item.customsDocumentStatus || 'pending').toLowerCase().replace('_', '-')}`}>
                         {item.customsDocumentStatus || 'PENDING'}
