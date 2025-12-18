@@ -211,7 +211,7 @@ export function createBrokerRouter() {
       const { id } = req.params;
       const { status, notes, entryNumber } = req.body;
 
-      const validStatuses = ['PENDING', 'IN_PROGRESS', 'FILED', 'RELEASED', 'ISSUES'];
+      const validStatuses = ['PENDING', 'FILED', 'RELEASED', 'UNDER_EXAM'];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: 'Invalid status' });
       }
@@ -297,9 +297,9 @@ export function createBrokerRouter() {
       if (status === 'RELEASED') {
         priority = 'HIGH';
         type = 'BROKER_RELEASED';
-      } else if (status === 'ISSUES') {
-        priority = 'CRITICAL';
-        type = 'BROKER_ISSUES';
+      } else if (status === 'UNDER_EXAM') {
+        priority = 'HIGH';
+        type = 'BROKER_UNDER_EXAM';
       } else if (status === 'FILED') {
         priority = 'HIGH';
         type = 'BROKER_FILED';
@@ -464,10 +464,7 @@ export function createBrokerRouter() {
             { currentStage: 'Quality Control' },
             { currentStage: 'Delivered' }
           ],
-          OR: [
-            { customsDocumentStatus: 'CLEARED' },
-            { customsDocumentStatus: 'RELEASED' }
-          ],
+          customsDocumentStatus: { in: ['CLEARED', 'RELEASED'] },
           archivedAt: null
         },
         include: {
@@ -494,10 +491,7 @@ export function createBrokerRouter() {
             { currentStage: 'Quality Control' },
             { currentStage: 'Delivered' }
           ],
-          OR: [
-            { customsDocumentStatus: 'CLEARED' },
-            { customsDocumentStatus: 'RELEASED' }
-          ],
+          customsDocumentStatus: { in: ['CLEARED', 'RELEASED'] },
           archivedAt: null
         }
       });
