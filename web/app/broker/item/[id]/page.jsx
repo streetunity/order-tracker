@@ -478,8 +478,10 @@ export default function BrokerItemDetail() {
                   className="form-select"
                 >
                   <option value="PENDING">Pending</option>
+                  <option value="IN_PROGRESS">In Progress</option>
                   <option value="FILED">Filed</option>
-                  <option value="UNDER_EXAM">Under Exam</option>
+                  <option value="RELEASED">Released</option>
+                  <option value="ISSUES">Issues</option>
                 </select>
               </div>
 
@@ -531,7 +533,7 @@ export default function BrokerItemDetail() {
                 )}
                 {item.customsClearedDate && (
                   <div className="info-row-small">
-                    <span>Cleared Date:</span>
+                    <span>Released Date:</span>
                     <span>{new Date(item.customsClearedDate).toLocaleDateString()}</span>
                   </div>
                 )}
