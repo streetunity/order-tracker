@@ -478,10 +478,9 @@ export default function BrokerItemDetail() {
                   className="form-select"
                 >
                   <option value="PENDING">Pending</option>
-                  <option value="IN_PROGRESS">In Progress</option>
                   <option value="FILED">Filed</option>
                   <option value="RELEASED">Released</option>
-                  <option value="ISSUES">Issues</option>
+                  <option value="UNDER_EXAM">Under Exam</option>
                 </select>
               </div>
 
