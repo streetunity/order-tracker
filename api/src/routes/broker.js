@@ -205,11 +205,11 @@ export function createBrokerRouter() {
   });
 
   // POST /api/broker/update-status/:id
-  // Update customs document status
+  // Update customs document status and entry number
   router.post('/update-status/:id', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { id } = req.params;
-      const { status, notes } = req.body;
+      const { status, notes, entryNumber } = req.body;
 
       const validStatuses = ['PENDING', 'IN_PROGRESS', 'FILED', 'CLEARED', 'ISSUES'];
       if (!validStatuses.includes(status)) {
@@ -239,7 +239,8 @@ export function createBrokerRouter() {
       // Update item
       const updateData = {
         customsDocumentStatus: status,
-        customsNotes: notes || undefined
+        customsNotes: notes || undefined,
+        entryNumber: entryNumber !== undefined ? (entryNumber || null) : undefined
       };
 
       // Set filed date when status changes to FILED
@@ -320,7 +321,8 @@ export function createBrokerRouter() {
               newStatus: status,
               customerName: item.order.account?.name,
               brokerName: req.user.name,
-              notes: notes || null
+              notes: notes || null,
+              entryNumber: entryNumber || null
             }),
             priority
           }
