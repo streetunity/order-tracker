@@ -88,7 +88,7 @@ export default function BrokerHistory() {
                     <th>Order #</th>
                     <th>Customer</th>
                     <th>Product Code</th>
-                    <th>Serial Number</th>
+                    <th>Entry Number</th>
                     <th>Cleared Date</th>
                     <th>Current Stage</th>
                   </tr>
@@ -110,8 +110,8 @@ export default function BrokerHistory() {
                         </td>
                         <td>{item.order.account.name}</td>
                         <td>{item.productCode || 'N/A'}</td>
-                        <td style={{ fontFamily: 'monospace' }}>
-                          {item.serialNumber || 'N/A'}
+                        <td style={{ fontFamily: 'monospace', color: item.entryNumber ? '#fff' : '#6b7280' }}>
+                          {item.entryNumber || '-'}
                         </td>
                         <td>
                           {item.customsClearedDate
