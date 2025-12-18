@@ -301,6 +301,7 @@ model OrderItem {
   brokerLastViewedDate   DateTime?             // Last time broker viewed this item
   customsClearedDate     DateTime?             // When customs cleared the shipment
   billOfLading           String?               // BOL number for tracking
+  entryNumber            String?               // Customs entry number (filed by broker)
 
   currentStage   String   @default("MANUFACTURING")
   archivedAt     DateTime?
