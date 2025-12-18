@@ -192,7 +192,31 @@ console.log('✅ Reports modules loaded');
 app.use('/settings', adminGuard, settingsRouter);
 console.log('✅ Settings API loaded');
 
-// User management (admin only)
+// Sales reps endpoint (auth required - needed for order creation dropdowns by ALL users including agents)
+// IMPORTANT: This must be registered BEFORE the adminGuard-protected /users routes
+app.get('/users/sales-reps', authGuard, async (req, res) => {
+  try {
+    const salesReps = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        showInSalesRepDropdown: true
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true
+      },
+      orderBy: { name: 'asc' }
+    });
+    res.json(salesReps);
+  } catch (e) {
+    console.error('Error fetching sales reps:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+console.log('✅ Sales reps endpoint loaded (accessible by all authenticated users)');
+
+// User management (admin only) - all other user routes
 app.use('/users', adminGuard, usersRouter);
 
 // Manufacturer active list (auth required - needed for order creation dropdowns)
