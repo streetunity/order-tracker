@@ -2,6 +2,7 @@
 // Handles customer selection, order date, PO number, sales person, and documents link
 
 import Link from 'next/link';
+import SearchableSelect from './SearchableSelect';
 
 export default function OrderDetailsSection({
   formData,
@@ -33,20 +34,16 @@ export default function OrderDetailsSection({
             Customer *
           </label>
           <div style={{ display: "flex", gap: "8px" }}>
-            <select
-              className="input"
+            <SearchableSelect
+              options={accounts}
               value={formData.accountId}
-              onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-              required
+              onChange={(value) => setFormData({ ...formData, accountId: value })}
+              placeholder="Type to search customers..."
+              displayKey="name"
+              valueKey="id"
+              required={true}
               style={{ flex: 1 }}
-            >
-              <option value="">Select a customer</option>
-              {accounts.map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
+            />
             <button
               type="button"
               onClick={handleRefreshAccounts}
