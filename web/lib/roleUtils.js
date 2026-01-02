@@ -156,3 +156,16 @@ export function getRoleBadgeColor(role) {
       return { bg: '#404040', text: '#e4e4e4' }; // Default gray
   }
 }
+
+/**
+ * Check if user has permission for invoicing features
+ * For now, allow all authenticated users except MANUFACTURER and BROKER
+ */
+export function hasInvoicingPermission(role, permission) {
+  // MANUFACTURER and BROKER cannot access invoicing
+  if (role === ROLES.MANUFACTURER || role === ROLES.BROKER) {
+    return false;
+  }
+  // All other roles (SUPER_ADMIN, ACCOUNTANT, ADMIN, AGENT) have access
+  return true;
+}
