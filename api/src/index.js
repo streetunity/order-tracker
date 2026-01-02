@@ -43,6 +43,12 @@ import publicCustomerDocumentsRouter from './routes/publicCustomerDocuments.js';
 import shipmentsRouter from './routes/shipments.js';
 import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
 
+// Invoicing system routes
+import { createLeadsRouter } from './routes/leads.js';
+import { createCustomersRouter } from './routes/customers.js';
+import { createEstimatesRouter } from './routes/estimates.js';
+import { createInvoicesRouter } from './routes/invoices.js';
+
 const prisma = new PrismaClient();
 const app = express();
 
@@ -151,6 +157,12 @@ const commissionsRouter = createCommissionsRouter(prisma);
 const commissionSettingsRouter = createCommissionSettingsRouter(prisma);
 const commissionPayoutsRouter = createCommissionPayoutsRouter(prisma);
 const brokerRouter = createBrokerRouter();
+
+// Invoicing system routers
+const leadsRouter = createLeadsRouter(prisma);
+const customersRouter = createCustomersRouter(prisma);
+const estimatesRouter = createEstimatesRouter(prisma);
+const invoicesRouter = createInvoicesRouter(prisma);
 
 // =============================
 // Mount Routes
@@ -299,6 +311,13 @@ console.log('✅ Document upload routes loaded');
 // Auth is handled inside the router
 app.use('/customer-documents', customerDocumentsRouter);
 console.log('✅ Customer documents routes loaded');
+
+// Invoicing system routes (isolated namespace)
+app.use('/leads', authGuard, leadsRouter);
+app.use('/customers', authGuard, customersRouter);
+app.use('/estimates', authGuard, estimatesRouter);
+app.use('/invoices', authGuard, invoicesRouter);
+console.log('✅ Invoicing system routes loaded');
 
 // =============================
 // Error Handler
