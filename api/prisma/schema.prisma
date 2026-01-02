@@ -13,40 +13,40 @@ generator client {
 
 // AGGREGATE COMMISSION - Order-level summary
 model Commission {
-  id                    String              @id @default(cuid())
-  orderId               String
-  salesPersonName       String              // Maps from order.sku
-  
+  id              String @id @default(cuid())
+  orderId         String
+  salesPersonName String // Maps from order.sku
+
   // Calculated amounts (aggregate of all items)
-  orderSubtotal         Float               // Sum of all item prices (before discount)
-  orderDiscount         Float               @default(0) // Total order discount
-  orderNetTotal         Float               // Subtotal - discount
-  commissionRate        Float               // Percentage (e.g., 5.0 = 5%)
-  totalCommissionAmount Float               // Total commission across all items
-  
+  orderSubtotal         Float // Sum of all item prices (before discount)
+  orderDiscount         Float @default(0) // Total order discount
+  orderNetTotal         Float // Subtotal - discount
+  commissionRate        Float // Percentage (e.g., 5.0 = 5%)
+  totalCommissionAmount Float // Total commission across all items
+
   // Status tracking
-  status                String              // AWAITING_PRICES, CALCULATED, PARTIAL_PAID, FULLY_PAID, FLAGGED, CANCELLED
-  isFlagged             Boolean             @default(false)
-  flagReason            String?             // AWAITING_PRICES, NO_SALES_REP, PRICE_CHANGED, ORDER_DELETED
-  flagDetails           String?             // JSON: detailed flag info
-  
+  status      String // AWAITING_PRICES, CALCULATED, PARTIAL_PAID, FULLY_PAID, FLAGGED, CANCELLED
+  isFlagged   Boolean @default(false)
+  flagReason  String? // AWAITING_PRICES, NO_SALES_REP, PRICE_CHANGED, ORDER_DELETED
+  flagDetails String? // JSON: detailed flag info
+
   // Notes
-  notes                 String?             // General notes on commission
-  
+  notes String? // General notes on commission
+
   // Audit fields
-  calculatedAt          DateTime?           // When fully calculated
-  lastReviewedAt        DateTime?           // Last admin review
-  lastReviewedBy        String?
-  reviewNotes           String?
-  
+  calculatedAt   DateTime? // When fully calculated
+  lastReviewedAt DateTime? // Last admin review
+  lastReviewedBy String?
+  reviewNotes    String?
+
   // Relations
-  order                 Order?              @relation(fields: [orderId], references: [id])
+  order           Order?           @relation(fields: [orderId], references: [id])
   // NOTE: No onDelete Cascade - allows orphaned commissions
-  itemCommissions       ItemCommission[]    // Individual item commissions
-  
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  
+  itemCommissions ItemCommission[] // Individual item commissions
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Indexes for performance
   @@index([salesPersonName])
   @@index([status])
@@ -59,37 +59,37 @@ model Commission {
 
 // ITEM-LEVEL COMMISSION - Per-item tracking with discount allocation
 model ItemCommission {
-  id                    String              @id @default(cuid())
-  commissionId          String              // Parent aggregate commission
-  itemId                String?             // OrderItem this applies to (nullable for deleted items)
-  orderId               String              // Denormalized for queries
-  
+  id           String  @id @default(cuid())
+  commissionId String // Parent aggregate commission
+  itemId       String? // OrderItem this applies to (nullable for deleted items)
+  orderId      String // Denormalized for queries
+
   // Item details (snapshot at calculation time)
-  productCode           String
-  qty                   Int
-  itemPrice             Float               // Total price for this item (price × qty)
-  
+  productCode String
+  qty         Int
+  itemPrice   Float // Total price for this item (price × qty)
+
   // Discount allocation (proportional)
-  itemSubtotal          Float               // itemPrice
-  allocatedDiscount     Float               // Proportional share of order discount
-  discountPercentage    Float               // What % of order discount this item received
-  netAmount             Float               // itemSubtotal - allocatedDiscount
-  
+  itemSubtotal       Float // itemPrice
+  allocatedDiscount  Float // Proportional share of order discount
+  discountPercentage Float // What % of order discount this item received
+  netAmount          Float // itemSubtotal - allocatedDiscount
+
   // Commission calculation
-  commissionRate        Float               // Rate at time of calculation
-  commissionAmount      Float               // netAmount × rate / 100
-  
+  commissionRate   Float // Rate at time of calculation
+  commissionAmount Float // netAmount × rate / 100
+
   // Status tracking (item-level)
-  status                String              @default("CALCULATED") // CALCULATED, PARTIAL_PAID, FULLY_PAID
-  
+  status String @default("CALCULATED") // CALCULATED, PARTIAL_PAID, FULLY_PAID
+
   // Relations
-  commission            Commission          @relation(fields: [commissionId], references: [id], onDelete: Cascade)
-  item                  OrderItem?          @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  payouts               CommissionPayout[]  // Payouts for this specific item
-  
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  
+  commission Commission         @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  item       OrderItem?         @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  payouts    CommissionPayout[] // Payouts for this specific item
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([commissionId])
   @@index([itemId])
   @@index([orderId])
@@ -98,48 +98,48 @@ model ItemCommission {
 
 // PAYOUT - Now linked to individual item commissions
 model CommissionPayout {
-  id                  String          @id @default(cuid())
-  itemCommissionId    String          // Link to specific item commission
-  commissionId        String          // Denormalized for reporting
-  
+  id               String @id @default(cuid())
+  itemCommissionId String // Link to specific item commission
+  commissionId     String // Denormalized for reporting
+
   // Stage configuration
-  stage               String          // "SHIPPING", "DELIVERED", etc.
-  percentage          Float           // 50.0 = 50%
-  amount              Float           // Calculated payout amount for this item
-  
+  stage      String // "SHIPPING", "DELIVERED", etc.
+  percentage Float // 50.0 = 50%
+  amount     Float // Calculated payout amount for this item
+
   // Status tracking
-  status              String          // WAITING, PENDING, APPROVED, PAID, REJECTED
-  triggeredByItemId   String?         // Which item triggered this payout
-  triggeredAt         DateTime?       // When item reached the stage
-  
+  status            String // WAITING, PENDING, APPROVED, PAID, REJECTED
+  triggeredByItemId String? // Which item triggered this payout
+  triggeredAt       DateTime? // When item reached the stage
+
   // Notes
-  notes               String?         // Payout-specific notes
-  
+  notes String? // Payout-specific notes
+
   // Approval tracking
-  approvedAt          DateTime?
-  approvedByUserId    String?
-  approvedByName      String?
-  approvalNotes       String?
-  
+  approvedAt       DateTime?
+  approvedByUserId String?
+  approvedByName   String?
+  approvalNotes    String?
+
   // Payment tracking
-  paidAt              DateTime?
-  paidByUserId        String?
-  paidByName          String?
-  paymentNotes        String?
-  paymentMethod       String?         // "Check", "Wire", "ACH", etc.
-  
+  paidAt        DateTime?
+  paidByUserId  String?
+  paidByName    String?
+  paymentNotes  String?
+  paymentMethod String? // "Check", "Wire", "ACH", etc.
+
   // Rejection tracking
-  rejectedAt          DateTime?
-  rejectedByUserId    String?
-  rejectedByName      String?
-  rejectionReason     String?
-  
+  rejectedAt       DateTime?
+  rejectedByUserId String?
+  rejectedByName   String?
+  rejectionReason  String?
+
   // Relations
-  itemCommission      ItemCommission  @relation(fields: [itemCommissionId], references: [id], onDelete: Cascade)
-  
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  
+  itemCommission ItemCommission @relation(fields: [itemCommissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Indexes for performance
   @@index([itemCommissionId])
   @@index([commissionId])
@@ -150,50 +150,50 @@ model CommissionPayout {
 }
 
 model CommissionRate {
-  id              String   @id @default(cuid())
-  salesPersonName String   @unique  // Must match names in order.sku
-  rate            Float    // Percentage (e.g., 5.5 = 5.5%)
-  
+  id              String @id @default(cuid())
+  salesPersonName String @unique // Must match names in order.sku
+  rate            Float // Percentage (e.g., 5.5 = 5.5%)
+
   // Audit
-  setByUserId     String?
-  setByName       String?
-  notes           String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  setByUserId String?
+  setByName   String?
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([salesPersonName])
 }
 
 model CommissionStageSetting {
-  id              String   @id @default(cuid())
-  stage           String   @unique  // "SHIPPING", "DELIVERED", etc.
-  percentage      Float    // Must total 100% across all active stages
-  sortOrder       Int      // Display order (1, 2, 3...)
-  isActive        Boolean  @default(true)
-  
+  id         String  @id @default(cuid())
+  stage      String  @unique // "SHIPPING", "DELIVERED", etc.
+  percentage Float // Must total 100% across all active stages
+  sortOrder  Int // Display order (1, 2, 3...)
+  isActive   Boolean @default(true)
+
   // Audit
   updatedByUserId String?
   updatedByName   String?
   updatedAt       DateTime @updatedAt
   createdAt       DateTime @default(now())
-  
+
   @@index([isActive, sortOrder])
 }
 
 // Commission system settings
 model CommissionSettings {
-  id                 String   @id @default(cuid())
-  enabled            Boolean  @default(true)          // Enable/disable commission system
-  defaultRate        Float    @default(5.0)           // Default commission rate
-  calculationBasis   String   @default("ORDER_TOTAL") // ORDER_TOTAL, SUBTOTAL, PROFIT_MARGIN
-  minimumOrderValue  Float    @default(0)             // Minimum order value for commissions
-  
+  id                String  @id @default(cuid())
+  enabled           Boolean @default(true) // Enable/disable commission system
+  defaultRate       Float   @default(5.0) // Default commission rate
+  calculationBasis  String  @default("ORDER_TOTAL") // ORDER_TOTAL, SUBTOTAL, PROFIT_MARGIN
+  minimumOrderValue Float   @default(0) // Minimum order value for commissions
+
   // Audit
-  lastUpdatedBy      String?  // User ID who last updated
-  lastUpdatedByName  String?  // User name who last updated
-  updatedAt          DateTime @updatedAt
-  createdAt          DateTime @default(now())
+  lastUpdatedBy     String? // User ID who last updated
+  lastUpdatedByName String? // User name who last updated
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
 }
 
 // ============================================
@@ -201,118 +201,120 @@ model CommissionSettings {
 // ============================================
 
 model Account {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
-  contactName    String?  // Contact person's name
+  contactName    String? // Contact person's name
   email          String?
   address        String?
   phone          String?
   machineVoltage String?
   notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   orders         Order[]
+  Customer       Customer?
 }
 
 model Order {
-  id              String              @id @default(cuid())
-  accountId       String
-  poNumber        String?
-  sku             String?             // Stores sales person name (keep as-is for commission)
-  orderDate       DateTime?           // Actual order date from customer
-  customerDocsLink String?            // Customer Documents Link (Dropbox URL) - DEPRECATED: Use customerDocuments relation
-  brokerDocsLink  String?             // Broker Documents Link (SUPER_ADMIN only, not visible to customers)
-  internalNotes   String?             // Internal notes for the order
-  discount        Float?              @default(0) // Discount amount (stored as positive, calculated as negative)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  etaDate         DateTime?
-  onsiteInstallationDate DateTime?    // Onsite installation date
-  currentStage    String              @default("MANUFACTURING")
-  trackingToken   String              @unique
-  trackingNumber  String?
-  shippingCarrier String?
-  isLocked        Boolean             @default(false)
-  lockedAt        DateTime?
-  lockedBy        String?
-  isArchived      Boolean             @default(false)
-  archivedAt      DateTime?
-  archivedBy      String?
-  createdByUserId String?
+  id                     String    @id @default(cuid())
+  accountId              String
+  poNumber               String?
+  sku                    String? // Stores sales person name (keep as-is for commission)
+  orderDate              DateTime? // Actual order date from customer
+  customerDocsLink       String? // Customer Documents Link (Dropbox URL) - DEPRECATED: Use customerDocuments relation
+  brokerDocsLink         String? // Broker Documents Link (SUPER_ADMIN only, not visible to customers)
+  internalNotes          String? // Internal notes for the order
+  discount               Float?    @default(0) // Discount amount (stored as positive, calculated as negative)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  etaDate                DateTime?
+  onsiteInstallationDate DateTime? // Onsite installation date
+  currentStage           String    @default("MANUFACTURING")
+  trackingToken          String    @unique
+  trackingNumber         String?
+  shippingCarrier        String?
+  isLocked               Boolean   @default(false)
+  lockedAt               DateTime?
+  lockedBy               String?
+  isArchived             Boolean   @default(false)
+  archivedAt             DateTime?
+  archivedBy             String?
+  createdByUserId        String?
 
-  account         Account             @relation(fields: [accountId], references: [id])
-  items           OrderItem[]
-  statusEvents    OrderStatusEvent[]
-  createdBy       User?               @relation(fields: [createdByUserId], references: [id])
-  commissions     Commission[]        // Commission relation
-  documents       OrderDocument[]     // S3 document uploads
+  account           Account            @relation(fields: [accountId], references: [id])
+  items             OrderItem[]
+  statusEvents      OrderStatusEvent[]
+  createdBy         User?              @relation(fields: [createdByUserId], references: [id])
+  commissions       Commission[] // Commission relation
+  documents         OrderDocument[] // S3 document uploads
   customerDocuments CustomerDocument[] // Customer-viewable documents (replaces Dropbox)
+  Invoice           Invoice[]
 }
 
 model OrderItem {
-  id             String                  @id @default(cuid())
-  orderId        String
-  productCode    String
-  qty            Int                     @default(1)
-  serialNumber   String?
-  modelNumber    String?
-  voltage        String?
-  laserWattage   String?  // Laser Source Wattage
-  notes          String?
-  
+  id           String  @id @default(cuid())
+  orderId      String
+  productCode  String
+  qty          Int     @default(1)
+  serialNumber String?
+  modelNumber  String?
+  voltage      String?
+  laserWattage String? // Laser Source Wattage
+  notes        String?
+
   // MANUFACTURER FIELD - References Manufacturer model
   manufacturerId String?
   manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id])
-  
+
   // SHARED SHIPMENT - Links items across orders that share shipping documents
-  shipmentId     String?
-  shipment       Shipment? @relation(fields: [shipmentId], references: [id])
-  
+  shipmentId String?
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id])
+
   // PRICE AND PRIVATE NOTE FIELDS
-  itemPrice      Float?   // Price for this item (total, not per unit)
+  itemPrice       Float? // Price for this item (total, not per unit)
   privateItemNote String? // Private internal notes for this item (purchasing notes)
-  
+
   // ORDERED STATUS FIELDS
-  isOrdered      Boolean  @default(false)  // Whether this item has been ordered
-  orderedAt      DateTime?                 // When it was marked as ordered
-  orderedBy      String?                   // Who marked it as ordered (user name)
-  
+  isOrdered Boolean   @default(false) // Whether this item has been ordered
+  orderedAt DateTime? // When it was marked as ordered
+  orderedBy String? // Who marked it as ordered (user name)
+
   // EXTENDED SHIPPING FIELD
   hasExtendedShipping Boolean @default(false) // Whether this item requires extended lead time
-  
+
   // MEASUREMENT FIELDS - Always editable even when order is locked
-  height         Float?   // Height dimension
-  width          Float?   // Width dimension
-  length         Float?   // Length dimension
-  weight         Float?   // Weight
-  measurementUnit String? @default("in") // "in" or "cm" for dimensions
-  weightUnit     String?  @default("lbs") // "lbs" or "kg" for weight
-  measuredAt     DateTime? // When measurements were last updated
-  measuredBy     String?   // Who took the measurements
-  
+  height          Float? // Height dimension
+  width           Float? // Width dimension
+  length          Float? // Length dimension
+  weight          Float? // Weight
+  measurementUnit String?   @default("in") // "in" or "cm" for dimensions
+  weightUnit      String?   @default("lbs") // "lbs" or "kg" for weight
+  measuredAt      DateTime? // When measurements were last updated
+  measuredBy      String? // Who took the measurements
+
   // MULTI-CONTAINER SUPPORT - Using String for SQLite compatibility
-  containers     String?  @default("[]") // JSON string of container objects
+  containers String? @default("[]") // JSON string of container objects
 
   // BROKER-SPECIFIC FIELDS - For customs processing
-  customsDocumentStatus  String?               @default("PENDING") // PENDING, IN_PROGRESS, FILED, CLEARED, ISSUES
-  customsFiledDate       DateTime?             // When documents were filed with customs
-  customsNotes           String?               // Broker notes about issues/progress
-  brokerNotifiedDate     DateTime?             // When broker was first notified
-  brokerLastViewedDate   DateTime?             // Last time broker viewed this item
-  customsClearedDate     DateTime?             // When customs cleared the shipment
-  billOfLading           String?               // BOL number for tracking
-  entryNumber            String?               // Customs entry number (filed by broker)
+  customsDocumentStatus String?   @default("PENDING") // PENDING, IN_PROGRESS, FILED, CLEARED, ISSUES
+  customsFiledDate      DateTime? // When documents were filed with customs
+  customsNotes          String? // Broker notes about issues/progress
+  brokerNotifiedDate    DateTime? // When broker was first notified
+  brokerLastViewedDate  DateTime? // Last time broker viewed this item
+  customsClearedDate    DateTime? // When customs cleared the shipment
+  billOfLading          String? // BOL number for tracking
+  entryNumber           String? // Customs entry number (filed by broker)
 
-  currentStage   String   @default("MANUFACTURING")
-  archivedAt     DateTime?
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
-  order          Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  statusEvents   OrderItemStatusEvent[]
-  measurementLogs MeasurementAuditLog[]
-  itemCommissions ItemCommission[]       // Item commission tracking
-  brokerActivityLogs BrokerActivityLog[]    // Broker activity tracking
-  documents       ItemDocument[]         // Item-level document uploads
+  currentStage       String                 @default("MANUFACTURING")
+  archivedAt         DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  order              Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  statusEvents       OrderItemStatusEvent[]
+  measurementLogs    MeasurementAuditLog[]
+  itemCommissions    ItemCommission[] // Item commission tracking
+  brokerActivityLogs BrokerActivityLog[] // Broker activity tracking
+  documents          ItemDocument[] // Item-level document uploads
 
   @@index([manufacturerId])
   @@index([orderId])
@@ -326,38 +328,38 @@ model OrderItem {
 // ============================================
 
 model Shipment {
-  id                    String              @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Identifiers
-  containerNumber       String?             // Container number (e.g., MSKU1234567)
-  billOfLading          String?             // Bill of Lading number
-  
+  containerNumber String? // Container number (e.g., MSKU1234567)
+  billOfLading    String? // Bill of Lading number
+
   // Shipping details
-  etaDate               DateTime?           // Expected arrival date
-  vesselName            String?             // Name of the vessel
-  portOfOrigin          String?             // Port of departure
-  portOfDestination     String?             // Port of arrival
-  
+  etaDate           DateTime? // Expected arrival date
+  vesselName        String? // Name of the vessel
+  portOfOrigin      String? // Port of departure
+  portOfDestination String? // Port of arrival
+
   // Customs tracking (shared across all items)
-  customsDocumentStatus String              @default("PENDING") // PENDING, IN_PROGRESS, FILED, CLEARED, ISSUES
-  customsFiledDate      DateTime?           // When documents were filed with customs
-  customsClearedDate    DateTime?           // When customs cleared the shipment
-  customsNotes          String?             // Broker notes
-  
+  customsDocumentStatus String    @default("PENDING") // PENDING, IN_PROGRESS, FILED, CLEARED, ISSUES
+  customsFiledDate      DateTime? // When documents were filed with customs
+  customsClearedDate    DateTime? // When customs cleared the shipment
+  customsNotes          String? // Broker notes
+
   // Archive support - hide old shipments from dropdowns
-  archivedAt            DateTime?           // When archived (null = active)
-  archivedBy            String?             // Who archived it
-  
+  archivedAt DateTime? // When archived (null = active)
+  archivedBy String? // Who archived it
+
   // Audit
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  createdByUserId       String?
-  createdByName         String?
-  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUserId String?
+  createdByName   String?
+
   // Relations
-  items                 OrderItem[]         // Items in this shipment
-  documents             ShipmentDocument[]  // Shared shipping documents
-  activityLogs          ShipmentActivityLog[] // Activity tracking
+  items        OrderItem[] // Items in this shipment
+  documents    ShipmentDocument[] // Shared shipping documents
+  activityLogs ShipmentActivityLog[] // Activity tracking
 
   @@index([containerNumber])
   @@index([billOfLading])
@@ -367,19 +369,19 @@ model Shipment {
 
 // Shared shipping documents for multi-item containers
 model ShipmentDocument {
-  id           String    @id @default(cuid())
-  shipmentId   String
-  shipment     Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
-  fileName     String    // Original filename
-  fileSize     Int       // Size in bytes
-  fileType     String    // MIME type
-  documentType String    // ISF, ARRIVAL_NOTICE, BILL_OF_LADING, COMMERCIAL_INVOICE, PACKING_LIST, DELIVERY_ORDER, ISF_REPORT, ENTRY_SUMMARY, BROKER_INVOICE, OTHER
-  s3Key        String    // S3 object key
-  s3Url        String    // Full S3 URL
+  fileName     String // Original filename
+  fileSize     Int // Size in bytes
+  fileType     String // MIME type
+  documentType String // ISF, ARRIVAL_NOTICE, BILL_OF_LADING, COMMERCIAL_INVOICE, PACKING_LIST, DELIVERY_ORDER, ISF_REPORT, ENTRY_SUMMARY, BROKER_INVOICE, OTHER
+  s3Key        String // S3 object key
+  s3Url        String // Full S3 URL
 
-  uploadedBy   String    // Username who uploaded
-  uploadedAt   DateTime  @default(now())
+  uploadedBy String // Username who uploaded
+  uploadedAt DateTime @default(now())
 
   @@index([shipmentId])
   @@index([documentType])
@@ -388,17 +390,17 @@ model ShipmentDocument {
 
 // Activity log for shared shipments
 model ShipmentActivityLog {
-  id          String    @id @default(cuid())
-  shipmentId  String
-  shipment    Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  userId      String
-  userName    String
-  action      String    // "CREATED", "VIEWED", "STATUS_UPDATED", "NOTE_ADDED", "DOCUMENT_UPLOADED", "ITEM_LINKED", "ITEM_UNLINKED"
-  oldStatus   String?   // Previous status
-  newStatus   String?   // New status
-  notes       String?   // Additional notes
-  metadata    String?   // JSON for additional context (e.g., item IDs)
-  createdAt   DateTime  @default(now())
+  id         String   @id @default(cuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  userId     String
+  userName   String
+  action     String // "CREATED", "VIEWED", "STATUS_UPDATED", "NOTE_ADDED", "DOCUMENT_UPLOADED", "ITEM_LINKED", "ITEM_UNLINKED"
+  oldStatus  String? // Previous status
+  newStatus  String? // New status
+  notes      String? // Additional notes
+  metadata   String? // JSON for additional context (e.g., item IDs)
+  createdAt  DateTime @default(now())
 
   @@index([shipmentId])
   @@index([createdAt])
@@ -407,41 +409,41 @@ model ShipmentActivityLog {
 }
 
 model OrderStatusEvent {
-  id               String   @id @default(cuid())
-  orderId          String
-  stage            String
-  note             String?
-  createdAt        DateTime @default(now())
-  changedByUserId  String?
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  changedBy        User?    @relation(fields: [changedByUserId], references: [id])
+  id              String   @id @default(cuid())
+  orderId         String
+  stage           String
+  note            String?
+  createdAt       DateTime @default(now())
+  changedByUserId String?
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedBy       User?    @relation(fields: [changedByUserId], references: [id])
 }
 
 model OrderItemStatusEvent {
-  id               String    @id @default(cuid())
-  orderItemId      String
-  stage            String
-  note             String?
-  createdAt        DateTime  @default(now())
-  changedByUserId  String?
-  orderItem        OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  changedBy        User?     @relation(fields: [changedByUserId], references: [id])
+  id              String    @id @default(cuid())
+  orderItemId     String
+  stage           String
+  note            String?
+  createdAt       DateTime  @default(now())
+  changedByUserId String?
+  orderItem       OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  changedBy       User?     @relation(fields: [changedByUserId], references: [id])
 }
 
 // Flexible audit log table that can handle any entity type
 model AuditLog {
   id                String   @id @default(cuid())
-  entityType        String   // "Order", "Account", "User", "OrderItem", "Manufacturer", "Commission"
-  entityId          String   // ID of the entity being audited
-  parentEntityId    String?  // Optional: orderId for OrderItems, etc.
-  action            String   // "CREATED", "UPDATED", "DELETED", "LOCKED", "ITEM_ORDERED", "ITEM_UNORDERED", "COMMISSION_APPROVED", etc.
-  changes           String?  // JSON string of field changes
-  metadata          String?  // JSON string of additional data (reason, notes, etc.)
+  entityType        String // "Order", "Account", "User", "OrderItem", "Manufacturer", "Commission"
+  entityId          String // ID of the entity being audited
+  parentEntityId    String? // Optional: orderId for OrderItems, etc.
+  action            String // "CREATED", "UPDATED", "DELETED", "LOCKED", "ITEM_ORDERED", "ITEM_UNORDERED", "COMMISSION_APPROVED", etc.
+  changes           String? // JSON string of field changes
+  metadata          String? // JSON string of additional data (reason, notes, etc.)
   performedByUserId String?
   performedByName   String?
   createdAt         DateTime @default(now())
   performedBy       User?    @relation(fields: [performedByUserId], references: [id])
-  
+
   @@index([entityType, entityId])
   @@index([parentEntityId])
   @@index([createdAt])
@@ -449,24 +451,24 @@ model AuditLog {
 
 // Measurement-specific audit log for detailed tracking
 model MeasurementAuditLog {
-  id          String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   orderItemId String
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  
+
   // Track which measurement changed
-  field       String   // "height", "width", "length", "weight"
-  oldValue    Float?
-  newValue    Float?
-  unit        String?  // Unit at time of measurement
-  
+  field    String // "height", "width", "length", "weight"
+  oldValue Float?
+  newValue Float?
+  unit     String? // Unit at time of measurement
+
   // Who made the change
   performedBy String?
   performedAt DateTime @default(now())
-  
+
   // Link to order for easy queries
-  orderId     String
-  
+  orderId String
+
   @@index([orderItemId])
   @@index([orderId])
   @@index([performedAt])
@@ -474,24 +476,39 @@ model MeasurementAuditLog {
 }
 
 model User {
-  id                      String                  @id @default(cuid())
-  email                   String                  @unique
-  password                String
-  name                    String
-  role                    String                  @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", "MANUFACTURER", "BROKER"
-  isActive                Boolean                 @default(true)
-  showInSalesRepDropdown  Boolean                 @default(true)  // Whether user appears in sales rep dropdown
-  lastLogin               DateTime?
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
-  createdOrders           Order[]
-  statusEvents            OrderStatusEvent[]
-  itemStatusEvents        OrderItemStatusEvent[]
-  auditLogs               AuditLog[]
-  notifications           Notification[]          // Notifications assigned to this user
-  manufacturer            Manufacturer?           // Link to manufacturer profile if role is MANUFACTURER
-  brokerActivityLogs      BrokerActivityLog[]     // Broker activity logs
-  customerDocuments       CustomerDocument[]      // Customer documents uploaded by this user
+  id                     String                 @id @default(cuid())
+  email                  String                 @unique
+  password               String
+  name                   String
+  role                   String                 @default("AGENT") // "SUPER_ADMIN", "ACCOUNTANT", "ADMIN", "AGENT", "MANUFACTURER", "BROKER"
+  isActive               Boolean                @default(true)
+  showInSalesRepDropdown Boolean                @default(true) // Whether user appears in sales rep dropdown
+  lastLogin              DateTime?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  createdOrders          Order[]
+  statusEvents           OrderStatusEvent[]
+  itemStatusEvents       OrderItemStatusEvent[]
+  auditLogs              AuditLog[]
+  notifications          Notification[] // Notifications assigned to this user
+  manufacturer           Manufacturer? // Link to manufacturer profile if role is MANUFACTURER
+  brokerActivityLogs     BrokerActivityLog[] // Broker activity logs
+  customerDocuments      CustomerDocument[] // Customer documents uploaded by this user
+
+  // Invoicing system relations
+  assignedLeads            Lead[]             @relation("LeadAssignedTo")
+  deletedLeads             Lead[]             @relation("LeadDeletedBy")
+  assignedCustomers        Customer[]         @relation("CustomerAssignedTo")
+  deletedCustomers         Customer[]         @relation("CustomerDeletedBy")
+  createdEstimates         Estimate[]         @relation("EstimateCreatedBy")
+  deletedEstimates         Estimate[]         @relation("EstimateDeletedBy")
+  createdInvoices          Invoice[]          @relation("InvoiceCreatedBy")
+  deletedInvoices          Invoice[]          @relation("InvoiceDeletedBy")
+  createdRecurringInvoices RecurringInvoice[]
+  Payment                  Payment[]
+  EmailLog                 EmailLog[]
+  UserEmailSettings        UserEmailSettings?
+  CreditMemo               CreditMemo[]
 
   @@index([role])
   @@index([isActive])
@@ -501,82 +518,82 @@ model User {
 // Manufacturer model - represents companies that manufacture items
 model Manufacturer {
   id          String      @id @default(cuid())
-  name        String      @unique  // Company name
-  userId      String?     @unique  // Optional: Link to User account for login
+  name        String      @unique // Company name
+  userId      String?     @unique // Optional: Link to User account for login
   user        User?       @relation(fields: [userId], references: [id])
   isActive    Boolean     @default(true)
-  contactInfo String?     // Contact details
-  notes       String?     // Internal notes about the manufacturer
+  contactInfo String? // Contact details
+  notes       String? // Internal notes about the manufacturer
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[] // Items assigned to this manufacturer
-  
+
   @@index([name])
   @@index([isActive])
 }
 
 // Stage threshold settings for reports
 model StageThreshold {
-  id              String   @id @default(cuid())
-  stage           String   @unique  // "MANUFACTURING", "TESTING", "SHIPPING", etc.
-  warningDays     Int      // Days before warning flag
-  criticalDays    Int      // Days before critical flag
-  description     String?  // Human-readable description
-  updatedAt       DateTime @updatedAt
-  updatedBy       String?  // User who last updated
-  
+  id           String   @id @default(cuid())
+  stage        String   @unique // "MANUFACTURING", "TESTING", "SHIPPING", etc.
+  warningDays  Int // Days before warning flag
+  criticalDays Int // Days before critical flag
+  description  String? // Human-readable description
+  updatedAt    DateTime @updatedAt
+  updatedBy    String? // User who last updated
+
   @@index([stage])
 }
 
 // System settings for global configurations
 model SystemSetting {
-  id              String   @id @default(cuid())
-  key             String   @unique  // "HOLIDAY_SEASON_START", "HOLIDAY_SEASON_END", etc.
-  value           String   // Stored as string, parsed as needed
-  description     String?
-  updatedAt       DateTime @updatedAt
-  updatedBy       String?
-  
+  id          String   @id @default(cuid())
+  key         String   @unique // "HOLIDAY_SEASON_START", "HOLIDAY_SEASON_END", etc.
+  value       String // Stored as string, parsed as needed
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
   @@index([key])
 }
 
 // Notification system for alerts and updates
 model Notification {
-  id              String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Who this notification is for
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Notification type and category
-  type            String   // "COMMISSION", "ORDER_LATE", "STAGE_WARNING", "STAGE_CRITICAL", "ORDER_DELIVERED", etc.
-  category        String   // "COMMISSION", "OPERATIONAL", "ALERT", "INFO"
-  
+  type     String // "COMMISSION", "ORDER_LATE", "STAGE_WARNING", "STAGE_CRITICAL", "ORDER_DELIVERED", etc.
+  category String // "COMMISSION", "OPERATIONAL", "ALERT", "INFO"
+
   // Notification content
-  title           String
-  message         String
-  
+  title   String
+  message String
+
   // Related entities (optional, for linking)
-  relatedOrderId    String?
-  relatedItemId     String?
-  relatedAccountId  String?
-  
+  relatedOrderId   String?
+  relatedItemId    String?
+  relatedAccountId String?
+
   // Metadata (JSON string for flexible data)
-  metadata        String?  // JSON: { "amount": 1500, "orderId": "xyz", "daysLate": 5, etc. }
-  
+  metadata String? // JSON: { "amount": 1500, "orderId": "xyz", "daysLate": 5, etc. }
+
   // State tracking
-  isRead          Boolean  @default(false)
-  readAt          DateTime?
-  isDismissed     Boolean  @default(false)
-  dismissedAt     DateTime?
-  
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  isDismissed Boolean   @default(false)
+  dismissedAt DateTime?
+
   // Priority/severity
-  priority        String   @default("NORMAL") // "LOW", "NORMAL", "HIGH", "CRITICAL"
-  
+  priority String @default("NORMAL") // "LOW", "NORMAL", "HIGH", "CRITICAL"
+
   // Timestamps
-  createdAt       DateTime @default(now())
-  expiresAt       DateTime? // Optional: notifications can expire
-  
+  createdAt DateTime  @default(now())
+  expiresAt DateTime? // Optional: notifications can expire
+
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@index([type])
@@ -587,16 +604,16 @@ model Notification {
 
 // Broker activity logging for customs processing tracking
 model BrokerActivityLog {
-  id          String      @id @default(cuid())
+  id          String    @id @default(cuid())
   orderItemId String
-  orderItem   OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
   userId      String
-  user        User        @relation(fields: [userId], references: [id])
-  action      String      // "VIEWED", "STATUS_UPDATED", "NOTE_ADDED", "DOCUMENT_UPLOADED"
-  oldStatus   String?     // Previous customs document status
-  newStatus   String?     // New customs document status
-  notes       String?     // Additional notes about the action
-  createdAt   DateTime    @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+  action      String // "VIEWED", "STATUS_UPDATED", "NOTE_ADDED", "DOCUMENT_UPLOADED"
+  oldStatus   String? // Previous customs document status
+  newStatus   String? // New customs document status
+  notes       String? // Additional notes about the action
+  createdAt   DateTime  @default(now())
 
   @@index([orderItemId])
   @@index([userId])
@@ -606,18 +623,18 @@ model BrokerActivityLog {
 
 // S3 Document Storage
 model OrderDocument {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  fileName    String   // Original filename
-  fileSize    Int      // Size in bytes
-  fileType    String   // MIME type
-  s3Key       String   // S3 object key
-  s3Url       String   // Full S3 URL
+  fileName String // Original filename
+  fileSize Int // Size in bytes
+  fileType String // MIME type
+  s3Key    String // S3 object key
+  s3Url    String // Full S3 URL
 
-  uploadedBy  String   // Username who uploaded
-  uploadedAt  DateTime @default(now())
+  uploadedBy String // Username who uploaded
+  uploadedAt DateTime @default(now())
 
   @@index([orderId])
   @@map("order_documents")
@@ -625,19 +642,19 @@ model OrderDocument {
 
 // S3 Document Storage - Item Level
 model ItemDocument {
-  id           String    @id @default(cuid())
-  itemId       String
-  item         OrderItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  id     String    @id @default(cuid())
+  itemId String
+  item   OrderItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  fileName     String    // Original filename
-  fileSize     Int       // Size in bytes
-  fileType     String    // MIME type
-  documentType String    // ISF, ARRIVAL_NOTICE, BILL_OF_LADING, COMMERCIAL_INVOICE, PACKING_LIST, DELIVERY_ORDER, OTHER
-  s3Key        String    // S3 object key
-  s3Url        String    // Full S3 URL
+  fileName     String // Original filename
+  fileSize     Int // Size in bytes
+  fileType     String // MIME type
+  documentType String // ISF, ARRIVAL_NOTICE, BILL_OF_LADING, COMMERCIAL_INVOICE, PACKING_LIST, DELIVERY_ORDER, OTHER
+  s3Key        String // S3 object key
+  s3Url        String // Full S3 URL
 
-  uploadedBy   String    // Username who uploaded
-  uploadedAt   DateTime  @default(now())
+  uploadedBy String // Username who uploaded
+  uploadedAt DateTime @default(now())
 
   @@index([itemId])
   @@index([documentType])
@@ -650,37 +667,630 @@ model ItemDocument {
 // ============================================
 
 model CustomerDocument {
-  id              String   @id @default(cuid())
-  orderId         String
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
   // File info
-  fileName        String   // Original filename
-  fileSize        BigInt   // Size in bytes (BigInt for files > 2GB)
-  mimeType        String   // MIME type (video/mp4, application/pdf, etc.)
-  
+  fileName String // Original filename
+  fileSize BigInt // Size in bytes (BigInt for files > 2GB)
+  mimeType String // MIME type (video/mp4, application/pdf, etc.)
+
   // S3 storage
-  s3Bucket        String   // Bucket name
-  s3Key           String   // Object key path
-  
+  s3Bucket String // Bucket name
+  s3Key    String // Object key path
+
   // Optional metadata
-  description     String?  // Admin can add a note about the file
-  
+  description String? // Admin can add a note about the file
+
   // Upload tracking
-  uploadedById    String
-  uploadedBy      User     @relation(fields: [uploadedById], references: [id])
-  uploadedAt      DateTime @default(now())
-  
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedAt   DateTime @default(now())
+
   // Multipart upload tracking (for resumable uploads)
-  uploadId        String?  // S3 multipart upload ID (null when complete)
-  isComplete      Boolean  @default(false) // False during upload, true when finalized
-  
+  uploadId   String? // S3 multipart upload ID (null when complete)
+  isComplete Boolean @default(false) // False during upload, true when finalized
+
   // Retention - auto-delete after 365 days
-  expiresAt       DateTime // Set to uploadedAt + 365 days
-  
+  expiresAt DateTime // Set to uploadedAt + 365 days
+
   @@index([orderId])
   @@index([uploadedById])
   @@index([isComplete])
   @@index([expiresAt])
   @@map("customer_documents")
+}
+
+model Lead {
+  id String @id @default(cuid())
+
+  // Source Tracking
+  source          String
+  sourceDetails   String?
+  zapierWebhookId String?
+
+  // Contact Information
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  company   String?
+
+  // Address
+  address String?
+  city    String?
+  state   String?
+  zipCode String?
+  country String? @default("USA")
+
+  // Lead Details
+  interestedIn String?
+  notes        String?
+
+  // Assignment
+  assignedToId String?
+  assignedTo   User?   @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+
+  // Status
+  status String @default("NEW") // NEW, CONTACTED, QUALIFIED, CONVERTED, LOST
+
+  // Conversion
+  convertedToCustomerId String?   @unique
+  convertedToCustomer   Customer? @relation(fields: [convertedToCustomerId], references: [id])
+  convertedAt           DateTime?
+
+  // Soft delete
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  deletedById String?
+  deletedBy   User?     @relation("LeadDeletedBy", fields: [deletedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([source])
+  @@index([createdAt])
+  @@index([convertedToCustomerId])
+}
+
+model Customer {
+  id             String @id @default(cuid())
+  customerNumber String @unique
+
+  // Contact Information
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+  company   String?
+
+  // Billing Address
+  billingAddress String?
+  billingCity    String?
+  billingState   String?
+  billingZipCode String?
+  billingCountry String? @default("USA")
+
+  // Shipping Address
+  shippingAddress String?
+  shippingCity    String?
+  shippingState   String?
+  shippingZipCode String?
+  shippingCountry String?
+  sameAsBilling   Boolean @default(true)
+
+  // Financial
+  taxExempt    Boolean @default(false)
+  taxExemptId  String?
+  creditLimit  Float?
+  paymentTerms String? @default("NET30")
+
+  // Assignment & Source
+  primaryContactId String?
+  assignedToId     String?
+  assignedTo       User?   @relation("CustomerAssignedTo", fields: [assignedToId], references: [id])
+
+  leadId String? @unique
+  lead   Lead?
+
+  // Status & Notes
+  status        String  @default("ACTIVE")
+  notes         String?
+  internalNotes String?
+
+  // Link to existing Account
+  accountId String?  @unique
+  account   Account? @relation(fields: [accountId], references: [id])
+
+  // Soft delete
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  deletedById String?
+  deletedBy   User?     @relation("CustomerDeletedBy", fields: [deletedById], references: [id])
+
+  // Relations
+  estimates         Estimate[]
+  invoices          Invoice[]
+  payments          Payment[]
+  creditMemos       CreditMemo[]
+  recurringInvoices RecurringInvoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([customerNumber])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([company])
+  @@index([createdAt])
+  @@index([accountId])
+  @@index([leadId])
+}
+
+model Estimate {
+  id             String @id @default(cuid())
+  estimateNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  estimateDate DateTime @default(now())
+  expiryDate   DateTime
+
+  subtotal       Float
+  taxRate        Float   @default(0)
+  taxAmount      Float   @default(0)
+  discountType   String?
+  discountValue  Float?
+  discountAmount Float   @default(0)
+  shippingAmount Float   @default(0)
+  total          Float
+
+  status String @default("DRAFT") // DRAFT, SENT, VIEWED, ACCEPTED, DECLINED, EXPIRED, CONVERTED
+
+  notes           String?
+  internalNotes   String?
+  termsConditions String?
+
+  pdfUrl         String?
+  pdfGeneratedAt DateTime?
+
+  lastSentAt   DateTime?
+  lastViewedAt DateTime?
+  sentCount    Int       @default(0)
+
+  convertedToInvoiceId String?   @unique
+  convertedAt          DateTime?
+
+  createdById String
+  createdBy   User   @relation("EstimateCreatedBy", fields: [createdById], references: [id])
+
+  // Soft delete
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  deletedById String?
+  deletedBy   User?     @relation("EstimateDeletedBy", fields: [deletedById], references: [id])
+
+  items     EstimateItem[]
+  invoices  Invoice[]
+  emailLogs EmailLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estimateNumber])
+  @@index([customerId])
+  @@index([status])
+  @@index([estimateDate])
+  @@index([expiryDate])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([convertedToInvoiceId])
+}
+
+model EstimateItem {
+  id         String   @id @default(cuid())
+  estimateId String
+  estimate   Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  sku         String?
+
+  quantity  Float
+  unitPrice Float
+  amount    Float
+
+  taxable Boolean @default(true)
+
+  measurements String?
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Invoice {
+  id            String @id @default(cuid())
+  invoiceNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  invoiceDate DateTime @default(now())
+  dueDate     DateTime
+
+  subtotal       Float
+  taxRate        Float   @default(0)
+  taxAmount      Float   @default(0)
+  discountType   String?
+  discountValue  Float?
+  discountAmount Float   @default(0)
+  shippingAmount Float   @default(0)
+  total          Float
+  amountPaid     Float   @default(0)
+  balanceDue     Float
+
+  paymentType     String  @default("FULL")
+  depositRequired Float?
+  depositPaid     Boolean @default(false)
+
+  status String @default("DRAFT") // Controlled by state machine
+
+  notes           String?
+  internalNotes   String?
+  termsConditions String?
+
+  pdfUrl         String?
+  pdfGeneratedAt DateTime?
+
+  lastSentAt   DateTime?
+  lastViewedAt DateTime?
+  sentCount    Int       @default(0)
+
+  convertedToOrder Boolean @default(false)
+  orderId          String?
+  order            Order?  @relation(fields: [orderId], references: [id])
+
+  estimateId String?
+  estimate   Estimate? @relation(fields: [estimateId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+
+  metadata String?
+
+  // Soft delete
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  deletedById String?
+  deletedBy   User?     @relation("InvoiceDeletedBy", fields: [deletedById], references: [id])
+
+  items              InvoiceItem[]
+  payments           Payment[]
+  emailLogs          EmailLog[]
+  creditMemos        CreditMemo[]
+  recurringInvoiceId String?
+  recurringInvoice   RecurringInvoice? @relation("GeneratedFromRecurring", fields: [recurringInvoiceId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Future multi-currency
+  currency      String @default("USD")
+  exchangeRate  Float?
+  subtotalLocal Float?
+  totalLocal    Float?
+
+  @@index([invoiceNumber])
+  @@index([customerId])
+  @@index([status])
+  @@index([invoiceDate])
+  @@index([dueDate])
+  @@index([createdById])
+  @@index([estimateId])
+  @@index([orderId])
+  @@index([createdAt])
+  @@index([convertedToOrder])
+  @@index([depositPaid])
+}
+
+model InvoiceItem {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  sku         String?
+
+  quantity  Float
+  unitPrice Float
+  amount    Float
+
+  taxable      Boolean @default(true)
+  measurements String?
+  orderItemId  String?
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id            String @id @default(cuid())
+  paymentNumber String @unique
+
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  amount Float
+
+  paymentMethod String
+  paymentDate   DateTime @default(now())
+
+  stripePaymentIntentId String?
+  stripeChargeId        String?
+
+  status String @default("PENDING")
+
+  referenceNumber String?
+  notes           String?
+
+  recordedById String
+  recordedBy   User   @relation(fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentNumber])
+  @@index([invoiceId])
+  @@index([customerId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([paymentMethod])
+  @@index([recordedById])
+  @@index([stripePaymentIntentId])
+}
+
+model EmailLog {
+  id String @id @default(cuid())
+
+  invoiceId  String?
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id])
+  estimateId String?
+  estimate   Estimate? @relation(fields: [estimateId], references: [id])
+
+  fromEmail String
+  toEmail   String
+  replyTo   String
+  subject   String
+
+  sesMessageId String?
+
+  status String @default("SENT")
+
+  sentAt      DateTime  @default(now())
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  bouncedAt   DateTime?
+
+  sentById String
+  sentBy   User   @relation(fields: [sentById], references: [id])
+
+  @@index([invoiceId])
+  @@index([estimateId])
+  @@index([toEmail])
+  @@index([status])
+  @@index([sentAt])
+  @@index([sentById])
+  @@index([sesMessageId])
+}
+
+model UserEmailSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  fromName       String?
+  emailSignature String?
+  phoneNumber    String?
+  mobileNumber   String?
+  title          String?
+
+  invoiceEmailBody  String?
+  estimateEmailBody String?
+  reminderEmailBody String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompanySettings {
+  id String @id @default(cuid())
+
+  companyName String
+  companyLogo String?
+
+  address String?
+  city    String?
+  state   String?
+  zipCode String?
+  country String?
+
+  phone   String?
+  email   String?
+  website String?
+
+  defaultTaxRate      Float  @default(0)
+  defaultPaymentTerms String @default("NET30")
+
+  invoicePrefix  String  @default("INV")
+  estimatePrefix String  @default("EST")
+  invoiceFooter  String?
+
+  defaultFromEmail String?
+  emailDomain      String?
+
+  baseCurrency        String  @default("USD")
+  supportedCurrencies String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ZapierWebhook {
+  id String @id @default(cuid())
+
+  name          String
+  webhookKey    String  @unique
+  webhookSecret String?
+
+  source       String
+  fieldMapping String
+
+  defaultAssignTo String?
+
+  isActive   Boolean @default(true)
+  allowedIPs String?
+
+  totalReceived  Int       @default(0)
+  lastReceivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CreditMemo {
+  id               String @id @default(cuid())
+  creditMemoNumber String @unique
+
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  amount Float
+
+  reason         String
+  reasonCategory String
+
+  status String @default("DRAFT") // DRAFT, ISSUED, APPLIED, VOID
+
+  issueDate   DateTime  @default(now())
+  appliedDate DateTime?
+
+  notes         String?
+  internalNotes String?
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model RecurringInvoice {
+  id String @id @default(cuid())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  frequency String
+  interval  Int    @default(1)
+
+  startDate       DateTime
+  endDate         DateTime?
+  nextInvoiceDate DateTime
+
+  templateName String
+  subtotal     Float
+  taxRate      Float  @default(0)
+  total        Float
+
+  paymentTerms String @default("NET30")
+
+  status String @default("ACTIVE")
+
+  notes           String?
+  termsConditions String?
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  invoicesGenerated Int       @default(0)
+  lastGeneratedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items             RecurringInvoiceItem[]
+  generatedInvoices Invoice[]              @relation("GeneratedFromRecurring")
+}
+
+model RecurringInvoiceItem {
+  id                 String           @id @default(cuid())
+  recurringInvoiceId String
+  recurringInvoice   RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  quantity    Float
+  unitPrice   Float
+  amount      Float
+
+  sortOrder Int @default(0)
+}
+
+// ============================================
+// PRODUCT/SERVICE CATALOG
+// ============================================
+
+model Product {
+  id                 String   @id @default(cuid())
+  itemName           String
+  productServiceName String
+  modelNumber        String?
+  salesDescription   String?
+  price              Float    @default(0)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([itemName])
+  @@index([productServiceName])
+  @@index([isActive])
+}
+
+// Invoicing system settings
+model InvoicingSettings {
+  id                  String   @id @default(cuid())
+  companyName         String   @default("")
+  address             String   @default("")
+  city                String   @default("")
+  state               String   @default("")
+  zipCode             String   @default("")
+  phone               String   @default("")
+  email               String   @default("")
+  website             String   @default("")
+  invoiceStartNumber  Int      @default(1)
+  estimateStartNumber Int      @default(1)
+  updatedAt           DateTime @updatedAt
+  createdAt           DateTime @default(now())
 }
