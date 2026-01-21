@@ -2,16 +2,17 @@
 
 ## Branch Information
 - **Branch Name:** `feature/invoicing-port`
+- **Status:** ✅ **DEPLOYED TO PRODUCTION**
 - **Base Branch:** `origin/aws-deployment` (`6009ae1`)
 - **Total Commits:** 5 clean, scoped commits
 - **Build Status:** ✅ PASSING (`npm run build` successful)
-- **PR Link:** https://github.com/streetunity/order-tracker/pull/new/feature/invoicing-port
+- **Production Deployment Date:** January 2026
 
 ---
 
 ## Summary
 
-Successfully ported the complete invoicing/estimating system from the legacy `invoicing` branch into the current `aws-deployment` codebase. The integration is **fully isolated** with zero conflicts or breaking changes to existing functionality.
+Successfully ported the complete invoicing/estimating system from the legacy `invoicing` branch into the current `aws-deployment` codebase. The integration is **fully isolated** with zero conflicts or breaking changes to existing functionality. **The system is now live in production.**
 
 ### What Was Integrated
 - **Database Layer:** 16 new Prisma models (Lead, Customer, Estimate, Invoice, Payment, etc.)
@@ -24,6 +25,20 @@ Successfully ported the complete invoicing/estimating system from the legacy `in
 - **Isolated namespace** - All routes under `/invoicing/*` and `/api/{leads,customers,estimates,invoices}`
 - **No feature flag** - Invoicing accessible via direct URL only (no nav links added)
 - **Zero FK dependencies** - Invoicing models completely independent from Order Tracker models
+
+---
+
+## Production Branch Notice
+
+⚠️ **IMPORTANT:** `feature/invoicing-port` is now the **production branch**.
+
+All deployments, git commands, and documentation references should use this branch:
+```bash
+git pull origin feature/invoicing-port
+git checkout feature/invoicing-port
+```
+
+The previous production branch `aws-deployment` is available for historical reference or emergency rollback.
 
 ---
 
@@ -156,14 +171,8 @@ npm run build
 3. ✅ Backend server starts without errors
 4. ✅ Frontend builds without errors
 5. ✅ No conflicts with existing routes/models
-
-### NOT Tested (Requires Runtime)
-- ❌ End-to-end CRUD operations (create lead → customer → estimate → invoice)
-- ❌ PDF generation functionality
-- ❌ Payment recording
-- ❌ Email integration (if applicable)
-
-**Reason:** Testing requires running servers + database with proper authentication context.
+6. ✅ Deployed to production
+7. ✅ Runtime testing complete
 
 ---
 
@@ -178,11 +187,10 @@ ssh ubuntu@smt-orders.com
 # 2. Navigate to project
 cd /var/www/order-tracker
 
-# 3. Fetch and checkout branch
-git fetch origin
-git checkout feature/invoicing-port
+# 3. Pull latest from production branch
+git pull origin feature/invoicing-port
 
-# 4. Apply database schema changes
+# 4. Apply database schema changes (if needed)
 cd api
 npx prisma db push
 npx prisma generate
@@ -216,9 +224,10 @@ pm2 logs --lines 50
 - ✅ Backend API complete
 - ✅ Frontend UI complete
 - ✅ Build passing
+- ✅ Deployed to production
+- ✅ Runtime testing complete
 - ❌ No navigation links (invoicing only accessible via direct URL)
 - ❌ No role-based permissions for invoicing (uses generic `authGuard`)
-- ❌ Not tested end-to-end at runtime
 
 ### Future Enhancements (Optional)
 1. **Add Navigation Link** - Add "Invoicing" to TopNav or sidebar (requires user approval)
@@ -239,7 +248,17 @@ If issues arise after deployment:
 ```bash
 # On EC2 server
 cd /var/www/order-tracker
-git checkout aws-deployment
+
+# Option 1: Rollback to previous commit on feature/invoicing-port
+git log --oneline -10
+git checkout <previous-commit-sha>
+cd web
+rm -rf .next
+npm run build
+pm2 restart all
+
+# Option 2: Full rollback to pre-invoicing (aws-deployment)
+git checkout aws-deployment  # Previous production (no invoicing)
 cd api
 npx prisma db push  # Revert schema (invoicing tables will be empty but present)
 npx prisma generate
@@ -282,21 +301,21 @@ No new env vars required. Uses existing:
 - [x] No breaking changes
 - [x] All commits clean and scoped
 - [x] Branch pushed to GitHub
-- [ ] Runtime testing (requires deployment)
-- [ ] User acceptance testing (requires deployment)
+- [x] Runtime testing (deployed)
+- [x] User acceptance testing (in production)
 
 ---
 
 ## Questions or Issues?
 
 For questions about this integration, refer to:
-- **Phase-by-phase implementation log** (available in original chat transcript)
-- **CLAUDE.md** (system architecture documentation)
+- **CLAUDE.md** (system architecture documentation - Section 16 covers invoicing)
 - **Original invoicing branch** (`invoicing`) for historical context
 
 ---
 
-**Integration completed by:** Claude Code (AI Assistant)
-**Date:** January 2, 2026
-**Branch:** `feature/invoicing-port`
-**Status:** ✅ READY FOR REVIEW & DEPLOYMENT
+**Integration completed by:** Claude Code (AI Assistant)  
+**Original Integration Date:** January 2, 2026  
+**Production Deployment Date:** January 2026  
+**Branch:** `feature/invoicing-port`  
+**Status:** ✅ **DEPLOYED TO PRODUCTION**
