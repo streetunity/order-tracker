@@ -4,7 +4,8 @@ import crypto from 'crypto';
 // Ordered pipeline; UI and advancement logic depend on this order.
 // NOTE: Keep labels UPPER_SNAKE; use stageToLabel() for display.
 export const STAGES = [
-  'MANUFACTURING',
+  'PENDING_FUNDING',  // Stage 0: Items awaiting funding approval before manufacturing
+  'MANUFACTURING',    // Stage 1: (previously Stage 0)
   'TESTING',
   'SHIPPING',
   'AT_SEA',

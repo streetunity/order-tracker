@@ -305,7 +305,7 @@ model OrderItem {
   billOfLading          String? // BOL number for tracking
   entryNumber           String? // Customs entry number (filed by broker)
 
-  currentStage       String                 @default("MANUFACTURING")
+  currentStage       String                 @default("PENDING_FUNDING")
   archivedAt         DateTime?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt

@@ -10,6 +10,16 @@
  */
 
 export const STAGE_THRESHOLDS = {
+  // Phase 0: Pending Funding Approval
+  // Items awaiting funding confirmation before manufacturing can begin
+  PENDING_FUNDING: {
+    warningDays: 7,
+    criticalDays: 14,
+    warningSeconds: 7 * 86400,
+    criticalSeconds: 14 * 86400,
+    description: 'Awaiting funding approval'
+  },
+
   // Phase 3: Manufacturing & Assembly
   // Standard: 30-50 days, Complex: 90-100 days
   // Using 60 days as alert threshold (beyond standard, before complex max)

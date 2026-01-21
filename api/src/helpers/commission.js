@@ -218,8 +218,10 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
     let triggeredCount = 0;
     for (const setting of stageSettings) {
       // Determine initial payout status
-      // CRITICAL: Item must be ORDERED and at/past stage to trigger
-      const shouldTrigger = isOrdered && isStageAtOrPast(currentItemStage, setting.stage);
+      // CRITICAL: Item must be ORDERED, NOT in PENDING_FUNDING, and at/past stage to trigger
+      const shouldTrigger = isOrdered &&
+                           currentItemStage !== 'PENDING_FUNDING' &&
+                           isStageAtOrPast(currentItemStage, setting.stage);
       const payoutStatus = shouldTrigger ? 'PENDING' : 'WAITING';
       
       await prisma.commissionPayout.create({
@@ -427,7 +429,13 @@ export async function checkCommissionPayoutTrigger(orderId, itemId, oldStage, ne
       console.log(`[COMMISSION] Item ${itemId} not marked as ordered - no payout trigger`);
       return;
     }
-    
+
+    // CRITICAL: Items in PENDING_FUNDING stage should not trigger commissions
+    if (newStage === 'PENDING_FUNDING') {
+      console.log(`[COMMISSION] Item ${itemId} in PENDING_FUNDING - no payout trigger`);
+      return;
+    }
+
     // Find the commission and item commission
     const commission = await prisma.commission.findFirst({
       where: { orderId },
@@ -528,7 +536,13 @@ export async function checkOrderedStatusTrigger(orderId, itemId) {
     // Check which stages this item has already reached
     const currentStage = item.currentStage || 'MANUFACTURING';
     const triggeredPayouts = [];
-    
+
+    // Do not trigger payouts if item is in PENDING_FUNDING
+    if (currentStage === 'PENDING_FUNDING') {
+      console.log(`[COMMISSION] Item ${itemId} in PENDING_FUNDING - no payouts triggered on ordered status change`);
+      return;
+    }
+
     for (const payout of itemCommission.payouts) {
       // Trigger if item is at/past this stage and payout is waiting
       if (payout.status === 'WAITING' && isStageAtOrPast(currentStage, payout.stage)) {
