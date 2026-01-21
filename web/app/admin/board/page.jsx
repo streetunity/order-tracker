@@ -14,6 +14,7 @@ import { CustomerOrdersModal } from './CustomerOrdersModal';
 
 // Stage keys from API (do not change)
 const STAGES = [
+  "PENDING_FUNDING",
   "MANUFACTURING",
   "TESTING",
   "SHIPPING",
@@ -28,6 +29,7 @@ const STAGES = [
 
 // Display labels for column headers (safe to edit)
 const STAGE_LABELS = {
+  PENDING_FUNDING: "Pending Funding",
   MANUFACTURING: "Manufacturing",
   TESTING: "Debugging & Testing",
   SHIPPING: "Preparing Container",
