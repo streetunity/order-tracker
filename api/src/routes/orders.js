@@ -360,7 +360,9 @@ export function createOrdersRouter(prisma) {
 
       const normalizedItems = normalizeIncomingItems(items);
       const trackingToken = newTrackingToken();
-      const etaDate = await calculateETADate(orderDate ? new Date(orderDate) : new Date());
+      // Don't calculate ETA for new orders - items start in PENDING_FUNDING
+      // ETA will be calculated when first item moves to MANUFACTURING
+      const etaDate = null;
 
       const order = await prisma.$transaction(async (tx) => {
         const newOrder = await tx.order.create({

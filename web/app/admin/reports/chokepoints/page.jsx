@@ -8,7 +8,7 @@ import TopNav from '@/components/TopNav';
 import '../reports.css';
 
 const STAGES = [
-  'MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA', 
+  'PENDING_FUNDING', 'MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA',
   'SMT', 'QC', 'DELIVERED', 'ONSITE', 'COMPLETED', 'FOLLOW_UP'
 ];
 

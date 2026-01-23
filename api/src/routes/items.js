@@ -26,6 +26,98 @@ import { checkCommissionPayoutTrigger, checkOrderedStatusTrigger } from '../help
 
 const prisma = new PrismaClient();
 
+// Helper to calculate ETA (reads from database settings, not hardcoded values)
+async function calculateETADate(orderDate = new Date(), hasExtendedItems = false) {
+  try {
+    const settings = await prisma.settings.findMany({
+      where: {
+        key: {
+          startsWith: 'stage_threshold_'
+        }
+      }
+    });
+
+    const thresholds = {};
+    settings.forEach(setting => {
+      const match = setting.key.match(/stage_threshold_(.+)_(warning|critical)/);
+      if (match) {
+        const stage = match[1];
+        const type = match[2];
+        if (!thresholds[stage]) thresholds[stage] = {};
+        thresholds[stage][type] = parseFloat(setting.value);
+      }
+    });
+
+    let manufacturingDays = thresholds.MANUFACTURING ?
+      (thresholds.MANUFACTURING.warning + thresholds.MANUFACTURING.critical) / 2 : 35;
+
+    // Check if order date falls within holiday season and add buffer to MANUFACTURING only
+    const holidayStartSetting = await prisma.systemSetting.findUnique({
+      where: { key: 'holiday_season_start' }
+    });
+    const holidayEndSetting = await prisma.systemSetting.findUnique({
+      where: { key: 'holiday_season_end' }
+    });
+    const holidayBufferSetting = await prisma.systemSetting.findUnique({
+      where: { key: 'holiday_buffer_days' }
+    });
+
+    const holidayStart = holidayStartSetting?.value || '10-01';
+    const holidayEnd = holidayEndSetting?.value || '12-31';
+    const holidayBufferDays = parseInt(holidayBufferSetting?.value || '25', 10);
+
+    // Check if order date is in holiday season
+    const orderMonth = orderDate.getMonth() + 1; // 1-12
+    const orderDay = orderDate.getDate();
+    const [startMonth, startDay] = holidayStart.split('-').map(Number);
+    const [endMonth, endDay] = holidayEnd.split('-').map(Number);
+
+    const isInHolidaySeason = (orderMonth > startMonth || (orderMonth === startMonth && orderDay >= startDay)) &&
+                              (orderMonth < endMonth || (orderMonth === endMonth && orderDay <= endDay));
+
+    if (isInHolidaySeason) {
+      manufacturingDays += holidayBufferDays;
+    }
+
+    const stageDurations = {
+      MANUFACTURING: manufacturingDays,
+      TESTING: thresholds.TESTING ?
+        (thresholds.TESTING.warning + thresholds.TESTING.critical) / 2 : 5.5,
+      SHIPPING: thresholds.SHIPPING ?
+        (thresholds.SHIPPING.warning + thresholds.SHIPPING.critical) / 2 : 5.5,
+      AT_SEA: thresholds.AT_SEA ?
+        (thresholds.AT_SEA.warning + thresholds.AT_SEA.critical) / 2 : 35,
+      SMT: thresholds.SMT ?
+        (thresholds.SMT.warning + thresholds.SMT.critical) / 2 : 5.5,
+      QC: thresholds.QC ?
+        (thresholds.QC.warning + thresholds.QC.critical) / 2 : 5.5,
+      DELIVERED: thresholds.DELIVERED ?
+        (thresholds.DELIVERED.warning + thresholds.DELIVERED.critical) / 2 : 4.5
+    };
+
+    let totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
+
+    // Add extended shipping days if applicable (default 30 days)
+    if (hasExtendedItems) {
+      const extendedShippingSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'extended_shipping_days' }
+      });
+      const extendedShippingDays = parseInt(extendedShippingSetting?.value || '30', 10);
+      totalDays += extendedShippingDays;
+    }
+
+    const eta = new Date(orderDate);
+    eta.setDate(eta.getDate() + Math.round(totalDays));
+    return eta;
+  } catch (error) {
+    console.error('Error calculating ETA from settings:', error);
+    const totalDays = hasExtendedItems ? 126.5 : 96.5;
+    const eta = new Date(orderDate);
+    eta.setDate(eta.getDate() + Math.round(totalDays));
+    return eta;
+  }
+}
+
 // Import commission functions from global scope
 const getCommissionFunctions = () => {
   if (global.calculateCommissionForOrder && global.recalculateCommissionIfPriceChanged) {
@@ -184,6 +276,8 @@ export function createItemsRouter() {
       const changes = [];
       let priceChanged = false;
       let orderedStatusChanged = false;
+      let stageChanged = false;
+      let movedToManufacturing = false;
       
       // Handle fields that can be edited even when locked
       // Archive/restore
@@ -391,6 +485,11 @@ export function createItemsRouter() {
           if (change) {
             data.currentStage = newStage;
             changes.push(change);
+            stageChanged = true;
+            // Check if moving from PENDING_FUNDING to MANUFACTURING
+            if (item.currentStage === 'PENDING_FUNDING' && newStage === 'MANUFACTURING') {
+              movedToManufacturing = true;
+            }
           }
         }
       }
@@ -455,7 +554,43 @@ export function createItemsRouter() {
           }
         }
       }
-      
+
+      // Calculate ETA if item moved to MANUFACTURING or was marked as ordered (and not in PENDING_FUNDING)
+      const shouldCalculateETA = movedToManufacturing || (orderedStatusChanged && updated.currentStage !== 'PENDING_FUNDING');
+
+      if (shouldCalculateETA) {
+        try {
+          console.log(`[ETA] Item ${itemId} ${movedToManufacturing ? 'moved to MANUFACTURING' : 'marked as ordered'} - checking order ETA`);
+          const order = await prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+              orderDate: true,
+              etaDate: true,
+              items: {
+                select: { hasExtendedShipping: true }
+              }
+            }
+          });
+
+          // Only calculate ETA if not already set
+          if (!order.etaDate) {
+            // Check if any items have extended shipping
+            const hasExtendedItems = order.items?.some(item => item.hasExtendedShipping === true) || false;
+            const etaDate = await calculateETADate(order.orderDate ? new Date(order.orderDate) : new Date(), hasExtendedItems);
+            await prisma.order.update({
+              where: { id: orderId },
+              data: { etaDate }
+            });
+            console.log(`[ETA] Order ${orderId} ETA set to ${etaDate} ${hasExtendedItems ? '(with extended shipping)' : ''}`);
+          } else {
+            console.log(`[ETA] Order ${orderId} already has ETA set, skipping calculation`);
+          }
+        } catch (error) {
+          console.error(`[ETA] Error calculating ETA for order ${orderId}:`, error);
+          // Don't fail the update if ETA calculation fails
+        }
+      }
+
       res.json(updated);
     } catch (e) {
       console.error('Error updating item:', e);
