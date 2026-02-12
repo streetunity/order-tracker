@@ -17,7 +17,9 @@ const ALLOWED_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
   'application/msword', // .doc
-  'application/vnd.ms-excel' // .xls
+  'application/vnd.ms-excel', // .xls
+  'application/rtf', // .rtf
+  'text/rtf' // .rtf (alternative MIME type)
 ];
 
 /**
@@ -62,7 +64,7 @@ export async function uploadFileToS3({ fileBuffer, originalName, mimeType, order
 
     // Validate file type
     if (!ALLOWED_TYPES.includes(mimeType)) {
-      throw new Error('File type not allowed. Allowed types: PDF, JPG, PNG, WEBP, DOCX, XLSX');
+      throw new Error('File type not allowed. Allowed types: PDF, JPG, PNG, WEBP, DOC, DOCX, XLS, XLSX, RTF');
     }
 
     // Sanitize filename - removes Chinese and other non-ASCII characters
