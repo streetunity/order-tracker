@@ -24,6 +24,14 @@ function isStageAtOrPast(currentStage, targetStage) {
 }
 
 /**
+ * Statuses that represent an active commission eligible for payout triggers.
+ * CALCULATED = fresh commission, no payouts yet
+ * PARTIAL_PAID = some payouts completed, remaining items still need triggers
+ * Blocked statuses: ORPHANED, CANCELLED, AWAITING_PRICES, FLAGGED, FULLY_PAID
+ */
+const ACTIVE_COMMISSION_STATUSES = ['CALCULATED', 'PARTIAL_PAID'];
+
+/**
  * Calculate commissions for an order at the item level with proportional discount allocation
  * @param {Object} order - Order object with items
  * @returns {Promise<Commission|null>}
@@ -406,6 +414,9 @@ export async function recalculateCommissionIfPriceChanged(orderId) {
  * Check if an item reaching a stage triggers a payout
  * CRITICAL: Also checks if item is marked as ordered
  * This is called when an individual item's stage changes OR when marked as ordered
+ * 
+ * FIX: Now allows triggers on PARTIAL_PAID commissions (not just CALCULATED).
+ * The payout-level filter (only touching WAITING payouts) protects paid records.
  */
 export async function checkCommissionPayoutTrigger(orderId, itemId, oldStage, newStage) {
   try {
@@ -447,8 +458,9 @@ export async function checkCommissionPayoutTrigger(orderId, itemId, oldStage, ne
       }
     });
     
-    if (!commission || commission.status !== 'CALCULATED') {
-      console.log(`[COMMISSION] No calculated commission for order ${orderId}`);
+    // FIX: Allow both CALCULATED and PARTIAL_PAID commissions to trigger payouts
+    if (!commission || !ACTIVE_COMMISSION_STATUSES.includes(commission.status)) {
+      console.log(`[COMMISSION] No active commission for order ${orderId} (status: ${commission?.status || 'not found'})`);
       return;
     }
     
@@ -495,6 +507,9 @@ export async function checkCommissionPayoutTrigger(orderId, itemId, oldStage, ne
 /**
  * Check if marking an item as ordered triggers any payouts
  * Called when isOrdered changes from false to true
+ * 
+ * FIX: Now allows triggers on PARTIAL_PAID commissions (not just CALCULATED).
+ * The payout-level filter (only touching WAITING payouts) protects paid records.
  */
 export async function checkOrderedStatusTrigger(orderId, itemId) {
   try {
@@ -522,8 +537,9 @@ export async function checkOrderedStatusTrigger(orderId, itemId) {
       }
     });
     
-    if (!commission || commission.status !== 'CALCULATED') {
-      console.log(`[COMMISSION] No calculated commission for order ${orderId}`);
+    // FIX: Allow both CALCULATED and PARTIAL_PAID commissions to trigger payouts
+    if (!commission || !ACTIVE_COMMISSION_STATUSES.includes(commission.status)) {
+      console.log(`[COMMISSION] No active commission for order ${orderId} (status: ${commission?.status || 'not found'})`);
       return;
     }
     
