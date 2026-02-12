@@ -68,6 +68,37 @@ export function createUsersRouter() {
     }
   });
 
+  // Search users (for @mention autocomplete)
+  router.get('/search', async (req, res) => {
+    try {
+      const { q } = req.query;
+
+      if (!q || q.length < 1) {
+        return res.json([]);
+      }
+
+      const users = await prisma.user.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { name: { contains: q } },
+            { email: { contains: q } }
+          ]
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true
+        },
+        orderBy: { name: 'asc' },
+        take: 10
+      });
+      res.json(users);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Get single user
   router.get('/:id', async (req, res) => {
     try {

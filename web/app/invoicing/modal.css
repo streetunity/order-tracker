@@ -1,0 +1,242 @@
+/* Invoicing Modal Styles - Matching Order Tracker Design */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #2d2d2d;
+  border-radius: 8px;
+  padding: 24px;
+  width: 100%;
+  max-width: 500px;
+  border: 1px solid #404040;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-content.wide {
+  max-width: 600px;
+}
+
+.modal-content.extra-wide {
+  max-width: 800px;
+}
+
+.modal-content h2 {
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 16px;
+  color: #e4e4e4;
+}
+
+.modal-error {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #7f1d1d;
+  color: #fecaca;
+  border-radius: 4px;
+  font-size: 14px;
+  border: 1px solid #991b1b;
+}
+
+.modal-success {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #14532d;
+  color: #86efac;
+  border-radius: 4px;
+  font-size: 14px;
+  border: 1px solid #166534;
+}
+
+.modal-form-group {
+  margin-bottom: 16px;
+}
+
+.modal-form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #e4e4e4;
+  margin-bottom: 6px;
+}
+
+.modal-form-group input,
+.modal-form-group select,
+.modal-form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  background-color: #383838;
+  color: #e4e4e4;
+  font-size: 14px;
+}
+
+.modal-form-group input:focus,
+.modal-form-group select:focus,
+.modal-form-group textarea:focus {
+  outline: none;
+  border-color: #dc2626;
+}
+
+.modal-form-group textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.modal-form-group input:disabled,
+.modal-form-group select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.modal-hint {
+  color: #a0a0a0;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+.modal-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #e4e4e4;
+  font-size: 14px;
+}
+
+.modal-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #404040;
+}
+
+.modal-btn {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-btn.cancel {
+  background-color: #383838;
+  border: 1px solid #404040;
+  color: #e4e4e4;
+}
+
+.modal-btn.cancel:hover {
+  background-color: #404040;
+}
+
+.modal-btn.primary {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+.modal-btn.primary:hover {
+  opacity: 0.9;
+}
+
+.modal-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-btn.danger {
+  background-color: #7f1d1d;
+  border: 1px solid #991b1b;
+  color: #fecaca;
+}
+
+.modal-btn.danger:hover {
+  background-color: #991b1b;
+}
+
+/* Template/Item List in Modal */
+.modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-list-item {
+  padding: 16px;
+  background-color: #383838;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-list-item:hover {
+  background-color: #404040;
+  border-color: #dc2626;
+}
+
+.modal-list-item-title {
+  font-weight: 600;
+  color: #e4e4e4;
+  margin-bottom: 4px;
+}
+
+.modal-list-item-description {
+  font-size: 13px;
+  color: #a0a0a0;
+  margin-bottom: 8px;
+}
+
+.modal-list-item-meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Confirmation Modal */
+.modal-confirm-text {
+  color: #e4e4e4;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.modal-confirm-warning {
+  color: #fecaca;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* Two column form layout */
+.modal-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 500px) {
+  .modal-form-row {
+    grid-template-columns: 1fr;
+  }
+}

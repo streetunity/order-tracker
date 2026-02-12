@@ -509,6 +509,9 @@ model User {
   EmailLog                 EmailLog[]
   UserEmailSettings        UserEmailSettings?
   CreditMemo               CreditMemo[]
+  comments                 Comment[]          @relation("CommentAuthor")
+  assignedReminders        Reminder[]         @relation("ReminderAssignedTo")
+  createdReminders         Reminder[]         @relation("ReminderCreatedBy")
 
   @@index([role])
   @@index([isActive])
@@ -706,8 +709,8 @@ model Lead {
   id String @id @default(cuid())
 
   // Source Tracking
-  source          String
-  sourceDetails   String?
+  source          String  @default("manual") // zapier, manual, website
+  sourceDetails   String? // Campaign name, form ID, etc.
   zapierWebhookId String?
 
   // Contact Information
@@ -725,26 +728,39 @@ model Lead {
   country String? @default("USA")
 
   // Lead Details
-  interestedIn String?
+  interestedIn String? // Product interest
   notes        String?
+  budget       Float? // Estimated budget
+  timeline     String? // Purchase timeline
 
   // Assignment
   assignedToId String?
   assignedTo   User?   @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
 
   // Status
-  status String @default("NEW") // NEW, CONTACTED, QUALIFIED, CONVERTED, LOST
+  status     String  @default("NEW") // NEW, CONTACTED, QUALIFIED, CONVERTED, LOST
+  lostReason String? // If status = LOST
 
   // Conversion
   convertedToCustomerId String?   @unique
   convertedToCustomer   Customer? @relation(fields: [convertedToCustomerId], references: [id])
   convertedAt           DateTime?
+  convertedById         String?
+
+  // Follow-up
+  followUpDate  DateTime?
+  followUpNotes String?
+  lastContactAt DateTime?
 
   // Soft delete
   isDeleted   Boolean   @default(false)
   deletedAt   DateTime?
   deletedById String?
   deletedBy   User?     @relation("LeadDeletedBy", fields: [deletedById], references: [id])
+
+  // Relations
+  activities CustomerActivityLog[]
+  reminders  Reminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -755,18 +771,22 @@ model Lead {
   @@index([source])
   @@index([createdAt])
   @@index([convertedToCustomerId])
+  @@index([followUpDate])
 }
 
 model Customer {
   id             String @id @default(cuid())
-  customerNumber String @unique
+  customerNumber String @unique // CUST-2026-00001
 
-  // Contact Information
+  // Company/Individual
+  companyName String?
+
+  // Primary contact
   firstName String
   lastName  String
   email     String
   phone     String?
-  company   String?
+  company   String? // Alias for companyName
 
   // Billing Address
   billingAddress String?
@@ -776,18 +796,23 @@ model Customer {
   billingCountry String? @default("USA")
 
   // Shipping Address
-  shippingAddress String?
-  shippingCity    String?
-  shippingState   String?
-  shippingZipCode String?
-  shippingCountry String?
-  sameAsBilling   Boolean @default(true)
+  shippingAddress         String?
+  shippingCity            String?
+  shippingState           String?
+  shippingZipCode         String?
+  shippingCountry         String?
+  shippingSameAsBilling   Boolean @default(true)
+  sameAsBilling           Boolean @default(true) // Alias for backwards compatibility
 
   // Financial
-  taxExempt    Boolean @default(false)
-  taxExemptId  String?
-  creditLimit  Float?
-  paymentTerms String? @default("NET30")
+  taxExempt           Boolean @default(false)
+  taxExemptId         String? // Tax exempt certificate number
+  creditLimit         Float?
+  defaultPaymentTerms String  @default("NET30")
+  paymentTerms        String? @default("NET30") // Alias for backwards compatibility
+
+  // Stripe Integration
+  stripeCustomerId String? @unique
 
   // Assignment & Source
   primaryContactId String?
@@ -797,10 +822,18 @@ model Customer {
   leadId String? @unique
   lead   Lead?
 
+  // Portal Access
+  portalToken       String?  @unique
+  portalTokenExpiry DateTime?
+  portalEnabled     Boolean  @default(true)
+
+  // Tags (JSON array stored as string)
+  tags String? // ["repeat-buyer", "priority", "slow-payer"]
+
   // Status & Notes
-  status        String  @default("ACTIVE")
-  notes         String?
-  internalNotes String?
+  status        String  @default("ACTIVE") // ACTIVE, INACTIVE
+  notes         String? // Customer-facing
+  internalNotes String? // Internal only
 
   // Link to existing Account
   accountId String?  @unique
@@ -813,11 +846,13 @@ model Customer {
   deletedBy   User?     @relation("CustomerDeletedBy", fields: [deletedById], references: [id])
 
   // Relations
+  contacts          CustomerContact[]
   estimates         Estimate[]
   invoices          Invoice[]
   payments          Payment[]
   creditMemos       CreditMemo[]
   recurringInvoices RecurringInvoice[]
+  activities        CustomerActivityLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -827,46 +862,103 @@ model Customer {
   @@index([assignedToId])
   @@index([status])
   @@index([company])
+  @@index([companyName])
   @@index([createdAt])
   @@index([accountId])
   @@index([leadId])
+  @@index([stripeCustomerId])
+  @@index([portalToken])
 }
 
 model Estimate {
   id             String @id @default(cuid())
-  estimateNumber String @unique
+  estimateNumber String @unique // EST-2026-00001
 
+  // Versioning
+  version          Int       @default(1)
+  parentEstimateId String?
+  parentEstimate   Estimate? @relation("EstimateVersions", fields: [parentEstimateId], references: [id])
+  revisions        Estimate[] @relation("EstimateVersions")
+
+  // Customer
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
-  estimateDate DateTime @default(now())
-  expiryDate   DateTime
+  // Dates
+  estimateDate   DateTime @default(now())
+  expirationDate DateTime?
+  expiryDate     DateTime // Alias for backwards compatibility
 
+  // Amounts
   subtotal       Float
-  taxRate        Float   @default(0)
-  taxAmount      Float   @default(0)
-  discountType   String?
+  discountType   String? // "PERCENTAGE" or "FIXED"
   discountValue  Float?
   discountAmount Float   @default(0)
+  taxRate        Float   @default(0)
+  taxAmount      Float   @default(0)
   shippingAmount Float   @default(0)
   total          Float
 
-  status String @default("DRAFT") // DRAFT, SENT, VIEWED, ACCEPTED, DECLINED, EXPIRED, CONVERTED
+  // Margin (internal only - never shown to customer)
+  totalCost     Float?
+  marginAmount  Float?
+  marginPercent Float?
 
-  notes           String?
-  internalNotes   String?
+  // Status
+  status String @default("DRAFT")
+  // DRAFT, PENDING_APPROVAL, SENT, VIEWED, ACCEPTED, DECLINED, EXPIRED, CONVERTED
+
+  // Win/Loss tracking
+  outcome       String? // "WON", "LOST"
+  outcomeReason String?
+  outcomeNotes  String?
+  outcomeDate   DateTime?
+
+  // Content
+  notes           String? // Customer-facing
+  internalNotes   String? // Internal only
   termsConditions String?
 
-  pdfUrl         String?
+  // PDF
+  pdfS3Key       String?
+  pdfUrl         String? // Backwards compatibility
   pdfGeneratedAt DateTime?
 
+  // E-signature
+  signatureId     String?    @unique
+  signature       Signature? @relation(fields: [signatureId], references: [id])
+  signedPdfS3Key  String? // PDF with signature embedded
+
+  // Email tracking
   lastSentAt   DateTime?
   lastViewedAt DateTime?
+  viewCount    Int       @default(0)
   sentCount    Int       @default(0)
 
+  // Assignment
+  assignedToId String?
+
+  // Approval workflow
+  requiresApproval Boolean   @default(false)
+  approvalStatus   String? // "PENDING", "APPROVED", "REJECTED"
+  approvedById     String?
+  approvedAt       DateTime?
+  approvalNotes    String?
+
+  // Template
+  isTemplate   Boolean @default(false)
+  templateName String?
+  clonedFromId String?
+
+  // Conversion to invoice
   convertedToInvoiceId String?   @unique
   convertedAt          DateTime?
 
+  // Follow-up
+  followUpDate  DateTime?
+  followUpNotes String?
+
+  // Created by
   createdById String
   createdBy   User   @relation("EstimateCreatedBy", fields: [createdById], references: [id])
 
@@ -876,9 +968,13 @@ model Estimate {
   deletedById String?
   deletedBy   User?     @relation("EstimateDeletedBy", fields: [deletedById], references: [id])
 
-  items     EstimateItem[]
-  invoices  Invoice[]
-  emailLogs EmailLog[]
+  // Relations
+  items      EstimateItem[]
+  invoices   Invoice[]
+  emailLogs  EmailLog[]
+  comments   Comment[]
+  activities CustomerActivityLog[]
+  reminders  Reminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -888,9 +984,14 @@ model Estimate {
   @@index([status])
   @@index([estimateDate])
   @@index([expiryDate])
+  @@index([expirationDate])
   @@index([createdById])
+  @@index([assignedToId])
   @@index([createdAt])
   @@index([convertedToInvoiceId])
+  @@index([parentEstimateId])
+  @@index([outcome])
+  @@index([followUpDate])
 }
 
 model EstimateItem {
@@ -898,73 +999,121 @@ model EstimateItem {
   estimateId String
   estimate   Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
 
+  // Product reference (optional)
+  productId String?
+
+  // From bundle tracking
+  fromBundleId   String?
+  fromBundleName String?
+
+  // Item details
   name        String
   description String?
   sku         String?
 
+  // Pricing
   quantity  Float
   unitPrice Float
+  unitCost  Float? // For margin calculation
   amount    Float
 
-  taxable Boolean @default(true)
+  // Discount at item level (optional)
+  discountType   String? // "PERCENTAGE" or "FIXED"
+  discountValue  Float?
+  discountAmount Float   @default(0)
 
+  taxable      Boolean @default(true)
   measurements String?
 
   sortOrder Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([estimateId])
+  @@index([productId])
 }
 
 model Invoice {
   id            String @id @default(cuid())
-  invoiceNumber String @unique
+  invoiceNumber String @unique // INV-2026-00001
 
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
+  // From estimate
+  estimateId String?
+  estimate   Estimate? @relation(fields: [estimateId], references: [id])
+
+  // Dates
   invoiceDate DateTime @default(now())
   dueDate     DateTime
 
+  // Payment terms
+  paymentTerms String @default("NET30")
+
+  // Amounts
   subtotal       Float
-  taxRate        Float   @default(0)
-  taxAmount      Float   @default(0)
   discountType   String?
   discountValue  Float?
   discountAmount Float   @default(0)
+  taxRate        Float   @default(0)
+  taxAmount      Float   @default(0)
   shippingAmount Float   @default(0)
   total          Float
   amountPaid     Float   @default(0)
   balanceDue     Float
 
-  paymentType     String  @default("FULL")
+  // Margin (internal)
+  totalCost     Float?
+  marginAmount  Float?
+  marginPercent Float?
+
+  // Payment type and deposit
+  paymentType     String  @default("FULL") // FULL, DEPOSIT, SCHEDULE
   depositRequired Float?
   depositPaid     Boolean @default(false)
 
-  status String @default("DRAFT") // Controlled by state machine
+  // Payment schedule type
+  paymentScheduleType String? // "NONE", "DEPOSIT_BALANCE", "50_40_10", "CUSTOM"
 
+  // Status
+  status String @default("DRAFT")
+  // DRAFT, SENT, VIEWED, PARTIAL, PAID, OVERDUE, VOID
+
+  // Content
   notes           String?
   internalNotes   String?
   termsConditions String?
 
-  pdfUrl         String?
+  // PDF
+  pdfS3Key       String?
+  pdfUrl         String? // Backwards compatibility
   pdfGeneratedAt DateTime?
 
+  // Email tracking
   lastSentAt   DateTime?
   lastViewedAt DateTime?
+  viewCount    Int       @default(0)
   sentCount    Int       @default(0)
 
-  convertedToOrder Boolean @default(false)
-  orderId          String?
-  order            Order?  @relation(fields: [orderId], references: [id])
+  // Assignment
+  assignedToId String?
 
-  estimateId String?
-  estimate   Estimate? @relation(fields: [estimateId], references: [id])
+  // Order creation trigger
+  orderCreationTrigger String @default("DEPOSIT") // DEPOSIT, FULL_PAYMENT, MANUAL
+
+  // Order link
+  convertedToOrderId String?   @unique
+  convertedToOrder   Boolean   @default(false)
+  orderId            String?
+  order              Order?    @relation(fields: [orderId], references: [id])
+  convertedAt        DateTime?
 
   createdById String
   createdBy   User   @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
 
-  metadata String?
+  metadata String? // JSON for extra context
 
   // Soft delete
   isDeleted   Boolean   @default(false)
@@ -972,10 +1121,15 @@ model Invoice {
   deletedById String?
   deletedBy   User?     @relation("InvoiceDeletedBy", fields: [deletedById], references: [id])
 
+  // Relations
   items              InvoiceItem[]
   payments           Payment[]
+  paymentSchedule    InvoicePaymentSchedule[]
   emailLogs          EmailLog[]
   creditMemos        CreditMemo[]
+  comments           Comment[]
+  activities         CustomerActivityLog[]
+  reminders          Reminder[]
   recurringInvoiceId String?
   recurringInvoice   RecurringInvoice? @relation("GeneratedFromRecurring", fields: [recurringInvoiceId], references: [id])
 
@@ -994,11 +1148,13 @@ model Invoice {
   @@index([invoiceDate])
   @@index([dueDate])
   @@index([createdById])
+  @@index([assignedToId])
   @@index([estimateId])
   @@index([orderId])
   @@index([createdAt])
   @@index([convertedToOrder])
   @@index([depositPaid])
+  @@index([paymentScheduleType])
 }
 
 model InvoiceItem {
@@ -1006,48 +1162,81 @@ model InvoiceItem {
   invoiceId String
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
+  // Product reference
+  productId String?
+
+  // Item details
   name        String
   description String?
   sku         String?
 
+  // Pricing
   quantity  Float
   unitPrice Float
+  unitCost  Float? // For margin calculation
   amount    Float
 
   taxable      Boolean @default(true)
   measurements String?
-  orderItemId  String?
+
+  // Link to order item after conversion
+  orderItemId String?
 
   sortOrder Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([productId])
 }
 
 model Payment {
   id            String @id @default(cuid())
-  paymentNumber String @unique
+  paymentNumber String @unique // PAY-2026-00001
 
-  invoiceId  String
-  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  // Schedule item (if part of payment schedule)
+  scheduleItemId String?
+  scheduleIndex  Int? // Which payment in the schedule (0=deposit, 1=progress, 2=final)
+
   amount Float
 
-  paymentMethod String
   paymentDate   DateTime @default(now())
+  paymentMethod String // CREDIT_CARD, ACH, CHECK, WIRE, CASH
 
+  // Stripe fields
   stripePaymentIntentId String?
   stripeChargeId        String?
+  last4                 String? // Last 4 digits of card
+  cardBrand             String? // visa, mastercard, etc.
+  bankName              String? // For ACH payments
 
-  status String @default("PENDING")
+  // Manual payment fields
+  checkNumber    String?
+  wireReference  String?
+  referenceNumber String? // General reference
 
-  referenceNumber String?
-  notes           String?
+  // Status
+  status String @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED
 
-  recordedById String
-  recordedBy   User   @relation(fields: [recordedById], references: [id])
+  // Refund tracking
+  refundedAmount Float?
+  refundedAt     DateTime?
+  refundReason   String?
+
+  notes String?
+
+  recordedById String?
+  recordedBy   User?   @relation(fields: [recordedById], references: [id])
+
+  // Relations
+  activities CustomerActivityLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1060,6 +1249,7 @@ model Payment {
   @@index([paymentMethod])
   @@index([recordedById])
   @@index([stripePaymentIntentId])
+  @@index([scheduleItemId])
 }
 
 model EmailLog {
@@ -1263,18 +1453,43 @@ model RecurringInvoiceItem {
 // ============================================
 
 model Product {
-  id                 String   @id @default(cuid())
-  itemName           String
-  productServiceName String
-  modelNumber        String?
-  salesDescription   String?
-  price              Float    @default(0)
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id  String @id @default(cuid())
+  sku String @unique
 
+  // Names (backwards compatibility + new structure)
+  name               String
+  itemName           String? // Backwards compatibility
+  productServiceName String? // Backwards compatibility
+  description        String?
+  salesDescription   String? // Backwards compatibility
+
+  modelNumber String?
+
+  // Pricing
+  price Float  @default(0)
+  cost  Float? // For margin calculation
+
+  // Categorization
+  category String? // "machine", "accessory", "service"
+
+  // Tax
+  taxable Boolean @default(true)
+
+  // Status
+  isActive Boolean @default(true)
+
+  // Relations
+  attachments   ProductAttachment[]
+  bundleItems   BundleItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sku])
+  @@index([name])
   @@index([itemName])
   @@index([productServiceName])
+  @@index([category])
   @@index([isActive])
 }
 
@@ -1282,6 +1497,7 @@ model Product {
 model InvoicingSettings {
   id                  String   @id @default(cuid())
   companyName         String   @default("")
+  companyLogo         String? // S3 key
   address             String   @default("")
   city                String   @default("")
   state               String   @default("")
@@ -1289,8 +1505,361 @@ model InvoicingSettings {
   phone               String   @default("")
   email               String   @default("")
   website             String   @default("")
-  invoiceStartNumber  Int      @default(1)
-  estimateStartNumber Int      @default(1)
-  updatedAt           DateTime @updatedAt
-  createdAt           DateTime @default(now())
+
+  // Number sequences
+  estimatePrefix      String  @default("EST")
+  estimateStartNumber Int     @default(1)
+  nextEstimateNumber  Int     @default(1)
+  invoicePrefix       String  @default("INV")
+  invoiceStartNumber  Int     @default(1)
+  nextInvoiceNumber   Int     @default(1)
+  paymentPrefix       String  @default("PAY")
+  nextPaymentNumber   Int     @default(1)
+  customerPrefix      String  @default("CUST")
+  nextCustomerNumber  Int     @default(1)
+
+  // Defaults
+  defaultTaxRate      Float  @default(0)
+  defaultPaymentTerms String @default("NET30")
+  defaultValidityDays Int    @default(30)
+
+  // Approval thresholds
+  discountApprovalThreshold Float? // Require approval if discount > X%
+  amountApprovalThreshold   Float? // Require approval if total > $X
+
+  // Default terms
+  defaultEstimateTerms String?
+  defaultInvoiceTerms  String?
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// CUSTOMER CONTACTS - Multiple contacts per customer
+// ============================================
+
+model CustomerContact {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+
+  title     String? // "Purchasing Manager"
+  role      String? // "primary", "billing", "decision_maker", "technical"
+  isPrimary Boolean @default(false)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([email])
+  @@index([isPrimary])
+}
+
+// ============================================
+// PRODUCT ATTACHMENTS - Files linked to products
+// ============================================
+
+model ProductAttachment {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  filename String
+  s3Key    String
+  fileSize Int
+  mimeType String
+
+  includeInEstimate Boolean @default(true)
+  includeInInvoice  Boolean @default(false)
+  isPrimary         Boolean @default(false)
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ============================================
+// BUNDLES - Product bundles with fixed pricing
+// ============================================
+
+model Bundle {
+  id String @id @default(cuid())
+
+  sku         String  @unique
+  name        String // "SL3015 DIY + 6K Laser + Rotary"
+  description String?
+
+  // Fixed bundle price
+  price Float
+  cost  Float? // For margin calculation
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items       BundleItem[]
+  attachments BundleAttachment[]
+
+  @@index([sku])
+  @@index([name])
+  @@index([isActive])
+}
+
+model BundleItem {
+  id       String @id @default(cuid())
+  bundleId String
+  bundle   Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity  Float @default(1)
+  sortOrder Int   @default(0)
+
+  @@index([bundleId])
+  @@index([productId])
+}
+
+model BundleAttachment {
+  id       String @id @default(cuid())
+  bundleId String
+  bundle   Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  filename String
+  s3Key    String
+  fileSize Int
+  mimeType String
+
+  includeInEstimate Boolean @default(true)
+  sortOrder         Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([bundleId])
+}
+
+// ============================================
+// ESTIMATE TEMPLATES - Reusable starting points
+// ============================================
+
+model EstimateTemplate {
+  id String @id @default(cuid())
+
+  name        String
+  description String?
+
+  // Default content
+  notes           String?
+  internalNotes   String?
+  termsConditions String?
+  validityDays    Int     @default(30)
+
+  isActive Boolean @default(true)
+
+  createdById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items EstimateTemplateItem[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+model EstimateTemplateItem {
+  id         String           @id @default(cuid())
+  templateId String
+  template   EstimateTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  // Can reference product, bundle, or custom
+  productId String?
+  bundleId  String?
+
+  // Custom item details (if not from product/bundle)
+  customName        String?
+  customDescription String?
+  customPrice       Float?
+
+  quantity  Float @default(1)
+  sortOrder Int   @default(0)
+
+  @@index([templateId])
+}
+
+// ============================================
+// INVOICE PAYMENT SCHEDULE - Payment splits (50/40/10)
+// ============================================
+
+model InvoicePaymentSchedule {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description String // "Deposit", "Progress", "Final"
+  percentage  Float // 50, 40, 10
+  amount      Float
+  dueDate     DateTime?
+
+  status    String    @default("PENDING") // PENDING, PAID
+  paidAt    DateTime?
+  paymentId String?
+
+  sortOrder     Int     @default(0)
+  triggersOrder Boolean @default(false) // If paying this triggers order creation
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([status])
+}
+
+// ============================================
+// SIGNATURES - E-signature for estimates
+// ============================================
+
+model Signature {
+  id String @id @default(cuid())
+
+  // Signer info
+  signerName  String
+  signerTitle String?
+  signerEmail String?
+
+  // Signature data
+  signatureData  String // Base64 PNG or SVG
+  signatureType  String // "DRAW" or "TYPE"
+  typedSignature String? // If typed
+
+  // Verification
+  ipAddress String?
+  userAgent String?
+  signedAt  DateTime @default(now())
+
+  // Relations
+  estimate Estimate?
+
+  createdAt DateTime @default(now())
+
+  @@index([signedAt])
+}
+
+// ============================================
+// COMMENTS - Internal notes with @mentions
+// ============================================
+
+model Comment {
+  id String @id @default(cuid())
+
+  // Can be attached to estimate or invoice
+  estimateId String?
+  estimate   Estimate? @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  invoiceId  String?
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  content  String
+  mentions String? // JSON array of user IDs: ["user-id-1", "user-id-2"]
+
+  authorId String
+  author   User   @relation("CommentAuthor", fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estimateId])
+  @@index([invoiceId])
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+// ============================================
+// CUSTOMER ACTIVITY LOG - Timeline entries
+// ============================================
+
+model CustomerActivityLog {
+  id String @id @default(cuid())
+
+  // Polymorphic - can be attached to multiple entity types
+  leadId     String?
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  estimateId String?
+  estimate   Estimate? @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  invoiceId  String?
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentId  String?
+  payment    Payment?  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  // Activity details
+  type        String // created, updated, sent, viewed, signed, paid, comment, status_change, assigned
+  description String
+  metadata    String? // JSON for extra context
+
+  // Who performed the action (null for system actions)
+  actorId   String?
+  actorName String?
+
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@index([customerId])
+  @@index([estimateId])
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================
+// REMINDERS - Follow-up scheduling
+// ============================================
+
+model Reminder {
+  id String @id @default(cuid())
+
+  // Can be attached to estimate, invoice, or lead
+  estimateId String?
+  estimate   Estimate? @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  invoiceId  String?
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  leadId     String?
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  type        String // FOLLOW_UP, EXPIRATION, OVERDUE, PAYMENT_DUE, CUSTOM
+  title       String
+  description String?
+  dueDate     DateTime
+
+  status      String    @default("PENDING") // PENDING, COMPLETED, DISMISSED
+  completedAt DateTime?
+
+  assignedToId String
+  assignedTo   User   @relation("ReminderAssignedTo", fields: [assignedToId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("ReminderCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estimateId])
+  @@index([invoiceId])
+  @@index([leadId])
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([dueDate])
+  @@index([status])
+  @@index([type])
 }

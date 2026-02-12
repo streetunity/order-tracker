@@ -1,6 +1,25 @@
 // api/src/middleware/invoicingAuth.js
 
 /**
+ * Invoicing Auth Middleware
+ * Checks if user has access to invoicing system
+ */
+export function invoicingAuth(req, res, next) {
+  // User should already be authenticated via authGuard
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  // Block manufacturer and broker roles from invoicing
+  const blockedRoles = ['MANUFACTURER', 'BROKER'];
+  if (blockedRoles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Access denied to invoicing system' });
+  }
+
+  next();
+}
+
+/**
  * Invoicing System Permissions
  * Maps permission names to allowed roles
  */
@@ -58,7 +77,20 @@ const INVOICING_PERMISSIONS = {
   EDIT_EMAIL_SETTINGS: ['SUPER_ADMIN', 'ACCOUNTANT', 'ADMIN', 'AGENT'],
   MANAGE_ZAPIER_WEBHOOKS: ['SUPER_ADMIN', 'ADMIN'],
   EDIT_INVOICE_TEMPLATES: ['SUPER_ADMIN', 'ADMIN'],
-  CONFIGURE_PAYMENT_GATEWAY: ['SUPER_ADMIN']
+  CONFIGURE_PAYMENT_GATEWAY: ['SUPER_ADMIN'],
+
+  // Product Catalog Management
+  VIEW_PRODUCTS: ['SUPER_ADMIN', 'ACCOUNTANT', 'ADMIN', 'AGENT'],
+  CREATE_PRODUCT: ['SUPER_ADMIN', 'ADMIN'],
+  EDIT_PRODUCT: ['SUPER_ADMIN', 'ADMIN'],
+  DELETE_PRODUCT: ['SUPER_ADMIN', 'ADMIN'],
+  MANAGE_PRODUCT_ATTACHMENTS: ['SUPER_ADMIN', 'ADMIN'],
+
+  // Bundle Management
+  VIEW_BUNDLES: ['SUPER_ADMIN', 'ACCOUNTANT', 'ADMIN', 'AGENT'],
+  CREATE_BUNDLE: ['SUPER_ADMIN', 'ADMIN'],
+  EDIT_BUNDLE: ['SUPER_ADMIN', 'ADMIN'],
+  DELETE_BUNDLE: ['SUPER_ADMIN', 'ADMIN']
 };
 
 /**

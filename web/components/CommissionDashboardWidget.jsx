@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import "./CommissionDashboardWidget.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000';
+// Use API proxy routes - never call backend directly from browser
 
 export default function CommissionDashboardWidget({ user }) {
   const { getAuthHeaders } = useAuth();
@@ -32,10 +32,10 @@ export default function CommissionDashboardWidget({ user }) {
     try {
       setLoading(true);
       
-      // Choose endpoint based on role
-      const endpoint = canSeeAllCommissions 
-        ? `${API_BASE}/commissions/dashboard-stats`
-        : `${API_BASE}/commissions/my/summary`;
+      // Choose endpoint based on role - use API proxy routes
+      const endpoint = canSeeAllCommissions
+        ? `/api/commissions/dashboard-stats`
+        : `/api/commissions/my/summary`;
 
       const res = await fetch(endpoint, {
         headers: getAuthHeaders(),

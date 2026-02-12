@@ -3,6 +3,7 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request, { params }) {
   try {
+    const { id } = await params;
     const authHeader = request.headers.get('authorization');
     const headers = { 'Content-Type': 'application/json' };
 
@@ -10,7 +11,7 @@ export async function GET(request, { params }) {
       headers['Authorization'] = authHeader;
     }
 
-    const res = await fetch(`${API_BASE_URL}/invoices/${params.id}`, {
+    const res = await fetch(`${API_BASE_URL}/invoices/${id}`, {
       headers,
       cache: 'no-store'
     });
@@ -25,6 +26,7 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
 
@@ -32,7 +34,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
 
-    const res = await fetch(`${API_BASE_URL}/invoices/${params.id}`, {
+    const res = await fetch(`${API_BASE_URL}/invoices/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -49,15 +51,43 @@ export async function PUT(request, { params }) {
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function PATCH(request, { params }) {
   try {
+    const { id } = await params;
+    const body = await request.json();
     const authHeader = request.headers.get('authorization');
 
     if (!authHeader) {
       return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
     }
 
-    const res = await fetch(`${API_BASE_URL}/invoices/${params.id}`, {
+    const res = await fetch(`${API_BASE_URL}/invoices/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
+  } catch (error) {
+    console.error('PATCH /api/invoices/[id] error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    const { id } = await params;
+    const authHeader = request.headers.get('authorization');
+
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Authorization required' }, { status: 401 });
+    }
+
+    const res = await fetch(`${API_BASE_URL}/invoices/${id}`, {
       method: 'DELETE',
       headers: { 'Authorization': authHeader },
     });

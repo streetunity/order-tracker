@@ -48,6 +48,17 @@ import { createLeadsRouter } from './routes/leads.js';
 import { createCustomersRouter } from './routes/customers.js';
 import { createEstimatesRouter } from './routes/estimates.js';
 import { createInvoicesRouter } from './routes/invoices.js';
+import { createZapierWebhookRouter } from './routes/zapierWebhook.js';
+import { createProductsRouter } from './routes/products.js';
+import { createBundlesRouter } from './routes/bundles.js';
+import { createEstimateTemplatesRouter } from './routes/estimateTemplates.js';
+import { createPublicInvoicingRouter } from './routes/publicInvoicing.js';
+import { createPaymentsRouter } from './routes/payments.js';
+import { createSignaturesRouter } from './routes/signatures.js';
+import { createCustomerPortalRouter } from './routes/customerPortal.js';
+import { createInvoicingReportsRouter } from './routes/invoicingReports.js';
+import { createCommentsRouter } from './routes/comments.js';
+import { createRemindersRouter } from './routes/reminders.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -112,6 +123,27 @@ app.use(cors({
 }));
 
 // =============================
+// Stripe Webhook (needs raw body - BEFORE express.json())
+// =============================
+import { verifyWebhookSignature, handleWebhookEvent } from './services/stripeService.js';
+
+app.post('/payments/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['stripe-signature'];
+
+  try {
+    const event = verifyWebhookSignature(req.body, signature);
+    const result = await handleWebhookEvent(event, prisma);
+
+    console.log('Stripe webhook processed:', result);
+    res.json({ received: true, ...result });
+  } catch (error) {
+    console.error('Stripe webhook error:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+console.log('✅ Stripe webhook endpoint loaded');
+
+// =============================
 // Global Middleware
 // =============================
 app.use(express.json());
@@ -163,6 +195,17 @@ const leadsRouter = createLeadsRouter(prisma);
 const customersRouter = createCustomersRouter(prisma);
 const estimatesRouter = createEstimatesRouter(prisma);
 const invoicesRouter = createInvoicesRouter(prisma);
+const zapierWebhookRouter = createZapierWebhookRouter(prisma);
+const productsRouter = createProductsRouter(prisma);
+const bundlesRouter = createBundlesRouter(prisma);
+const estimateTemplatesRouter = createEstimateTemplatesRouter(prisma);
+const publicInvoicingRouter = createPublicInvoicingRouter(prisma);
+const paymentsRouter = createPaymentsRouter(prisma);
+const signaturesRouter = createSignaturesRouter(prisma);
+const customerPortalRouter = createCustomerPortalRouter(prisma);
+const invoicingReportsRouter = createInvoicingReportsRouter(prisma);
+const commentsRouter = createCommentsRouter();
+const remindersRouter = createRemindersRouter();
 
 // =============================
 // Mount Routes
@@ -180,7 +223,27 @@ app.get('/health', (req, res) => {
 // Public routes (no auth, rate limited)
 app.use('/public', publicRouter);
 app.use('/public', publicCustomerDocumentsRouter);
+app.use('/public', publicInvoicingRouter);
+app.use('/signatures', signaturesRouter); // Public - for e-signature capture
+app.use('/portal', customerPortalRouter); // Public - token-based customer portal
 console.log('✅ Public customer documents routes loaded');
+console.log('✅ Public invoicing routes loaded (estimate viewing, email tracking)');
+console.log('✅ Signatures and customer portal routes loaded');
+
+// Local PDF serving for development (when S3 is not configured)
+app.get('/pdfs/:filename', (req, res) => {
+  const pdfDir = new URL('../uploads/pdfs', import.meta.url).pathname;
+  const pdfPath = `${pdfDir}/${req.params.filename}`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${req.params.filename}"`);
+  res.sendFile(pdfPath, (err) => {
+    if (err) {
+      console.error('PDF serve error:', err);
+      res.status(404).json({ error: 'PDF not found' });
+    }
+  });
+});
+console.log('✅ Local PDF serving route loaded (development)');
 
 // Authentication routes - mixed auth requirements
 app.use('/auth', (req, res, next) => {
@@ -227,6 +290,40 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
   }
 });
 console.log('✅ Sales reps endpoint loaded (accessible by all authenticated users)');
+
+// User search endpoint (auth required - for @mention autocomplete)
+// IMPORTANT: Must be registered BEFORE the adminGuard-protected /users routes
+app.get('/users/search', authGuard, async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.length < 1) {
+      return res.json([]);
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { name: { contains: q } },
+          { email: { contains: q } }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true
+      },
+      orderBy: { name: 'asc' },
+      take: 10
+    });
+    res.json(users);
+  } catch (e) {
+    console.error('Error searching users:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+console.log('✅ User search endpoint loaded (for @mention autocomplete)');
 
 // User management (admin only) - all other user routes
 app.use('/users', adminGuard, usersRouter);
@@ -317,7 +414,18 @@ app.use('/leads', authGuard, leadsRouter);
 app.use('/customers', authGuard, customersRouter);
 app.use('/estimates', authGuard, estimatesRouter);
 app.use('/invoices', authGuard, invoicesRouter);
-console.log('✅ Invoicing system routes loaded');
+app.use('/products', authGuard, productsRouter);
+app.use('/bundles', authGuard, bundlesRouter);
+app.use('/estimate-templates', authGuard, estimateTemplatesRouter);
+app.use('/payments', authGuard, paymentsRouter);
+app.use('/invoicing-reports', authGuard, invoicingReportsRouter);
+app.use('/comments', commentsRouter);
+app.use('/reminders', remindersRouter);
+console.log('✅ Invoicing system routes loaded (includes payments, reports, comments, reminders)');
+
+// Zapier webhook routes (public endpoints for incoming webhooks, admin endpoints for management)
+app.use('/zapier', zapierWebhookRouter); // lead/:key endpoints are public, webhooks management uses authGuard inline
+console.log('✅ Zapier webhook routes loaded');
 
 // =============================
 // Error Handler
