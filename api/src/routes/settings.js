@@ -4,6 +4,38 @@ import { adminGuard } from '../middleware/auth.js';
 import { STAGES } from '../state.js';
 import { STAGE_THRESHOLDS } from '../config/stageThresholds.js';
 
+/**
+ * Helper function to check if a date falls within holiday season
+ */
+function isDateInHolidaySeason(date, startMMDD, endMMDD) {
+  const month = date.getMonth() + 1; // 1-12
+  const day = date.getDate(); // 1-31
+
+  const [startMonth, startDay] = startMMDD.split('-').map(Number);
+  const [endMonth, endDay] = endMMDD.split('-').map(Number);
+
+  // Same year season (e.g., 03-01 to 09-30)
+  if (startMonth < endMonth) {
+    if (month < startMonth || month > endMonth) return false;
+    if (month === startMonth && day < startDay) return false;
+    if (month === endMonth && day > endDay) return false;
+    return true;
+  }
+
+  // Cross-year season (e.g., 10-01 to 12-31 wraps to next year)
+  if (startMonth > endMonth) {
+    // In range if >= start OR <= end
+    if (month > startMonth || month < endMonth) return true;
+    if (month === startMonth && day >= startDay) return true;
+    if (month === endMonth && day <= endDay) return true;
+    return false;
+  }
+
+  // Same month (e.g., 10-01 to 10-31)
+  if (month !== startMonth) return false;
+  return day >= startDay && day <= endDay;
+}
+
 export function createSettingsRouter(prisma) {
   const router = Router();
 
@@ -333,6 +365,7 @@ export function createSettingsRouter(prisma) {
    * UPDATED: 
    * - Uses orderDate field (when available) instead of createdAt
    * - Checks for hasExtendedShipping on any items and adds extra days if needed
+   * - Checks for holiday season and adds manufacturing buffer days if applicable
    */
   router.post('/recalculate-etas', adminGuard, async (req, res) => {
     try {
@@ -347,11 +380,25 @@ export function createSettingsRouter(prisma) {
         }
       });
       
-      // Get extended shipping days setting
+      // Get system settings for extended shipping and holiday buffer
       const extendedShippingSetting = await prisma.systemSetting.findUnique({
         where: { key: 'EXTENDED_SHIPPING_DAYS' }
       });
       const extendedShippingDays = parseInt(extendedShippingSetting?.value || '30', 10);
+
+      const holidayStartSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'HOLIDAY_SEASON_START' }
+      });
+      const holidayEndSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'HOLIDAY_SEASON_END' }
+      });
+      const holidayBufferSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'HOLIDAY_BUFFER_DAYS' }
+      });
+
+      const holidayStart = holidayStartSetting?.value || '10-01';
+      const holidayEnd = holidayEndSetting?.value || '12-31';
+      const holidayBufferDays = parseInt(holidayBufferSetting?.value || '25', 10);
       
       // Build stage durations map from database values
       const stageDurationsMap = {};
@@ -363,23 +410,44 @@ export function createSettingsRouter(prisma) {
       const stagesNeeded = ['MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA', 'SMT', 'QC', 'DELIVERED'];
       for (const stage of stagesNeeded) {
         if (!stageDurationsMap[stage]) {
-          // Use config defaults if not in database
-          stageDurationsMap[stage] = (STAGE_THRESHOLDS[stage]?.warningDays || 30 + STAGE_THRESHOLDS[stage]?.criticalDays || 60) / 2;
+          const w = STAGE_THRESHOLDS[stage]?.warningDays || 30;
+          const c = STAGE_THRESHOLDS[stage]?.criticalDays || 60;
+          stageDurationsMap[stage] = (w + c) / 2;
         }
       }
       
       console.log('Using stage durations from database:', stageDurationsMap);
       console.log('Extended shipping days:', extendedShippingDays);
+      console.log('Holiday season:', holidayStart, 'to', holidayEnd, '- buffer:', holidayBufferDays, 'days');
       
-      // Calculate ETA date using actual database values
+      // Calculate ETA date using actual database values INCLUDING holiday buffer
       const calculateETADate = (orderDate, hasExtendedItems) => {
-        const totalDays = Object.values(stageDurationsMap).reduce((sum, days) => sum + days, 0);
-        const finalDays = hasExtendedItems ? totalDays + extendedShippingDays : totalDays;
+        // Start with base manufacturing days
+        let manufacturingDays = stageDurationsMap.MANUFACTURING;
+
+        // Check if order date falls in holiday season - add buffer to manufacturing only
+        const isHoliday = isDateInHolidaySeason(new Date(orderDate), holidayStart, holidayEnd);
+        if (isHoliday) {
+          manufacturingDays += holidayBufferDays;
+        }
+
+        // Sum all stages (with adjusted manufacturing)
+        let totalDays = manufacturingDays;
+        for (const [stage, days] of Object.entries(stageDurationsMap)) {
+          if (stage !== 'MANUFACTURING') {
+            totalDays += days;
+          }
+        }
+
+        // Add extended shipping days if applicable
+        if (hasExtendedItems) {
+          totalDays += extendedShippingDays;
+        }
         
         const eta = new Date(orderDate);
-        eta.setDate(eta.getDate() + Math.round(finalDays));
+        eta.setDate(eta.getDate() + Math.round(totalDays));
         
-        console.log(`Order date: ${orderDate}, Base days: ${totalDays}, Extended: ${hasExtendedItems}, Final days: ${finalDays}, New ETA: ${eta}`);
+        console.log(`Order date: ${new Date(orderDate).toISOString().split('T')[0]}, Base days: ${Object.values(stageDurationsMap).reduce((s,d)=>s+d,0)}, Holiday: ${isHoliday ? 'YES +' + holidayBufferDays : 'NO'}, Extended: ${hasExtendedItems ? 'YES +' + extendedShippingDays : 'NO'}, Final days: ${totalDays}, New ETA: ${eta.toISOString().split('T')[0]}`);
         return eta;
       };
       
@@ -387,10 +455,10 @@ export function createSettingsRouter(prisma) {
       const orders = await prisma.order.findMany({
         select: {
           id: true,
-          orderDate: true,  // Use orderDate field
-          createdAt: true,  // Fallback to createdAt if orderDate is null
+          orderDate: true,
+          createdAt: true,
           etaDate: true,
-          poNumber: true,   // For logging
+          poNumber: true,
           items: {
             select: {
               hasExtendedShipping: true
@@ -402,14 +470,19 @@ export function createSettingsRouter(prisma) {
       // Recalculate ETAs for all orders
       let updated = 0;
       let extendedCount = 0;
+      let holidayCount = 0;
       
       for (const order of orders) {
-        // Check if any items have extended shipping
         const hasExtendedItems = order.items?.some(item => item.hasExtendedShipping === true) || false;
         if (hasExtendedItems) extendedCount++;
         
-        // Use orderDate if available, otherwise fall back to createdAt
         const effectiveOrderDate = order.orderDate || order.createdAt;
+        
+        // Track holiday orders
+        if (isDateInHolidaySeason(new Date(effectiveOrderDate), holidayStart, holidayEnd)) {
+          holidayCount++;
+        }
+
         const newETA = calculateETADate(effectiveOrderDate, hasExtendedItems);
         
         await prisma.order.update({
@@ -419,21 +492,26 @@ export function createSettingsRouter(prisma) {
         
         updated++;
         
-        // Log progress every 10 orders
         if (updated % 10 === 0) {
           console.log(`Progress: ${updated} orders updated...`);
         }
       }
       
-      console.log(`✅ Successfully recalculated ${updated} order ETAs (${extendedCount} with extended shipping)`);
+      console.log(`✅ Successfully recalculated ${updated} order ETAs (${extendedCount} with extended shipping, ${holidayCount} in holiday season)`);
       
       res.json({
         success: true,
-        message: `Successfully recalculated ${updated} order ETAs (${extendedCount} with extended shipping)`,
+        message: `Successfully recalculated ${updated} order ETAs (${extendedCount} with extended shipping, ${holidayCount} in holiday season)`,
         ordersUpdated: updated,
         ordersWithExtendedShipping: extendedCount,
+        ordersInHolidaySeason: holidayCount,
         stageDurations: stageDurationsMap,
-        extendedShippingDays: extendedShippingDays
+        extendedShippingDays: extendedShippingDays,
+        holidayBuffer: {
+          start: holidayStart,
+          end: holidayEnd,
+          bufferDays: holidayBufferDays
+        }
       });
       
     } catch (error) {
@@ -443,38 +521,6 @@ export function createSettingsRouter(prisma) {
   });
 
   return router;
-}
-
-/**
- * Helper function to check if a date falls within holiday season
- */
-function isDateInHolidaySeason(date, startMMDD, endMMDD) {
-  const month = date.getMonth() + 1; // 1-12
-  const day = date.getDate(); // 1-31
-
-  const [startMonth, startDay] = startMMDD.split('-').map(Number);
-  const [endMonth, endDay] = endMMDD.split('-').map(Number);
-
-  // Same year season (e.g., 03-01 to 09-30)
-  if (startMonth < endMonth) {
-    if (month < startMonth || month > endMonth) return false;
-    if (month === startMonth && day < startDay) return false;
-    if (month === endMonth && day > endDay) return false;
-    return true;
-  }
-
-  // Cross-year season (e.g., 10-01 to 12-31 wraps to next year)
-  if (startMonth > endMonth) {
-    // In range if >= start OR <= end
-    if (month > startMonth || month < endMonth) return true;
-    if (month === startMonth && day >= startDay) return true;
-    if (month === endMonth && day <= endDay) return true;
-    return false;
-  }
-
-  // Same month (e.g., 10-01 to 10-31)
-  if (month !== startMonth) return false;
-  return day >= startDay && day <= endDay;
 }
 
 export default createSettingsRouter;
