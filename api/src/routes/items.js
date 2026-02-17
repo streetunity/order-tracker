@@ -23,43 +23,43 @@ import {
   getAuditAction
 } from '../helpers/itemValidation.js';
 import { checkCommissionPayoutTrigger, checkOrderedStatusTrigger } from '../helpers/commission.js';
+import { STAGE_THRESHOLDS } from '../config/stageThresholds.js';
 
 const prisma = new PrismaClient();
 
-// Helper to calculate ETA (reads from database settings, not hardcoded values)
+// Helper to calculate ETA (reads from database StageThreshold + SystemSetting tables)
 async function calculateETADate(orderDate = new Date(), hasExtendedItems = false) {
   try {
-    const settings = await prisma.settings.findMany({
+    // Read thresholds from the correct StageThreshold table
+    const dbThresholds = await prisma.stageThreshold.findMany({
       where: {
-        key: {
-          startsWith: 'stage_threshold_'
+        stage: {
+          in: ['MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA', 'SMT', 'QC', 'DELIVERED']
         }
       }
     });
 
+    // Build thresholds map from database values
     const thresholds = {};
-    settings.forEach(setting => {
-      const match = setting.key.match(/stage_threshold_(.+)_(warning|critical)/);
-      if (match) {
-        const stage = match[1];
-        const type = match[2];
-        if (!thresholds[stage]) thresholds[stage] = {};
-        thresholds[stage][type] = parseFloat(setting.value);
-      }
+    dbThresholds.forEach(t => {
+      thresholds[t.stage] = { warning: t.warningDays, critical: t.criticalDays };
     });
 
+    // Calculate manufacturing days (base average of warning + critical)
     let manufacturingDays = thresholds.MANUFACTURING ?
-      (thresholds.MANUFACTURING.warning + thresholds.MANUFACTURING.critical) / 2 : 35;
+      (thresholds.MANUFACTURING.warning + thresholds.MANUFACTURING.critical) / 2 :
+      (STAGE_THRESHOLDS.MANUFACTURING?.warningDays + STAGE_THRESHOLDS.MANUFACTURING?.criticalDays) / 2 || 35;
 
     // Check if order date falls within holiday season and add buffer to MANUFACTURING only
+    // Use UPPERCASE keys to match what the settings page saves
     const holidayStartSetting = await prisma.systemSetting.findUnique({
-      where: { key: 'holiday_season_start' }
+      where: { key: 'HOLIDAY_SEASON_START' }
     });
     const holidayEndSetting = await prisma.systemSetting.findUnique({
-      where: { key: 'holiday_season_end' }
+      where: { key: 'HOLIDAY_SEASON_END' }
     });
     const holidayBufferSetting = await prisma.systemSetting.findUnique({
-      where: { key: 'holiday_buffer_days' }
+      where: { key: 'HOLIDAY_BUFFER_DAYS' }
     });
 
     const holidayStart = holidayStartSetting?.value || '10-01';
@@ -72,39 +72,60 @@ async function calculateETADate(orderDate = new Date(), hasExtendedItems = false
     const [startMonth, startDay] = holidayStart.split('-').map(Number);
     const [endMonth, endDay] = holidayEnd.split('-').map(Number);
 
-    const isInHolidaySeason = (orderMonth > startMonth || (orderMonth === startMonth && orderDay >= startDay)) &&
-                              (orderMonth < endMonth || (orderMonth === endMonth && orderDay <= endDay));
+    let isInHolidaySeason = false;
+    if (startMonth < endMonth) {
+      // Same year season (e.g., 03-01 to 09-30)
+      isInHolidaySeason = (orderMonth > startMonth || (orderMonth === startMonth && orderDay >= startDay)) &&
+                          (orderMonth < endMonth || (orderMonth === endMonth && orderDay <= endDay));
+    } else if (startMonth > endMonth) {
+      // Cross-year season (e.g., 10-01 to 02-28)
+      isInHolidaySeason = (orderMonth > startMonth || (orderMonth === startMonth && orderDay >= startDay)) ||
+                          (orderMonth < endMonth || (orderMonth === endMonth && orderDay <= endDay));
+    } else {
+      // Same month
+      isInHolidaySeason = orderMonth === startMonth && orderDay >= startDay && orderDay <= endDay;
+    }
 
     if (isInHolidaySeason) {
+      console.log(`[ETA] Holiday season detected for order date ${orderDate.toISOString()} - adding ${holidayBufferDays} buffer days to manufacturing`);
       manufacturingDays += holidayBufferDays;
     }
 
     const stageDurations = {
       MANUFACTURING: manufacturingDays,
       TESTING: thresholds.TESTING ?
-        (thresholds.TESTING.warning + thresholds.TESTING.critical) / 2 : 5.5,
+        (thresholds.TESTING.warning + thresholds.TESTING.critical) / 2 :
+        (STAGE_THRESHOLDS.TESTING?.warningDays + STAGE_THRESHOLDS.TESTING?.criticalDays) / 2 || 5.5,
       SHIPPING: thresholds.SHIPPING ?
-        (thresholds.SHIPPING.warning + thresholds.SHIPPING.critical) / 2 : 5.5,
+        (thresholds.SHIPPING.warning + thresholds.SHIPPING.critical) / 2 :
+        (STAGE_THRESHOLDS.SHIPPING?.warningDays + STAGE_THRESHOLDS.SHIPPING?.criticalDays) / 2 || 5.5,
       AT_SEA: thresholds.AT_SEA ?
-        (thresholds.AT_SEA.warning + thresholds.AT_SEA.critical) / 2 : 35,
+        (thresholds.AT_SEA.warning + thresholds.AT_SEA.critical) / 2 :
+        (STAGE_THRESHOLDS.AT_SEA?.warningDays + STAGE_THRESHOLDS.AT_SEA?.criticalDays) / 2 || 35,
       SMT: thresholds.SMT ?
-        (thresholds.SMT.warning + thresholds.SMT.critical) / 2 : 5.5,
+        (thresholds.SMT.warning + thresholds.SMT.critical) / 2 :
+        (STAGE_THRESHOLDS.SMT?.warningDays + STAGE_THRESHOLDS.SMT?.criticalDays) / 2 || 5.5,
       QC: thresholds.QC ?
-        (thresholds.QC.warning + thresholds.QC.critical) / 2 : 5.5,
+        (thresholds.QC.warning + thresholds.QC.critical) / 2 :
+        (STAGE_THRESHOLDS.QC?.warningDays + STAGE_THRESHOLDS.QC?.criticalDays) / 2 || 5.5,
       DELIVERED: thresholds.DELIVERED ?
-        (thresholds.DELIVERED.warning + thresholds.DELIVERED.critical) / 2 : 4.5
+        (thresholds.DELIVERED.warning + thresholds.DELIVERED.critical) / 2 :
+        (STAGE_THRESHOLDS.DELIVERED?.warningDays + STAGE_THRESHOLDS.DELIVERED?.criticalDays) / 2 || 4.5
     };
 
     let totalDays = Object.values(stageDurations).reduce((sum, days) => sum + days, 0);
 
-    // Add extended shipping days if applicable (default 30 days)
+    // Add extended shipping days if applicable
     if (hasExtendedItems) {
       const extendedShippingSetting = await prisma.systemSetting.findUnique({
-        where: { key: 'extended_shipping_days' }
+        where: { key: 'EXTENDED_SHIPPING_DAYS' }
       });
       const extendedShippingDays = parseInt(extendedShippingSetting?.value || '30', 10);
+      console.log(`[ETA] Extended shipping detected - adding ${extendedShippingDays} days`);
       totalDays += extendedShippingDays;
     }
+
+    console.log(`[ETA] Calculated total days: ${totalDays} (holiday: ${isInHolidaySeason ? 'YES +' + holidayBufferDays : 'NO'}, extended: ${hasExtendedItems ? 'YES' : 'NO'})`);
 
     const eta = new Date(orderDate);
     eta.setDate(eta.getDate() + Math.round(totalDays));
@@ -278,6 +299,7 @@ export function createItemsRouter() {
       let orderedStatusChanged = false;
       let stageChanged = false;
       let movedToManufacturing = false;
+      let extendedShippingChanged = false;
       
       // Handle fields that can be edited even when locked
       // Archive/restore
@@ -446,6 +468,7 @@ export function createItemsRouter() {
           const change = buildFieldChange('hasExtendedShipping', item.hasExtendedShipping || false, newExtended);
           if (change) {
             data.hasExtendedShipping = newExtended;
+            extendedShippingChanged = true;
             changes.push(change);
           }
         }
@@ -555,13 +578,16 @@ export function createItemsRouter() {
         }
       }
 
-      // Calculate ETA if item moved to MANUFACTURING or was marked as ordered (and not in PENDING_FUNDING)
-      const shouldCalculateETA = movedToManufacturing || (orderedStatusChanged && updated.currentStage !== 'PENDING_FUNDING');
+      // Calculate ETA if item moved to MANUFACTURING, was marked as ordered (and not in PENDING_FUNDING),
+      // OR if extended shipping was toggled (need to recalculate)
+      const shouldCalculateETA = movedToManufacturing || 
+        (orderedStatusChanged && updated.currentStage !== 'PENDING_FUNDING') ||
+        extendedShippingChanged;
 
       if (shouldCalculateETA) {
         try {
-          console.log(`[ETA] Item ${itemId} ${movedToManufacturing ? 'moved to MANUFACTURING' : 'marked as ordered'} - checking order ETA`);
-          const order = await prisma.order.findUnique({
+          console.log(`[ETA] Item ${itemId} ${movedToManufacturing ? 'moved to MANUFACTURING' : orderedStatusChanged ? 'marked as ordered' : 'extended shipping changed'} - recalculating order ETA`);
+          const orderForETA = await prisma.order.findUnique({
             where: { id: orderId },
             select: {
               orderDate: true,
@@ -572,11 +598,13 @@ export function createItemsRouter() {
             }
           });
 
-          // Only calculate ETA if not already set
-          if (!order.etaDate) {
+          // Always recalculate if extended shipping changed, otherwise only if not already set
+          const shouldRecalculate = extendedShippingChanged || !orderForETA.etaDate;
+
+          if (shouldRecalculate) {
             // Check if any items have extended shipping
-            const hasExtendedItems = order.items?.some(item => item.hasExtendedShipping === true) || false;
-            const etaDate = await calculateETADate(order.orderDate ? new Date(order.orderDate) : new Date(), hasExtendedItems);
+            const hasExtendedItems = orderForETA.items?.some(item => item.hasExtendedShipping === true) || false;
+            const etaDate = await calculateETADate(orderForETA.orderDate ? new Date(orderForETA.orderDate) : new Date(), hasExtendedItems);
             await prisma.order.update({
               where: { id: orderId },
               data: { etaDate }
