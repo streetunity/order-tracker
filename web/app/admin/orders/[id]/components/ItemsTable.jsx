@@ -28,7 +28,8 @@ export default function ItemsTable({
     laserWattage: "", 
     notes: "",
     hasExtendedShipping: false,
-    manufacturerId: ""
+    manufacturerId: "",
+    itemPrice: ""
   });
 
   const hasUnsavedChanges = Object.keys(itemEdits).length > 0;
@@ -44,9 +45,11 @@ export default function ItemsTable({
     const notes = newItem.notes.trim();
     const hasExtendedShipping = newItem.hasExtendedShipping || false;
     const manufacturerId = newItem.manufacturerId || null;
+    const itemPrice = newItem.itemPrice ? parseFloat(newItem.itemPrice) : null;
     
     if (!productCode) return alert("Item name is required");
     if (!Number.isFinite(qty) || qty <= 0) return alert("Quantity must be a positive number");
+    if (newItem.itemPrice && (isNaN(itemPrice) || itemPrice < 0)) return alert("Price must be a valid positive number");
     
     const success = await onAddItem({
       productCode, 
@@ -58,6 +61,7 @@ export default function ItemsTable({
       notes,
       hasExtendedShipping,
       manufacturerId,
+      itemPrice,
       containers: []
     });
     
@@ -71,7 +75,8 @@ export default function ItemsTable({
         laserWattage: "", 
         notes: "",
         hasExtendedShipping: false,
-        manufacturerId: ""
+        manufacturerId: "",
+        itemPrice: ""
       });
     }
   }
@@ -201,6 +206,22 @@ export default function ItemsTable({
                 value={newItem.modelNumber}
                 onChange={e => setNewItem(v => ({ ...v, modelNumber: e.target.value }))}
                 style={{ width: "130px" }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#6b7280" }}>Price ($)</label>
+              <input
+                className="input"
+                type="text"
+                placeholder="0.00"
+                value={newItem.itemPrice}
+                onChange={e => {
+                  const value = e.target.value;
+                  if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+                    setNewItem(v => ({ ...v, itemPrice: value }));
+                  }
+                }}
+                style={{ width: "110px" }}
               />
             </div>
             <div>
