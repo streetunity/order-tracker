@@ -32,6 +32,33 @@ function isStageAtOrPast(currentStage, targetStage) {
 const ACTIVE_COMMISSION_STATUSES = ['CALCULATED', 'PARTIAL_PAID'];
 
 /**
+ * Get payout stage settings from database (or create defaults)
+ */
+async function getPayoutStageSettings() {
+  let stageSettings = await prisma.commissionStageSetting.findMany({
+    where: { isActive: true },
+    orderBy: { sortOrder: 'asc' }
+  });
+  
+  if (stageSettings.length === 0) {
+    console.log('[COMMISSION] No stage settings found - creating defaults (SHIPPING 50%, DELIVERED 50%)');
+    await prisma.commissionStageSetting.createMany({
+      data: [
+        { stage: 'SHIPPING', percentage: 50, sortOrder: 1, isActive: true },
+        { stage: 'DELIVERED', percentage: 50, sortOrder: 2, isActive: true }
+      ]
+    });
+    
+    stageSettings = await prisma.commissionStageSetting.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' }
+    });
+  }
+  
+  return stageSettings;
+}
+
+/**
  * Calculate commissions for an order at the item level with proportional discount allocation
  * @param {Object} order - Order object with items
  * @returns {Promise<Commission|null>}
@@ -165,27 +192,7 @@ export async function calculateCommissionForOrder(order) {
  * Payout stages are dynamically loaded from CommissionStageSetting table
  */
 async function createItemCommissions(commission, pricedItems, orderSubtotal, orderDiscount, rate) {
-  // Get stage settings for payout configuration - this is where payout stages are defined
-  let stageSettings = await prisma.commissionStageSetting.findMany({
-    where: { isActive: true },
-    orderBy: { sortOrder: 'asc' }
-  });
-  
-  // Create default stage settings if none exist
-  if (stageSettings.length === 0) {
-    console.log('[COMMISSION] No stage settings found - creating defaults (SHIPPING 50%, DELIVERED 50%)');
-    await prisma.commissionStageSetting.createMany({
-      data: [
-        { stage: 'SHIPPING', percentage: 50, sortOrder: 1, isActive: true },
-        { stage: 'DELIVERED', percentage: 50, sortOrder: 2, isActive: true }
-      ]
-    });
-    
-    stageSettings = await prisma.commissionStageSetting.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: 'asc' }
-    });
-  }
+  const stageSettings = await getPayoutStageSettings();
   
   console.log(`[COMMISSION] Using ${stageSettings.length} payout stages from database:`, stageSettings.map(s => `${s.stage} (${s.percentage}%)`).join(', '));
   
@@ -365,6 +372,12 @@ async function flagMissingSalesRep(orderId) {
 
 /**
  * Recalculate commission if prices or discount changed
+ * 
+ * FIX: When paid payouts exist, instead of bailing out entirely, we now:
+ * 1. Preserve all existing ItemCommissions and their payouts (paid or not)
+ * 2. Add NEW ItemCommissions for items that don't have one yet
+ * 3. Update the aggregate commission totals to reflect the new items
+ * This ensures new items added to orders with paid commissions still get tracked.
  */
 export async function recalculateCommissionIfPriceChanged(orderId) {
   try {
@@ -380,33 +393,184 @@ export async function recalculateCommissionIfPriceChanged(orderId) {
     
     // Check if commission exists
     const commission = await prisma.commission.findFirst({
-      where: { orderId }
-    });
-    
-    if (!commission) {
-      // No commission yet, calculate it
-      return await calculateCommissionForOrder(order);
-    }
-    
-    // Check if any payout is already paid - cannot recalculate
-    const paidPayouts = await prisma.commissionPayout.findFirst({
-      where: {
-        commissionId: commission.id,
-        status: 'PAID'
+      where: { orderId },
+      include: {
+        itemCommissions: {
+          include: { payouts: true }
+        }
       }
     });
     
-    if (paidPayouts) {
-      console.log(`[COMMISSION] Cannot recalculate commission ${commission.id} - has paid payouts`);
-      return commission;
+    if (!commission) {
+      // No commission yet, calculate from scratch
+      return await calculateCommissionForOrder(order);
     }
     
-    // Recalculate
+    // Check if any payout is already paid
+    const hasPaidPayouts = commission.itemCommissions.some(ic =>
+      ic.payouts.some(p => p.status === 'PAID')
+    );
+    
+    if (hasPaidPayouts) {
+      // FIX: Instead of bailing out, add commissions for NEW items only
+      console.log(`[COMMISSION] Commission ${commission.id} has paid payouts - using incremental update for new items`);
+      return await addNewItemsToExistingCommission(commission, order);
+    }
+    
+    // No paid payouts - safe to do full recalculation
     console.log(`[COMMISSION] Recalculating commission for order ${orderId}`);
     return await calculateCommissionForOrder(order);
   } catch (error) {
     console.error(`[COMMISSION] Error recalculating commission for order ${orderId}:`, error);
     return null;
+  }
+}
+
+/**
+ * Add ItemCommissions for new items on an order that already has paid payouts.
+ * Preserves all existing records (paid, pending, waiting) and only creates
+ * new ItemCommission + payouts for items that don't have one yet.
+ * Updates the aggregate Commission totals to reflect the full order.
+ */
+async function addNewItemsToExistingCommission(commission, order) {
+  try {
+    const rate = commission.commissionRate;
+    
+    // Find which items already have ItemCommission records
+    const existingItemIds = new Set(commission.itemCommissions.map(ic => ic.itemId));
+    
+    // Calculate full order totals (needed for proportional discount allocation)
+    let orderSubtotal = 0;
+    const allPricedItems = [];
+    const newPricedItems = [];
+    
+    for (const item of order.items) {
+      if (item.itemPrice && item.itemPrice > 0) {
+        const itemTotal = item.itemPrice * (item.qty || 1);
+        orderSubtotal += itemTotal;
+        allPricedItems.push({ ...item, itemTotal });
+        
+        if (!existingItemIds.has(item.id)) {
+          newPricedItems.push({ ...item, itemTotal });
+        }
+      }
+    }
+    
+    if (newPricedItems.length === 0) {
+      console.log(`[COMMISSION] No new items to add for order ${order.id}`);
+      return commission;
+    }
+    
+    const orderDiscount = order.discount || 0;
+    const orderNetTotal = orderSubtotal - orderDiscount;
+    
+    console.log(`[COMMISSION] Adding ${newPricedItems.length} new item(s) to commission ${commission.id}`);
+    
+    // Get payout stage settings
+    const stageSettings = await getPayoutStageSettings();
+    
+    // Create ItemCommission + payouts for each new item
+    for (const item of newPricedItems) {
+      const itemSubtotal = item.itemTotal;
+      const discountPercentage = orderSubtotal > 0 ? (itemSubtotal / orderSubtotal) : 0;
+      const allocatedDiscount = orderDiscount * discountPercentage;
+      const netAmount = itemSubtotal - allocatedDiscount;
+      const commissionAmount = (netAmount * rate) / 100;
+      
+      const itemCommission = await prisma.itemCommission.create({
+        data: {
+          commissionId: commission.id,
+          itemId: item.id,
+          orderId: order.id,
+          productCode: item.productCode,
+          qty: item.qty,
+          itemPrice: item.itemPrice,
+          itemSubtotal,
+          allocatedDiscount,
+          discountPercentage: discountPercentage * 100,
+          netAmount,
+          commissionRate: rate,
+          commissionAmount,
+          status: 'CALCULATED'
+        }
+      });
+      
+      // Create payouts for each stage
+      const currentItemStage = item.currentStage || 'MANUFACTURING';
+      const isOrdered = item.isOrdered === true;
+      
+      for (const setting of stageSettings) {
+        const shouldTrigger = isOrdered &&
+                             currentItemStage !== 'PENDING_FUNDING' &&
+                             isStageAtOrPast(currentItemStage, setting.stage);
+        const payoutStatus = shouldTrigger ? 'PENDING' : 'WAITING';
+        
+        await prisma.commissionPayout.create({
+          data: {
+            itemCommissionId: itemCommission.id,
+            commissionId: commission.id,
+            stage: setting.stage,
+            percentage: setting.percentage,
+            amount: (commissionAmount * setting.percentage) / 100,
+            status: payoutStatus,
+            triggeredByItemId: item.id,
+            triggeredAt: shouldTrigger ? new Date() : null
+          }
+        });
+        
+        if (shouldTrigger) {
+          console.log(`[COMMISSION] Auto-triggered ${setting.stage} payout for new item ${item.productCode}`);
+        }
+      }
+      
+      console.log(`[COMMISSION] Added new item ${item.productCode}: Commission $${commissionAmount.toFixed(2)} (${isOrdered ? 'ordered' : 'not ordered'}, stage: ${currentItemStage})`);
+    }
+    
+    // Update aggregate commission totals to include new items
+    const updatedCommission = await prisma.commission.update({
+      where: { id: commission.id },
+      data: {
+        orderSubtotal,
+        orderDiscount,
+        orderNetTotal,
+        totalCommissionAmount: (orderNetTotal * rate) / 100,
+        calculatedAt: new Date()
+      }
+    });
+    
+    // Update commission status based on all payouts
+    await updateCommissionStatus(commission.id);
+    
+    // Create notifications for any new pending payouts
+    const newPendingPayouts = await prisma.commissionPayout.findMany({
+      where: {
+        commissionId: commission.id,
+        status: 'PENDING',
+        triggeredByItemId: { in: newPricedItems.map(i => i.id) }
+      },
+      include: { itemCommission: true }
+    });
+    
+    if (newPendingPayouts.length > 0) {
+      const itemGroups = {};
+      newPendingPayouts.forEach(p => {
+        const itemId = p.itemCommission.itemId;
+        if (!itemGroups[itemId]) {
+          itemGroups[itemId] = { itemCommission: p.itemCommission, payouts: [] };
+        }
+        itemGroups[itemId].payouts.push(p);
+      });
+      
+      for (const [itemId, group] of Object.entries(itemGroups)) {
+        await createPayoutNotification(commission, group.itemCommission, group.itemCommission.productCode, group.payouts);
+      }
+    }
+    
+    console.log(`[COMMISSION] Updated commission ${commission.id}: new total $${updatedCommission.totalCommissionAmount.toFixed(2)}`);
+    return updatedCommission;
+  } catch (error) {
+    console.error(`[COMMISSION] Error adding new items to commission:`, error);
+    return commission;
   }
 }
 
@@ -703,13 +867,28 @@ export async function recalculateAllCommissions(userId, userName, reason) {
           );
           
           if (hasPaidPayouts) {
-            results.skipped++;
-            results.details.push({
-              orderId: order.id,
-              salesPerson: order.sku,
-              status: 'skipped',
-              reason: 'Has paid payouts'
-            });
+            // Use incremental update instead of skipping entirely
+            const result = await addNewItemsToExistingCommission(existingCommission, order);
+            if (result && result.totalCommissionAmount !== existingCommission.totalCommissionAmount) {
+              results.recalculated++;
+              results.details.push({
+                orderId: order.id,
+                salesPerson: order.sku,
+                status: 'incremental_update',
+                oldAmount: existingCommission.totalCommissionAmount,
+                newAmount: result.totalCommissionAmount,
+                difference: result.totalCommissionAmount - existingCommission.totalCommissionAmount,
+                note: 'Has paid payouts - only added new items'
+              });
+            } else {
+              results.skipped++;
+              results.details.push({
+                orderId: order.id,
+                salesPerson: order.sku,
+                status: 'skipped',
+                reason: 'Has paid payouts, no new items to add'
+              });
+            }
             continue;
           }
           
@@ -791,7 +970,7 @@ async function notifyAgentsOfRecalculation(results, reason) {
     const bySalesPerson = {};
     
     results.details.forEach(detail => {
-      if (detail.status === 'recalculated' || detail.status === 'created') {
+      if (detail.status === 'recalculated' || detail.status === 'created' || detail.status === 'incremental_update') {
         if (!bySalesPerson[detail.salesPerson]) {
           bySalesPerson[detail.salesPerson] = {
             orders: [],
