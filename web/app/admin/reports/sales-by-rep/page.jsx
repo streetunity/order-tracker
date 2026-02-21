@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -38,7 +39,8 @@ export default function SalesByRepPage() {
         monthly: monthly ? 'true' : 'false'
       });
       const res = await fetch(`/api/reports/sales-by-rep?${params}`, {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        cache: 'no-store'
       });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
