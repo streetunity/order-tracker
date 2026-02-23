@@ -111,30 +111,35 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* Stage Grid */
+/* Stage Grid - all tiles on one row */
 .stage-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
+  display: flex;
+  gap: 10px;
 }
 
 .stage-card {
+  flex: 1 1 0;
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 15px;
+  padding: 10px 6px;
   text-align: center;
 }
 
 .stage-name {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text-dim);
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stage-count {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: bold;
   color: var(--text);
 }
@@ -371,5 +376,14 @@
   
   .btn-filter {
     align-self: stretch;
+  }
+
+  .stage-grid {
+    flex-wrap: wrap;
+  }
+
+  .stage-card {
+    flex: 1 1 calc(33% - 10px);
+    min-width: 80px;
   }
 }
