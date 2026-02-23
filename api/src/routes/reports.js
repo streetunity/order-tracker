@@ -141,9 +141,20 @@ export function createReportsRouter(prisma) {
     try {
       const filters = parseReportFilters(req.query);
       filters.dateMode = 'order';
-      const { monthly = 'false' } = req.query;
+      const { monthly = 'false', activeOnly = 'false' } = req.query;
       const includeMonthly = monthly === 'true';
+      const filterActiveOnly = activeOnly === 'true';
       const startTime = Date.now();
+
+      // If activeOnly, look up active user names to filter results
+      let activeRepNames = null;
+      if (filterActiveOnly) {
+        const activeUsers = await prisma.user.findMany({
+          where: { isActive: true, role: { in: ['AGENT', 'ADMIN', 'SUPER_ADMIN', 'ACCOUNTANT'] } },
+          select: { name: true }
+        });
+        activeRepNames = new Set(activeUsers.map(u => u.name));
+      }
       
       // Apply role-based filtering
       const whereOrder = buildRoleBasedOrderWhere(req.user, buildWhereClause(filters, 'order'));
@@ -154,6 +165,12 @@ export function createReportsRouter(prisma) {
       let grandTotal = 0;
       for (const order of orders) {
         const repName = order.sku || 'Unassigned';
+
+        // Skip inactive reps if filter is on
+        if (activeRepNames && repName !== 'Unassigned' && !activeRepNames.has(repName)) {
+          continue;
+        }
+
         const repId = repName.toLowerCase().replace(/\s+/g, '_');
         for (const item of order.items) {
           if (item.itemPrice) {
@@ -188,7 +205,7 @@ export function createReportsRouter(prisma) {
         });
       }
       const response = {
-        meta: { date_from: filters.dateFrom, date_to: filters.dateTo, date_mode: 'order', filtersApplied: { accountId: filters.accountId, stages: filters.stages, productCodes: filters.productCodes }, timezone: filters.timezone, note: 'Sales data is based on orderDate (when order was placed) and grouped by sales person (sku field)', userRole: req.user?.role },
+        meta: { date_from: filters.dateFrom, date_to: filters.dateTo, date_mode: 'order', filtersApplied: { accountId: filters.accountId, stages: filters.stages, productCodes: filters.productCodes, activeOnly: filterActiveOnly }, timezone: filters.timezone, note: 'Sales data is based on orderDate (when order was placed) and grouped by sales person (sku field)', userRole: req.user?.role },
         kpis: { grandTotal, grandTotalFormatted: formatCurrency(grandTotal), repCount: rows.length, orderCount: orders.length },
         series: monthlySeries,
         rows: rows.map(r => ({ ...r, totalFormatted: formatCurrency(r.total), avgOrderValue: r.orderCount > 0 ? r.total / r.orderCount : 0, avgOrderValueFormatted: r.orderCount > 0 ? formatCurrency(r.total / r.orderCount) : '$0.00' })),
