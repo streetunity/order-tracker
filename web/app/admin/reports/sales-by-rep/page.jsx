@@ -60,7 +60,30 @@ export default function SalesByRepPage() {
     }
   }, [user, isAdmin]);
 
+  // Format month label from "2025-01" to "Jan 2025"
+  const formatMonth = (monthStr) => {
+    if (!monthStr) return '';
+    const [year, month] = monthStr.split('-');
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+  };
+
+  // Format currency for monthly cells
+  const formatCurrency = (amount) => {
+    if (!amount || amount === 0) return '-';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   if (!user || !isAdmin) return null;
+
+  // Extract month columns and rep names from series data
+  const months = data?.series ? data.series.map(s => s.month) : [];
+  const repNames = data?.rows ? data.rows.map(r => r.repName) : [];
 
   return (
     <>
@@ -130,7 +153,7 @@ export default function SalesByRepPage() {
               </div>
             </div>
 
-            {/* Data Table */}
+            {/* Summary Table */}
             <div className="report-section">
               <h2>Revenue by Representative</h2>
               <div className="data-table">
@@ -138,7 +161,9 @@ export default function SalesByRepPage() {
                   <thead>
                     <tr>
                       <th>Sales Rep</th>
-                      <th>Email</th>
+                      <th>Orders</th>
+                      <th>Customers</th>
+                      <th>Avg Order Value</th>
                       <th>Total Sales</th>
                     </tr>
                   </thead>
@@ -146,7 +171,9 @@ export default function SalesByRepPage() {
                     {data.rows.map((row, i) => (
                       <tr key={i}>
                         <td>{row.repName}</td>
-                        <td style={{ color: 'var(--text-dim)' }}>{row.email}</td>
+                        <td>{row.orderCount}</td>
+                        <td>{row.customerCount}</td>
+                        <td>{row.avgOrderValueFormatted}</td>
                         <td style={{ fontWeight: 'bold', color: 'var(--accent)' }}>
                           {row.totalFormatted}
                         </td>
@@ -156,6 +183,39 @@ export default function SalesByRepPage() {
                 </table>
               </div>
             </div>
+
+            {/* Monthly Breakdown Table */}
+            {monthly && data.series && data.series.length > 0 && (
+              <div className="report-section">
+                <h2>Monthly Breakdown</h2>
+                <div className="data-table" style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Month</th>
+                        {repNames.map((name, i) => (
+                          <th key={i}>{name}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.series.map((monthData, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            {formatMonth(monthData.month)}
+                          </td>
+                          {repNames.map((name, j) => (
+                            <td key={j} style={{ color: monthData[name] ? 'var(--accent)' : 'var(--text-dim)' }}>
+                              {formatCurrency(monthData[name])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
       </main>
