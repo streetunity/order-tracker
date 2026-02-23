@@ -17,6 +17,7 @@ export default function SalesByRepPage() {
   const [dateFrom, setDateFrom] = useState('2025-01-01');
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [monthly, setMonthly] = useState(false);
+  const [activeOnly, setActiveOnly] = useState(true);
 
   useEffect(() => {
     if (!user) {
@@ -36,7 +37,8 @@ export default function SalesByRepPage() {
       const params = new URLSearchParams({
         date_from: dateFrom,
         date_to: dateTo,
-        monthly: monthly ? 'true' : 'false'
+        monthly: monthly ? 'true' : 'false',
+        activeOnly: activeOnly ? 'true' : 'false'
       });
       const res = await fetch(`/api/reports/sales-by-rep?${params}`, {
         headers: getAuthHeaders(),
@@ -117,15 +119,25 @@ export default function SalesByRepPage() {
             />
           </div>
           <div className="filter-group">
-            <label style={{ visibility: 'hidden' }}>Apply</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                checked={monthly}
-                onChange={(e) => setMonthly(e.target.checked)}
-              />
-              Monthly breakdown
-            </label>
+            <label style={{ visibility: 'hidden' }}>Options</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={activeOnly}
+                  onChange={(e) => setActiveOnly(e.target.checked)}
+                />
+                Hide inactive reps
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={monthly}
+                  onChange={(e) => setMonthly(e.target.checked)}
+                />
+                Monthly breakdown
+              </label>
+            </div>
           </div>
           <button className="btn-filter" onClick={loadData}>
             Apply Filters
