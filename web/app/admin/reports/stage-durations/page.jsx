@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -30,7 +31,8 @@ export default function StageDurationsPage() {
         lookbackDays: lookbackDays
       });
       const res = await fetch(`/api/reports/stage-durations/leaderboard?${params}`, {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        cache: 'no-store'
       });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -49,6 +51,16 @@ export default function StageDurationsPage() {
       loadData();
     }
   }, [user]);
+
+  // Tooltip helper component
+  const ThWithTooltip = ({ children, tooltip }) => (
+    <th
+      title={tooltip}
+      style={{ cursor: 'help', borderBottom: '1px dashed var(--text-dim)' }}
+    >
+      {children}
+    </th>
+  );
 
   if (!user) return null;
 
@@ -101,11 +113,21 @@ export default function StageDurationsPage() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Stage</th>
-                      <th>Items</th>
-                      <th>Median</th>
-                      <th>P90</th>
-                      <th>Max</th>
+                      <ThWithTooltip tooltip="The manufacturing/order stage (e.g. Manufacturing, Testing, Shipping). Each item progresses through these stages sequentially.">
+                        Stage
+                      </ThWithTooltip>
+                      <ThWithTooltip tooltip="Number of items that have entered and exited this stage within the lookback period. Only items with recorded stage transitions are counted.">
+                        Items
+                      </ThWithTooltip>
+                      <ThWithTooltip tooltip="Median duration — the middle value when all item durations are sorted. 50% of items completed this stage faster, 50% slower. More reliable than averages because it isn't skewed by outliers.">
+                        Median
+                      </ThWithTooltip>
+                      <ThWithTooltip tooltip="90th percentile — 90% of items completed this stage within this time. Useful for identifying realistic worst-case timelines and setting customer expectations.">
+                        P90
+                      </ThWithTooltip>
+                      <ThWithTooltip tooltip="The longest time any single item spent in this stage during the lookback period. Values over 30 days are highlighted in red as potential issues.">
+                        Max
+                      </ThWithTooltip>
                     </tr>
                   </thead>
                   <tbody>
@@ -146,11 +168,21 @@ export default function StageDurationsPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Product</th>
-                        <th>PO Number</th>
-                        <th>Customer</th>
-                        <th>Stage</th>
-                        <th>Duration</th>
+                        <ThWithTooltip tooltip="The product code / SKU identifying this item.">
+                          Product
+                        </ThWithTooltip>
+                        <ThWithTooltip tooltip="The customer's purchase order number for this order.">
+                          PO Number
+                        </ThWithTooltip>
+                        <ThWithTooltip tooltip="The customer / account name associated with this order.">
+                          Customer
+                        </ThWithTooltip>
+                        <ThWithTooltip tooltip="The stage where this item spent the most time. This is the bottleneck stage for this particular item.">
+                          Stage
+                        </ThWithTooltip>
+                        <ThWithTooltip tooltip="Total time this item spent in the indicated stage, calculated from the stage entry event to the stage exit event in the status history.">
+                          Duration
+                        </ThWithTooltip>
                       </tr>
                     </thead>
                     <tbody>
