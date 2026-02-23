@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import TopNav from "@/components/TopNav";
+import ShipmentFilters from "./ShipmentFilters";
+import ShipmentFormModal from "./ShipmentFormModal";
 
 export default function ShipmentManagementPage() {
   const { user, getAuthHeaders, loading: authLoading } = useAuth();
@@ -418,206 +420,25 @@ export default function ShipmentManagementPage() {
           </div>
         )}
 
-        {/* Error Message */}
-        {error && (
-          <div style={{
-            padding: "12px 16px",
-            marginBottom: "20px",
-            background: "rgba(239, 68, 68, 0.1)",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-            borderRadius: "8px",
-            color: "#ef4444",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
-            <span>{error}</span>
-            <button 
-              onClick={() => setError("")}
-              style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "18px" }}
-            >
-              ×
-            </button>
-          </div>
-        )}
+        <ShipmentFilters
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          viewFilter={viewFilter}
+          setViewFilter={setViewFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          error={error}
+          setError={setError}
+        />
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: 1, minWidth: "250px" }}>
-            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)" }}>🔍</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search container, BOL, vessel..."
-              style={{ ...inputStyle, paddingLeft: 40 }}
-            />
-          </div>
-          
-          <select
-            value={viewFilter}
-            onChange={(e) => setViewFilter(e.target.value)}
-            style={{ ...inputStyle, width: "auto", minWidth: "150px", cursor: "pointer" }}
-          >
-            <option value="active">Active Only</option>
-            <option value="archived">Archived Only</option>
-            <option value="all">All Shipments</option>
-          </select>
-          
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ ...inputStyle, width: "auto", minWidth: "150px", cursor: "pointer" }}
-          >
-            <option value="">All Statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="FILED">Filed</option>
-            <option value="CLEARED">Cleared</option>
-            <option value="ISSUES">Issues</option>
-          </select>
-        </div>
-
-        {/* Create Form Modal */}
-        {showCreateForm && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.8)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1100
-          }} onClick={() => setShowCreateForm(false)}>
-            <div style={{
-              backgroundColor: "#1a1a1a",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: "12px",
-              width: "100%",
-              maxWidth: "600px",
-              margin: "20px"
-            }} onClick={e => e.stopPropagation()}>
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "20px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.1)"
-              }}>
-                <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#fff", margin: 0 }}>Create New Shipment</h2>
-                <button 
-                  onClick={() => setShowCreateForm(false)}
-                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: "24px" }}
-                >
-                  ×
-                </button>
-              </div>
-              
-              <form onSubmit={handleCreateShipment} style={{ padding: "20px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-                  <div>
-                    <label style={labelStyle}>Container Number</label>
-                    <input
-                      type="text"
-                      value={formData.containerNumber}
-                      onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
-                      placeholder="MSKU1234567"
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Bill of Lading</label>
-                    <input
-                      type="text"
-                      value={formData.billOfLading}
-                      onChange={(e) => setFormData({ ...formData, billOfLading: e.target.value })}
-                      placeholder="BOL-123456"
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-                
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-                  <div>
-                    <label style={labelStyle}>Vessel Name</label>
-                    <input
-                      type="text"
-                      value={formData.vesselName}
-                      onChange={(e) => setFormData({ ...formData, vesselName: e.target.value })}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>ETA Date</label>
-                    <input
-                      type="date"
-                      value={formData.etaDate}
-                      onChange={(e) => setFormData({ ...formData, etaDate: e.target.value })}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-                
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-                  <div>
-                    <label style={labelStyle}>Port of Origin</label>
-                    <input
-                      type="text"
-                      value={formData.portOfOrigin}
-                      onChange={(e) => setFormData({ ...formData, portOfOrigin: e.target.value })}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Port of Destination</label>
-                    <input
-                      type="text"
-                      value={formData.portOfDestination}
-                      onChange={(e) => setFormData({ ...formData, portOfDestination: e.target.value })}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-                
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateForm(false)}
-                    style={{
-                      padding: "10px 20px",
-                      background: "rgba(255, 255, 255, 0.05)",
-                      color: "rgba(255, 255, 255, 0.9)",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
-                      borderRadius: "8px",
-                      cursor: "pointer"
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={actionLoading === "create"}
-                    style={{
-                      padding: "10px 20px",
-                      background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: actionLoading === "create" ? "not-allowed" : "pointer",
-                      opacity: actionLoading === "create" ? 0.7 : 1,
-                      fontWeight: "600"
-                    }}
-                  >
-                    {actionLoading === "create" ? "Creating..." : "Create Shipment"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <ShipmentFormModal
+          show={showCreateForm}
+          onClose={() => setShowCreateForm(false)}
+          formData={formData}
+          setFormData={setFormData}
+          onSubmit={handleCreateShipment}
+          loading={actionLoading === "create"}
+        />
 
         {/* Shipments List */}
         {loading ? (

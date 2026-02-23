@@ -11,36 +11,10 @@ import "./board.css";
 import { OrderedIndicator } from './OrderedIndicator';
 import { ViewItemModal } from './ViewItemModal';
 import { CustomerOrdersModal } from './CustomerOrdersModal';
+import BoardFilters, { STAGES, STAGE_LABELS } from './BoardFilters';
+import { DeleteItemDialog, ArchiveItemDialog, ArchiveOrderDialog, NotificationToast } from './BoardConfirmDialogs';
 
-// Stage keys from API (do not change)
-const STAGES = [
-  "PENDING_FUNDING",
-  "MANUFACTURING",
-  "TESTING",
-  "SHIPPING",
-  "AT_SEA",
-  "SMT",
-  "QC",
-  "DELIVERED",
-  "ONSITE",
-  "COMPLETED",
-  "FOLLOW_UP",
-];
-
-// Display labels for column headers (safe to edit)
-const STAGE_LABELS = {
-  PENDING_FUNDING: "Pending Funding",
-  MANUFACTURING: "Manufacturing",
-  TESTING: "Debugging & Testing",
-  SHIPPING: "Preparing Container",
-  AT_SEA: "Container At Sea",
-  SMT: "Arrived At SMT",
-  QC: "Quality Control",
-  DELIVERED: "Delivered To Customer",
-  ONSITE: "On Site Setup & Training",
-  COMPLETED: "Training Complete",
-  FOLLOW_UP: "Follow Up",
-};
+// STAGES and STAGE_LABELS imported from BoardFilters.jsx
 
 // Helper to check if a container has complete measurement info
 // Returns true if container has EITHER:
@@ -466,55 +440,19 @@ export default function AdminBoardPage() {
         {/* HIDE QUICKACTIONS FOR MANUFACTURERS AND BROKERS */}
         {!isLimitedAccess && <QuickActions />}
         
-        <div className="toolbar">
-          <div className="tool">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Sales Person / Account / Contact / Item / Serial # / Manufacturer"
-              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6, minWidth: "350px" }}
-            />
-            <button className="btn" onClick={load}>Apply</button>
-          </div>
-          <div className="tool">
-            <select
-              value={stageFilter}
-              onChange={(e) => setStageFilter(e.target.value)}
-              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
-            >
-              <option value="">All stages</option>
-              {STAGES.map((s) => (
-                <option key={s} value={s}>{STAGE_LABELS[s] ?? s.replace(/_/g, " ")}</option>
-              ))}
-            </select>
-            {stageFilter && (
-              <button className="btn" onClick={() => setStageFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
-            )}
-          </div>
-          <div className="tool">
-            <select
-              value={salesRepFilter}
-              onChange={(e) => setSalesRepFilter(e.target.value)}
-              style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6 }}
-            >
-              <option value="">All Sales Reps</option>
-              {salesReps.map((rep) => (
-                <option key={rep} value={rep}>{rep}</option>
-              ))}
-            </select>
-            {salesRepFilter && (
-              <button className="btn" onClick={() => setSalesRepFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
-            )}
-          </div>
-          {!!err && <div className="errorBox">Failed to load: {err}</div>}
-          {loading && <div className="loading">Loading…</div>}
-          {!loading && (stageFilter || salesRepFilter) && grouped.length === 0 && (
-            <div style={{ padding: "8px 12px", backgroundColor: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "6px", color: "#92400e" }}>
-              No items found with current filters.
-              <button onClick={() => { setStageFilter(""); setSalesRepFilter(""); }} style={{ marginLeft: "8px", textDecoration: "underline", background: "none", border: "none", color: "#92400e", cursor: "pointer" }}>Clear all filters</button>
-            </div>
-          )}
-        </div>
+        <BoardFilters
+          search={search}
+          setSearch={setSearch}
+          stageFilter={stageFilter}
+          setStageFilter={setStageFilter}
+          salesRepFilter={salesRepFilter}
+          setSalesRepFilter={setSalesRepFilter}
+          salesReps={salesReps}
+          onApply={load}
+          loading={loading}
+          err={err}
+          hasResults={grouped.length > 0}
+        />
       </div>
 
       <div className="stageBoard">
@@ -851,235 +789,33 @@ export default function AdminBoardPage() {
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
-      {showDeleteConfirm && pendingAction && (
-        <div className="confirm-overlay" onClick={cancelPendingAction}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>⚠️ Delete Item Permanently?</h3>
-            <p style={{ fontSize: "16px", marginBottom: "1rem" }}>
-              You are about to permanently delete <strong>"{pendingAction.itemName}"</strong>.
-            </p>
-            <div style={{ 
-              padding: "1rem", 
-              backgroundColor: "rgba(239, 68, 68, 0.1)", 
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-              borderRadius: "6px",
-              marginBottom: "1rem"
-            }}>
-              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#ef4444" }}>
-                <strong>Warning:</strong>
-              </p>
-              <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px" }}>
-                <li>This action cannot be undone</li>
-                <li>The item will be completely removed from the system</li>
-                <li>All item data (serial numbers, notes, measurements) will be lost</li>
-              </ul>
-            </div>
-            <p style={{ marginTop: "1rem", color: "var(--text-dim)", fontSize: "14px" }}>
-              <strong>Alternative:</strong> Consider archiving the item instead. Archived items are hidden from the board but can be restored later by clicking "Show archived items".
-            </p>
-            <div className="confirm-actions">
-              <button 
-                onClick={cancelPendingAction} 
-                className="btn-cancel"
-                disabled={performingAction}
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={executePendingAction} 
-                disabled={performingAction}
-                className="btn-confirm"
-                style={{ backgroundColor: "#ef4444" }}
-              >
-                {performingAction ? "Deleting..." : "Yes, Delete Permanently"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Confirmation Dialogs */}
+      <DeleteItemDialog
+        show={showDeleteConfirm}
+        pendingAction={pendingAction}
+        performingAction={performingAction}
+        onCancel={cancelPendingAction}
+        onConfirm={executePendingAction}
+      />
 
-      {/* Archive/Restore Confirmation Dialog */}
-      {showArchiveConfirm && pendingAction && (
-        <div className="confirm-overlay" onClick={cancelPendingAction}>
-          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>{pendingAction.isArchived ? "📦 Restore Item?" : "📦 Archive Item?"}</h3>
-            <p style={{ fontSize: "16px", marginBottom: "1rem" }}>
-              {pendingAction.isArchived 
-                ? <>You are about to restore <strong>"{pendingAction.itemName}"</strong>.</>
-                : <>You are about to archive <strong>"{pendingAction.itemName}"</strong>.</>
-              }
-            </p>
-            <div style={{ 
-              padding: "1rem", 
-              backgroundColor: "rgba(255, 170, 0, 0.1)", 
-              border: "1px solid rgba(255, 170, 0, 0.3)",
-              borderRadius: "6px",
-              marginBottom: "1rem"
-            }}>
-              <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px" }}>
-                <strong>What will happen:</strong>
-              </p>
-              <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px" }}>
-                {pendingAction.isArchived ? (
-                  <>
-                    <li>The item will reappear on the board and kiosk view</li>
-                    <li>All item data will be preserved</li>
-                    <li>The item will continue through the production stages</li>
-                  </>
-                ) : (
-                  <>
-                    <li>The item will be hidden from the board and kiosk view</li>
-                    <li>All item data will be preserved</li>
-                    <li>You can restore it later by clicking "Show archived items"</li>
-                  </>
-                )}
-              </ul>
-            </div>
-            <p style={{ marginTop: "1rem", color: "var(--text-dim)", fontSize: "14px" }}>
-              {!pendingAction.isArchived && (
-                <><strong>Note:</strong> This does not delete the item. You can bring it back anytime.</>
-              )}
-            </p>
-            <div className="confirm-actions">
-              <button 
-                onClick={cancelPendingAction} 
-                className="btn-cancel"
-                disabled={performingAction}
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={executePendingAction} 
-                disabled={performingAction}
-                className="btn-confirm"
-                style={{ backgroundColor: "var(--accent)" }}
-              >
-                {performingAction 
-                  ? (pendingAction.isArchived ? "Restoring..." : "Archiving...") 
-                  : (pendingAction.isArchived ? "Yes, Restore Item" : "Yes, Archive Item")
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ArchiveItemDialog
+        show={showArchiveConfirm}
+        pendingAction={pendingAction}
+        performingAction={performingAction}
+        onCancel={cancelPendingAction}
+        onConfirm={executePendingAction}
+      />
 
       {/* Archive Order Confirmation Modal */}
-      {showArchiveOrderConfirm && pendingArchiveOrder && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1100
-          }}
-          onClick={() => !archiveOrderLoading && setShowArchiveOrderConfirm(false)}
-        >
-          <div
-            style={{
-              backgroundColor: "#1f1f1f",
-              border: "1px solid #404040",
-              borderRadius: "8px",
-              padding: "2rem",
-              maxWidth: "500px",
-              width: "90%",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
-              {pendingArchiveOrder.isArchived ? "🔄 Restore Order?" : "🗑️ Delete Order?"}
-            </h3>
-            <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
-              {pendingArchiveOrder.isArchived
-                ? "Are you sure you want to unarchive this order? It will appear on the board and in active orders."
-                : "Are you sure you want to archive this order? It will be hidden from the board and active orders."}
-            </p>
-            {!pendingArchiveOrder.isArchived && (
-              <div style={{
-                padding: "1rem",
-                backgroundColor: "rgba(107, 114, 128, 0.1)",
-                border: "1px solid rgba(107, 114, 128, 0.3)",
-                borderRadius: "6px",
-                marginBottom: "1rem"
-              }}>
-                <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#9ca3af" }}>
-                  <strong>What will happen:</strong>
-                </p>
-                <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "13px", color: "#9ca3af" }}>
-                  <li>Order will be removed from the board view</li>
-                  <li>Order will appear in the "Archived Orders" tab</li>
-                  <li>You can unarchive the order at any time</li>
-                </ul>
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
-              <button
-                onClick={() => setShowArchiveOrderConfirm(false)}
-                disabled={archiveOrderLoading}
-                style={{
-                  background: "#2d2d2d",
-                  color: "#fff",
-                  border: "1px solid #404040",
-                  padding: "0.5rem 1.5rem",
-                  borderRadius: "6px",
-                  cursor: archiveOrderLoading ? "not-allowed" : "pointer",
-                  fontSize: "14px",
-                  opacity: archiveOrderLoading ? 0.5 : 1
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmArchiveOrderToggle}
-                disabled={archiveOrderLoading}
-                style={{
-                  backgroundColor: pendingArchiveOrder.isArchived ? "#10b981" : "#6b7280",
-                  color: "white",
-                  border: "none",
-                  padding: "0.5rem 1.5rem",
-                  borderRadius: "6px",
-                  cursor: archiveOrderLoading ? "not-allowed" : "pointer",
-                  fontSize: "14px",
-                  opacity: archiveOrderLoading ? 0.5 : 1
-                }}
-              >
-                {archiveOrderLoading ? (pendingArchiveOrder.isArchived ? "Unarchiving..." : "Archiving...") : (pendingArchiveOrder.isArchived ? "Unarchive Order" : "Archive Order")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ArchiveOrderDialog
+        show={showArchiveOrderConfirm}
+        pendingOrder={pendingArchiveOrder}
+        loading={archiveOrderLoading}
+        onCancel={() => setShowArchiveOrderConfirm(false)}
+        onConfirm={confirmArchiveOrderToggle}
+      />
 
-      {/* Notification Toast */}
-      {showNotification && (
-        <div
-          style={{
-            position: "fixed",
-            top: "100px",
-            right: "24px",
-            backgroundColor: "#1f1f1f",
-            border: "1px solid #404040",
-            borderRadius: "8px",
-            padding: "1rem 1.5rem",
-            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
-            zIndex: 1200,
-            maxWidth: "400px"
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "20px" }}>ℹ️</span>
-            <span style={{ color: "#d1d5db", fontSize: "14px" }}>{notificationMessage}</span>
-          </div>
-        </div>
-      )}
+      <NotificationToast show={showNotification} message={notificationMessage} />
     </div>
   );
 }
