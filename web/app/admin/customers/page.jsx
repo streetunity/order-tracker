@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -44,7 +45,8 @@ export default function CustomersPage() {
     try {
       setLoading(true);
       const res = await fetch("/api/accounts", {
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        cache: "no-store"
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -63,18 +65,20 @@ export default function CustomersPage() {
     }
   }, [user]);
 
-  const filteredCustomers = customers.filter(customer => {
-    if (!q.trim()) return true;
-    const searchTerm = q.toLowerCase();
-    return (
-      customer.name?.toLowerCase().includes(searchTerm) ||
-      customer.contactName?.toLowerCase().includes(searchTerm) ||
-      customer.email?.toLowerCase().includes(searchTerm) ||
-      customer.phone?.toLowerCase().includes(searchTerm) ||
-      customer.address?.toLowerCase().includes(searchTerm) ||
-      customer.machineVoltage?.toLowerCase().includes(searchTerm)
-    );
-  });
+  const filteredCustomers = customers
+    .filter(customer => {
+      if (!q.trim()) return true;
+      const searchTerm = q.toLowerCase();
+      return (
+        customer.name?.toLowerCase().includes(searchTerm) ||
+        customer.contactName?.toLowerCase().includes(searchTerm) ||
+        customer.email?.toLowerCase().includes(searchTerm) ||
+        customer.phone?.toLowerCase().includes(searchTerm) ||
+        customer.address?.toLowerCase().includes(searchTerm) ||
+        customer.machineVoltage?.toLowerCase().includes(searchTerm)
+      );
+    })
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 
   async function handleEdit(customer) {
     setExpandedCustomer(customer.id);
