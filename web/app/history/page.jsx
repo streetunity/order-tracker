@@ -695,16 +695,20 @@ export default function AuditHistoryViewer() {
     );
   }
 
-  // Filter sidebar entities
-  const filteredAccounts = accounts.filter(acc =>
-    acc.name?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
-    acc.email?.toLowerCase().includes(sidebarSearch.toLowerCase())
-  );
+  // Filter and sort sidebar entities alphabetically
+  const filteredAccounts = accounts
+    .filter(acc =>
+      acc.name?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+      acc.email?.toLowerCase().includes(sidebarSearch.toLowerCase())
+    )
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 
-  const filteredOrders = orders.filter(order =>
-    order.poNumber?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
-    order.account?.name?.toLowerCase().includes(sidebarSearch.toLowerCase())
-  );
+  const filteredOrders = orders
+    .filter(order =>
+      order.poNumber?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+      order.account?.name?.toLowerCase().includes(sidebarSearch.toLowerCase())
+    )
+    .sort((a, b) => (a.account?.name || '').localeCompare(b.account?.name || '', undefined, { sensitivity: 'base' }));
 
   // Don't render until authentication is checked
   if (!user || !isAdmin) {
