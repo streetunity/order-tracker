@@ -1,5 +1,5 @@
 // Component for displaying and editing a single order item row
-// Handles both locked and unlocked states, admin-only fields, and extended shipping
+// Handles both locked and unlocked states, admin-only fields, and large machine flag
 import { useState } from "react";
 import SharedShipmentSection from "./SharedShipmentSection";
 
@@ -61,7 +61,7 @@ export default function EditableRow({
       }}>
         <td style={{ textAlign: "center", padding: "8px 3px" }}>
           {hasExtendedShipping && (
-            <span style={{ color: "var(--success)", fontSize: "16px" }} title="Extended Shipping">⭐</span>
+            <span style={{ color: "var(--success)", fontSize: "16px" }} title="Large Machine">⭐</span>
           )}
         </td>
         <td>
@@ -264,14 +264,17 @@ export default function EditableRow({
         </td>
       </tr>
       
-      {/* Lines 5-7: Extended Shipping checkbox + Purchasing Notes (3 rows, admin only) */}
+      {/* Lines 5-7: Large Machine checkbox + Purchasing Notes (3 rows, admin only) */}
       <tr style={{ 
         backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", 
         ...(hasChanges && { boxShadow: "inset 4px 0 0 #f59e0b" })
       }}>
         <td colSpan="7" style={{ padding: "8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div 
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              title="Check this box only if this is a large machine that requires extended time in manufacturing"
+            >
               <input
                 type="checkbox"
                 id={`extended-${item.id}`}
@@ -291,7 +294,7 @@ export default function EditableRow({
                   whiteSpace: "nowrap"
                 }}
               >
-                ⭐ Extended Shipping
+                ⭐ Large Machine
               </label>
             </div>
             
@@ -320,7 +323,7 @@ export default function EditableRow({
               color: "var(--success)", 
               fontStyle: "italic" 
             }}>
-              This item requires extended lead time and will add extra days to the ETA
+              This is a large machine that requires extended time in manufacturing
             </div>
           )}
         </td>
