@@ -1,12 +1,46 @@
 "use client";
 export const dynamic = 'force-dynamic';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+
+const STORAGE_KEY = "generic-manifest-history";
+const MAX_SAVED = 5;
+
+function loadSavedManifests() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveManifestToHistory(entry) {
+  try {
+    const existing = loadSavedManifests();
+    const updated = [entry, ...existing].slice(0, MAX_SAVED);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
+function removeSavedManifest(index) {
+  try {
+    const existing = loadSavedManifests();
+    existing.splice(index, 1);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+    return existing;
+  } catch {
+    return [];
+  }
+}
 
 export default function GenericManifestPage() {
   const { user, loading: authLoading } = useAuth();
@@ -22,15 +56,46 @@ export default function GenericManifestPage() {
   const [editingId, setEditingId] = useState(null);
   const [generating, setGenerating] = useState(false);
 
+  // Saved manifests
+  const [savedManifests, setSavedManifests] = useState([]);
+  const [showSaved, setShowSaved] = useState(false);
+
   // Notification
   const [notif, setNotif] = useState("");
+
+  // Load saved manifests on mount
+  useEffect(() => {
+    setSavedManifests(loadSavedManifests());
+  }, []);
 
   function showNotif(msg) {
     setNotif(msg);
     setTimeout(() => setNotif(""), 3000);
   }
 
-  // ---- Container management (mirrors ContainersSection.jsx) ----
+  // ---- Saved manifest actions ----
+
+  function loadManifest(manifest) {
+    setCustomerName(manifest.customerName || "");
+    setCustomerAddress(manifest.customerAddress || "");
+    setCustomerPhone(manifest.customerPhone || "");
+    // Re-generate IDs to avoid key conflicts
+    setContainers((manifest.containers || []).map((c, i) => ({
+      ...c,
+      id: `box-${Date.now()}-${i}`
+    })));
+    setEditingId(null);
+    setShowSaved(false);
+    showNotif("Manifest loaded — edit and regenerate as needed");
+  }
+
+  function deleteManifest(index) {
+    const updated = removeSavedManifest(index);
+    setSavedManifests(updated);
+    showNotif("Saved manifest removed");
+  }
+
+  // ---- Container management ----
 
   function addContainer() {
     const newContainer = {
@@ -70,7 +135,7 @@ export default function GenericManifestPage() {
   const totalWeight = containers.reduce((sum, c) => sum + (c.weight || 0), 0);
   const boxCount = containers.length;
 
-  // ---- PDF Generation (mirrors existing manifest format) ----
+  // ---- PDF Generation ----
 
   async function generateManifest() {
     if (!customerName.trim()) {
@@ -84,6 +149,20 @@ export default function GenericManifestPage() {
 
     try {
       setGenerating(true);
+
+      // Save to history
+      const entry = {
+        customerName,
+        customerAddress,
+        customerPhone,
+        containers: containers.map(({ id, ...rest }) => rest), // strip IDs for storage
+        savedAt: new Date().toISOString(),
+        boxCount: containers.length,
+        totalWeight
+      };
+      const updated = saveManifestToHistory(entry);
+      setSavedManifests(updated);
+
       const doc = new jsPDF();
 
       // Try to load company logo
@@ -97,7 +176,6 @@ export default function GenericManifestPage() {
         });
         doc.addImage(logoImg, "PNG", 14, 10, 40, 20);
       } catch (e) {
-        // Logo not available, continue without it
         console.log("Logo not available, generating without logo");
       }
 
@@ -138,7 +216,6 @@ export default function GenericManifestPage() {
         doc.setFont(undefined, "bold");
         doc.text("Address:", 14, infoY);
         doc.setFont(undefined, "normal");
-        // Handle multi-line addresses
         const addressLines = doc.splitTextToSize(customerAddress, 140);
         doc.text(addressLines, 50, infoY);
         infoY += 7 * addressLines.length;
@@ -208,7 +285,7 @@ export default function GenericManifestPage() {
       const fileName = `Shipping_Manifest_${safeCustomerName}_${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(fileName);
 
-      showNotif("Shipping manifest generated successfully!");
+      showNotif("Shipping manifest generated & saved to history!");
     } catch (error) {
       console.error("Error generating manifest:", error);
       showNotif(`Failed to generate manifest: ${error.message}`);
@@ -288,26 +365,121 @@ export default function GenericManifestPage() {
             </p>
           </div>
 
-          <button
-            onClick={generateManifest}
-            disabled={generating}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "12px 24px",
-              background: generating ? "rgba(220, 38, 38, 0.5)" : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: generating ? "not-allowed" : "pointer",
-              fontWeight: "600",
-              fontSize: "14px"
-            }}
-          >
-            {generating ? "Generating..." : "📄 Generate Manifest PDF"}
-          </button>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {savedManifests.length > 0 && (
+              <button
+                onClick={() => setShowSaved(!showSaved)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "12px 20px",
+                  background: showSaved ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  color: "rgba(255, 255, 255, 0.8)",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: "500",
+                  fontSize: "14px"
+                }}
+              >
+                🕘 Recent ({savedManifests.length})
+              </button>
+            )}
+            <button
+              onClick={generateManifest}
+              disabled={generating}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "12px 24px",
+                background: generating ? "rgba(220, 38, 38, 0.5)" : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: generating ? "not-allowed" : "pointer",
+                fontWeight: "600",
+                fontSize: "14px"
+              }}
+            >
+              {generating ? "Generating..." : "📄 Generate Manifest PDF"}
+            </button>
+          </div>
         </div>
+
+        {/* Recent Manifests Panel */}
+        {showSaved && savedManifests.length > 0 && (
+          <div style={{
+            background: "rgba(255, 255, 255, 0.03)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "12px",
+            padding: "20px",
+            marginBottom: 24
+          }}>
+            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#fff", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              🕘 Recent Manifests
+              <span style={{ fontSize: "12px", fontWeight: "400", color: "rgba(255,255,255,0.4)" }}>
+                — click to load into form
+              </span>
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {savedManifests.map((m, idx) => {
+                const date = new Date(m.savedAt);
+                const dateStr = date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "12px 16px",
+                      backgroundColor: "rgba(255, 255, 255, 0.02)",
+                      border: "1px solid rgba(255, 255, 255, 0.08)",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      transition: "background 0.15s"
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)"}
+                    onClick={() => loadManifest(m)}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: "500", fontSize: "14px", color: "#e4e4e4", marginBottom: 2 }}>
+                        {m.customerName}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <span>{dateStr}</span>
+                        <span>📦 {m.boxCount || 0} {(m.boxCount || 0) === 1 ? 'box' : 'boxes'}</span>
+                        {m.totalWeight > 0 && <span>⚖️ {m.totalWeight.toFixed(1)} lbs</span>}
+                        {m.customerPhone && <span>📞 {m.customerPhone}</span>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteManifest(idx);
+                      }}
+                      style={{
+                        padding: "4px 10px",
+                        background: "rgba(239, 68, 68, 0.1)",
+                        border: "1px solid rgba(239, 68, 68, 0.3)",
+                        color: "#ef4444",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        marginLeft: 12
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Customer Information Card */}
         <div style={{
