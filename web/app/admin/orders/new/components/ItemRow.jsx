@@ -214,7 +214,7 @@ export default function ItemRow({
         />
       </div>
 
-      {/* Row 5: Price, Private Notes, and Extended Shipping */}
+      {/* Row 5: Price, Private Notes, and Large Machine */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "12px", alignItems: "end" }}>
         <div>
           <label style={{
@@ -257,22 +257,25 @@ export default function ItemRow({
         </div>
 
         <div style={{ paddingBottom: "8px" }}>
-          <label style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            cursor: "pointer",
-            fontSize: "13px",
-            color: "#e4e4e4",
-            userSelect: "none"
-          }}>
+          <label 
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+              fontSize: "13px",
+              color: "#e4e4e4",
+              userSelect: "none"
+            }}
+            title="Check this box only if this is a large machine that requires extended time in manufacturing"
+          >
             <input
               type="checkbox"
               checked={item.hasExtendedShipping}
               onChange={(e) => updateItem(index, 'hasExtendedShipping', e.target.checked)}
               style={{ cursor: "pointer" }}
             />
-            Extended Shipping
+            Large Machine
           </label>
         </div>
       </div>
