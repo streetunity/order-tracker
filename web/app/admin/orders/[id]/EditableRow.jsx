@@ -58,7 +58,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
               style={{ width: "125px", opacity: isLocked ? 0.6 : 1 }}
             />
             {hasExtendedShipping && (
-              <span style={{ color: "var(--success)", fontSize: "16px" }} title="Extended Shipping">⭐</span>
+              <span style={{ color: "var(--success)", fontSize: "16px" }} title="Large Machine">⭐</span>
             )}
           </div>
         </td>
@@ -201,12 +201,15 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
           </div>
         </td>
       </tr>
-      {/* Second row for extended shipping (visible to all users) and admin fields */}
+      {/* Second row for large machine checkbox (visible to all users) and admin fields */}
       <tr style={{ backgroundColor: hasExtendedShipping ? "rgba(0, 255, 170, 0.05)" : "transparent", borderBottom: "2px solid #404040" }}>
         <td colSpan="9" style={{ padding: "8px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-            {/* Extended Shipping - Available to all users */}
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {/* Large Machine - Available to all users */}
+            <div 
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              title="Check this box only if this is a large machine that requires extended time in manufacturing"
+            >
               <input
                 type="checkbox"
                 id={`extended-${item.id}`}
@@ -225,7 +228,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
                   opacity: isLocked ? 0.6 : 1
                 }}
               >
-                ⭐ Extended Shipping
+                ⭐ Large Machine
               </label>
             </div>
             
@@ -269,7 +272,7 @@ function EditableRow({ item, onSave, onDelete, onMarkOrdered, onUnmarkOrdered, d
               color: "var(--success)", 
               fontStyle: "italic" 
             }}>
-              This item requires extended lead time and will add extra days to the ETA
+              This is a large machine that requires extended time in manufacturing
             </div>
           )}
         </td>
