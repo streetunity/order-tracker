@@ -698,7 +698,7 @@ export default function EditOrderPage({ params }) {
                 borderRadius: "6px",
                 color: "var(--success)"
               }}>
-                ⭐ <strong>Extended Shipping Active:</strong> This order contains items marked for extended shipping. 
+                ⭐ <strong>Large Machine Active:</strong> This order contains items marked as large machines. 
                 The customer tracking page will show an extended ETA.
               </div>
             )}
@@ -717,7 +717,7 @@ export default function EditOrderPage({ params }) {
                 <div>
                   <strong style={{ color: "#fecaca" }}>🔒 This order is locked</strong>
                   <div style={{ color: "#fca5a5", fontSize: "12px", marginTop: "4px" }}>
-                    Item details cannot be edited while the order is locked. Admin fields (price/purchasing notes) and extended shipping remain editable.
+                    Item details cannot be edited while the order is locked. Admin fields (price/purchasing notes) and large machine flag remain editable.
                     {order.lockedAt && (
                       <span> Locked on {new Date(order.lockedAt).toLocaleDateString()} by {order.lockedBy || "Admin"}</span>
                     )}
