@@ -129,7 +129,7 @@ export default function ItemsTable({
           marginBottom: "8px",
           fontStyle: "italic"
         }}>
-          Note: Item editing is disabled while order is locked. Extended shipping and admin fields (price/purchasing notes) remain editable.
+          Note: Item editing is disabled while order is locked. Large machine flag and admin fields (price/purchasing notes) remain editable.
         </div>
       )}
       
@@ -278,7 +278,10 @@ export default function ItemsTable({
                 style={{ width: "180px" }}
               />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div 
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              title="Check this box only if this is a large machine that requires extended time in manufacturing"
+            >
               <input
                 type="checkbox"
                 id="extendedShipping"
@@ -287,7 +290,7 @@ export default function ItemsTable({
                 style={{ width: "16px", height: "16px" }}
               />
               <label htmlFor="extendedShipping" style={{ fontSize: "12px", color: newItem.hasExtendedShipping ? "var(--success)" : "#6b7280" }}>
-                ⭐ Extended
+                ⭐ Large Machine
               </label>
             </div>
             <button className="btn primary" type="submit" disabled={disabled}>Add Item</button>
