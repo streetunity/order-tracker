@@ -11,13 +11,39 @@
 }
 
 .history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
   margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.history-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .history-header h1 {
   font-size: 32px;
   font-weight: bold;
   color: var(--accent, #dc2626);
+  margin: 0;
+}
+
+.history-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.history-count {
+  font-size: 14px;
+  color: var(--text-secondary, #b3b3b3);
+  padding: 8px 14px;
+  background: var(--bg-tertiary, #252525);
+  border-radius: 6px;
 }
 
 .back-button {
@@ -26,19 +52,35 @@
   color: var(--text-secondary, #b3b3b3);
   cursor: pointer;
   font-size: 14px;
-  margin-bottom: 16px;
   transition: color 0.2s ease;
+  text-align: left;
+  padding: 0;
 }
 
 .back-button:hover {
   color: var(--text-primary, #ffffff);
 }
 
+.filter-select {
+  padding: 8px 14px;
+  background: var(--bg-tertiary, #2a2a2a);
+  color: var(--text-primary, #ffffff);
+  border: 1px solid var(--border, #333333);
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--accent, #dc2626);
+}
+
 .items-table-container {
   background: var(--bg-secondary, #1a1a1a);
   border: 1px solid var(--border, #333333);
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .items-table {
@@ -57,6 +99,7 @@
   font-size: 14px;
   color: var(--text-secondary, #b3b3b3);
   border-bottom: 1px solid var(--border, #333333);
+  white-space: nowrap;
 }
 
 .items-table td {
@@ -75,6 +118,28 @@
 
 .items-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+/* Status text colors */
+.status-text {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.status-text.pending {
+  color: #f59e0b;
+}
+
+.status-text.filed {
+  color: #3b82f6;
+}
+
+.status-text.released {
+  color: #22c55e;
+}
+
+.status-text.under-exam {
+  color: #dc2626;
 }
 
 .loading-state {
