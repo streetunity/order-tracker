@@ -39,6 +39,34 @@ const requireBrokerOrStaff = (req, res, next) => {
 };
 
 // =============================
+// HELPER: Sync status from shipment to all linked items
+// =============================
+async function syncShipmentStatusToItems(shipmentId, newStatus, additionalData = {}) {
+  const itemUpdateData = {
+    customsDocumentStatus: newStatus
+  };
+
+  // Sync date fields too
+  if (additionalData.customsFiledDate) {
+    itemUpdateData.customsFiledDate = additionalData.customsFiledDate;
+  }
+  if (additionalData.customsClearedDate) {
+    itemUpdateData.customsClearedDate = additionalData.customsClearedDate;
+  }
+
+  const result = await prisma.orderItem.updateMany({
+    where: {
+      shipmentId: shipmentId,
+      archivedAt: null
+    },
+    data: itemUpdateData
+  });
+
+  console.log(`[SHIPMENT SYNC] Synced status "${newStatus}" to ${result.count} items in shipment ${shipmentId}`);
+  return result.count;
+}
+
+// =============================
 // SHIPMENT CRUD OPERATIONS
 // =============================
 
@@ -221,7 +249,7 @@ router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
                 poNumber: true,
                 sku: true,
                 account: {
-                  select: { id: true, name: true, email: true, phone: true }
+                  select: { id: true, name: true, email: true, phone: true, contactName: true }
                 }
               }
             },
@@ -306,6 +334,7 @@ router.post('/', authGuard, requireInternalStaff, async (req, res) => {
 /**
  * PUT /api/shipments/:id
  * Update shipment details
+ * When customs status changes, syncs to all linked items
  */
 router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
@@ -326,15 +355,20 @@ router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
     if (portOfDestination !== undefined) updateData.portOfDestination = portOfDestination;
     if (customsNotes !== undefined) updateData.customsNotes = customsNotes;
 
+    // Track date changes for item sync
+    const itemSyncData = {};
+
     // Handle customs status changes
     if (customsDocumentStatus !== undefined && customsDocumentStatus !== current.customsDocumentStatus) {
       updateData.customsDocumentStatus = customsDocumentStatus;
       
       if (customsDocumentStatus === 'FILED' && !current.customsFiledDate) {
         updateData.customsFiledDate = new Date();
+        itemSyncData.customsFiledDate = updateData.customsFiledDate;
       }
       if (customsDocumentStatus === 'CLEARED' && !current.customsClearedDate) {
         updateData.customsClearedDate = new Date();
+        itemSyncData.customsClearedDate = updateData.customsClearedDate;
       }
 
       // Log status change
@@ -349,6 +383,9 @@ router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
           notes: customsNotes
         }
       });
+
+      // Sync status to all linked items
+      await syncShipmentStatusToItems(id, customsDocumentStatus, itemSyncData);
     }
 
     const shipment = await prisma.shipment.update({
@@ -494,6 +531,7 @@ router.delete('/:id', authGuard, requireAdmin, async (req, res) => {
 /**
  * POST /api/shipments/:id/link-item
  * Link an item to a shipment (Admin or Agent)
+ * Also syncs the shipment's current customs status to the newly linked item
  */
 router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) => {
   try {
@@ -526,9 +564,21 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
       return res.status(400).json({ error: 'Item is already linked to a shipment' });
     }
 
+    // Link item and sync shipment's customs status
+    const updateData = { shipmentId: id };
+    if (shipment.customsDocumentStatus) {
+      updateData.customsDocumentStatus = shipment.customsDocumentStatus;
+    }
+    if (shipment.customsFiledDate) {
+      updateData.customsFiledDate = shipment.customsFiledDate;
+    }
+    if (shipment.customsClearedDate) {
+      updateData.customsClearedDate = shipment.customsClearedDate;
+    }
+
     await prisma.orderItem.update({
       where: { id: itemId },
-      data: { shipmentId: id }
+      data: updateData
     });
 
     // Log the linking
