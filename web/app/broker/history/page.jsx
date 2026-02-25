@@ -14,6 +14,7 @@ export default function BrokerHistory() {
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 0, limit: 20 });
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
     if (!user || (user.role !== 'BROKER' && user.role !== 'SUPER_ADMIN')) {
@@ -22,28 +23,29 @@ export default function BrokerHistory() {
     }
 
     loadHistory();
-  }, [user, pagination.page, router]);
+  }, [user, pagination.page, statusFilter, router]);
 
   async function loadHistory() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Note: Using Next.js API routes (/api/customs) which proxy to backend
-      const res = await fetch(
-        `/api/customs/history?page=${pagination.page}&limit=20`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          cache: 'no-store'
-        }
-      );
+      let url = `/api/customs/history?page=${pagination.page}&limit=20`;
+      if (statusFilter) {
+        url += `&status=${statusFilter}`;
+      }
+
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
+      });
 
       if (res.ok) {
         const data = await res.json();
-        setItems(data.items);
-        setPagination(data.pagination);
+        setItems(data.items || []);
+        setPagination(prev => ({ ...prev, ...data.pagination }));
       }
 
       setLoading(false);
@@ -57,6 +59,11 @@ export default function BrokerHistory() {
     setPagination(prev => ({ ...prev, page: newPage }));
   }
 
+  function handleStatusFilter(newStatus) {
+    setStatusFilter(newStatus);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }
+
   if (!user) {
     return null;
   }
@@ -68,13 +75,30 @@ export default function BrokerHistory() {
 
       <div className="broker-content">
         <div className="history-header">
-          <button
-            onClick={() => router.push('/broker/dashboard')}
-            className="back-button"
-          >
-            ← Back to Dashboard
-          </button>
-          <h1>Cleared Shipments History</h1>
+          <div className="history-header-left">
+            <button
+              onClick={() => router.push('/broker/dashboard')}
+              className="back-button"
+            >
+              ← Back to Dashboard
+            </button>
+            <h1>Customs History</h1>
+          </div>
+          <div className="history-filters">
+            <select
+              value={statusFilter}
+              onChange={(e) => handleStatusFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Statuses</option>
+              <option value="FILED">Filed</option>
+              <option value="RELEASED">Released</option>
+              <option value="UNDER_EXAM">Under Exam</option>
+            </select>
+            {pagination.total > 0 && (
+              <span className="history-count">{pagination.total} items</span>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -87,8 +111,10 @@ export default function BrokerHistory() {
                   <tr>
                     <th>Order #</th>
                     <th>Customer</th>
+                    <th>Contact</th>
                     <th>Product Code</th>
-                    <th>Entry Number</th>
+                    <th>Container</th>
+                    <th>Status</th>
                     <th>Cleared Date</th>
                     <th>Current Stage</th>
                   </tr>
@@ -96,23 +122,29 @@ export default function BrokerHistory() {
                 <tbody>
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="8">
                         <div className="empty-state">
-                          No cleared shipments found
+                          No processed items found
                         </div>
                       </td>
                     </tr>
                   ) : (
                     items.map(item => (
                       <tr key={item.id}>
-                        <td>{item.order.poNumber || 'N/A'}</td>
-                        <td>{item.order.account.name}</td>
+                        <td>{item.order?.poNumber || 'N/A'}</td>
+                        <td>{item.order?.account?.name || 'N/A'}</td>
+                        <td>{item.order?.account?.contactName || '-'}</td>
                         <td>{item.productCode || 'N/A'}</td>
-                        <td>{item.entryNumber || '-'}</td>
+                        <td>{item.shipment?.containerNumber || '-'}</td>
+                        <td>
+                          <span className={`status-text ${(item.customsDocumentStatus || 'pending').toLowerCase().replace('_', '-')}`}>
+                            {item.customsDocumentStatus || 'PENDING'}
+                          </span>
+                        </td>
                         <td>
                           {item.customsClearedDate
                             ? new Date(item.customsClearedDate).toLocaleDateString()
-                            : 'N/A'
+                            : '-'
                           }
                         </td>
                         <td>{item.currentStage}</td>
