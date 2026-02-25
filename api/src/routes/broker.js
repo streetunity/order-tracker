@@ -49,6 +49,44 @@ function calculateDaysAtSeaAndPriority(item, now) {
   return { daysAtSea, priority, atSeaDate };
 }
 
+// Helper: Sync status from an item update to its shipment + all sibling items
+async function syncItemStatusToShipmentAndSiblings(itemId, shipmentId, newStatus, dateFields = {}) {
+  // Update the shipment record
+  const shipmentUpdateData = { customsDocumentStatus: newStatus };
+  if (dateFields.customsFiledDate) {
+    shipmentUpdateData.customsFiledDate = dateFields.customsFiledDate;
+  }
+  if (dateFields.customsClearedDate) {
+    shipmentUpdateData.customsClearedDate = dateFields.customsClearedDate;
+  }
+
+  await prisma.shipment.update({
+    where: { id: shipmentId },
+    data: shipmentUpdateData
+  });
+
+  // Update all sibling items (excluding the one that was just updated)
+  const siblingUpdateData = { customsDocumentStatus: newStatus };
+  if (dateFields.customsFiledDate) {
+    siblingUpdateData.customsFiledDate = dateFields.customsFiledDate;
+  }
+  if (dateFields.customsClearedDate) {
+    siblingUpdateData.customsClearedDate = dateFields.customsClearedDate;
+  }
+
+  const result = await prisma.orderItem.updateMany({
+    where: {
+      shipmentId: shipmentId,
+      id: { not: itemId },
+      archivedAt: null
+    },
+    data: siblingUpdateData
+  });
+
+  console.log(`[BROKER SYNC] Synced status "${newStatus}" from item ${itemId} to shipment ${shipmentId} and ${result.count} sibling items`);
+  return result.count;
+}
+
 export function createBrokerRouter() {
   const router = express.Router();
 
@@ -206,6 +244,7 @@ export function createBrokerRouter() {
 
   // POST /api/broker/update-status/:id
   // Update customs document status and entry number
+  // If item belongs to a shipment, syncs status to shipment + all sibling items
   router.post('/update-status/:id', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { id } = req.params;
@@ -243,14 +282,19 @@ export function createBrokerRouter() {
         entryNumber: entryNumber !== undefined ? (entryNumber || null) : undefined
       };
 
+      // Track date fields for syncing
+      const dateFields = {};
+
       // Set filed date when status changes to FILED
       if (status === 'FILED' && currentItem.customsDocumentStatus !== 'FILED') {
         updateData.customsFiledDate = new Date();
+        dateFields.customsFiledDate = updateData.customsFiledDate;
       }
 
       // Set cleared date when status changes to RELEASED
       if (status === 'RELEASED' && currentItem.customsDocumentStatus !== 'RELEASED') {
         updateData.customsClearedDate = new Date();
+        dateFields.customsClearedDate = updateData.customsClearedDate;
       }
 
       const item = await prisma.orderItem.update({
@@ -268,6 +312,24 @@ export function createBrokerRouter() {
           }
         }
       });
+
+      // If item belongs to a shipment, sync status to shipment + siblings
+      if (currentItem.shipmentId) {
+        await syncItemStatusToShipmentAndSiblings(id, currentItem.shipmentId, status, dateFields);
+
+        // Log the sync to shipment activity
+        await prisma.shipmentActivityLog.create({
+          data: {
+            shipmentId: currentItem.shipmentId,
+            userId: req.user.id,
+            userName: req.user.name,
+            action: 'STATUS_UPDATED',
+            oldStatus: currentItem.customsDocumentStatus || 'PENDING',
+            newStatus: status,
+            notes: `Status synced from item ${currentItem.productCode || id} update by broker`
+          }
+        });
+      }
 
       // Log the activity
       await prisma.brokerActivityLog.create({
@@ -313,7 +375,7 @@ export function createBrokerRouter() {
             type,
             category: 'BROKER',
             title: `Customs ${status}: ${item.productCode}`,
-            message: `Broker updated customs status to ${status} for ${item.productCode} in order ${item.order.poNumber || item.order.id}${notes ? '. Note: ' + notes : ''}`,
+            message: `Broker updated customs status to ${status} for ${item.productCode} in order ${item.order.poNumber || item.order.id}${currentItem.shipmentId ? ' (synced to shipment)' : ''}${notes ? '. Note: ' + notes : ''}`,
             relatedOrderId: item.order.id,
             relatedItemId: item.id,
             metadata: JSON.stringify({
@@ -322,14 +384,15 @@ export function createBrokerRouter() {
               customerName: item.order.account?.name,
               brokerName: req.user.name,
               notes: notes || null,
-              entryNumber: entryNumber || null
+              entryNumber: entryNumber || null,
+              syncedToShipment: !!currentItem.shipmentId
             }),
             priority
           }
         });
       }
 
-      console.log(`[BROKER] Created ${superAdmins.length} notifications for status update: ${status}`);
+      console.log(`[BROKER] Created ${superAdmins.length} notifications for status update: ${status}${currentItem.shipmentId ? ' (synced to shipment)' : ''}`);
 
       res.json(item);
     } catch (error) {
