@@ -514,50 +514,53 @@ export function createBrokerRouter() {
   });
 
   // GET /api/broker/history
-  // Get completed shipments (for reference)
+  // Get items that have moved past AT_SEA stage and had broker interaction
+  // Shows items no longer at sea that have a customs status set (any status except null)
   router.get('/history', authGuard, requireBrokerRole, async (req, res) => {
     try {
-      const { page = 1, limit = 20 } = req.query;
+      const { page = 1, limit = 20, status } = req.query;
       const skip = (page - 1) * limit;
 
+      const where = {
+        // Items NOT currently at sea (they've moved on)
+        currentStage: { not: 'AT_SEA' },
+        // Must have had some customs processing (status was set at some point)
+        customsDocumentStatus: status
+          ? status  // Filter by specific status if provided
+          : { not: 'PENDING' }, // Default: show anything that progressed past PENDING
+        archivedAt: null
+      };
+
       const items = await prisma.orderItem.findMany({
-        where: {
-          OR: [
-            { currentStage: 'Arrived at SMT' },
-            { currentStage: 'Quality Control' },
-            { currentStage: 'Delivered' }
-          ],
-          customsDocumentStatus: { in: ['CLEARED', 'RELEASED'] },
-          archivedAt: null
-        },
+        where,
         include: {
           order: {
             select: {
               poNumber: true,
               account: {
                 select: {
-                  name: true
+                  name: true,
+                  contactName: true
                 }
               }
             }
+          },
+          shipment: {
+            select: {
+              id: true,
+              containerNumber: true
+            }
           }
         },
-        orderBy: { customsClearedDate: 'desc' },
+        orderBy: [
+          { customsClearedDate: 'desc' },
+          { updatedAt: 'desc' }
+        ],
         skip: parseInt(skip),
         take: parseInt(limit)
       });
 
-      const total = await prisma.orderItem.count({
-        where: {
-          OR: [
-            { currentStage: 'Arrived at SMT' },
-            { currentStage: 'Quality Control' },
-            { currentStage: 'Delivered' }
-          ],
-          customsDocumentStatus: { in: ['CLEARED', 'RELEASED'] },
-          archivedAt: null
-        }
-      });
+      const total = await prisma.orderItem.count({ where });
 
       res.json({
         items,
