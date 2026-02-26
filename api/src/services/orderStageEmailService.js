@@ -157,7 +157,8 @@ export async function sendStageNotification(prisma, {
 
   // Build template variables
   const stageConfig = STAGE_CONFIG[newStage];
-  const trackingUrl = `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/track/${order.trackingToken || order.id}`;
+  const baseUrl = process.env.FRONTEND_URL || 'https://smt-orders.com';
+  const trackingUrl = `${baseUrl}/t/${order.trackingToken || order.id}`;
   
   const templateVariables = {
     customerName: order.account.contactName || order.account.name || "Customer",
