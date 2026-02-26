@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireInvoicingPermission } from '../middleware/invoicingAuth.js';
 import { generateInvoicePDF, uploadPDFToS3, getPDFSignedUrl } from '../services/pdfService.js';
-import { sendInvoiceEmail } from '../services/emailService.js';
+import { sendInvoice } from '../services/invoiceEmailService.js';
 
 export function createInvoicePdfRouter(prisma) {
   const router = express.Router();
@@ -107,7 +107,7 @@ export function createInvoicePdfRouter(prisma) {
   });
 
   // ============================================
-  // EMAIL SENDING
+  // EMAIL SENDING (via AWS SES)
   // ============================================
 
   // POST /invoices/:id/send - Send invoice via email
@@ -117,15 +117,17 @@ export function createInvoicePdfRouter(prisma) {
         where: { id: req.params.id },
         include: {
           customer: true,
-          items: { orderBy: { sortOrder: 'asc' } },
-          payments: { orderBy: { createdAt: 'desc' } },
-          paymentSchedule: { orderBy: { sortOrder: 'asc' } },
           createdBy: { select: { id: true, name: true, email: true } }
         }
       });
 
       if (!invoice) {
         return res.status(404).json({ error: 'Invoice not found' });
+      }
+
+      // Check access for AGENT role
+      if (req.user.role === 'AGENT' && invoice.createdById !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       const { toEmail, ccEmails, customMessage, regeneratePDF } = req.body;
@@ -135,74 +137,50 @@ export function createInvoicePdfRouter(prisma) {
         return res.status(400).json({ error: 'No recipient email provided' });
       }
 
-      // Get company settings
-      const companySettings = await prisma.companySettings.findFirst() || {
-        companyName: 'Stealth Machine Tools',
-        companyEmail: 'sales@stealthmachinetools.com',
-        companyPhone: '(555) 123-4567'
-      };
+      // Regenerate PDF if requested or missing
+      if (!invoice.pdfS3Key || regeneratePDF) {
+        try {
+          const companySettings = await prisma.companySettings.findFirst() || {
+            companyName: 'Stealth Machine Tools'
+          };
 
-      // Generate PDF if needed
-      let pdfS3Key = invoice.pdfS3Key;
-      if (!pdfS3Key || regeneratePDF) {
-        const pdfBuffer = await generateInvoicePDF(invoice, companySettings);
-        const s3Key = `invoices/${invoice.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
-        await uploadPDFToS3(pdfBuffer, s3Key);
-        pdfS3Key = s3Key;
+          const fullInvoice = await prisma.invoice.findUnique({
+            where: { id: invoice.id },
+            include: {
+              customer: true,
+              items: { orderBy: { sortOrder: 'asc' } },
+              payments: { orderBy: { createdAt: 'desc' } },
+              paymentSchedule: { orderBy: { sortOrder: 'asc' } },
+              createdBy: { select: { id: true, name: true, email: true } }
+            }
+          });
 
-        await prisma.invoice.update({
-          where: { id: invoice.id },
-          data: {
-            pdfS3Key: s3Key,
-            pdfGeneratedAt: new Date()
-          }
-        });
+          const pdfBuffer = await generateInvoicePDF(fullInvoice, companySettings);
+          const s3Key = `invoices/${invoice.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
+          await uploadPDFToS3(pdfBuffer, s3Key);
+
+          await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() }
+          });
+        } catch (pdfError) {
+          console.error('[INVOICE SEND] PDF generation error:', pdfError);
+          // Continue without PDF if generation fails
+        }
       }
 
-      // Get user's email settings
-      const userEmailSettings = await prisma.userEmailSettings.findUnique({
-        where: { userId: req.user.id }
-      });
-
-      // Send email
-      await sendInvoiceEmail(invoice, {
+      // Send via invoiceEmailService (handles SES sending, email logging, status updates)
+      const result = await sendInvoice(prisma, {
+        invoiceId: invoice.id,
+        userId: req.user.id,
         toEmail: recipientEmail,
         ccEmails: ccEmails || [],
-        customMessage,
-        senderName: userEmailSettings?.senderName || req.user.name || companySettings.companyName,
-        senderEmail: userEmailSettings?.senderEmail || companySettings.companyEmail,
-        replyTo: userEmailSettings?.replyTo || companySettings.companyEmail,
-        companySettings,
-        pdfS3Key,
-        prisma
+        customMessage
       });
 
-      // Log the email
-      await prisma.emailLog.create({
-        data: {
-          invoiceId: invoice.id,
-          toEmail: recipientEmail,
-          ccEmails: ccEmails || [],
-          subject: `Invoice ${invoice.invoiceNumber} from ${companySettings.companyName}`,
-          sentById: req.user.id,
-          sentAt: new Date(),
-          status: 'SENT'
-        }
-      });
-
-      // Update invoice status and tracking
-      const updateData = {
-        lastSentAt: new Date(),
-        sentCount: invoice.sentCount + 1
-      };
-
-      if (invoice.status === 'DRAFT') {
-        updateData.status = 'SENT';
-      }
-
-      const updatedInvoice = await prisma.invoice.update({
+      // Fetch updated invoice
+      const updatedInvoice = await prisma.invoice.findUnique({
         where: { id: invoice.id },
-        data: updateData,
         include: {
           customer: true,
           items: { orderBy: { sortOrder: 'asc' } },
@@ -211,7 +189,7 @@ export function createInvoicePdfRouter(prisma) {
         }
       });
 
-      res.json({ message: 'Invoice sent successfully', invoice: updatedInvoice });
+      res.json({ message: 'Invoice sent successfully', invoice: updatedInvoice, emailResult: result });
     } catch (error) {
       console.error('POST /invoices/:id/send error:', error);
       res.status(500).json({ error: error.message });
