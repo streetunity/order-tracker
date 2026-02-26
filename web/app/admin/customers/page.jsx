@@ -90,7 +90,8 @@ export default function CustomersPage() {
       address: customer.address || "",
       phone: customer.phone || "",
       machineVoltage: customer.machineVoltage || "",
-      notes: customer.notes || ""
+      notes: customer.notes || "",
+      emailNotifications: customer.emailNotifications || false
     });
   }
 
@@ -109,8 +110,30 @@ export default function CustomersPage() {
       
       await loadCustomers();
       setEditingCustomer(null);
+      showNotif("Customer updated successfully");
     } catch (err) {
       alert(`Failed to save: ${err.message}`);
+    }
+  }
+
+  // Quick toggle email notifications without opening full edit mode
+  async function handleToggleEmail(customer) {
+    try {
+      const res = await fetch(`/api/accounts/${customer.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ emailNotifications: !customer.emailNotifications }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      
+      await loadCustomers();
+      showNotif(`Email notifications ${!customer.emailNotifications ? 'enabled' : 'disabled'} for ${customer.name}`);
+    } catch (err) {
+      showNotif(`Failed to update: ${err.message}`);
     }
   }
 
@@ -150,6 +173,32 @@ export default function CustomersPage() {
   }
 
   if (!user) return null;
+
+  // Reusable toggle switch style
+  const toggleSwitchStyle = (isOn) => ({
+    position: "relative",
+    width: "44px",
+    height: "24px",
+    borderRadius: "12px",
+    background: isOn ? "#dc2626" : "rgba(255, 255, 255, 0.15)",
+    cursor: "pointer",
+    transition: "background 0.2s ease",
+    border: "none",
+    padding: 0,
+    flexShrink: 0
+  });
+
+  const toggleKnobStyle = (isOn) => ({
+    position: "absolute",
+    top: "2px",
+    left: isOn ? "22px" : "2px",
+    width: "20px",
+    height: "20px",
+    borderRadius: "50%",
+    background: "#fff",
+    transition: "left 0.2s ease",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+  });
 
   return (
     <>
@@ -233,13 +282,40 @@ export default function CustomersPage() {
                           </span>
                         )}
                       </h3>
-                      <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.6)", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+                      <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.6)", display: "flex", gap: "20px", flexWrap: "wrap", alignItems: "center" }}>
                         {customer.email && <span>📧 {customer.email}</span>}
                         {customer.phone && <span>📞 {customer.phone}</span>}
                         {customer.machineVoltage && <span>⚡ {customer.machineVoltage}</span>}
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            background: customer.emailNotifications
+                              ? "rgba(34, 197, 94, 0.15)"
+                              : "rgba(255, 255, 255, 0.05)",
+                            color: customer.emailNotifications
+                              ? "#22c55e"
+                              : "rgba(255, 255, 255, 0.4)",
+                            border: `1px solid ${customer.emailNotifications ? "rgba(34, 197, 94, 0.3)" : "rgba(255, 255, 255, 0.1)"}`
+                          }}
+                        >
+                          {customer.emailNotifications ? "✉ Emails On" : "✉ Emails Off"}
+                        </span>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      {/* Quick email toggle */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleEmail(customer);
+                        }}
+                        style={toggleSwitchStyle(customer.emailNotifications)}
+                        title={customer.emailNotifications ? "Disable email notifications" : "Enable email notifications"}
+                      >
+                        <div style={toggleKnobStyle(customer.emailNotifications)} />
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -413,6 +489,34 @@ export default function CustomersPage() {
                               }}
                             />
                           </div>
+
+                          {/* Email Notifications Toggle */}
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "14px 16px",
+                            background: "rgba(255, 255, 255, 0.03)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            borderRadius: "8px"
+                          }}>
+                            <div>
+                              <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "rgba(255, 255, 255, 0.9)" }}>
+                                Email Notifications
+                              </label>
+                              <span style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.5)" }}>
+                                Send order stage update emails to this customer
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditForm({ ...editForm, emailNotifications: !editForm.emailNotifications })}
+                              style={toggleSwitchStyle(editForm.emailNotifications)}
+                            >
+                              <div style={toggleKnobStyle(editForm.emailNotifications)} />
+                            </button>
+                          </div>
+
                           <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
                             <button
                               onClick={() => handleSave(customer.id)}
@@ -466,6 +570,15 @@ export default function CustomersPage() {
                           <div>
                             <strong style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.6)" }}>Email:</strong>
                             <p style={{ marginTop: "6px", color: "rgba(255, 255, 255, 0.9)" }}>{customer.email || "Not provided"}</p>
+                          </div>
+                          <div>
+                            <strong style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.6)" }}>Email Notifications:</strong>
+                            <p style={{
+                              marginTop: "6px",
+                              color: customer.emailNotifications ? "#22c55e" : "rgba(255, 255, 255, 0.5)"
+                            }}>
+                              {customer.emailNotifications ? "Enabled — receives stage update emails" : "Disabled"}
+                            </p>
                           </div>
                           {customer.notes && (
                             <div style={{ gridColumn: "1 / -1" }}>
