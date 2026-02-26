@@ -17,7 +17,7 @@ const CATEGORIES = {
 
 const STAGES = [
   { key: "MANUFACTURING", label: "Manufacturing", icon: "🏭" },
-  { key: "TESTING", label: "Debugging & Testing", icon: "🔧" },
+  { key: "TESTING", label: "Debugging &amp; Testing", icon: "🔧" },
   { key: "SHIPPING", label: "Preparing Shipment", icon: "📦" },
   { key: "AT_SEA", label: "Container At Sea", icon: "🚢" },
   { key: "SMT", label: "Arrived at SMT", icon: "🏢" },
@@ -26,7 +26,7 @@ const STAGES = [
 ];
 
 export default function EmailTemplatesPage() {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
 
   // Main state
@@ -62,6 +62,7 @@ export default function EmailTemplatesPage() {
   // EFFECTS
   // ============================================
   useEffect(() => {
+    if (authLoading) return; // Wait for auth to finish loading from localStorage
     if (!user) {
       router.push("/login");
     } else if (!["SUPER_ADMIN", "ADMIN"].includes(user.role)) {
@@ -69,7 +70,7 @@ export default function EmailTemplatesPage() {
     } else {
       fetchAll();
     }
-  }, [user, router]);
+  }, [user, authLoading, router]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -319,6 +320,16 @@ export default function EmailTemplatesPage() {
   // ============================================
   // RENDER HELPERS
   // ============================================
+  if (authLoading) {
+    return (
+      <>
+        <TopNav />
+        <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "100px 24px 40px", textAlign: "center", color: "#666" }}>
+          Loading...
+        </div>
+      </>
+    );
+  }
   if (!user) return null;
   if (!["SUPER_ADMIN", "ADMIN"].includes(user.role)) return null;
 
