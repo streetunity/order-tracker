@@ -64,6 +64,14 @@ export default function BrokerHistory() {
     setPagination(prev => ({ ...prev, page: 1 }));
   }
 
+  function handleViewDetails(item) {
+    if (item.shipmentId) {
+      router.push(`/broker/shipment/${item.shipmentId}`);
+    } else {
+      router.push(`/broker/item/${item.id}`);
+    }
+  }
+
   if (!user) {
     return null;
   }
@@ -109,7 +117,6 @@ export default function BrokerHistory() {
               <table className="items-table">
                 <thead>
                   <tr>
-                    <th>Order #</th>
                     <th>Customer</th>
                     <th>Contact</th>
                     <th>Product Code</th>
@@ -117,6 +124,7 @@ export default function BrokerHistory() {
                     <th>Status</th>
                     <th>Cleared Date</th>
                     <th>Current Stage</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -131,7 +139,6 @@ export default function BrokerHistory() {
                   ) : (
                     items.map(item => (
                       <tr key={item.id}>
-                        <td>{item.order?.poNumber || 'N/A'}</td>
                         <td>{item.order?.account?.name || 'N/A'}</td>
                         <td>{item.order?.account?.contactName || '-'}</td>
                         <td>{item.productCode || 'N/A'}</td>
@@ -148,6 +155,15 @@ export default function BrokerHistory() {
                           }
                         </td>
                         <td>{item.currentStage}</td>
+                        <td>
+                          <button
+                            onClick={() => handleViewDetails(item)}
+                            className="broker-btn broker-btn-primary"
+                            style={{ padding: '6px 16px', fontSize: '13px' }}
+                          >
+                            View Details
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
