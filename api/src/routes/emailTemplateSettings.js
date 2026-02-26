@@ -537,7 +537,7 @@ export function createEmailTemplateSettingsRouter(prisma) {
         type: 'Earned',
         amount: '625.00',
         payoutStage: 'SHIPPING',
-        commissionsUrl: '#',
+        commissionsUrl: 'https://smt-orders.com/my-commissions',
       };
 
       let processedSubject = subject || '';
@@ -623,7 +623,7 @@ export function createEmailTemplateSettingsRouter(prisma) {
         type: 'Test',
         amount: '500.00',
         payoutStage: 'SHIPPING',
-        commissionsUrl: '#',
+        commissionsUrl: 'https://smt-orders.com/my-commissions',
       };
 
       let subject = tpl.subject || defaultTpl.subject;
