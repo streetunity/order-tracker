@@ -11,6 +11,12 @@ import autoTable from "jspdf-autotable";
 const STORAGE_KEY = "generic-manifest-history";
 const MAX_SAVED = 5;
 
+const COMPANY_OPTIONS = [
+  { id: "smt", label: "Stealth Machine Tools", logo: "/smt-logo.png" },
+  { id: "batteries", label: "Stealth Lithium Batteries", logo: "/stealth-batteries-logo.png" },
+  { id: "laser", label: "LaserConsumables.com", logo: "/laser-consumables-logo.png" },
+];
+
 function loadSavedManifests() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -46,6 +52,9 @@ export default function GenericManifestPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // Company selection
+  const [selectedCompany, setSelectedCompany] = useState("smt");
+
   // Customer info
   const [customerName, setCustomerName] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
@@ -79,6 +88,7 @@ export default function GenericManifestPage() {
     setCustomerName(manifest.customerName || "");
     setCustomerAddress(manifest.customerAddress || "");
     setCustomerPhone(manifest.customerPhone || "");
+    if (manifest.selectedCompany) setSelectedCompany(manifest.selectedCompany);
     // Re-generate IDs to avoid key conflicts
     setContainers((manifest.containers || []).map((c, i) => ({
       ...c,
@@ -135,6 +145,9 @@ export default function GenericManifestPage() {
   const totalWeight = containers.reduce((sum, c) => sum + (c.weight || 0), 0);
   const boxCount = containers.length;
 
+  // Get current company config
+  const currentCompany = COMPANY_OPTIONS.find(c => c.id === selectedCompany) || COMPANY_OPTIONS[0];
+
   // ---- PDF Generation ----
 
   async function generateManifest() {
@@ -155,7 +168,8 @@ export default function GenericManifestPage() {
         customerName,
         customerAddress,
         customerPhone,
-        containers: containers.map(({ id, ...rest }) => rest), // strip IDs for storage
+        selectedCompany,
+        containers: containers.map(({ id, ...rest }) => rest),
         savedAt: new Date().toISOString(),
         boxCount: containers.length,
         totalWeight
@@ -165,16 +179,24 @@ export default function GenericManifestPage() {
 
       const doc = new jsPDF();
 
-      // Try to load company logo
+      // Try to load company logo with proper aspect ratio
       try {
         const logoImg = new Image();
         logoImg.crossOrigin = "anonymous";
         await new Promise((resolve, reject) => {
           logoImg.onload = resolve;
           logoImg.onerror = reject;
-          logoImg.src = "/smt-logo.png";
+          logoImg.src = currentCompany.logo;
         });
-        doc.addImage(logoImg, "PNG", 14, 10, 40, 20);
+        // Calculate dimensions preserving aspect ratio
+        const maxW = 40;
+        const maxH = 40;
+        const imgW = logoImg.naturalWidth;
+        const imgH = logoImg.naturalHeight;
+        const ratio = Math.min(maxW / imgW, maxH / imgH);
+        const drawW = imgW * ratio;
+        const drawH = imgH * ratio;
+        doc.addImage(logoImg, "PNG", 14, 10, drawW, drawH);
       } catch (e) {
         console.log("Logo not available, generating without logo");
       }
@@ -183,6 +205,11 @@ export default function GenericManifestPage() {
       doc.setFontSize(20);
       doc.setFont(undefined, "bold");
       doc.text("Shipping Manifest", 60, 22);
+
+      // Company name subtitle
+      doc.setFontSize(10);
+      doc.setFont(undefined, "normal");
+      doc.text(currentCompany.label, 60, 29);
 
       // Horizontal line
       doc.setDrawColor(220, 38, 38);
@@ -235,7 +262,7 @@ export default function GenericManifestPage() {
       // Containers table
       const tableData = containers.map((container, index) => {
         const dimensionStr = (container.length && container.width && container.height)
-          ? `${container.length} × ${container.width} × ${container.height} ${container.unit}`
+          ? `${container.length} \u00d7 ${container.width} \u00d7 ${container.height} ${container.unit}`
           : "-";
         const weightStr = container.weight ? `${container.weight} lbs` : "-";
 
@@ -481,6 +508,31 @@ export default function GenericManifestPage() {
           </div>
         )}
 
+        {/* Company Selection Card */}
+        <div style={{
+          background: "rgba(255, 255, 255, 0.03)",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          borderRadius: "12px",
+          padding: "24px",
+          marginBottom: 24
+        }}>
+          <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#fff", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+            🏢 Company
+          </h2>
+          <div style={{ maxWidth: 400 }}>
+            <label style={labelStyle}>Select Company</label>
+            <select
+              value={selectedCompany}
+              onChange={(e) => setSelectedCompany(e.target.value)}
+              style={{ ...inputStyle, cursor: "pointer" }}
+            >
+              {COMPANY_OPTIONS.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Customer Information Card */}
         <div style={{
           background: "rgba(255, 255, 255, 0.03)",
@@ -593,11 +645,11 @@ export default function GenericManifestPage() {
               border: "1px dashed rgba(255, 255, 255, 0.1)",
               borderRadius: "8px"
             }}>
-              No containers added yet. Click "Add Container" to start.
+              No containers added yet. Click &quot;Add Container&quot; to start.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {containers.map((container, index) => (
+              {containers.map((container) => (
                 <div
                   key={container.id}
                   style={{
@@ -608,7 +660,6 @@ export default function GenericManifestPage() {
                   }}
                 >
                   {editingId === container.id ? (
-                    /* Edit mode */
                     <div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 8, marginBottom: 8 }}>
                         <div>
@@ -716,7 +767,6 @@ export default function GenericManifestPage() {
                       </div>
                     </div>
                   ) : (
-                    /* View mode */
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: "500", fontSize: "14px", marginBottom: 4, color: "#e4e4e4" }}>
