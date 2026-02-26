@@ -113,7 +113,7 @@ function wrapInBaseTemplate(content, preheaderText = "") {
 /**
  * Invoice Email Template
  */
-function getInvoiceEmailTemplate() {
+export function getInvoiceEmailTemplate() {
   return wrapInBaseTemplate(`
     <div class="header">
       <h1>{{companyName}}</h1>
@@ -139,18 +139,18 @@ function getInvoiceEmailTemplate() {
           </tr>
           <tr>
             <td style="padding: 8px 0;"><strong>Subtotal:</strong></td>
-            <td style="padding: 8px 0; text-align: right;">${{subtotal}}</td>
+            <td style="padding: 8px 0; text-align: right;">\${{subtotal}}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0;"><strong>Tax:</strong></td>
-            <td style="padding: 8px 0; text-align: right;">${{tax}}</td>
+            <td style="padding: 8px 0; text-align: right;">\${{tax}}</td>
           </tr>
           <tr>
             <td colspan="2"><hr style="border: none; border-top: 1px solid #ddd;"></td>
           </tr>
           <tr>
             <td style="padding: 8px 0;"><strong>Amount Due:</strong></td>
-            <td style="padding: 8px 0; text-align: right;" class="total">${{balanceDue}}</td>
+            <td style="padding: 8px 0; text-align: right;" class="total">\${{balanceDue}}</td>
           </tr>
         </table>
       </div>
@@ -178,7 +178,7 @@ function getInvoiceEmailTemplate() {
 /**
  * Estimate Email Template
  */
-function getEstimateEmailTemplate() {
+export function getEstimateEmailTemplate() {
   return wrapInBaseTemplate(`
     <div class="header">
       <h1>{{companyName}}</h1>
@@ -207,7 +207,7 @@ function getEstimateEmailTemplate() {
           </tr>
           <tr>
             <td style="padding: 8px 0;"><strong>Estimated Total:</strong></td>
-            <td style="padding: 8px 0; text-align: right;" class="total">${{total}}</td>
+            <td style="padding: 8px 0; text-align: right;" class="total">\${{total}}</td>
           </tr>
         </table>
       </div>
@@ -234,7 +234,7 @@ function getEstimateEmailTemplate() {
 /**
  * Order Stage Update Email Template
  */
-function getOrderStageEmailTemplate() {
+export function getOrderStageEmailTemplate() {
   return wrapInBaseTemplate(`
     <div class="header">
       <h1>Order Update</h1>
@@ -269,7 +269,7 @@ function getOrderStageEmailTemplate() {
 /**
  * Commission Notification Template (Internal)
  */
-function getCommissionNotificationTemplate() {
+export function getCommissionNotificationTemplate() {
   return wrapInBaseTemplate(`
     <div class="header">
       <h1>Commission {{type}}</h1>
@@ -278,7 +278,7 @@ function getCommissionNotificationTemplate() {
       <p>Hello {{agentName}},</p>
       
       <div class="info-box" style="text-align: center;">
-        <p style="margin: 0; font-size: 32px; font-weight: bold; color: #22c55e;">${{amount}}</p>
+        <p style="margin: 0; font-size: 32px; font-weight: bold; color: #22c55e;">\${{amount}}</p>
         <p style="margin: 8px 0 0 0; color: #666;">Commission Amount</p>
       </div>
 
@@ -296,10 +296,4 @@ function getCommissionNotificationTemplate() {
   `, "Commission {{type}}: ${{amount}}");
 }
 
-module.exports = {
-  getInvoiceEmailTemplate,
-  getEstimateEmailTemplate,
-  getOrderStageEmailTemplate,
-  getCommissionNotificationTemplate,
-  wrapInBaseTemplate,
-};
+export { wrapInBaseTemplate };
