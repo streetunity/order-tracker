@@ -1868,3 +1868,39 @@ model Reminder {
   @@index([status])
   @@index([type])
 }
+
+// ============================================
+// EMAIL TEMPLATE CUSTOMIZATION
+// ============================================
+
+model EmailTemplate {
+  id              String   @id @default(cuid())
+  templateKey     String   @unique // invoice, estimate, order_stage, commission_notification
+  name            String
+  category        String   // invoicing, orders, internal
+  subject         String
+  bodyContent     String
+  closingContent  String?
+  footerContent   String?
+  updatedByUserId String?
+  updatedByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([templateKey])
+  @@index([category])
+}
+
+// Per-stage email notification configuration
+model EmailStageConfig {
+  id              String   @id @default(cuid())
+  stage           String   @unique // MANUFACTURING, TESTING, SHIPPING, AT_SEA, SMT, QC, DELIVERED
+  notify          Boolean  @default(true)
+  subject         String
+  message         String
+  updatedByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([stage])
+}
