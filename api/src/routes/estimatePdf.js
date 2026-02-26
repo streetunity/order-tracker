@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireInvoicingPermission } from '../middleware/invoicingAuth.js';
 import { generateEstimatePDF, uploadPDFToS3, getPDFSignedUrl } from '../services/pdfService.js';
-import { sendEstimateEmail } from '../services/emailService.js';
+import { sendEstimate } from '../services/invoiceEmailService.js';
 
 export function createEstimatePdfRouter(prisma) {
   const router = express.Router();
@@ -104,16 +104,13 @@ export function createEstimatePdfRouter(prisma) {
     }
   });
 
-  // POST /estimates/:id/send - Send estimate via email
+  // POST /estimates/:id/send - Send estimate via email (AWS SES)
   router.post('/:id/send', requireInvoicingPermission('EDIT_ESTIMATE'), async (req, res) => {
     try {
       const estimate = await prisma.estimate.findUnique({
         where: { id: req.params.id },
         include: {
           customer: true,
-          items: {
-            orderBy: { sortOrder: 'asc' }
-          },
           createdBy: {
             select: { id: true, name: true, email: true }
           }
@@ -135,7 +132,6 @@ export function createEstimatePdfRouter(prisma) {
         toEmail,
         ccEmails = [],
         customMessage = '',
-        attachProductPDFs = true,
         regeneratePDF = false
       } = req.body;
 
@@ -145,82 +141,55 @@ export function createEstimatePdfRouter(prisma) {
         return res.status(400).json({ error: 'Recipient email is required' });
       }
 
-      // Get company settings
-      const companySettings = await prisma.invoicingSettings.findFirst();
-
       // Generate PDF if not exists or if regenerate requested
       if (!estimate.pdfS3Key || regeneratePDF) {
-        const pdfBuffer = await generateEstimatePDF(estimate, companySettings);
-        const s3Key = `estimates/${estimate.id}/${estimate.estimateNumber}.pdf`;
-        await uploadPDFToS3(pdfBuffer, s3Key);
+        try {
+          const companySettings = await prisma.invoicingSettings.findFirst();
 
-        await prisma.estimate.update({
-          where: { id: estimate.id },
-          data: {
-            pdfS3Key: s3Key,
-            pdfGeneratedAt: new Date()
-          }
-        });
+          const fullEstimate = await prisma.estimate.findUnique({
+            where: { id: estimate.id },
+            include: {
+              customer: true,
+              items: { orderBy: { sortOrder: 'asc' } },
+              createdBy: { select: { id: true, name: true, email: true } }
+            }
+          });
 
-        // Reload estimate with updated pdfS3Key
-        estimate.pdfS3Key = s3Key;
+          const pdfBuffer = await generateEstimatePDF(fullEstimate, companySettings);
+          const s3Key = `estimates/${estimate.id}/${estimate.estimateNumber}.pdf`;
+          await uploadPDFToS3(pdfBuffer, s3Key);
+
+          await prisma.estimate.update({
+            where: { id: estimate.id },
+            data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() }
+          });
+        } catch (pdfError) {
+          console.error('[ESTIMATE SEND] PDF generation error:', pdfError);
+          // Continue without PDF if generation fails
+        }
       }
 
-      // Get user email settings
-      const userEmailSettings = await prisma.userEmailSettings.findUnique({
-        where: { userId: req.user.id }
-      });
-
-      // Send email
-      const emailResult = await sendEstimateEmail(estimate, {
+      // Send via invoiceEmailService (handles SES sending, email logging, status updates)
+      const result = await sendEstimate(prisma, {
+        estimateId: estimate.id,
+        userId: req.user.id,
         toEmail: recipientEmail,
         ccEmails,
-        customMessage,
-        senderName: userEmailSettings?.fromName || req.user.name || 'Sales Team',
-        senderEmail: req.user.email,
-        replyTo: req.user.email,
-        companySettings,
-        attachProductPDFs,
-        prisma
+        customMessage
       });
 
-      // Log email
-      await prisma.emailLog.create({
-        data: {
-          estimateId: estimate.id,
-          fromEmail: req.user.email,
-          toEmail: recipientEmail,
-          replyTo: req.user.email,
-          subject: `Estimate ${estimate.estimateNumber} from ${companySettings?.companyName || 'Stealth Machine Tools'}`,
-          sesMessageId: emailResult.messageId,
-          status: 'SENT',
-          sentById: req.user.id
-        }
-      });
-
-      // Update estimate status and counts
-      const updatedEstimate = await prisma.estimate.update({
+      // Fetch updated estimate
+      const updatedEstimate = await prisma.estimate.findUnique({
         where: { id: estimate.id },
-        data: {
-          status: estimate.status === 'DRAFT' ? 'SENT' : estimate.status,
-          lastSentAt: new Date(),
-          sentCount: { increment: 1 }
-        },
         include: {
           customer: true,
-          items: {
-            orderBy: { sortOrder: 'asc' }
-          }
+          items: { orderBy: { sortOrder: 'asc' } }
         }
       });
 
       res.json({
         estimate: updatedEstimate,
-        emailResult: {
-          messageId: emailResult.messageId,
-          sentTo: recipientEmail,
-          ccEmails
-        },
+        emailResult: result,
         message: 'Estimate sent successfully'
       });
     } catch (error) {
