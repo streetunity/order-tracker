@@ -117,11 +117,31 @@
   gap: 16px;
 }
 
+/* Two-column grid (matches individual item page) */
+.item-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .item-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.item-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 /* Accordion Controls */
 .accordion-controls {
   display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 /* Accordion Item */
@@ -130,6 +150,7 @@
   border-radius: 8px;
   overflow: hidden;
   background: #141414;
+  margin-bottom: 8px;
 }
 
 .accordion-header {
@@ -285,6 +306,12 @@
   margin-bottom: 14px;
 }
 
+.notes-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .form-label {
   display: block;
   font-size: 13px;
@@ -293,7 +320,8 @@
 }
 
 .form-select,
-.form-textarea {
+.form-textarea,
+.form-input {
   width: 100%;
   padding: 10px 12px;
   background: #1a1a1a;
@@ -304,13 +332,19 @@
 }
 
 .form-select:focus,
-.form-textarea:focus {
+.form-textarea:focus,
+.form-input:focus {
   outline: none;
   border-color: #dc2626;
 }
 
 .form-textarea {
   resize: vertical;
+  min-height: 80px;
+}
+
+.notes-textarea {
+  flex: 1;
   min-height: 80px;
 }
 
