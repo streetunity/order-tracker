@@ -7,6 +7,36 @@ import { adminGuard } from '../middleware/auth.js';
 const DOLLAR = '$';
 
 /**
+ * Helper: fetch company info from InvoicingSettings (single source of truth)
+ * Falls back to defaults if no settings row exists
+ */
+async function getCompanyInfo(prisma) {
+  try {
+    const settings = await prisma.invoicingSettings.findFirst();
+    if (settings) {
+      return {
+        companyName: settings.companyName || 'Stealth Machine Tools',
+        companyPhone: settings.phone || '',
+        companyEmail: settings.email || 'info@stealthlaser.com',
+        companyWebsite: settings.website || 'https://smt-orders.com',
+        companyAddress: [settings.address, settings.city, settings.state, settings.zipCode]
+          .filter(Boolean).join(', ') || '',
+      };
+    }
+  } catch (e) {
+    console.error('Error fetching company info for email templates:', e);
+  }
+  // Fallback defaults
+  return {
+    companyName: 'Stealth Machine Tools',
+    companyPhone: '',
+    companyEmail: 'info@stealthlaser.com',
+    companyWebsite: 'https://smt-orders.com',
+    companyAddress: '',
+  };
+}
+
+/**
  * Default templates - used as fallback when no DB entry exists
  * These match the hardcoded templates in emailTemplates.js
  */
@@ -72,7 +102,7 @@ const DEFAULT_TEMPLATES = {
       { name: 'viewInvoiceUrl', description: 'Link to view invoice online' },
       { name: 'salesRepName', description: 'Sales representative name' },
       { name: 'signature', description: 'Sales rep email signature' },
-      { name: 'companyName', description: 'Company name' },
+      { name: 'companyName', description: 'Company name (from Invoicing Settings)' },
     ],
   },
 
@@ -125,7 +155,7 @@ const DEFAULT_TEMPLATES = {
       { name: 'viewEstimateUrl', description: 'Link to view estimate online' },
       { name: 'salesRepName', description: 'Sales representative name' },
       { name: 'signature', description: 'Sales rep email signature' },
-      { name: 'companyName', description: 'Company name' },
+      { name: 'companyName', description: 'Company name (from Invoicing Settings)' },
     ],
   },
 
@@ -162,9 +192,9 @@ const DEFAULT_TEMPLATES = {
       { name: 'stageDisplayName', description: 'Human-readable stage name' },
       { name: 'trackingUrl', description: 'Customer order tracking URL' },
       { name: 'unsubscribeUrl', description: 'Unsubscribe link' },
-      { name: 'companyName', description: 'Company name' },
-      { name: 'companyPhone', description: 'Company phone number' },
-      { name: 'companyEmail', description: 'Company email address' },
+      { name: 'companyName', description: 'Company name (from Invoicing Settings)' },
+      { name: 'companyPhone', description: 'Company phone (from Invoicing Settings)' },
+      { name: 'companyEmail', description: 'Company email (from Invoicing Settings)' },
     ],
   },
 
@@ -196,7 +226,7 @@ const DEFAULT_TEMPLATES = {
       { name: 'customerName', description: 'Customer name' },
       { name: 'payoutStage', description: 'Payout trigger stage' },
       { name: 'commissionsUrl', description: 'Link to commissions page' },
-      { name: 'companyName', description: 'Company name' },
+      { name: 'companyName', description: 'Company name (from Invoicing Settings)' },
     ],
   },
 };
@@ -495,6 +525,7 @@ export function createEmailTemplateSettingsRouter(prisma) {
   // ============================================
   // POST /email-templates/preview/:key
   // Generate a preview with sample data
+  // Pulls company info from InvoicingSettings
   // ============================================
   router.post('/preview/:key', adminGuard, async (req, res) => {
     try {
@@ -504,6 +535,9 @@ export function createEmailTemplateSettingsRouter(prisma) {
       if (!DEFAULT_TEMPLATES[key]) {
         return res.status(404).json({ error: 'Invalid template key' });
       }
+
+      // Pull company info from InvoicingSettings
+      const company = await getCompanyInfo(prisma);
 
       const sampleData = {
         customerFirstName: 'John',
@@ -522,10 +556,10 @@ export function createEmailTemplateSettingsRouter(prisma) {
         total: '12,500.00',
         viewEstimateUrl: '#',
         salesRepName: 'Jane Doe',
-        signature: '<p style="color: #666; font-size: 13px;">Jane Doe | Sales Manager<br>Stealth Machine Tools<br>(555) 123-4567</p>',
-        companyName: 'Stealth Machine Tools',
-        companyPhone: '(555) 123-4567',
-        companyEmail: 'info@stealthlaser.com',
+        signature: '<p style="color: #666; font-size: 13px;">Jane Doe | Sales Manager<br>' + company.companyName + '<br>' + company.companyPhone + '</p>',
+        companyName: company.companyName,
+        companyPhone: company.companyPhone,
+        companyEmail: company.companyEmail,
         orderNumber: 'A1B2C3D4',
         productCode: 'SL-3015',
         newStage: 'at_sea',
@@ -568,6 +602,7 @@ export function createEmailTemplateSettingsRouter(prisma) {
   // ============================================
   // POST /email-templates/test-send
   // Send a test email
+  // Pulls company info from InvoicingSettings
   // ============================================
   router.post('/test-send', adminGuard, async (req, res) => {
     try {
@@ -591,6 +626,9 @@ export function createEmailTemplateSettingsRouter(prisma) {
 
       const tpl = dbTpl || defaultTpl;
 
+      // Pull company info from InvoicingSettings
+      const company = await getCompanyInfo(prisma);
+
       const sampleData = {
         customerFirstName: 'Test',
         customerName: 'Test Customer',
@@ -609,9 +647,9 @@ export function createEmailTemplateSettingsRouter(prisma) {
         viewEstimateUrl: '#',
         salesRepName: req.user.name,
         signature: '',
-        companyName: 'Stealth Machine Tools',
-        companyPhone: '(555) 123-4567',
-        companyEmail: 'info@stealthlaser.com',
+        companyName: company.companyName,
+        companyPhone: company.companyPhone,
+        companyEmail: company.companyEmail,
         orderNumber: 'TEST1234',
         productCode: 'SL-3015',
         newStage: 'shipping',
@@ -650,7 +688,7 @@ export function createEmailTemplateSettingsRouter(prisma) {
         '<div class="container">' +
         '<div class="header"><h1>[TEST] ' + subject + '</h1></div>' +
         '<div class="content">' + body + '</div>' +
-        '<div class="footer"><p>Stealth Machine Tools - Test Email</p></div>' +
+        '<div class="footer"><p>' + company.companyName + ' - Test Email</p></div>' +
         '</div>' +
         '</body></html>';
 
@@ -659,7 +697,7 @@ export function createEmailTemplateSettingsRouter(prisma) {
       const result = await emailService.sendEmail({
         to: toEmail,
         from: fromEmail,
-        fromName: 'Stealth Machine Tools',
+        fromName: company.companyName,
         subject: '[TEST] ' + subject,
         html,
       });
