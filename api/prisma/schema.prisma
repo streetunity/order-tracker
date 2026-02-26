@@ -209,6 +209,11 @@ model Account {
   phone          String?
   machineVoltage String?
   notes          String?
+
+  // Email notification preferences
+  emailNotifications Boolean @default(true) // Whether to send stage update emails
+  notifyOnStages     String? // JSON array of stages to notify on, null = all stages
+
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   orders         Order[]
