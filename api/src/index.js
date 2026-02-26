@@ -64,6 +64,7 @@ import { createInvoicingReportsRouter } from './routes/invoicingReports.js';
 import { createCommentsRouter } from './routes/comments.js';
 import { createRemindersRouter } from './routes/reminders.js';
 import { createEmailTemplateSettingsRouter } from './routes/emailTemplateSettings.js';
+import createInvoicingSettingsRouter from './routes/invoicingSettings.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -216,6 +217,7 @@ const invoicingReportsRouter = createInvoicingReportsRouter(prisma);
 const commentsRouter = createCommentsRouter();
 const remindersRouter = createRemindersRouter();
 const emailTemplateSettingsRouter = createEmailTemplateSettingsRouter(prisma);
+const invoicingSettingsRouter = createInvoicingSettingsRouter(prisma);
 
 // =============================
 // Mount Routes
@@ -435,9 +437,10 @@ app.use('/bundles', authGuard, bundlesRouter);
 app.use('/estimate-templates', authGuard, estimateTemplatesRouter);
 app.use('/payments', authGuard, paymentsRouter);
 app.use('/invoicing-reports', authGuard, invoicingReportsRouter);
+app.use('/invoicing-settings', invoicingSettingsRouter); // adminGuard is inside the router
 app.use('/comments', commentsRouter);
 app.use('/reminders', remindersRouter);
-console.log('✅ Invoicing system routes loaded (includes payments, reports, comments, reminders)');
+console.log('✅ Invoicing system routes loaded (includes payments, reports, settings, comments, reminders)');
 
 // Email template settings (admin only)
 app.use('/email-templates', authGuard, emailTemplateSettingsRouter);
