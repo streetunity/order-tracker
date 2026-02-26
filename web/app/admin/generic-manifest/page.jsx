@@ -189,8 +189,9 @@ export default function GenericManifestPage() {
           logoImg.src = currentCompany.logo;
         });
         // Calculate dimensions preserving aspect ratio
+        // Logo area: x=14, y=10, must stay above divider line at y=35
         const maxW = 40;
-        const maxH = 40;
+        const maxH = 22;
         const imgW = logoImg.naturalWidth;
         const imgH = logoImg.naturalHeight;
         const ratio = Math.min(maxW / imgW, maxH / imgH);
