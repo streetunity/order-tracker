@@ -75,7 +75,11 @@ export function createAccountsRouter(prisma) {
       }
       const accounts = await prisma.account.findMany({
         where,
-        select: { id: true, name: true, email: true, address: true, phone: true, machineVoltage: true, notes: true, contactName: true, createdAt: true },
+        select: {
+          id: true, name: true, email: true, address: true, phone: true,
+          machineVoltage: true, notes: true, contactName: true, createdAt: true,
+          emailNotifications: true, notifyOnStages: true
+        },
         orderBy: { createdAt: 'desc' }
       });
       res.json(accounts);
@@ -153,7 +157,7 @@ export function createAccountsRouter(prisma) {
       }
       const original = await prisma.account.findUnique({ where: { id: req.params.id } });
       if (!original) return res.status(404).json({ error: 'Account not found' });
-      const { name, email, address, phone, machineVoltage, notes, contactName } = req.body || {};
+      const { name, email, address, phone, machineVoltage, notes, contactName, emailNotifications } = req.body || {};
       const data = {};
       const changes = [];
       if (name !== undefined && String(name).trim() !== original.name) {
@@ -201,6 +205,14 @@ export function createAccountsRouter(prisma) {
         if (newContactName !== original.contactName) {
           data.contactName = newContactName;
           changes.push({ field: 'contactName', oldValue: original.contactName || 'null', newValue: newContactName || 'null' });
+        }
+      }
+      // Email notification preferences
+      if (emailNotifications !== undefined) {
+        const newVal = emailNotifications === true;
+        if (newVal !== (original.emailNotifications || false)) {
+          data.emailNotifications = newVal;
+          changes.push({ field: 'emailNotifications', oldValue: String(original.emailNotifications || false), newValue: String(newVal) });
         }
       }
       if (Object.keys(data).length === 0) return res.status(400).json({ error: 'No fields to update' });
