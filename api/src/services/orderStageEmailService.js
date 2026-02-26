@@ -1,17 +1,20 @@
 /**
  * Order Stage Email Service
  * Sends automated notifications to customers when orders progress through stages
+ *
+ * Actual stage progression:
+ *   1. MANUFACTURING   → Manufacturing
+ *   2. TESTING         → Debugging and Testing
+ *   3. SHIPPING        → Preparing Shipping Container
+ *   4. AT_SEA          → Container At Sea
+ *   5. SMT             → Arrived at SMT
+ *   6. QC              → Quality Control
+ *   7. DELIVERED        → Delivered to Customer
  */
 
 import emailService from "./emailService.js";
 import { getOrderStageEmailTemplate } from "./emailTemplates.js";
 
-// Stage configuration - ALL stages trigger customer notifications
-// Stage names map to actual business meaning:
-//   MANUFACTURING = manufacturing, TESTING = debugging & testing,
-//   QC = quality control, SHIPPING = preparing container/shipment,
-//   AT_SEA = container at sea/in transit, CUSTOMS = customs processing,
-//   SMT = arrived at SMT facility, DELIVERED = delivered to customer
 const STAGE_CONFIG = {
   MANUFACTURING: {
     notify: true,
@@ -22,38 +25,32 @@ const STAGE_CONFIG = {
   TESTING: {
     notify: true,
     priority: "NORMAL",
-    subject: "Your order is in debugging & testing",
-    message: "Your item ({{productCode}}) is currently undergoing debugging and testing to ensure it meets our standards.",
-  },
-  QC: {
-    notify: true,
-    priority: "NORMAL",
-    subject: "Your order is in quality control",
-    message: "Your item ({{productCode}}) is currently going through our quality control inspection.",
+    subject: "Your order is in debugging and testing",
+    message: "Your item ({{productCode}}) has completed manufacturing and is now undergoing debugging and testing.",
   },
   SHIPPING: {
     notify: true,
     priority: "NORMAL",
     subject: "Your order is being prepared for shipment",
-    message: "Your item ({{productCode}}) has passed inspection and is now being prepared for shipment.",
+    message: "Your item ({{productCode}}) has passed testing and is now being loaded into the shipping container.",
   },
   AT_SEA: {
     notify: true,
     priority: "HIGH",
     subject: "Your order has shipped!",
-    message: "Great news! Your item ({{productCode}}) is now on its way. The shipping container is in transit.",
-  },
-  CUSTOMS: {
-    notify: true,
-    priority: "NORMAL",
-    subject: "Your order is in customs processing",
-    message: "Your item ({{productCode}}) has arrived and is currently being processed through customs clearance.",
+    message: "Great news! Your item ({{productCode}}) is on its way. The shipping container is now in transit.",
   },
   SMT: {
     notify: true,
     priority: "NORMAL",
     subject: "Your order has arrived at our facility",
-    message: "Your item ({{productCode}}) has arrived at our facility and is being prepared for final delivery.",
+    message: "Your item ({{productCode}}) has arrived at our facility and will now go through quality control before delivery.",
+  },
+  QC: {
+    notify: true,
+    priority: "NORMAL",
+    subject: "Your order is in quality control",
+    message: "Your item ({{productCode}}) is currently going through our final quality control inspection before delivery.",
   },
   DELIVERED: {
     notify: true,
