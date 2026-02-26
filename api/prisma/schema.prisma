@@ -211,7 +211,7 @@ model Account {
   notes          String?
 
   // Email notification preferences
-  emailNotifications Boolean @default(true) // Whether to send stage update emails
+  emailNotifications Boolean @default(false) // Whether to send stage update emails (default OFF until tested)
   notifyOnStages     String? // JSON array of stages to notify on, null = all stages
 
   createdAt      DateTime  @default(now())
