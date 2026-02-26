@@ -144,6 +144,74 @@ export async function getCompanySettings(prisma) {
   };
 }
 
+/**
+ * Track estimate email open (called from tracking pixel endpoint)
+ */
+export async function trackEmailOpen(prisma, estimateId) {
+  try {
+    // Update the most recent email log for this estimate
+    const emailLog = await prisma.emailLog.findFirst({
+      where: { estimateId },
+      orderBy: { sentAt: 'desc' },
+    });
+
+    if (emailLog) {
+      await prisma.emailLog.update({
+        where: { id: emailLog.id },
+        data: {
+          openedAt: emailLog.openedAt || new Date(),
+          openCount: { increment: 1 },
+        },
+      });
+    }
+
+    // Update estimate viewed status
+    await prisma.estimate.update({
+      where: { id: estimateId },
+      data: {
+        lastViewedAt: new Date(),
+        viewCount: { increment: 1 },
+      },
+    });
+  } catch (error) {
+    console.error(`[EMAIL] Track estimate open error for ${estimateId}:`, error);
+  }
+}
+
+/**
+ * Track invoice email open (called from tracking pixel endpoint)
+ */
+export async function trackInvoiceEmailOpen(prisma, invoiceId) {
+  try {
+    // Update the most recent email log for this invoice
+    const emailLog = await prisma.emailLog.findFirst({
+      where: { invoiceId },
+      orderBy: { sentAt: 'desc' },
+    });
+
+    if (emailLog) {
+      await prisma.emailLog.update({
+        where: { id: emailLog.id },
+        data: {
+          openedAt: emailLog.openedAt || new Date(),
+          openCount: { increment: 1 },
+        },
+      });
+    }
+
+    // Update invoice viewed status
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        lastViewedAt: new Date(),
+        viewCount: { increment: 1 },
+      },
+    });
+  } catch (error) {
+    console.error(`[EMAIL] Track invoice open error for ${invoiceId}:`, error);
+  }
+}
+
 // Default export for backward compatibility
 export default {
   sendEmail,
@@ -152,4 +220,6 @@ export default {
   stripHtml,
   getSalesRepEmailSettings,
   getCompanySettings,
+  trackEmailOpen,
+  trackInvoiceEmailOpen,
 };
