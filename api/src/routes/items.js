@@ -773,6 +773,20 @@ export function createItemsRouter() {
         // Don't fail the stage change if commission triggering fails
       }
 
+      // Send email notification for stage change (if account has notifications enabled)
+      try {
+        const { sendStageNotification } = await import('../services/orderStageEmailService.js');
+        await sendStageNotification(prisma, {
+          orderId,
+          itemId,
+          oldStage: currentStage,
+          newStage: nextStage
+        });
+      } catch (emailError) {
+        console.error(`[EMAIL] Error sending stage notification for item ${itemId}:`, emailError);
+        // Don't fail the stage change if email sending fails
+      }
+
       res.json({ ok: true, event });
     } catch (e) {
       res.status(500).json({ error: e.message });
