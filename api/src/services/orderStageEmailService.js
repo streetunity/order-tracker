@@ -7,6 +7,11 @@ import emailService from "./emailService.js";
 import { getOrderStageEmailTemplate } from "./emailTemplates.js";
 
 // Stage configuration - ALL stages trigger customer notifications
+// Stage names map to actual business meaning:
+//   MANUFACTURING = manufacturing, TESTING = debugging & testing,
+//   QC = quality control, SHIPPING = preparing container/shipment,
+//   AT_SEA = container at sea/in transit, CUSTOMS = customs processing,
+//   SMT = arrived at SMT facility, DELIVERED = delivered to customer
 const STAGE_CONFIG = {
   MANUFACTURING: {
     notify: true,
@@ -17,26 +22,26 @@ const STAGE_CONFIG = {
   TESTING: {
     notify: true,
     priority: "NORMAL",
-    subject: "Your order is being tested",
-    message: "Your item ({{productCode}}) is currently undergoing quality testing to ensure it meets our standards.",
+    subject: "Your order is in debugging & testing",
+    message: "Your item ({{productCode}}) is currently undergoing debugging and testing to ensure it meets our standards.",
   },
   QC: {
     notify: true,
     priority: "NORMAL",
-    subject: "Your order passed quality control",
-    message: "Great news! Your item ({{productCode}}) has passed our quality control inspection and is being prepared for shipping.",
+    subject: "Your order is in quality control",
+    message: "Your item ({{productCode}}) is currently going through our quality control inspection.",
   },
   SHIPPING: {
     notify: true,
-    priority: "HIGH",
-    subject: "Your order has shipped!",
-    message: "Great news! Your item ({{productCode}}) is on its way.",
+    priority: "NORMAL",
+    subject: "Your order is being prepared for shipment",
+    message: "Your item ({{productCode}}) has passed inspection and is now being prepared for shipment.",
   },
   AT_SEA: {
     notify: true,
-    priority: "NORMAL",
-    subject: "Your order is in transit",
-    message: "Your item ({{productCode}}) is currently in transit to our facility.",
+    priority: "HIGH",
+    subject: "Your order has shipped!",
+    message: "Great news! Your item ({{productCode}}) is now on its way. The shipping container is in transit.",
   },
   CUSTOMS: {
     notify: true,
