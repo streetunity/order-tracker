@@ -63,6 +63,7 @@ import { createCustomerPortalRouter } from './routes/customerPortal.js';
 import { createInvoicingReportsRouter } from './routes/invoicingReports.js';
 import { createCommentsRouter } from './routes/comments.js';
 import { createRemindersRouter } from './routes/reminders.js';
+import { createEmailTemplateSettingsRouter } from './routes/emailTemplateSettings.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -214,6 +215,7 @@ const customerPortalRouter = createCustomerPortalRouter(prisma);
 const invoicingReportsRouter = createInvoicingReportsRouter(prisma);
 const commentsRouter = createCommentsRouter();
 const remindersRouter = createRemindersRouter();
+const emailTemplateSettingsRouter = createEmailTemplateSettingsRouter(prisma);
 
 // =============================
 // Mount Routes
@@ -436,6 +438,10 @@ app.use('/invoicing-reports', authGuard, invoicingReportsRouter);
 app.use('/comments', commentsRouter);
 app.use('/reminders', remindersRouter);
 console.log('✅ Invoicing system routes loaded (includes payments, reports, comments, reminders)');
+
+// Email template settings (admin only)
+app.use('/email-templates', authGuard, emailTemplateSettingsRouter);
+console.log('✅ Email template settings routes loaded');
 
 // Zapier webhook routes (public endpoints for incoming webhooks, admin endpoints for management)
 app.use('/zapier', zapierWebhookRouter); // lead/:key endpoints are public, webhooks management uses authGuard inline
