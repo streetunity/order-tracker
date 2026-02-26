@@ -67,7 +67,6 @@ export function createInvoicingSettingsRouter(prisma) {
         phone, email, website,
         defaultTaxRate, defaultPaymentTerms, defaultValidityDays,
         invoicePrefix, estimatePrefix, paymentPrefix, customerPrefix,
-        defaultFromEmail, emailDomain,
         discountApprovalThreshold, amountApprovalThreshold,
         defaultEstimateTerms, defaultInvoiceTerms,
       } = req.body;
@@ -75,6 +74,7 @@ export function createInvoicingSettingsRouter(prisma) {
       // Find existing or create
       let settings = await prisma.invoicingSettings.findFirst();
 
+      // Only include fields that exist in InvoicingSettings schema
       const data = {};
       if (companyName !== undefined) data.companyName = companyName;
       if (address !== undefined) data.address = address;
@@ -91,8 +91,6 @@ export function createInvoicingSettingsRouter(prisma) {
       if (estimatePrefix !== undefined) data.estimatePrefix = estimatePrefix;
       if (paymentPrefix !== undefined) data.paymentPrefix = paymentPrefix;
       if (customerPrefix !== undefined) data.customerPrefix = customerPrefix;
-      if (defaultFromEmail !== undefined) data.defaultFromEmail = defaultFromEmail;
-      if (emailDomain !== undefined) data.emailDomain = emailDomain;
       if (discountApprovalThreshold !== undefined) data.discountApprovalThreshold = discountApprovalThreshold ? parseFloat(discountApprovalThreshold) : null;
       if (amountApprovalThreshold !== undefined) data.amountApprovalThreshold = amountApprovalThreshold ? parseFloat(amountApprovalThreshold) : null;
       if (defaultEstimateTerms !== undefined) data.defaultEstimateTerms = defaultEstimateTerms;
