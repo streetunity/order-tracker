@@ -3,7 +3,10 @@ import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl, validateFile } from '../services/fileUploadService.js';
-import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, BROKER_DOCUMENT_TYPES } from './itemDocuments.js';
+import {
+  DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, BROKER_DOCUMENT_TYPES,
+  getDocumentsForShipment, resolveDocumentById, deleteResolvedDocument
+} from '../services/documentService.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -46,7 +49,6 @@ async function syncShipmentStatusToItems(shipmentId, newStatus, additionalData =
     customsDocumentStatus: newStatus
   };
 
-  // Sync date fields too
   if (additionalData.customsFiledDate) {
     itemUpdateData.customsFiledDate = additionalData.customsFiledDate;
   }
@@ -72,12 +74,6 @@ async function syncShipmentStatusToItems(shipmentId, newStatus, additionalData =
 
 /**
  * GET /api/shipments
- * List all shipments with item counts
- * Query params:
- *   - status: filter by customs status
- *   - search: search by container/BOL
- *   - includeArchived: include archived shipments (default: false)
- *   - archivedOnly: show only archived shipments
  */
 router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
@@ -85,13 +81,11 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
 
     const where = {};
     
-    // Archive filtering
     if (archivedOnly === 'true') {
       where.archivedAt = { not: null };
     } else if (includeArchived !== 'true') {
-      where.archivedAt = null; // Default: only show active shipments
+      where.archivedAt = null;
     }
-    // If includeArchived === 'true', no filter on archivedAt (show all)
 
     if (status) {
       where.customsDocumentStatus = status;
@@ -140,7 +134,6 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Calculate total item documents for each shipment
     const shipmentsWithDocCounts = shipments.map(shipment => {
       const itemDocCount = shipment.items.reduce((total, item) => {
         return total + (item._count?.documents || 0);
@@ -162,8 +155,6 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
 
 /**
  * GET /api/shipments/active
- * Get only active (non-archived) shipments for dropdowns
- * Lightweight response for select boxes
  */
 router.get('/active', authGuard, requireInternalStaff, async (req, res) => {
   try {
@@ -189,7 +180,6 @@ router.get('/active', authGuard, requireInternalStaff, async (req, res) => {
 
 /**
  * GET /api/shipments/stats
- * Get shipment statistics for dashboard
  */
 router.get('/stats', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
@@ -204,7 +194,6 @@ router.get('/stats', authGuard, requireBrokerOrStaff, async (req, res) => {
       })
     ]);
 
-    // Get total items across all active shipments
     const itemStats = await prisma.orderItem.aggregate({
       where: { 
         shipmentId: { not: null },
@@ -231,7 +220,6 @@ router.get('/stats', authGuard, requireBrokerOrStaff, async (req, res) => {
 
 /**
  * GET /api/shipments/:id
- * Get single shipment with full details
  */
 router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
@@ -272,7 +260,6 @@ router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
       return res.status(404).json({ error: 'Shipment not found' });
     }
 
-    // Calculate item document count
     const itemDocCount = shipment.items.reduce((total, item) => {
       return total + (item._count?.documents || 0);
     }, 0);
@@ -290,7 +277,6 @@ router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
 
 /**
  * POST /api/shipments
- * Create a new shipment (Admin or Agent)
  */
 router.post('/', authGuard, requireInternalStaff, async (req, res) => {
   try {
@@ -313,7 +299,6 @@ router.post('/', authGuard, requireInternalStaff, async (req, res) => {
       }
     });
 
-    // Log creation
     await prisma.shipmentActivityLog.create({
       data: {
         shipmentId: shipment.id,
@@ -333,8 +318,6 @@ router.post('/', authGuard, requireInternalStaff, async (req, res) => {
 
 /**
  * PUT /api/shipments/:id
- * Update shipment details
- * When customs status changes, syncs to all linked items
  */
 router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
@@ -355,10 +338,8 @@ router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
     if (portOfDestination !== undefined) updateData.portOfDestination = portOfDestination;
     if (customsNotes !== undefined) updateData.customsNotes = customsNotes;
 
-    // Track date changes for item sync
     const itemSyncData = {};
 
-    // Handle customs status changes
     if (customsDocumentStatus !== undefined && customsDocumentStatus !== current.customsDocumentStatus) {
       updateData.customsDocumentStatus = customsDocumentStatus;
       
@@ -371,7 +352,6 @@ router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
         itemSyncData.customsClearedDate = updateData.customsClearedDate;
       }
 
-      // Log status change
       await prisma.shipmentActivityLog.create({
         data: {
           shipmentId: id,
@@ -384,7 +364,6 @@ router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
         }
       });
 
-      // Sync status to all linked items
       await syncShipmentStatusToItems(id, customsDocumentStatus, itemSyncData);
     }
 
@@ -409,7 +388,6 @@ router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
 
 /**
  * POST /api/shipments/:id/archive
- * Archive a shipment (Admin only)
  */
 router.post('/:id/archive', authGuard, requireAdmin, async (req, res) => {
   try {
@@ -432,7 +410,6 @@ router.post('/:id/archive', authGuard, requireAdmin, async (req, res) => {
       }
     });
 
-    // Log archive action
     await prisma.shipmentActivityLog.create({
       data: {
         shipmentId: id,
@@ -452,7 +429,6 @@ router.post('/:id/archive', authGuard, requireAdmin, async (req, res) => {
 
 /**
  * POST /api/shipments/:id/unarchive
- * Restore an archived shipment (Admin only)
  */
 router.post('/:id/unarchive', authGuard, requireAdmin, async (req, res) => {
   try {
@@ -475,7 +451,6 @@ router.post('/:id/unarchive', authGuard, requireAdmin, async (req, res) => {
       }
     });
 
-    // Log unarchive action
     await prisma.shipmentActivityLog.create({
       data: {
         shipmentId: id,
@@ -495,7 +470,6 @@ router.post('/:id/unarchive', authGuard, requireAdmin, async (req, res) => {
 
 /**
  * DELETE /api/shipments/:id
- * Delete a shipment (only if no items linked) - Admin only
  */
 router.delete('/:id', authGuard, requireAdmin, async (req, res) => {
   try {
@@ -514,7 +488,6 @@ router.delete('/:id', authGuard, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Cannot delete shipment with linked items. Unlink items first.' });
     }
 
-    // Delete documents and activity logs (cascade)
     await prisma.shipment.delete({ where: { id } });
 
     res.json({ message: 'Shipment deleted successfully' });
@@ -530,8 +503,6 @@ router.delete('/:id', authGuard, requireAdmin, async (req, res) => {
 
 /**
  * POST /api/shipments/:id/link-item
- * Link an item to a shipment (Admin or Agent)
- * Also syncs the shipment's current customs status to the newly linked item
  */
 router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) => {
   try {
@@ -547,7 +518,6 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
       return res.status(404).json({ error: 'Shipment not found' });
     }
 
-    // Prevent linking to archived shipments
     if (shipment.archivedAt) {
       return res.status(400).json({ error: 'Cannot link items to archived shipments. Restore the shipment first.' });
     }
@@ -564,7 +534,6 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
       return res.status(400).json({ error: 'Item is already linked to a shipment' });
     }
 
-    // Link item and sync shipment's customs status
     const updateData = { shipmentId: id };
     if (shipment.customsDocumentStatus) {
       updateData.customsDocumentStatus = shipment.customsDocumentStatus;
@@ -581,7 +550,6 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
       data: updateData
     });
 
-    // Log the linking
     await prisma.shipmentActivityLog.create({
       data: {
         shipmentId: id,
@@ -602,7 +570,6 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
 
 /**
  * POST /api/shipments/:id/unlink-item
- * Unlink an item from a shipment (Admin or Agent)
  */
 router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res) => {
   try {
@@ -627,7 +594,6 @@ router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res
       data: { shipmentId: null }
     });
 
-    // Log the unlinking
     await prisma.shipmentActivityLog.create({
       data: {
         shipmentId: id,
@@ -648,7 +614,6 @@ router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res
 
 /**
  * GET /api/shipments/search-items
- * Search for items that can be linked (not already linked)
  */
 router.get('/search-items', authGuard, requireInternalStaff, async (req, res) => {
   try {
@@ -701,87 +666,15 @@ router.get('/search-items', authGuard, requireInternalStaff, async (req, res) =>
 
 /**
  * GET /api/shipments/:id/documents
- * Get documents for a shipment with checklist
- * Includes both ShipmentDocument records AND ItemDocument records
- * from all items linked to this shipment
+ * Uses documentService for unified view across both tables
  */
 router.get('/:id/documents', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const shipment = await prisma.shipment.findUnique({
-      where: { id },
-      include: {
-        items: {
-          where: { archivedAt: null },
-          select: { id: true, productCode: true }
-        }
-      }
-    });
-    if (!shipment) {
+    const result = await getDocumentsForShipment(req.params.id);
+    if (!result) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
-
-    // 1. Get ShipmentDocument records (explicitly shared at shipment level)
-    const shipmentDocuments = await prisma.shipmentDocument.findMany({
-      where: { shipmentId: id },
-      orderBy: { uploadedAt: 'desc' }
-    });
-
-    // Mark shipment docs
-    const markedShipmentDocs = shipmentDocuments.map(doc => ({
-      ...doc,
-      isShipmentDocument: true
-    }));
-
-    // 2. Get ItemDocument records from ALL items linked to this shipment
-    const itemIds = shipment.items.map(i => i.id);
-    let markedItemDocs = [];
-
-    if (itemIds.length > 0) {
-      const itemDocuments = await prisma.itemDocument.findMany({
-        where: { itemId: { in: itemIds } },
-        include: {
-          item: { select: { productCode: true } }
-        },
-        orderBy: { uploadedAt: 'desc' }
-      });
-
-      markedItemDocs = itemDocuments.map(doc => ({
-        ...doc,
-        isItemDocument: true,
-        fromItemProductCode: doc.item?.productCode
-      }));
-    }
-
-    // 3. Combine and deduplicate
-    const allDocuments = [...markedShipmentDocs, ...markedItemDocs];
-    const seenIds = new Set();
-    const documents = allDocuments.filter(doc => {
-      if (seenIds.has(doc.id)) return false;
-      seenIds.add(doc.id);
-      return true;
-    });
-
-    // Build checklist from ALL documents
-    const checklist = {};
-    for (const [key, label] of Object.entries(DOCUMENT_TYPE_LABELS)) {
-      const count = documents.filter(d => d.documentType === key).length;
-      checklist[key] = { uploaded: count > 0, count, label };
-    }
-
-    const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER'];
-    const uploadedRequired = REQUIRED_TYPES.filter(type => checklist[type]?.uploaded).length;
-
-    res.json({
-      documents,
-      checklist,
-      stats: {
-        complete: uploadedRequired === REQUIRED_TYPES.length,
-        uploadedRequired,
-        totalRequired: REQUIRED_TYPES.length
-      }
-    });
+    res.json(result);
   } catch (error) {
     console.error('Error fetching shipment documents:', error);
     res.status(500).json({ error: 'Failed to fetch documents' });
@@ -790,7 +683,7 @@ router.get('/:id/documents', authGuard, requireBrokerOrStaff, async (req, res) =
 
 /**
  * POST /api/shipments/:id/documents
- * Upload document to shipment
+ * Upload document to shipment (creates ShipmentDocument)
  */
 router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('file'), async (req, res) => {
   try {
@@ -799,13 +692,11 @@ router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('fi
     const file = req.file;
     const username = req.user.name;
 
-    // Validate document type based on role
     const allowedTypes = req.user.role === 'BROKER' ? BROKER_DOCUMENT_TYPES : Object.keys(DOCUMENT_TYPES);
     if (!documentType || !allowedTypes.includes(documentType)) {
       return res.status(400).json({ error: `Invalid document type. Allowed: ${allowedTypes.join(', ')}` });
     }
 
-    // Validate file
     const validationErrors = validateFile(file);
     if (validationErrors.length > 0) {
       return res.status(400).json({ error: validationErrors.join(', ') });
@@ -816,7 +707,6 @@ router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('fi
       return res.status(404).json({ error: 'Shipment not found' });
     }
 
-    // Upload to S3 using shipment ID as folder
     const s3Data = await uploadFileToS3({
       fileBuffer: file.buffer,
       originalName: file.originalname,
@@ -825,7 +715,6 @@ router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('fi
       uploadedBy: username
     });
 
-    // Create document record
     const document = await prisma.shipmentDocument.create({
       data: {
         shipmentId: id,
@@ -839,7 +728,6 @@ router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('fi
       }
     });
 
-    // Log activity
     await prisma.shipmentActivityLog.create({
       data: {
         shipmentId: id,
@@ -859,36 +747,19 @@ router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('fi
 
 /**
  * GET /api/shipments/:id/documents/:documentId/download
- * Get signed download URL for shipment document or item document
+ * Uses documentService to resolve across both tables
  */
 router.get('/:id/documents/:documentId/download', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { id, documentId } = req.params;
 
-    // 1. Check ShipmentDocument table first
-    const shipmentDoc = await prisma.shipmentDocument.findUnique({
-      where: { id: documentId }
-    });
-
-    if (shipmentDoc && shipmentDoc.shipmentId === id) {
-      const downloadUrl = await getSignedDownloadUrl(shipmentDoc.s3Key, shipmentDoc.fileName);
-      return res.json({ downloadUrl, fileName: shipmentDoc.fileName });
+    const resolved = await resolveDocumentById(documentId, { shipmentId: id });
+    if (!resolved) {
+      return res.status(404).json({ error: 'Document not found' });
     }
 
-    // 2. Check ItemDocument table (documents uploaded to items in this shipment)
-    const itemDoc = await prisma.itemDocument.findUnique({
-      where: { id: documentId },
-      include: {
-        item: { select: { shipmentId: true } }
-      }
-    });
-
-    if (itemDoc && itemDoc.item?.shipmentId === id) {
-      const downloadUrl = await getSignedDownloadUrl(itemDoc.s3Key, itemDoc.fileName);
-      return res.json({ downloadUrl, fileName: itemDoc.fileName });
-    }
-
-    return res.status(404).json({ error: 'Document not found' });
+    const downloadUrl = await getSignedDownloadUrl(resolved.document.s3Key, resolved.document.fileName);
+    res.json({ downloadUrl, fileName: resolved.document.fileName });
   } catch (error) {
     console.error('Error generating download URL:', error);
     res.status(500).json({ error: 'Failed to generate download URL' });
@@ -897,48 +768,24 @@ router.get('/:id/documents/:documentId/download', authGuard, requireBrokerOrStaf
 
 /**
  * DELETE /api/shipments/:id/documents/:documentId
- * Delete shipment document or item document linked to this shipment
+ * Uses documentService to resolve and delete from correct table
  */
 router.delete('/:id/documents/:documentId', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
     const { id, documentId } = req.params;
 
-    // 1. Check ShipmentDocument table first
-    const shipmentDoc = await prisma.shipmentDocument.findUnique({
-      where: { id: documentId }
-    });
-
-    if (shipmentDoc && shipmentDoc.shipmentId === id) {
-      // Only uploader or admin can delete
-      if (shipmentDoc.uploadedBy !== req.user.name && !['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
-        return res.status(403).json({ error: 'Not authorized to delete this document' });
-      }
-
-      await deleteFileFromS3(shipmentDoc.s3Key);
-      await prisma.shipmentDocument.delete({ where: { id: documentId } });
-      return res.json({ message: 'Document deleted successfully' });
+    const resolved = await resolveDocumentById(documentId, { shipmentId: id });
+    if (!resolved) {
+      return res.status(404).json({ error: 'Document not found' });
     }
 
-    // 2. Check ItemDocument table (documents uploaded to items in this shipment)
-    const itemDoc = await prisma.itemDocument.findUnique({
-      where: { id: documentId },
-      include: {
-        item: { select: { shipmentId: true } }
-      }
-    });
-
-    if (itemDoc && itemDoc.item?.shipmentId === id) {
-      // Only uploader or admin can delete
-      if (itemDoc.uploadedBy !== req.user.name && !['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
-        return res.status(403).json({ error: 'Not authorized to delete this document' });
-      }
-
-      await deleteFileFromS3(itemDoc.s3Key);
-      await prisma.itemDocument.delete({ where: { id: documentId } });
-      return res.json({ message: 'Document deleted successfully' });
+    // Only uploader or admin can delete
+    if (resolved.document.uploadedBy !== req.user.name && !['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Not authorized to delete this document' });
     }
 
-    return res.status(404).json({ error: 'Document not found' });
+    await deleteResolvedDocument(resolved, deleteFileFromS3);
+    res.json({ message: 'Document deleted successfully' });
   } catch (error) {
     console.error('Error deleting shipment document:', error);
     res.status(500).json({ error: 'Failed to delete document' });
