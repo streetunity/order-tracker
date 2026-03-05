@@ -3,7 +3,10 @@ import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl, validateFile } from '../services/fileUploadService.js';
-import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES, BROKER_DOCUMENT_TYPES } from './itemDocuments.js';
+import {
+  DOCUMENT_TYPE_LABELS, BROKER_DOCUMENT_TYPES,
+  getDocumentsForItem, resolveDocumentById, deleteResolvedDocument
+} from '../services/documentService.js';
 
 const prisma = new PrismaClient();
 
@@ -515,19 +518,16 @@ export function createBrokerRouter() {
 
   // GET /api/broker/history
   // Get items that have moved past AT_SEA stage and had broker interaction
-  // Shows items no longer at sea that have a customs status set (any status except null)
   router.get('/history', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { page = 1, limit = 20, status } = req.query;
       const skip = (page - 1) * limit;
 
       const where = {
-        // Items NOT currently at sea (they've moved on)
         currentStage: { not: 'AT_SEA' },
-        // Must have had some customs processing (status was set at some point)
         customsDocumentStatus: status
-          ? status  // Filter by specific status if provided
-          : { not: 'PENDING' }, // Default: show anything that progressed past PENDING
+          ? status
+          : { not: 'PENDING' },
         archivedAt: null
       };
 
@@ -582,118 +582,14 @@ export function createBrokerRouter() {
   // =============================
 
   // GET /broker/item/:itemId/documents
-  // Get documents for an item (includes all shared docs from shipment and sibling items)
+  // Uses documentService for unified view across both tables
   router.get('/item/:itemId/documents', authGuard, requireBrokerRole, async (req, res) => {
     try {
-      const { itemId } = req.params;
-
-      // Get item with shipment info
-      const item = await prisma.orderItem.findUnique({
-        where: { id: itemId },
-        include: {
-          shipment: {
-            include: {
-              items: {
-                where: { archivedAt: null },
-                select: { id: true, productCode: true }
-              }
-            }
-          }
-        }
-      });
-
-      if (!item) {
+      const result = await getDocumentsForItem(req.params.itemId);
+      if (!result) {
         return res.status(404).json({ error: 'Item not found' });
       }
-
-      let documents = [];
-      let isSharedShipment = false;
-      let shipmentInfo = null;
-
-      // If item is linked to a shipment, get all shared documents
-      if (item.shipmentId && item.shipment) {
-        isSharedShipment = true;
-        
-        // Get IDs of other items in this shipment
-        const allItemIds = item.shipment.items.map(i => i.id);
-        const otherItemIds = allItemIds.filter(id => id !== itemId);
-        
-        shipmentInfo = {
-          id: item.shipment.id,
-          containerNumber: item.shipment.containerNumber,
-          billOfLading: item.shipment.billOfLading,
-          itemCount: item.shipment.items.length,
-          items: item.shipment.items
-        };
-
-        // Get ShipmentDocument records (explicitly shared)
-        const shipmentDocs = await prisma.shipmentDocument.findMany({
-          where: { shipmentId: item.shipmentId },
-          orderBy: { uploadedAt: 'desc' }
-        });
-
-        // Mark shipment docs as shared
-        const markedShipmentDocs = shipmentDocs.map(doc => ({
-          ...doc,
-          isShipmentDocument: true
-        }));
-
-        // Get ItemDocument records from ALL items in the shipment (including this one)
-        const itemDocs = await prisma.itemDocument.findMany({
-          where: { itemId: { in: allItemIds } },
-          include: {
-            item: { select: { productCode: true } }
-          },
-          orderBy: { uploadedAt: 'desc' }
-        });
-
-        // Mark item docs - those from other items are shared
-        const markedItemDocs = itemDocs.map(doc => ({
-          ...doc,
-          isShipmentDocument: doc.itemId !== itemId, // Shared if from another item
-          fromItemProductCode: doc.item?.productCode
-        }));
-
-        // Combine all documents
-        documents = [...markedShipmentDocs, ...markedItemDocs];
-
-        // Deduplicate by ID
-        const seenIds = new Set();
-        documents = documents.filter(doc => {
-          if (seenIds.has(doc.id)) return false;
-          seenIds.add(doc.id);
-          return true;
-        });
-      } else {
-        // Get item-level documents only
-        documents = await prisma.itemDocument.findMany({
-          where: { itemId },
-          orderBy: { uploadedAt: 'desc' }
-        });
-      }
-
-      // Build checklist
-      const checklist = {};
-      for (const [key, label] of Object.entries(DOCUMENT_TYPE_LABELS)) {
-        const count = documents.filter(d => d.documentType === key).length;
-        checklist[key] = { uploaded: count > 0, count, label };
-      }
-
-      const uploadedRequired = REQUIRED_DOCUMENT_TYPES.filter(
-        type => checklist[type]?.uploaded
-      ).length;
-
-      res.json({
-        documents,
-        checklist,
-        stats: {
-          complete: uploadedRequired === REQUIRED_DOCUMENT_TYPES.length,
-          uploadedRequired,
-          totalRequired: REQUIRED_DOCUMENT_TYPES.length
-        },
-        isSharedShipment,
-        shipmentInfo
-      });
+      res.json(result);
     } catch (error) {
       console.error('Broker get documents error:', error);
       res.status(500).json({ error: 'Failed to retrieve documents' });
@@ -809,59 +705,18 @@ export function createBrokerRouter() {
   });
 
   // GET /broker/item/:itemId/documents/:documentId/download
-  // Get signed download URL (handles item docs, shipment docs, and sibling item docs)
+  // Uses documentService to resolve across both tables
   router.get('/item/:itemId/documents/:documentId/download', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { itemId, documentId } = req.params;
 
-      // Get item with shipment info
-      const item = await prisma.orderItem.findUnique({
-        where: { id: itemId },
-        include: {
-          shipment: {
-            include: {
-              items: { select: { id: true } }
-            }
-          }
-        }
-      });
-
-      if (!item) {
-        return res.status(404).json({ error: 'Item not found' });
+      const resolved = await resolveDocumentById(documentId, { itemId });
+      if (!resolved) {
+        return res.status(404).json({ error: 'Document not found' });
       }
 
-      // 1. Check item documents for this item
-      let document = await prisma.itemDocument.findUnique({
-        where: { id: documentId }
-      });
-
-      if (document && document.itemId === itemId) {
-        const downloadUrl = await getSignedDownloadUrl(document.s3Key, document.fileName);
-        return res.json({ downloadUrl, fileName: document.fileName });
-      }
-
-      // 2. Check shipment documents if item is in a shipment
-      if (item.shipmentId) {
-        const shipmentDoc = await prisma.shipmentDocument.findUnique({
-          where: { id: documentId }
-        });
-
-        if (shipmentDoc && shipmentDoc.shipmentId === item.shipmentId) {
-          const downloadUrl = await getSignedDownloadUrl(shipmentDoc.s3Key, shipmentDoc.fileName);
-          return res.json({ downloadUrl, fileName: shipmentDoc.fileName });
-        }
-
-        // 3. Check item documents from sibling items in the same shipment
-        if (document && item.shipment && item.shipment.items) {
-          const siblingItemIds = item.shipment.items.map(i => i.id);
-          if (siblingItemIds.includes(document.itemId)) {
-            const downloadUrl = await getSignedDownloadUrl(document.s3Key, document.fileName);
-            return res.json({ downloadUrl, fileName: document.fileName });
-          }
-        }
-      }
-
-      return res.status(404).json({ error: 'Document not found' });
+      const downloadUrl = await getSignedDownloadUrl(resolved.document.s3Key, resolved.document.fileName);
+      res.json({ downloadUrl, fileName: resolved.document.fileName });
     } catch (error) {
       console.error('Broker download URL error:', error);
       res.status(500).json({ error: 'Failed to generate download URL' });
@@ -869,75 +724,23 @@ export function createBrokerRouter() {
   });
 
   // DELETE /broker/item/:itemId/documents/:documentId
-  // Delete document (handles item docs, shipment docs, and sibling item docs)
+  // Uses documentService to resolve and delete from correct table
   router.delete('/item/:itemId/documents/:documentId', authGuard, requireBrokerRole, async (req, res) => {
     try {
       const { itemId, documentId } = req.params;
 
-      // Get item with shipment info
-      const item = await prisma.orderItem.findUnique({
-        where: { id: itemId },
-        include: {
-          shipment: {
-            include: {
-              items: { select: { id: true } }
-            }
-          }
-        }
-      });
-
-      if (!item) {
-        return res.status(404).json({ error: 'Item not found' });
+      const resolved = await resolveDocumentById(documentId, { itemId });
+      if (!resolved) {
+        return res.status(404).json({ error: 'Document not found' });
       }
 
-      // 1. Check item documents for this item
-      let document = await prisma.itemDocument.findUnique({
-        where: { id: documentId }
-      });
-
-      if (document && document.itemId === itemId) {
-        // Broker can only delete documents they uploaded
-        if (document.uploadedBy !== req.user.name && req.user.role !== 'SUPER_ADMIN') {
-          return res.status(403).json({ error: 'Not authorized to delete this document' });
-        }
-
-        await deleteFileFromS3(document.s3Key);
-        await prisma.itemDocument.delete({ where: { id: documentId } });
-        return res.json({ message: 'Document deleted successfully' });
+      // Broker can only delete documents they uploaded
+      if (resolved.document.uploadedBy !== req.user.name && req.user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Not authorized to delete this document' });
       }
 
-      // 2. Check shipment documents if item is in a shipment
-      if (item.shipmentId) {
-        const shipmentDoc = await prisma.shipmentDocument.findUnique({
-          where: { id: documentId }
-        });
-
-        if (shipmentDoc && shipmentDoc.shipmentId === item.shipmentId) {
-          if (shipmentDoc.uploadedBy !== req.user.name && req.user.role !== 'SUPER_ADMIN') {
-            return res.status(403).json({ error: 'Not authorized to delete this document' });
-          }
-
-          await deleteFileFromS3(shipmentDoc.s3Key);
-          await prisma.shipmentDocument.delete({ where: { id: documentId } });
-          return res.json({ message: 'Shipment document deleted successfully' });
-        }
-
-        // 3. Check item documents from sibling items (broker can only delete their own uploads)
-        if (document && item.shipment && item.shipment.items) {
-          const siblingItemIds = item.shipment.items.map(i => i.id);
-          if (siblingItemIds.includes(document.itemId)) {
-            if (document.uploadedBy !== req.user.name && req.user.role !== 'SUPER_ADMIN') {
-              return res.status(403).json({ error: 'Not authorized to delete this document' });
-            }
-
-            await deleteFileFromS3(document.s3Key);
-            await prisma.itemDocument.delete({ where: { id: documentId } });
-            return res.json({ message: 'Document deleted successfully' });
-          }
-        }
-      }
-
-      return res.status(404).json({ error: 'Document not found' });
+      await deleteResolvedDocument(resolved, deleteFileFromS3);
+      res.json({ message: 'Document deleted successfully' });
     } catch (error) {
       console.error('Broker delete error:', error);
       res.status(500).json({ error: 'Failed to delete document' });
