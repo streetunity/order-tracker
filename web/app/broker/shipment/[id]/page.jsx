@@ -629,6 +629,7 @@ export default function BrokerShipmentDetail() {
                     <div style={{ fontWeight: 600, color: '#fff', marginBottom: '2px' }}>Shared Shipment Documents</div>
                     <div style={{ fontSize: '13px', color: '#9ca3af' }}>
                       Documents uploaded here are shared across all {shipment.items?.length || 0} items in this shipment.
+                      Documents uploaded to individual items on the board also appear here.
                     </div>
                   </div>
                 </div>
@@ -723,11 +724,25 @@ export default function BrokerShipmentDetail() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {documents.map(doc => (
-                        <div key={doc.id} className="doc-row">
+                        <div key={doc.id} className="doc-row" style={{
+                          borderLeft: doc.isItemDocument ? '3px solid #f59e0b' : undefined
+                        }}>
                           <File size={20} style={{ color: '#9ca3af', marginTop: '2px', flexShrink: 0 }} />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: '14px', fontWeight: 500, color: '#fff', marginBottom: '4px', wordBreak: 'break-word' }}>
                               {doc.fileName}
+                              {doc.isItemDocument && (
+                                <span style={{
+                                  marginLeft: '8px',
+                                  padding: '1px 6px',
+                                  backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                                  borderRadius: '3px',
+                                  fontSize: '10px',
+                                  color: '#f59e0b'
+                                }}>
+                                  From: {doc.fromItemProductCode || 'Item'}
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '4px' }}>
                               {DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}
@@ -740,7 +755,7 @@ export default function BrokerShipmentDetail() {
                             <button onClick={() => handleDownload(doc)} className="doc-action-btn">
                               <Download size={16} />
                             </button>
-                            {doc.uploadedBy === user?.name && (
+                            {(doc.uploadedBy === user?.name || user?.role === 'SUPER_ADMIN') && (
                               <button onClick={() => setDeleteConfirm(doc)} className="doc-action-btn">
                                 <Trash2 size={16} />
                               </button>
