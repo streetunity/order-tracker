@@ -1,9 +1,6 @@
 /**
  * Public routes for invoicing system
- * These routes do not require authentication
- * - Email tracking pixels
- * - Public estimate viewing
- * - Customer portal entry
+ * No authentication required.
  */
 
 import express from 'express';
@@ -18,123 +15,55 @@ import {
 export function createPublicInvoicingRouter(prisma) {
   const router = express.Router();
 
-  // 1x1 transparent GIF for email tracking
   const TRACKING_PIXEL = Buffer.from(
     'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
     'base64'
   );
 
-  // ============================================
-  // EMAIL TRACKING
-  // ============================================
+  // ── Email tracking pixels ────────────────────────────────────────────────
 
-  // GET /track/estimate/:id/open - Email open tracking pixel
   router.get('/track/estimate/:id/open', async (req, res) => {
-    try {
-      await trackEmailOpen(prisma, req.params.id);
-    } catch (err) {
-      console.error('Email tracking error:', err);
-    }
-
-    // Always return the tracking pixel regardless of success
-    res.set({
-      'Content-Type': 'image/gif',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
+    try { await trackEmailOpen(prisma, req.params.id); } catch (_) {}
+    res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate, private', 'Pragma': 'no-cache', 'Expires': '0' });
     res.send(TRACKING_PIXEL);
   });
 
-  // ============================================
-  // PUBLIC ESTIMATE VIEWING
-  // ============================================
+  router.get('/track/invoice/:id/open', async (req, res) => {
+    try { await trackInvoiceEmailOpen(prisma, req.params.id); } catch (_) {}
+    res.set({ 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate, private', 'Pragma': 'no-cache', 'Expires': '0' });
+    res.send(TRACKING_PIXEL);
+  });
 
-  // GET /view-estimate/:id - Public estimate view (increments view count)
+  // ── Public estimate viewing ───────────────────────────────────────────────
+
   router.get('/view-estimate/:id', async (req, res) => {
     try {
       const estimate = await prisma.estimate.findUnique({
         where: { id: req.params.id },
         include: {
-          customer: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              company: true,
-              companyName: true,
-              email: true,
-              phone: true
-            }
-          },
-          items: {
-            orderBy: { sortOrder: 'asc' },
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              sku: true,
-              quantity: true,
-              unitPrice: true,
-              amount: true,
-              taxable: true,
-              fromBundleName: true
-            }
-          },
-          createdBy: {
-            select: { id: true, name: true, email: true }
-          }
+          customer: { select: { id: true, firstName: true, lastName: true, company: true, companyName: true, email: true, phone: true } },
+          items: { orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, description: true, sku: true, quantity: true, unitPrice: true, amount: true, taxable: true, fromBundleName: true } },
+          createdBy: { select: { id: true, name: true, email: true } }
         }
       });
 
-      if (!estimate) {
-        return res.status(404).json({ error: 'Estimate not found' });
-      }
-
-      if (estimate.isDeleted) {
-        return res.status(404).json({ error: 'Estimate not found' });
-      }
+      if (!estimate || estimate.isDeleted) return res.status(404).json({ error: 'Estimate not found' });
 
       // Update view tracking
-      if (estimate.status === 'SENT') {
-        await prisma.estimate.update({
-          where: { id: estimate.id },
-          data: {
-            status: 'VIEWED',
-            lastViewedAt: new Date(),
-            viewCount: { increment: 1 }
-          }
-        });
-      } else {
-        await prisma.estimate.update({
-          where: { id: estimate.id },
-          data: {
-            lastViewedAt: new Date(),
-            viewCount: { increment: 1 }
-          }
-        });
-      }
+      const statusUpdate = estimate.status === 'SENT'
+        ? { status: 'VIEWED', lastViewedAt: new Date(), viewCount: { increment: 1 } }
+        : { lastViewedAt: new Date(), viewCount: { increment: 1 } };
+      await prisma.estimate.update({ where: { id: estimate.id }, data: statusUpdate });
 
-      // Get company settings for branding
       const companySettings = await prisma.invoicingSettings.findFirst({
-        select: {
-          companyName: true,
-          address: true,
-          city: true,
-          state: true,
-          zipCode: true,
-          phone: true,
-          email: true,
-          website: true
-        }
+        select: { companyName: true, logoUrl: true, address: true, city: true, state: true, zipCode: true, phone: true, email: true, website: true, defaultEstimateTerms: true }
       });
 
-      // Return public-safe estimate data (no internal notes, costs, margins)
       res.json({
         id: estimate.id,
         estimateNumber: estimate.estimateNumber,
         version: estimate.version,
-        status: estimate.status,
+        status: estimate.status === 'SENT' ? 'VIEWED' : estimate.status, // reflect the update we just made
         estimateDate: estimate.estimateDate,
         expiryDate: estimate.expiryDate,
         customer: estimate.customer,
@@ -148,14 +77,11 @@ export function createPublicInvoicingRouter(prisma) {
         shippingAmount: estimate.shippingAmount,
         total: estimate.total,
         notes: estimate.notes,
-        termsConditions: estimate.termsConditions,
-        createdBy: {
-          name: estimate.createdBy?.name
-        },
+        // Fall back to default terms from settings if estimate has none
+        termsConditions: estimate.termsConditions || companySettings?.defaultEstimateTerms || null,
+        createdBy: { name: estimate.createdBy?.name },
         company: companySettings,
-        // Signature status
         isSigned: !!estimate.signatureId,
-        signedAt: estimate.signatureId ? estimate.updatedAt : null
       });
     } catch (error) {
       console.error('GET /view-estimate/:id error:', error);
@@ -163,29 +89,54 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // GET /view-estimate/:id/pdf - Get PDF download URL
-  router.get('/view-estimate/:id/pdf', async (req, res) => {
+  // POST /accept-estimate/:id — customer accepts the estimate
+  router.post('/accept-estimate/:id', async (req, res) => {
     try {
+      const { signerName } = req.body;
+
       const estimate = await prisma.estimate.findUnique({
         where: { id: req.params.id },
-        select: {
-          id: true,
-          estimateNumber: true,
-          pdfS3Key: true,
-          isDeleted: true
-        }
+        select: { id: true, status: true, estimateNumber: true, total: true, customerId: true, isDeleted: true }
       });
 
-      if (!estimate || estimate.isDeleted) {
-        return res.status(404).json({ error: 'Estimate not found' });
+      if (!estimate || estimate.isDeleted) return res.status(404).json({ error: 'Estimate not found' });
+
+      const nonAcceptableStatuses = ['ACCEPTED', 'CONVERTED', 'EXPIRED', 'VOID'];
+      if (nonAcceptableStatuses.includes(estimate.status)) {
+        return res.status(400).json({ error: `Estimate cannot be accepted in its current status (${estimate.status})` });
       }
 
-      if (!estimate.pdfS3Key) {
-        return res.status(404).json({ error: 'PDF not available' });
-      }
+      await prisma.estimate.update({
+        where: { id: estimate.id },
+        data: { status: 'ACCEPTED' }
+      });
 
+      // Log the acceptance
+      try {
+        await prisma.customerActivityLog.create({
+          data: {
+            customerId: estimate.customerId,
+            estimateId: estimate.id,
+            type: 'accepted',
+            description: `Estimate ${estimate.estimateNumber} accepted online${signerName ? ` by ${signerName}` : ''}`,
+            actorName: signerName || 'Customer (online)',
+          }
+        });
+      } catch (_) { /* activity log failure is non-fatal */ }
+
+      res.json({ success: true, estimateNumber: estimate.estimateNumber, total: estimate.total });
+    } catch (error) {
+      console.error('POST /accept-estimate/:id error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.get('/view-estimate/:id/pdf', async (req, res) => {
+    try {
+      const estimate = await prisma.estimate.findUnique({ where: { id: req.params.id }, select: { id: true, estimateNumber: true, pdfS3Key: true, isDeleted: true } });
+      if (!estimate || estimate.isDeleted) return res.status(404).json({ error: 'Estimate not found' });
+      if (!estimate.pdfS3Key) return res.status(404).json({ error: 'PDF not available' });
       const pdfUrl = await getPDFSignedUrl(estimate.pdfS3Key, `${estimate.estimateNumber}.pdf`);
-
       res.json({ pdfUrl });
     } catch (error) {
       console.error('GET /view-estimate/:id/pdf error:', error);
@@ -193,128 +144,35 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ============================================
-  // INVOICE EMAIL TRACKING
-  // ============================================
+  // ── Public invoice viewing ────────────────────────────────────────────────
 
-  // GET /track/invoice/:id/open - Invoice email open tracking pixel
-  router.get('/track/invoice/:id/open', async (req, res) => {
-    try {
-      await trackInvoiceEmailOpen(prisma, req.params.id);
-    } catch (err) {
-      console.error('Invoice email tracking error:', err);
-    }
-
-    // Always return the tracking pixel regardless of success
-    res.set({
-      'Content-Type': 'image/gif',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
-    res.send(TRACKING_PIXEL);
-  });
-
-  // ============================================
-  // PUBLIC INVOICE VIEWING
-  // ============================================
-
-  // GET /view-invoice/:id - Public invoice view (increments view count)
   router.get('/view-invoice/:id', async (req, res) => {
     try {
       const invoice = await prisma.invoice.findUnique({
         where: { id: req.params.id },
         include: {
-          customer: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              company: true,
-              companyName: true,
-              email: true,
-              phone: true,
-              billingAddress: true,
-              address: true
-            }
-          },
-          items: {
-            orderBy: { sortOrder: 'asc' },
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              sku: true,
-              quantity: true,
-              unitPrice: true,
-              amount: true,
-              taxable: true
-            }
-          },
-          paymentSchedule: {
-            orderBy: { sortOrder: 'asc' },
-            select: {
-              id: true,
-              description: true,
-              percentage: true,
-              amount: true,
-              dueDate: true,
-              status: true
-            }
-          },
-          createdBy: {
-            select: { id: true, name: true, email: true }
-          }
+          customer: { select: { id: true, firstName: true, lastName: true, company: true, companyName: true, email: true, phone: true, billingAddress: true, address: true } },
+          items: { orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, description: true, sku: true, quantity: true, unitPrice: true, amount: true, taxable: true } },
+          paymentSchedule: { orderBy: { sortOrder: 'asc' }, select: { id: true, description: true, percentage: true, amount: true, dueDate: true, status: true } },
+          createdBy: { select: { id: true, name: true, email: true } }
         }
       });
 
-      if (!invoice) {
-        return res.status(404).json({ error: 'Invoice not found' });
-      }
+      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
 
-      if (invoice.isDeleted) {
-        return res.status(404).json({ error: 'Invoice not found' });
-      }
+      const statusUpdate = invoice.status === 'SENT'
+        ? { status: 'VIEWED', lastViewedAt: new Date(), viewCount: { increment: 1 } }
+        : { lastViewedAt: new Date(), viewCount: { increment: 1 } };
+      await prisma.invoice.update({ where: { id: invoice.id }, data: statusUpdate });
 
-      // Update view tracking
-      if (invoice.status === 'SENT') {
-        await prisma.invoice.update({
-          where: { id: invoice.id },
-          data: {
-            status: 'VIEWED',
-            lastViewedAt: new Date(),
-            viewCount: { increment: 1 }
-          }
-        });
-      } else {
-        await prisma.invoice.update({
-          where: { id: invoice.id },
-          data: {
-            lastViewedAt: new Date(),
-            viewCount: { increment: 1 }
-          }
-        });
-      }
-
-      // Get company settings for branding
       const companySettings = await prisma.invoicingSettings.findFirst({
-        select: {
-          companyName: true,
-          address: true,
-          city: true,
-          state: true,
-          zipCode: true,
-          phone: true,
-          email: true,
-          website: true
-        }
+        select: { companyName: true, logoUrl: true, address: true, city: true, state: true, zipCode: true, phone: true, email: true, website: true }
       });
 
-      // Return public-safe invoice data (no internal notes, costs, margins)
       res.json({
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
-        status: invoice.status,
+        status: invoice.status === 'SENT' ? 'VIEWED' : invoice.status,
         invoiceDate: invoice.invoiceDate,
         dueDate: invoice.dueDate,
         paymentTerms: invoice.paymentTerms,
@@ -333,9 +191,7 @@ export function createPublicInvoicingRouter(prisma) {
         balanceDue: invoice.balanceDue,
         notes: invoice.notes,
         termsConditions: invoice.termsConditions,
-        createdBy: {
-          name: invoice.createdBy?.name
-        },
+        createdBy: { name: invoice.createdBy?.name },
         company: companySettings
       });
     } catch (error) {
@@ -344,29 +200,12 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // GET /view-invoice/:id/pdf - Get invoice PDF download URL
   router.get('/view-invoice/:id/pdf', async (req, res) => {
     try {
-      const invoice = await prisma.invoice.findUnique({
-        where: { id: req.params.id },
-        select: {
-          id: true,
-          invoiceNumber: true,
-          pdfS3Key: true,
-          isDeleted: true
-        }
-      });
-
-      if (!invoice || invoice.isDeleted) {
-        return res.status(404).json({ error: 'Invoice not found' });
-      }
-
-      if (!invoice.pdfS3Key) {
-        return res.status(404).json({ error: 'PDF not available' });
-      }
-
+      const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, select: { id: true, invoiceNumber: true, pdfS3Key: true, isDeleted: true } });
+      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
+      if (!invoice.pdfS3Key) return res.status(404).json({ error: 'PDF not available' });
       const pdfUrl = await getPDFSignedUrl(invoice.pdfS3Key, `${invoice.invoiceNumber}.pdf`);
-
       res.json({ pdfUrl });
     } catch (error) {
       console.error('GET /view-invoice/:id/pdf error:', error);
@@ -374,77 +213,24 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ============================================
-  // CUSTOMER PORTAL
-  // ============================================
+  // ── Customer portal ───────────────────────────────────────────────────────
 
-  // GET /portal/:token - Customer portal entry
   router.get('/portal/:token', async (req, res) => {
     try {
-      const customer = await prisma.customer.findFirst({
-        where: {
-          portalToken: req.params.token,
-          isDeleted: false
-        },
-        select: {
-          id: true,
-          customerNumber: true,
-          firstName: true,
-          lastName: true,
-          company: true,
-          companyName: true,
-          email: true
-        }
-      });
-
-      if (!customer) {
-        return res.status(404).json({ error: 'Invalid portal access' });
-      }
-
-      res.json({
-        customer,
-        message: 'Portal access verified'
-      });
+      const customer = await prisma.customer.findFirst({ where: { portalToken: req.params.token, isDeleted: false }, select: { id: true, customerNumber: true, firstName: true, lastName: true, company: true, companyName: true, email: true } });
+      if (!customer) return res.status(404).json({ error: 'Invalid portal access' });
+      res.json({ customer, message: 'Portal access verified' });
     } catch (error) {
       console.error('GET /portal/:token error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // GET /portal/:token/estimates - Customer's estimates
   router.get('/portal/:token/estimates', async (req, res) => {
     try {
-      const customer = await prisma.customer.findFirst({
-        where: {
-          portalToken: req.params.token,
-          isDeleted: false
-        }
-      });
-
-      if (!customer) {
-        return res.status(404).json({ error: 'Invalid portal access' });
-      }
-
-      const estimates = await prisma.estimate.findMany({
-        where: {
-          customerId: customer.id,
-          isDeleted: false
-        },
-        select: {
-          id: true,
-          estimateNumber: true,
-          version: true,
-          status: true,
-          estimateDate: true,
-          expiryDate: true,
-          total: true,
-          _count: {
-            select: { items: true }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-
+      const customer = await prisma.customer.findFirst({ where: { portalToken: req.params.token, isDeleted: false } });
+      if (!customer) return res.status(404).json({ error: 'Invalid portal access' });
+      const estimates = await prisma.estimate.findMany({ where: { customerId: customer.id, isDeleted: false }, select: { id: true, estimateNumber: true, version: true, status: true, estimateDate: true, expiryDate: true, total: true, _count: { select: { items: true } } }, orderBy: { createdAt: 'desc' } });
       res.json(estimates);
     } catch (error) {
       console.error('GET /portal/:token/estimates error:', error);
@@ -452,41 +238,11 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // GET /portal/:token/invoices - Customer's invoices
   router.get('/portal/:token/invoices', async (req, res) => {
     try {
-      const customer = await prisma.customer.findFirst({
-        where: {
-          portalToken: req.params.token,
-          isDeleted: false
-        }
-      });
-
-      if (!customer) {
-        return res.status(404).json({ error: 'Invalid portal access' });
-      }
-
-      const invoices = await prisma.invoice.findMany({
-        where: {
-          customerId: customer.id,
-          isDeleted: false
-        },
-        select: {
-          id: true,
-          invoiceNumber: true,
-          status: true,
-          invoiceDate: true,
-          dueDate: true,
-          total: true,
-          amountPaid: true,
-          balanceDue: true,
-          _count: {
-            select: { items: true }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-
+      const customer = await prisma.customer.findFirst({ where: { portalToken: req.params.token, isDeleted: false } });
+      if (!customer) return res.status(404).json({ error: 'Invalid portal access' });
+      const invoices = await prisma.invoice.findMany({ where: { customerId: customer.id, isDeleted: false }, select: { id: true, invoiceNumber: true, status: true, invoiceDate: true, dueDate: true, total: true, amountPaid: true, balanceDue: true, _count: { select: { items: true } } }, orderBy: { createdAt: 'desc' } });
       res.json(invoices);
     } catch (error) {
       console.error('GET /portal/:token/invoices error:', error);
@@ -494,76 +250,24 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ============================================
-  // PUBLIC PAYMENT (for customer payment page)
-  // ============================================
+  // ── Public payments ───────────────────────────────────────────────────────
 
-  // POST /pay/invoice/:id/create-intent - Create Stripe PaymentIntent (public)
   router.post('/pay/invoice/:id/create-intent', async (req, res) => {
     try {
       const { amount, scheduleItemId } = req.body;
-
-      if (!amount) {
-        return res.status(400).json({ error: 'amount is required' });
-      }
-
-      // Get invoice with customer
-      const invoice = await prisma.invoice.findUnique({
-        where: { id: req.params.id },
-        include: { customer: true }
-      });
-
-      if (!invoice) {
-        return res.status(404).json({ error: 'Invoice not found' });
-      }
-
-      if (invoice.isDeleted) {
-        return res.status(404).json({ error: 'Invoice not found' });
-      }
-
-      if (invoice.status === 'VOID') {
-        return res.status(400).json({ error: 'Cannot pay voided invoice' });
-      }
-
-      if (invoice.status === 'PAID') {
-        return res.status(400).json({ error: 'Invoice is already paid' });
-      }
-
-      if (amount > invoice.balanceDue) {
-        return res.status(400).json({
-          error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}`
-        });
-      }
-
-      // Get or create Stripe customer
+      if (!amount) return res.status(400).json({ error: 'amount is required' });
+      const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: { customer: true } });
+      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
+      if (invoice.status === 'VOID') return res.status(400).json({ error: 'Cannot pay voided invoice' });
+      if (invoice.status === 'PAID') return res.status(400).json({ error: 'Invoice is already paid' });
+      if (amount > invoice.balanceDue) return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
       let stripeCustomerId = invoice.customer?.stripeCustomerId;
       if (!stripeCustomerId && invoice.customer) {
-        const stripeCustomer = await getOrCreateStripeCustomer(invoice.customer);
-        stripeCustomerId = stripeCustomer.id;
-
-        // Save Stripe customer ID
-        await prisma.customer.update({
-          where: { id: invoice.customer.id },
-          data: { stripeCustomerId }
-        });
+        const sc = await getOrCreateStripeCustomer(invoice.customer);
+        stripeCustomerId = sc.id;
+        await prisma.customer.update({ where: { id: invoice.customer.id }, data: { stripeCustomerId } });
       }
-
-      // Create PaymentIntent
-      const paymentIntent = await createPaymentIntent({
-        amount: parseFloat(amount),
-        customerId: invoice.customerId,
-        customerEmail: invoice.customer?.email,
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        scheduleItemId,
-        description: `Payment for Invoice ${invoice.invoiceNumber}`,
-        metadata: {
-          stripeCustomerId,
-          customerId: invoice.customerId,
-          publicPayment: 'true'
-        }
-      });
-
+      const paymentIntent = await createPaymentIntent({ amount: parseFloat(amount), customerId: invoice.customerId, customerEmail: invoice.customer?.email, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, scheduleItemId, description: `Payment for Invoice ${invoice.invoiceNumber}`, metadata: { stripeCustomerId, customerId: invoice.customerId, publicPayment: 'true' } });
       res.json(paymentIntent);
     } catch (error) {
       console.error('POST /pay/invoice/:id/create-intent error:', error);
@@ -571,76 +275,23 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // POST /pay/invoice/:id/create-ach - Create Stripe ACH PaymentIntent (public)
   router.post('/pay/invoice/:id/create-ach', async (req, res) => {
     try {
       const { amount, scheduleItemId } = req.body;
-
-      if (!amount) {
-        return res.status(400).json({ error: 'amount is required' });
-      }
-
-      // Get invoice with customer
-      const invoice = await prisma.invoice.findUnique({
-        where: { id: req.params.id },
-        include: { customer: true }
-      });
-
-      if (!invoice) {
-        return res.status(404).json({ error: 'Invoice not found' });
-      }
-
-      if (invoice.isDeleted) {
-        return res.status(404).json({ error: 'Invoice not found' });
-      }
-
-      if (invoice.status === 'VOID') {
-        return res.status(400).json({ error: 'Cannot pay voided invoice' });
-      }
-
-      if (invoice.status === 'PAID') {
-        return res.status(400).json({ error: 'Invoice is already paid' });
-      }
-
-      if (amount > invoice.balanceDue) {
-        return res.status(400).json({
-          error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}`
-        });
-      }
-
-      // Get or create Stripe customer
+      if (!amount) return res.status(400).json({ error: 'amount is required' });
+      const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: { customer: true } });
+      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
+      if (invoice.status === 'VOID') return res.status(400).json({ error: 'Cannot pay voided invoice' });
+      if (invoice.status === 'PAID') return res.status(400).json({ error: 'Invoice is already paid' });
+      if (amount > invoice.balanceDue) return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
       let stripeCustomerId = invoice.customer?.stripeCustomerId;
       if (!stripeCustomerId && invoice.customer) {
-        const stripeCustomer = await getOrCreateStripeCustomer(invoice.customer);
-        stripeCustomerId = stripeCustomer.id;
-
-        // Save Stripe customer ID
-        await prisma.customer.update({
-          where: { id: invoice.customer.id },
-          data: { stripeCustomerId }
-        });
+        const sc = await getOrCreateStripeCustomer(invoice.customer);
+        stripeCustomerId = sc.id;
+        await prisma.customer.update({ where: { id: invoice.customer.id }, data: { stripeCustomerId } });
       }
-
-      const customerName = invoice.customer
-        ? `${invoice.customer.firstName} ${invoice.customer.lastName}`.trim()
-        : 'Customer';
-
-      // Create ACH PaymentIntent
-      const paymentIntent = await createACHPaymentIntent({
-        amount: parseFloat(amount),
-        customerId: invoice.customerId,
-        customerEmail: invoice.customer?.email,
-        customerName,
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        scheduleItemId,
-        metadata: {
-          stripeCustomerId,
-          customerId: invoice.customerId,
-          publicPayment: 'true'
-        }
-      });
-
+      const customerName = invoice.customer ? `${invoice.customer.firstName} ${invoice.customer.lastName}`.trim() : 'Customer';
+      const paymentIntent = await createACHPaymentIntent({ amount: parseFloat(amount), customerId: invoice.customerId, customerEmail: invoice.customer?.email, customerName, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, scheduleItemId, metadata: { stripeCustomerId, customerId: invoice.customerId, publicPayment: 'true' } });
       res.json(paymentIntent);
     } catch (error) {
       console.error('POST /pay/invoice/:id/create-ach error:', error);
