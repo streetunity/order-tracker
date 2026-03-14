@@ -57,18 +57,14 @@ export default async function PublicEstimateViewPage({ params }) {
 
           .wrap { max-width: 800px; margin: 24px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.10); }
 
-          /* Header — red when no logo, black when logo present */
+          /* Header */
           .header { background: ${RED}; padding: 24px 28px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
           .header.logo-header { background: #000000; }
-
-          /* Left side of header */
           .header-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
           .header-logo { height: 52px; width: auto; display: block; flex-shrink: 0; }
           .header-text { display: flex; flex-direction: column; justify-content: center; }
           .header-company { color: #ffffff; font-size: 20px; font-weight: 700; line-height: 1.2; }
           .header-sub { color: rgba(255,255,255,0.75); font-size: 12px; margin-top: 3px; }
-
-          /* Right side of header */
           .header-right { text-align: right; flex-shrink: 0; }
           .est-number { color: #ffffff; font-size: 16px; font-weight: 700; font-family: monospace; word-break: break-all; }
           .status-badge { display: inline-block; margin-top: 6px; padding: 3px 10px; background: rgba(255,255,255,0.2); border-radius: 20px; color: #ffffff; font-size: 11px; font-weight: 600; white-space: nowrap; }
@@ -85,7 +81,7 @@ export default async function PublicEstimateViewPage({ params }) {
           .detail-label { color: #666666; white-space: nowrap; }
           .detail-val { font-weight: 600; color: #111111; text-align: right; }
 
-          /* Items table — scrollable on mobile */
+          /* Items table */
           .items-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; background: #ffffff; }
           table.items { width: 100%; border-collapse: collapse; min-width: 480px; background: #ffffff; }
           table.items thead tr { background: ${RED} !important; }
@@ -100,14 +96,16 @@ export default async function PublicEstimateViewPage({ params }) {
           .item-sku  { font-size: 11px; color: #ffffff !important; background: #444444 !important; display: inline-block; padding: 2px 7px; border-radius: 3px; margin-top: 3px; font-family: monospace; }
           .item-desc { font-size: 12px; color: #333333 !important; margin-top: 5px; line-height: 1.5; }
 
-          /* Totals */
-          .totals-section { padding: 16px 20px 20px; background: #ffffff; }
-          .totals-table { width: 100%; max-width: 300px; margin-left: auto; }
-          .totals-table td { padding: 6px 0; font-size: 14px; color: #333333 !important; background: transparent; }
-          .totals-table td:last-child { text-align: right; color: #111111 !important; }
-          .totals-table .label-cell { color: #555555 !important; }
-          .totals-total td { font-size: 17px; font-weight: 700; border-top: 2px solid #dddddd; padding-top: 10px; color: #111111 !important; }
-          .totals-total td:last-child { color: ${RED} !important; }
+          /* Totals — dark background matching the header */
+          .totals-section { background: #111111; padding: 0; }
+          .totals-table { width: 100%; border-collapse: collapse; }
+          .totals-table td { padding: 10px 20px; font-size: 14px; background: #111111 !important; border-bottom: 1px solid #222222; }
+          .totals-table td.label-cell { color: #aaaaaa !important; }
+          .totals-table td.value-cell { text-align: right; color: #ffffff !important; }
+          .totals-table td.discount-cell { text-align: right; color: #4ade80 !important; }
+          .totals-total td { font-size: 18px; font-weight: 700; border-top: none; border-bottom: none; padding: 14px 20px; background: #000000 !important; }
+          .totals-total td.label-cell { color: #ffffff !important; }
+          .totals-total td.value-cell { color: ${RED} !important; }
 
           /* Notes / Terms */
           .notes-section { padding: 16px 20px; background: #f8f8f8; border-top: 1px solid #eeeeee; }
@@ -127,7 +125,6 @@ export default async function PublicEstimateViewPage({ params }) {
             .info-row { grid-template-columns: 1fr; }
             .info-cell:first-child { border-right: none; border-bottom: 1px solid #eeeeee; }
             .info-cell { padding: 14px 16px; }
-            .totals-section { padding: 14px 16px 18px; }
             .notes-section { padding: 14px 16px; }
             .footer { padding: 14px 16px; }
           }
@@ -136,7 +133,7 @@ export default async function PublicEstimateViewPage({ params }) {
       <body>
         <div className="wrap">
 
-          {/* Header — logo + company text side by side when logo set, text-only on red when no logo */}
+          {/* Header */}
           <div className={`header${logoUrl ? ' logo-header' : ''}`}>
             <div className="header-left">
               {logoUrl && <img src={logoUrl} alt={companyName} className="header-logo" />}
@@ -217,37 +214,37 @@ export default async function PublicEstimateViewPage({ params }) {
             </table>
           </div>
 
-          {/* Totals */}
+          {/* Totals — dark panel */}
           <div className="totals-section">
             <table className="totals-table">
               <tbody>
                 <tr>
                   <td className="label-cell">Subtotal</td>
-                  <td>{fmt(estimate.subtotal)}</td>
+                  <td className="value-cell">{fmt(estimate.subtotal)}</td>
                 </tr>
                 {estimate.discountAmount > 0 && (
                   <tr>
                     <td className="label-cell">Discount</td>
-                    <td style={{ color: '#16a34a' }}>-{fmt(estimate.discountAmount)}</td>
+                    <td className="discount-cell">-{fmt(estimate.discountAmount)}</td>
                   </tr>
                 )}
                 {estimate.taxAmount > 0 && (
                   <tr>
                     <td className="label-cell">Tax ({estimate.taxRate}%)</td>
-                    <td>{fmt(estimate.taxAmount)}</td>
+                    <td className="value-cell">{fmt(estimate.taxAmount)}</td>
                   </tr>
                 )}
                 {estimate.shippingAmount > 0 && (
                   <tr>
                     <td className="label-cell">Shipping</td>
-                    <td>{fmt(estimate.shippingAmount)}</td>
+                    <td className="value-cell">{fmt(estimate.shippingAmount)}</td>
                   </tr>
                 )}
               </tbody>
               <tfoot>
                 <tr className="totals-total">
-                  <td>Total</td>
-                  <td>{fmt(estimate.total)}</td>
+                  <td className="label-cell">Total</td>
+                  <td className="value-cell">{fmt(estimate.total)}</td>
                 </tr>
               </tfoot>
             </table>
