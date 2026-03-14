@@ -44,14 +44,17 @@ export default async function PublicEstimateViewPage({ params }) {
   }[estimate.status] || estimate.status;
 
   return (
-    <html lang="en">
+    // color-scheme on <html> is the only reliable way to block browser dark mode
+    <html lang="en" style={{ colorScheme: 'light' }}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light" />
         <title>{`Estimate ${estimate.estimateNumber} \u2014 ${companyName}`}</title>
         <style>{`
           *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-          body { font-family: Arial, Helvetica, sans-serif; background: #f4f4f4; color: #333333; }
+          html { color-scheme: light; }
+          body { font-family: Arial, Helvetica, sans-serif; background: #f4f4f4 !important; color: #333333 !important; }
 
           .wrap { max-width: 800px; margin: 24px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.10); }
 
@@ -67,8 +70,8 @@ export default async function PublicEstimateViewPage({ params }) {
           .status-badge.accepted { background: #16a34a; }
 
           /* Info grid */
-          .info-row { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #eeeeee; }
-          .info-cell { padding: 16px 20px; }
+          .info-row { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #eeeeee; background: #ffffff; }
+          .info-cell { padding: 16px 20px; background: #ffffff; }
           .info-cell:first-child { border-right: 1px solid #eeeeee; }
           .info-label { font-size: 10px; font-weight: 700; color: #999999; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
           .info-value { font-size: 13px; color: #333333; line-height: 1.6; }
@@ -78,34 +81,36 @@ export default async function PublicEstimateViewPage({ params }) {
           .detail-val { font-weight: 600; color: #111111; text-align: right; }
 
           /* Items table — scrollable on mobile */
-          .items-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-          table.items { width: 100%; border-collapse: collapse; min-width: 480px; }
-          table.items thead tr { background: ${RED}; }
-          table.items thead th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; color: #ffffff; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+          .items-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; background: #ffffff; }
+          table.items { width: 100%; border-collapse: collapse; min-width: 480px; background: #ffffff; }
+          table.items thead tr { background: ${RED} !important; }
+          table.items thead th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; color: #ffffff !important; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; background: ${RED} !important; }
           table.items thead th.right { text-align: right; }
-          table.items tbody tr { border-bottom: 1px solid #f0f0f0; }
+          table.items tbody tr { border-bottom: 1px solid #eeeeee; background: #ffffff !important; }
+          table.items tbody tr:nth-child(even) { background: #fafafa !important; }
           table.items tbody tr:last-child { border-bottom: none; }
-          table.items tbody td { padding: 12px 14px; font-size: 14px; vertical-align: top; color: #333333; }
+          table.items tbody td { padding: 12px 14px; font-size: 14px; vertical-align: top; color: #333333 !important; background: transparent; }
           table.items tbody td.right { text-align: right; white-space: nowrap; }
-          .item-name { font-weight: 700; color: ${RED}; font-size: 14px; }
-          .item-sku  { font-size: 11px; color: #ffffff; background: #555555; display: inline-block; padding: 1px 6px; border-radius: 3px; margin-top: 3px; font-family: monospace; }
-          .item-desc { font-size: 12px; color: #444444; margin-top: 5px; line-height: 1.5; }
+          .item-name { font-weight: 700; color: ${RED} !important; font-size: 14px; }
+          .item-sku  { font-size: 11px; color: #ffffff !important; background: #444444 !important; display: inline-block; padding: 2px 7px; border-radius: 3px; margin-top: 3px; font-family: monospace; }
+          .item-desc { font-size: 12px; color: #333333 !important; margin-top: 5px; line-height: 1.5; }
 
           /* Totals */
-          .totals-section { padding: 16px 20px 20px; }
+          .totals-section { padding: 16px 20px 20px; background: #ffffff; }
           .totals-table { width: 100%; max-width: 300px; margin-left: auto; }
-          .totals-table td { padding: 6px 0; font-size: 14px; color: #333333; }
-          .totals-table td:last-child { text-align: right; }
-          .totals-total td { font-size: 17px; font-weight: 700; border-top: 2px solid #eeeeee; padding-top: 10px; color: #111111; }
-          .totals-total td:last-child { color: ${RED}; }
+          .totals-table td { padding: 6px 0; font-size: 14px; color: #333333 !important; background: transparent; }
+          .totals-table td:last-child { text-align: right; color: #111111 !important; }
+          .totals-table .label-cell { color: #555555 !important; }
+          .totals-total td { font-size: 17px; font-weight: 700; border-top: 2px solid #dddddd; padding-top: 10px; color: #111111 !important; }
+          .totals-total td:last-child { color: ${RED} !important; }
 
           /* Notes / Terms */
-          .notes-section { padding: 16px 20px; background: #fafafa; border-top: 1px solid #eeeeee; }
+          .notes-section { padding: 16px 20px; background: #f8f8f8; border-top: 1px solid #eeeeee; }
           .notes-label { font-size: 10px; font-weight: 700; color: #999999; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
-          .notes-text { font-size: 13px; color: #444444; white-space: pre-wrap; line-height: 1.7; }
+          .notes-text { font-size: 13px; color: #333333 !important; white-space: pre-wrap; line-height: 1.7; }
 
           /* Footer */
-          .footer { padding: 16px 20px; background: #f0f0f0; text-align: center; font-size: 12px; color: #888888; }
+          .footer { padding: 16px 20px; background: #f0f0f0; text-align: center; font-size: 12px; color: #777777; border-top: 1px solid #dddddd; }
 
           /* Mobile */
           @media (max-width: 600px) {
@@ -116,7 +121,6 @@ export default async function PublicEstimateViewPage({ params }) {
             .info-row { grid-template-columns: 1fr; }
             .info-cell:first-child { border-right: none; border-bottom: 1px solid #eeeeee; }
             .info-cell { padding: 14px 16px; }
-            .items-wrap { margin: 0; }
             .totals-section { padding: 14px 16px 18px; }
             .notes-section { padding: 14px 16px; }
             .footer { padding: 14px 16px; }
@@ -180,14 +184,6 @@ export default async function PublicEstimateViewPage({ params }) {
             </div>
           )}
 
-          {/* Accept CTA (client component) */}
-          <AcceptButton
-            estimateId={estimate.id}
-            estimateNumber={estimate.estimateNumber}
-            total={estimate.total}
-            initialStatus={estimate.status}
-          />
-
           {/* Line Items */}
           <div className="items-wrap">
             <table className="items">
@@ -220,13 +216,34 @@ export default async function PublicEstimateViewPage({ params }) {
           <div className="totals-section">
             <table className="totals-table">
               <tbody>
-                <tr><td style={{ color: '#666666' }}>Subtotal</td><td>{fmt(estimate.subtotal)}</td></tr>
-                {estimate.discountAmount > 0 && <tr><td style={{ color: '#666666' }}>Discount</td><td style={{ color: '#16a34a' }}>-{fmt(estimate.discountAmount)}</td></tr>}
-                {estimate.taxAmount > 0 && <tr><td style={{ color: '#666666' }}>Tax ({estimate.taxRate}%)</td><td>{fmt(estimate.taxAmount)}</td></tr>}
-                {estimate.shippingAmount > 0 && <tr><td style={{ color: '#666666' }}>Shipping</td><td>{fmt(estimate.shippingAmount)}</td></tr>}
+                <tr>
+                  <td className="label-cell">Subtotal</td>
+                  <td>{fmt(estimate.subtotal)}</td>
+                </tr>
+                {estimate.discountAmount > 0 && (
+                  <tr>
+                    <td className="label-cell">Discount</td>
+                    <td style={{ color: '#16a34a' }}>-{fmt(estimate.discountAmount)}</td>
+                  </tr>
+                )}
+                {estimate.taxAmount > 0 && (
+                  <tr>
+                    <td className="label-cell">Tax ({estimate.taxRate}%)</td>
+                    <td>{fmt(estimate.taxAmount)}</td>
+                  </tr>
+                )}
+                {estimate.shippingAmount > 0 && (
+                  <tr>
+                    <td className="label-cell">Shipping</td>
+                    <td>{fmt(estimate.shippingAmount)}</td>
+                  </tr>
+                )}
               </tbody>
               <tfoot>
-                <tr className="totals-total"><td>Total</td><td>{fmt(estimate.total)}</td></tr>
+                <tr className="totals-total">
+                  <td>Total</td>
+                  <td>{fmt(estimate.total)}</td>
+                </tr>
               </tfoot>
             </table>
           </div>
@@ -246,6 +263,14 @@ export default async function PublicEstimateViewPage({ params }) {
               <div className="notes-text">{estimate.termsConditions}</div>
             </div>
           )}
+
+          {/* Accept CTA — at the bottom, below T&C */}
+          <AcceptButton
+            estimateId={estimate.id}
+            estimateNumber={estimate.estimateNumber}
+            total={estimate.total}
+            initialStatus={estimate.status}
+          />
 
           {/* Footer */}
           <div className="footer">
