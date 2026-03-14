@@ -42,7 +42,8 @@ export default function CustomersPage() {
 
   async function loadSalesReps() {
     try {
-      const res = await fetch("/api/sales-reps", { headers: getAuthHeaders() });
+      // /api/users/sales-reps → Nginx strips /api → Express /users/sales-reps
+      const res = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() });
       if (res.ok) setSalesReps(await res.json());
     } catch {}
   }
