@@ -44,7 +44,6 @@ export default async function PublicEstimateViewPage({ params }) {
   }[estimate.status] || estimate.status;
 
   return (
-    // color-scheme on <html> is the only reliable way to block browser dark mode
     <html lang="en" style={{ colorScheme: 'light' }}>
       <head>
         <meta charSet="utf-8" />
@@ -58,12 +57,18 @@ export default async function PublicEstimateViewPage({ params }) {
 
           .wrap { max-width: 800px; margin: 24px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.10); }
 
-          /* Header */
+          /* Header — red when no logo, black when logo present */
           .header { background: ${RED}; padding: 24px 28px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
           .header.logo-header { background: #000000; }
-          .header-logo { max-height: 56px; max-width: 200px; display: block; }
-          .header-company { color: #ffffff; font-size: 20px; font-weight: 700; }
-          .header-sub { color: rgba(255,255,255,0.8); font-size: 12px; margin-top: 3px; }
+
+          /* Left side of header */
+          .header-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+          .header-logo { height: 52px; width: auto; display: block; flex-shrink: 0; }
+          .header-text { display: flex; flex-direction: column; justify-content: center; }
+          .header-company { color: #ffffff; font-size: 20px; font-weight: 700; line-height: 1.2; }
+          .header-sub { color: rgba(255,255,255,0.75); font-size: 12px; margin-top: 3px; }
+
+          /* Right side of header */
           .header-right { text-align: right; flex-shrink: 0; }
           .est-number { color: #ffffff; font-size: 16px; font-weight: 700; font-family: monospace; word-break: break-all; }
           .status-badge { display: inline-block; margin-top: 6px; padding: 3px 10px; background: rgba(255,255,255,0.2); border-radius: 20px; color: #ffffff; font-size: 11px; font-weight: 600; white-space: nowrap; }
@@ -115,9 +120,10 @@ export default async function PublicEstimateViewPage({ params }) {
           /* Mobile */
           @media (max-width: 600px) {
             .wrap { margin: 0; border-radius: 0; }
-            .header { padding: 18px 16px; }
-            .header-company { font-size: 17px; }
-            .header-logo { max-height: 44px; max-width: 160px; }
+            .header { padding: 16px; }
+            .header-logo { height: 40px; }
+            .header-company { font-size: 16px; }
+            .header-left { gap: 12px; }
             .info-row { grid-template-columns: 1fr; }
             .info-cell:first-child { border-right: none; border-bottom: 1px solid #eeeeee; }
             .info-cell { padding: 14px 16px; }
@@ -130,16 +136,15 @@ export default async function PublicEstimateViewPage({ params }) {
       <body>
         <div className="wrap">
 
-          {/* Header */}
+          {/* Header — logo + company text side by side when logo set, text-only on red when no logo */}
           <div className={`header${logoUrl ? ' logo-header' : ''}`}>
-            <div style={{ minWidth: 0 }}>
-              {logoUrl
-                ? <img src={logoUrl} alt={companyName} className="header-logo" />
-                : <>
-                    <div className="header-company">{companyName}</div>
-                    {company.phone && <div className="header-sub">{company.phone}</div>}
-                    {company.email && <div className="header-sub">{company.email}</div>}
-                  </>}
+            <div className="header-left">
+              {logoUrl && <img src={logoUrl} alt={companyName} className="header-logo" />}
+              <div className="header-text">
+                <div className="header-company">{companyName}</div>
+                {company.phone && <div className="header-sub">{company.phone}</div>}
+                {company.email && !company.phone && <div className="header-sub">{company.email}</div>}
+              </div>
             </div>
             <div className="header-right">
               <div className="est-number">{estimate.estimateNumber}</div>
@@ -264,7 +269,7 @@ export default async function PublicEstimateViewPage({ params }) {
             </div>
           )}
 
-          {/* Accept CTA — at the bottom, below T&C */}
+          {/* Accept CTA — below T&C */}
           <AcceptButton
             estimateId={estimate.id}
             estimateNumber={estimate.estimateNumber}
