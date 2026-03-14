@@ -60,6 +60,10 @@ const TABS = [
 
 const NAV_H = 60;
 
+function fmt(n) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+}
+
 function fmtDate(d) {
   if (!d) return "\u2014";
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -122,9 +126,16 @@ export default function CustomerDetailPage() {
   const [activeTab,         setActiveTab]           = useState("transactions");
   const [txTypeFilter,      setTxTypeFilter]        = useState("ALL");
   const [txStatusFilter,    setTxStatusFilter]      = useState("ALL");
+
+  // Sidebar state — mirrors the list page exactly
   const [sidebarSearch,     setSidebarSearch]       = useState("");
+  const [sidebarStatus,     setSidebarStatus]       = useState("ACTIVE");
+  const [sidebarRepFilter,  setSidebarRepFilter]    = useState("all");
+  const [sidebarSortBy,     setSidebarSortBy]       = useState("name");
   const [allCustomers,      setAllCustomers]        = useState([]);
   const [sidebarLoading,    setSidebarLoading]      = useState(true);
+  const [sidebarReps,       setSidebarReps]         = useState([]);
+
   const [showConfirmModal,  setShowConfirmModal]    = useState(false);
   const [confirmConfig,     setConfirmConfig]       = useState({ title: "", message: "", onConfirm: null });
   const [pendingDeleteContactId, setPendingDeleteContactId] = useState(null);
@@ -139,6 +150,7 @@ export default function CustomerDetailPage() {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
     loadAllCustomers();
+    loadSidebarReps();
     if (params.id) { loadCustomer(); loadContacts(); loadActivities(); loadSalesReps(); }
   }, [user, authLoading, router, params.id]);
 
@@ -167,6 +179,10 @@ export default function CustomerDetailPage() {
     setSidebarLoading(true);
     try { const r = await fetch("/api/customers", { headers: getAuthHeaders() }); if (r.ok) setAllCustomers(await r.json()); } catch {}
     finally { setSidebarLoading(false); }
+  }
+
+  async function loadSidebarReps() {
+    try { const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() }); if (r.ok) setSidebarReps(await r.json()); } catch {}
   }
 
   async function loadSalesReps() {
@@ -311,14 +327,34 @@ export default function CustomerDetailPage() {
 
   const txTotalCount = transactions.length;
 
+  // Sidebar filtering + sorting — mirrors list page exactly
   const filteredSidebarCustomers = useMemo(() => {
-    if (!sidebarSearch.trim()) return allCustomers;
-    const q = sidebarSearch.toLowerCase();
-    return allCustomers.filter(c => {
-      const name = (c.companyName || `${c.firstName} ${c.lastName}`).toLowerCase();
-      return name.includes(q) || (c.customerNumber || "").toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q);
-    });
-  }, [allCustomers, sidebarSearch]);
+    return allCustomers
+      .filter(c => {
+        if (sidebarStatus !== "all" && c.status !== sidebarStatus) return false;
+        if (sidebarRepFilter === "unassigned" && c.assignedToId) return false;
+        if (sidebarRepFilter !== "all" && sidebarRepFilter !== "unassigned" && c.assignedToId !== sidebarRepFilter) return false;
+        if (sidebarSearch.trim()) {
+          const q = sidebarSearch.toLowerCase();
+          return (
+            c.firstName?.toLowerCase().includes(q) ||
+            c.lastName?.toLowerCase().includes(q) ||
+            c.email?.toLowerCase().includes(q) ||
+            c.companyName?.toLowerCase().includes(q) ||
+            c.customerNumber?.toLowerCase().includes(q)
+          );
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const nameA = (a.companyName || `${a.firstName} ${a.lastName}`).toLowerCase();
+        const nameB = (b.companyName || `${b.firstName} ${b.lastName}`).toLowerCase();
+        if (sidebarSortBy === "name")    return nameA.localeCompare(nameB);
+        if (sidebarSortBy === "number")  return (a.customerNumber || "").localeCompare(b.customerNumber || "");
+        if (sidebarSortBy === "balance") return (b.openBalance || 0) - (a.openBalance || 0);
+        return nameA.localeCompare(nameB);
+      });
+  }, [allCustomers, sidebarSearch, sidebarStatus, sidebarRepFilter, sidebarSortBy]);
 
   const inp = { width: "100%", padding: "9px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "7px", color: "rgba(255,255,255,0.9)", fontSize: "13px" };
   const lbl = { display: "block", marginBottom: "5px", fontSize: "12px", fontWeight: "500", color: "rgba(255,255,255,0.5)" };
@@ -326,43 +362,88 @@ export default function CustomerDetailPage() {
 
   if (authLoading || !user) return null;
 
+  // Sidebar — identical markup/style to the list page's left panel
   const sidebarJSX = (
-    <div style={{ width: 256, flexShrink: 0, position: "sticky", top: NAV_H, height: `calc(100vh - ${NAV_H}px)`, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
-      <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.07)", flexShrink: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.9px" }}>Customers</span>
-          <Link href="/invoicing/customers/new" style={{ fontSize: 11, color: "#dc2626", textDecoration: "none", padding: "3px 8px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 5, lineHeight: 1.5, whiteSpace: "nowrap" }}>+ New</Link>
+    <div style={{ width: 300, minWidth: 300, flexShrink: 0, position: "sticky", top: NAV_H, height: `calc(100vh - ${NAV_H}px)`, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
+      <style>{`
+        .sb-header { padding: 16px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+        .sb-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .sb-title h2 { font-size: 18px; font-weight: 700; color: #dc2626; margin: 0; }
+        .sb-new-btn { display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:6px;color:#dc2626;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s; }
+        .sb-new-btn:hover { background: rgba(220,38,38,0.22); }
+        .sb-search { width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px; }
+        .sb-search:focus { border-color: rgba(220,38,38,0.5); }
+        .sb-search::placeholder { color: rgba(255,255,255,0.35); }
+        .sb-filters { display:flex;gap:6px; }
+        .sb-filter-sel { flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer; }
+        .sb-filter-sel:focus { border-color: rgba(220,38,38,0.4); }
+        .sb-sort-bar { display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0; }
+        .sb-sort-btn { flex:1;padding:4px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s; }
+        .sb-sort-btn:hover { color: rgba(255,255,255,0.7); }
+        .sb-sort-btn.active { background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.25);color:#dc2626; }
+        .sb-list { flex:1;overflow-y:auto;padding:6px 0; }
+        .sb-list::-webkit-scrollbar { width:6px; }
+        .sb-list::-webkit-scrollbar-track { background:transparent; }
+        .sb-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15);border-radius:3px; }
+        .sb-list::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.25); }
+        .sb-item { padding:10px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block; }
+        .sb-item:hover { background:rgba(255,255,255,0.04); }
+        .sb-item.active { background:rgba(220,38,38,0.08);border-left-color:#dc2626; }
+        .sb-item-name { font-size:13px;font-weight:600;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        .sb-item.active .sb-item-name { color:#ffffff; }
+        .sb-item-sub { font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        .sb-item-bal { font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px; }
+        .sb-item-bal.has-bal { color:#f59e0b; }
+        .sb-count { padding:6px 14px;font-size:11px;color:rgba(255,255,255,0.3);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0; }
+      `}</style>
+
+      <div className="sb-header">
+        <div className="sb-title">
+          <h2>Customers</h2>
+          <Link href="/invoicing/customers/new" className="sb-new-btn" title="New Customer">+</Link>
         </div>
-        <div style={{ position: "relative" }}>
-          <svg style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: "rgba(255,255,255,0.25)", pointerEvents: "none", fill: "none", stroke: "currentColor", strokeWidth: 2 }} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" placeholder="Search customers\u2026" value={sidebarSearch} onChange={e => setSidebarSearch(e.target.value)} style={{ width: "100%", padding: "6px 8px 6px 26px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, color: "rgba(255,255,255,0.8)", fontSize: 12, outline: "none", boxSizing: "border-box" }} />
+        <input type="text" placeholder="Search by name or details" value={sidebarSearch} onChange={e => setSidebarSearch(e.target.value)} className="sb-search" />
+        <div className="sb-filters">
+          <select value={sidebarStatus} onChange={e => setSidebarStatus(e.target.value)} className="sb-filter-sel">
+            <option value="all">All</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+          <select value={sidebarRepFilter} onChange={e => setSidebarRepFilter(e.target.value)} className="sb-filter-sel">
+            <option value="all">All Reps</option>
+            <option value="unassigned">Unassigned</option>
+            {sidebarReps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
         </div>
-        {!sidebarLoading && <div style={{ marginTop: 6, fontSize: 10, color: "rgba(255,255,255,0.22)" }}>{filteredSidebarCustomers.length} customer{filteredSidebarCustomers.length !== 1 ? "s" : ""}</div>}
       </div>
-      <div style={{ overflowY: "auto", flex: 1 }}>
-        {sidebarLoading ? <div style={{ padding: "28px 14px", color: "rgba(255,255,255,0.25)", fontSize: 12, textAlign: "center" }}>Loading\u2026</div>
-        : filteredSidebarCustomers.length === 0 ? <div style={{ padding: "28px 14px", color: "rgba(255,255,255,0.25)", fontSize: 12, textAlign: "center" }}>No customers found</div>
-        : filteredSidebarCustomers.map(c => {
-            const isActive = c.id === params.id;
-            const name = c.companyName || `${c.firstName} ${c.lastName}`;
-            const inactive = c.status === "INACTIVE";
-            return (
-              <Link key={c.id} href={`/invoicing/customers/${c.id}`} style={{ display: "block", padding: "9px 14px", borderLeft: isActive ? "2px solid #dc2626" : "2px solid transparent", background: isActive ? "rgba(220,38,38,0.07)" : "transparent", textDecoration: "none", borderBottom: "1px solid rgba(255,255,255,0.03)", transition: "background 0.1s" }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
-                <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? "rgba(255,255,255,0.92)" : inactive ? "rgba(255,255,255,0.38)" : "rgba(255,255,255,0.7)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>{name}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.22)", fontFamily: "monospace" }}>{c.customerNumber}</span>
-                  {inactive && <span style={{ fontSize: 9, color: "#6b7280", background: "rgba(107,114,128,0.12)", padding: "0 4px", borderRadius: 3, fontWeight: 600, letterSpacing: "0.4px", textTransform: "uppercase" }}>Inactive</span>}
-                </div>
-              </Link>
-            );
-          })
-        }
+
+      <div className="sb-sort-bar">
+        {[["name","Name"],["number","#"],["balance","Balance"]].map(([key, label]) => (
+          <button key={key} className={`sb-sort-btn${sidebarSortBy === key ? ' active' : ''}`} onClick={() => setSidebarSortBy(key)}>{label}</button>
+        ))}
       </div>
-      <div style={{ padding: "10px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
-        <Link href="/invoicing/customers" style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}>\u2190 All Customers</Link>
+
+      <div className="sb-list">
+        {sidebarLoading ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading...</div>
+        ) : filteredSidebarCustomers.length === 0 ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No customers</div>
+        ) : filteredSidebarCustomers.map(c => {
+          const isActive = c.id === params.id;
+          const name = c.companyName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'No Name';
+          const sub  = c.companyName ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : (c.email || '');
+          const bal  = c.openBalance || 0;
+          return (
+            <Link key={c.id} href={`/invoicing/customers/${c.id}`} className={`sb-item${isActive ? ' active' : ''}`}>
+              <div className="sb-item-name">{name}</div>
+              {sub && <div className="sb-item-sub">{sub}</div>}
+              <div className={`sb-item-bal${bal > 0 ? ' has-bal' : ''}`}>{fmt(bal)}</div>
+            </Link>
+          );
+        })}
       </div>
+
+      <div className="sb-count">{filteredSidebarCustomers.length} customer{filteredSidebarCustomers.length !== 1 ? 's' : ''}</div>
     </div>
   );
 
