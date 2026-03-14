@@ -24,7 +24,6 @@ export function createInvoicePdfRouter(prisma) {
       if (req.user.role === 'AGENT' && invoice.createdById !== req.user.id)
         return res.status(403).json({ error: 'Access denied' });
 
-      // Use InvoicingSettings for consistent company info
       const companySettings = await prisma.invoicingSettings.findFirst() || { companyName: 'Stealth Machine Tools' };
 
       const pdfBuffer = await generateInvoicePDF(invoice, companySettings);
@@ -54,7 +53,6 @@ export function createInvoicePdfRouter(prisma) {
   router.get('/:id/pdf', async (req, res) => {
     try {
       const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id } });
-
       if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
       if (!invoice.pdfS3Key) return res.status(404).json({ error: 'PDF not generated yet' });
       if (req.user.role === 'AGENT' && invoice.createdById !== req.user.id)
@@ -68,9 +66,7 @@ export function createInvoicePdfRouter(prisma) {
     }
   });
 
-  // POST /invoices/:id/send  ──────────────────────────────────────────────────
-  // Send invoice via email (AWS SES).  Returns 500 if SES actually fails so
-  // the frontend can surface the real error instead of silently doing nothing.
+  // POST /invoices/:id/send
   router.post('/:id/send', requireInvoicingPermission('SEND_INVOICE'), async (req, res) => {
     try {
       const invoice = await prisma.invoice.findUnique({
@@ -82,7 +78,6 @@ export function createInvoicePdfRouter(prisma) {
       });
 
       if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-
       if (req.user.role === 'AGENT' && invoice.createdById !== req.user.id)
         return res.status(403).json({ error: 'Access denied' });
 
@@ -92,42 +87,43 @@ export function createInvoicePdfRouter(prisma) {
       if (!recipientEmail)
         return res.status(400).json({ error: 'No recipient email provided. The customer may not have an email address on file.' });
 
-      // Generate/regenerate PDF if needed
-      if (!invoice.pdfS3Key || regeneratePDF) {
-        try {
-          const companySettings = await prisma.invoicingSettings.findFirst() || { companyName: 'Stealth Machine Tools' };
-          const fullInvoice = await prisma.invoice.findUnique({
-            where: { id: invoice.id },
-            include: {
-              customer: true,
-              items: { orderBy: { sortOrder: 'asc' } },
-              payments: { orderBy: { createdAt: 'desc' } },
-              paymentSchedule: { orderBy: { sortOrder: 'asc' } },
-              createdBy: { select: { id: true, name: true, email: true } }
-            }
-          });
-          const pdfBuffer = await generateInvoicePDF(fullInvoice, companySettings);
-          const s3Key = `invoices/${invoice.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
-          await uploadPDFToS3(pdfBuffer, s3Key);
-          await prisma.invoice.update({
-            where: { id: invoice.id },
-            data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() }
-          });
-        } catch (pdfError) {
-          console.error('[INVOICE SEND] PDF generation error (continuing without PDF):', pdfError.message);
-        }
+      // ── Always generate a fresh PDF and capture the buffer so it can be attached ──
+      let pdfBuffer = null;
+      try {
+        const companySettings = await prisma.invoicingSettings.findFirst() || { companyName: 'Stealth Machine Tools' };
+        const fullInvoice = await prisma.invoice.findUnique({
+          where: { id: invoice.id },
+          include: {
+            customer: true,
+            items: { orderBy: { sortOrder: 'asc' } },
+            payments: { orderBy: { createdAt: 'desc' } },
+            paymentSchedule: { orderBy: { sortOrder: 'asc' } },
+            createdBy: { select: { id: true, name: true, email: true } }
+          }
+        });
+        pdfBuffer = await generateInvoicePDF(fullInvoice, companySettings);
+        const s3Key = `invoices/${invoice.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
+        await uploadPDFToS3(pdfBuffer, s3Key);
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() }
+        });
+        console.log(`[INVOICE SEND] PDF generated and uploaded for ${invoice.invoiceNumber}`);
+      } catch (pdfError) {
+        console.error('[INVOICE SEND] PDF generation error (email will still be sent without attachment):', pdfError.message);
+        pdfBuffer = null;
       }
 
-      // Send the email
+      // Send email — pass pdfBuffer so it's included as an attachment
       const result = await sendInvoice(prisma, {
         invoiceId:     invoice.id,
         userId:        req.user.id,
         toEmail:       recipientEmail,
         ccEmails:      ccEmails || [],
-        customMessage
+        customMessage,
+        pdfBuffer,       // ← key fix: buffer is now forwarded
       });
 
-      // ── CRITICAL FIX: actually check whether SES accepted the email ────────
       if (!result.success) {
         console.error(`[INVOICE SEND] SES rejected email for ${invoice.invoiceNumber}:`, result.error);
         return res.status(500).json({
@@ -146,7 +142,7 @@ export function createInvoicePdfRouter(prisma) {
       });
 
       res.json({
-        message:     `Invoice sent to ${recipientEmail}`,
+        message:     `Invoice sent to ${recipientEmail}${pdfBuffer ? ' with PDF attachment' : ''}`,
         invoice:     updatedInvoice,
         emailResult: result
       });
@@ -160,7 +156,6 @@ export function createInvoicePdfRouter(prisma) {
   router.get('/:id/email-history', async (req, res) => {
     try {
       const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id } });
-
       if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
       if (req.user.role === 'AGENT' && invoice.createdById !== req.user.id)
         return res.status(403).json({ error: 'Access denied' });
@@ -170,7 +165,6 @@ export function createInvoicePdfRouter(prisma) {
         include: { sentBy: { select: { id: true, name: true } } },
         orderBy: { sentAt: 'desc' }
       });
-
       res.json(emailLogs);
     } catch (error) {
       console.error('GET /invoices/:id/email-history error:', error);

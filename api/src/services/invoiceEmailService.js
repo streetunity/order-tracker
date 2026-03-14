@@ -4,19 +4,29 @@
  *
  * Sender strategy
  * ───────────────
- * FROM  : SES_FROM_EMAIL env var (the verified SES identity, e.g. orders@stealthlaser.com)
- * REPLY-TO: sales rep's email address (so customer replies go to the right person)
+ * FROM     : SES_FROM_EMAIL env var (the verified SES identity)
+ * REPLY-TO : sales rep's email address (customer replies land in the right inbox)
  *
- * Using the rep's email as FROM only works if that exact address is individually
- * verified in SES.  Using the shared verified sender + reply-to is simpler and
- * always works, while still routing replies to the correct person.
+ * Template variable notes
+ * ───────────────────────
+ * {{#if foo}}...{{/if}} blocks are processed by processTemplateConditionals() before
+ * the standard {{foo}} replacement so conditional sections render correctly.
  */
 
-import emailService from "./emailService.js";
-import { getInvoiceEmailTemplate, getEstimateEmailTemplate } from "./emailTemplates.js";
+import emailService from './emailService.js';
+import { getInvoiceEmailTemplate, getEstimateEmailTemplate } from './emailTemplates.js';
 
-// The verified SES sender.  Pulled from env so it's easy to change per environment.
-const VERIFIED_SENDER = process.env.SES_FROM_EMAIL || "orders@stealthlaser.com";
+const VERIFIED_SENDER = process.env.SES_FROM_EMAIL || 'orders@stealthlaser.com';
+
+/**
+ * Process {{#if variable}}...{{/if}} blocks in a template.
+ * Removes the block if the variable is falsy; renders the inner content if truthy.
+ */
+function processTemplateConditionals(template, variables) {
+  return template.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => {
+    return variables[key] ? inner : '';
+  });
+}
 
 /**
  * Send invoice email
@@ -31,48 +41,51 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
     },
   });
 
-  if (!invoice) throw new Error("Invoice not found");
+  if (!invoice) throw new Error('Invoice not found');
 
   const recipientEmail = toEmail || invoice.customer?.email;
-  if (!recipientEmail) throw new Error("Customer has no email address");
+  if (!recipientEmail) throw new Error('Customer has no email address');
 
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, invoice.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
   const templateVariables = {
-    customerFirstName: invoice.customer.firstName || invoice.customer.contactName || "Customer",
-    customerLastName:  invoice.customer.lastName  || "",
+    customerFirstName: invoice.customer.firstName || invoice.customer.contactName || 'Customer',
+    customerLastName:  invoice.customer.lastName  || '',
     invoiceNumber:     invoice.invoiceNumber,
     invoiceDate:       new Date(invoice.invoiceDate).toLocaleDateString(),
-    dueDate:           invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "N/A",
+    dueDate:           invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A',
     subtotal:          (invoice.subtotal  || 0).toFixed(2),
     tax:               (invoice.taxAmount || 0).toFixed(2),
     total:             (invoice.total     || 0).toFixed(2),
     balanceDue:        (invoice.balanceDue || 0).toFixed(2),
-    salesRepName:      salesRep?.name       || "Sales Team",
-    salesRepPhone:     salesRep?.phoneNumber || "",
-    signature:         salesRep?.signature   || "",
-    companyName:       company.companyName   || "Stealth Machine Tools",
-    payNowUrl:         `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/pay/${invoice.id}`,
-    viewInvoiceUrl:    `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/invoices/${invoice.id}/view`,
+    salesRepName:      salesRep?.name       || 'Sales Team',
+    salesRepPhone:     salesRep?.phoneNumber || '',
+    signature:         salesRep?.signature   || '',
+    companyName:       company.companyName   || 'Stealth Machine Tools',
+    customMessage:     customMessage         || '',
+    // Correct frontend URLs — include /invoicing/ prefix
+    payNowUrl:      `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/invoicing/invoices/${invoice.id}/pay`,
+    viewInvoiceUrl: `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/invoicing/invoices/${invoice.id}`,
   };
 
-  const html    = emailService.processTemplate(getInvoiceEmailTemplate(), templateVariables);
-  const subject = `Invoice ${invoice.invoiceNumber} from ${company.companyName || "Stealth Machine Tools"}`;
+  const rawTemplate = getInvoiceEmailTemplate();
+  const withConditionals = processTemplateConditionals(rawTemplate, templateVariables);
+  const html = emailService.processTemplate(withConditionals, templateVariables);
 
-  // FROM = verified SES sender; REPLY-TO = sales rep so replies go to them
+  const subject   = `Invoice ${invoice.invoiceNumber} from ${company.companyName || 'Stealth Machine Tools'}`;
   const fromEmail = VERIFIED_SENDER;
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
-  console.log(`[INVOICE EMAIL] Sending ${invoice.invoiceNumber} to ${recipientEmail} from ${fromEmail} (reply-to: ${replyTo})`);
+  console.log(`[INVOICE EMAIL] Sending ${invoice.invoiceNumber} to ${recipientEmail} (reply-to: ${replyTo})`);
 
   const attachments = [];
   if (pdfBuffer) {
     attachments.push({
       filename:    `Invoice-${invoice.invoiceNumber}.pdf`,
       content:     pdfBuffer,
-      contentType: "application/pdf",
+      contentType: 'application/pdf',
     });
   }
 
@@ -80,9 +93,8 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
     ? await emailService.sendEmailWithAttachment({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html, attachments })
     : await emailService.sendEmail({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html });
 
-  console.log(`[INVOICE EMAIL] Result for ${invoice.invoiceNumber}:`, result.success ? 'SUCCESS' : `FAILED - ${result.error}`);
+  console.log(`[INVOICE EMAIL] Result for ${invoice.invoiceNumber}:`, result.success ? 'SUCCESS' : `FAILED — ${result.error}`);
 
-  // Log the email attempt regardless of success/failure
   await prisma.emailLog.create({
     data: {
       invoiceId:    invoiceId,
@@ -90,7 +102,7 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
       toEmail:      recipientEmail,
       replyTo:      replyTo,
       subject:      subject,
-      status:       result.success ? "SENT" : "FAILED",
+      status:       result.success ? 'SENT' : 'FAILED',
       sesMessageId: result.messageId || null,
       sentById:     userId,
     },
@@ -100,7 +112,7 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: {
-        status:     invoice.status === "DRAFT" ? "SENT" : invoice.status,
+        status:     invoice.status === 'DRAFT' ? 'SENT' : invoice.status,
         lastSentAt: new Date(),
         sentCount:  { increment: 1 },
       },
@@ -123,46 +135,49 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
     },
   });
 
-  if (!estimate) throw new Error("Estimate not found");
+  if (!estimate) throw new Error('Estimate not found');
 
   const recipientEmail = toEmail || estimate.customer?.email;
-  if (!recipientEmail) throw new Error("Customer has no email address");
+  if (!recipientEmail) throw new Error('Customer has no email address');
 
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, estimate.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
   const templateVariables = {
-    customerFirstName: estimate.customer.firstName || estimate.customer.contactName || "Customer",
-    customerLastName:  estimate.customer.lastName  || "",
+    customerFirstName: estimate.customer.firstName || estimate.customer.contactName || 'Customer',
+    customerLastName:  estimate.customer.lastName  || '',
     estimateNumber:    estimate.estimateNumber,
     estimateDate:      new Date(estimate.estimateDate).toLocaleDateString(),
-    expiryDate:        estimate.expiryDate ? new Date(estimate.expiryDate).toLocaleDateString() : "N/A",
+    expiryDate:        estimate.expiryDate ? new Date(estimate.expiryDate).toLocaleDateString() : 'N/A',
     subtotal:          (estimate.subtotal  || 0).toFixed(2),
     tax:               (estimate.taxAmount || 0).toFixed(2),
     total:             (estimate.total     || 0).toFixed(2),
-    salesRepName:      salesRep?.name       || "Sales Team",
-    salesRepPhone:     salesRep?.phoneNumber || "",
-    signature:         salesRep?.signature   || "",
-    companyName:       company.companyName   || "Stealth Machine Tools",
-    viewEstimateUrl:   `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/estimates/${estimate.id}/view`,
+    salesRepName:      salesRep?.name       || 'Sales Team',
+    salesRepPhone:     salesRep?.phoneNumber || '',
+    signature:         salesRep?.signature   || '',
+    companyName:       company.companyName   || 'Stealth Machine Tools',
+    customMessage:     customMessage         || '',
+    // Correct frontend URL — /invoicing/estimates/:id (no /view suffix, no missing /invoicing/ prefix)
+    viewEstimateUrl: `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/invoicing/estimates/${estimate.id}`,
   };
 
-  const html    = emailService.processTemplate(getEstimateEmailTemplate(), templateVariables);
-  const subject = `Estimate ${estimate.estimateNumber} from ${company.companyName || "Stealth Machine Tools"}`;
+  const rawTemplate = getEstimateEmailTemplate();
+  const withConditionals = processTemplateConditionals(rawTemplate, templateVariables);
+  const html = emailService.processTemplate(withConditionals, templateVariables);
 
-  // FROM = verified SES sender; REPLY-TO = sales rep so replies go to them
+  const subject   = `Estimate ${estimate.estimateNumber} from ${company.companyName || 'Stealth Machine Tools'}`;
   const fromEmail = VERIFIED_SENDER;
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
-  console.log(`[ESTIMATE EMAIL] Sending ${estimate.estimateNumber} to ${recipientEmail} from ${fromEmail} (reply-to: ${replyTo})`);
+  console.log(`[ESTIMATE EMAIL] Sending ${estimate.estimateNumber} to ${recipientEmail} (reply-to: ${replyTo})`);
 
   const attachments = [];
   if (pdfBuffer) {
     attachments.push({
       filename:    `Estimate-${estimate.estimateNumber}.pdf`,
       content:     pdfBuffer,
-      contentType: "application/pdf",
+      contentType: 'application/pdf',
     });
   }
 
@@ -170,9 +185,8 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
     ? await emailService.sendEmailWithAttachment({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html, attachments })
     : await emailService.sendEmail({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html });
 
-  console.log(`[ESTIMATE EMAIL] Result for ${estimate.estimateNumber}:`, result.success ? 'SUCCESS' : `FAILED - ${result.error}`);
+  console.log(`[ESTIMATE EMAIL] Result for ${estimate.estimateNumber}:`, result.success ? 'SUCCESS' : `FAILED — ${result.error}`);
 
-  // Log the email attempt regardless of success/failure
   await prisma.emailLog.create({
     data: {
       estimateId:   estimateId,
@@ -180,7 +194,7 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
       toEmail:      recipientEmail,
       replyTo:      replyTo,
       subject:      subject,
-      status:       result.success ? "SENT" : "FAILED",
+      status:       result.success ? 'SENT' : 'FAILED',
       sesMessageId: result.messageId || null,
       sentById:     userId,
     },
@@ -190,7 +204,7 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
     await prisma.estimate.update({
       where: { id: estimateId },
       data: {
-        status:     estimate.status === "DRAFT" ? "SENT" : estimate.status,
+        status:     estimate.status === 'DRAFT' ? 'SENT' : estimate.status,
         lastSentAt: new Date(),
         sentCount:  { increment: 1 },
       },

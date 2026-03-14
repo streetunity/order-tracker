@@ -19,7 +19,6 @@ export function createEstimatePdfRouter(prisma) {
       });
 
       if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
-
       if (req.user.role === 'AGENT' && estimate.createdById !== req.user.id)
         return res.status(403).json({ error: 'Access denied' });
 
@@ -31,14 +30,10 @@ export function createEstimatePdfRouter(prisma) {
       const updated = await prisma.estimate.update({
         where: { id: estimate.id },
         data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() },
-        include: {
-          customer: true,
-          items: { orderBy: { sortOrder: 'asc' } }
-        }
+        include: { customer: true, items: { orderBy: { sortOrder: 'asc' } } }
       });
 
       const downloadUrl = await getPDFSignedUrl(s3Key, `${estimate.estimateNumber}.pdf`);
-
       res.json({ estimate: updated, pdfUrl: downloadUrl, message: 'PDF generated successfully' });
     } catch (error) {
       console.error('POST /estimates/:id/generate-pdf error:', error);
@@ -50,7 +45,6 @@ export function createEstimatePdfRouter(prisma) {
   router.get('/:id/pdf', async (req, res) => {
     try {
       const estimate = await prisma.estimate.findUnique({ where: { id: req.params.id } });
-
       if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
       if (req.user.role === 'AGENT' && estimate.createdById !== req.user.id)
         return res.status(403).json({ error: 'Access denied' });
@@ -65,9 +59,7 @@ export function createEstimatePdfRouter(prisma) {
     }
   });
 
-  // POST /estimates/:id/send  ─────────────────────────────────────────────────
-  // Send estimate via email (AWS SES).  Returns 500 if SES actually fails so
-  // the frontend can surface the real error instead of silently doing nothing.
+  // POST /estimates/:id/send
   router.post('/:id/send', requireInvoicingPermission('EDIT_ESTIMATE'), async (req, res) => {
     try {
       const estimate = await prisma.estimate.findUnique({
@@ -79,7 +71,6 @@ export function createEstimatePdfRouter(prisma) {
       });
 
       if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
-
       if (req.user.role === 'AGENT' && estimate.createdById !== req.user.id)
         return res.status(403).json({ error: 'Access denied' });
 
@@ -89,40 +80,41 @@ export function createEstimatePdfRouter(prisma) {
       if (!recipientEmail)
         return res.status(400).json({ error: 'Recipient email is required. The customer may not have an email address on file.' });
 
-      // Generate/regenerate PDF if needed
-      if (!estimate.pdfS3Key || regeneratePDF) {
-        try {
-          const companySettings = await prisma.invoicingSettings.findFirst();
-          const fullEstimate = await prisma.estimate.findUnique({
-            where: { id: estimate.id },
-            include: {
-              customer: true,
-              items: { orderBy: { sortOrder: 'asc' } },
-              createdBy: { select: { id: true, name: true, email: true } }
-            }
-          });
-          const pdfBuffer = await generateEstimatePDF(fullEstimate, companySettings);
-          const s3Key = `estimates/${estimate.id}/${estimate.estimateNumber}.pdf`;
-          await uploadPDFToS3(pdfBuffer, s3Key);
-          await prisma.estimate.update({
-            where: { id: estimate.id },
-            data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() }
-          });
-        } catch (pdfError) {
-          console.error('[ESTIMATE SEND] PDF generation error (continuing without PDF):', pdfError.message);
-        }
+      // ── Always generate a fresh PDF and capture the buffer so it can be attached ──
+      let pdfBuffer = null;
+      try {
+        const companySettings = await prisma.invoicingSettings.findFirst();
+        const fullEstimate = await prisma.estimate.findUnique({
+          where: { id: estimate.id },
+          include: {
+            customer: true,
+            items: { orderBy: { sortOrder: 'asc' } },
+            createdBy: { select: { id: true, name: true, email: true } }
+          }
+        });
+        pdfBuffer = await generateEstimatePDF(fullEstimate, companySettings);
+        const s3Key = `estimates/${estimate.id}/${estimate.estimateNumber}.pdf`;
+        await uploadPDFToS3(pdfBuffer, s3Key);
+        await prisma.estimate.update({
+          where: { id: estimate.id },
+          data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() }
+        });
+        console.log(`[ESTIMATE SEND] PDF generated and uploaded for ${estimate.estimateNumber}`);
+      } catch (pdfError) {
+        console.error('[ESTIMATE SEND] PDF generation error (email will still be sent without attachment):', pdfError.message);
+        pdfBuffer = null;
       }
 
-      // Send the email
+      // Send email — pass pdfBuffer so it's included as an attachment
       const result = await sendEstimate(prisma, {
         estimateId:    estimate.id,
         userId:        req.user.id,
         toEmail:       recipientEmail,
         ccEmails,
-        customMessage
+        customMessage,
+        pdfBuffer,       // ← key fix: buffer is now forwarded
       });
 
-      // ── CRITICAL FIX: actually check whether SES accepted the email ────────
       if (!result.success) {
         console.error(`[ESTIMATE SEND] SES rejected email for ${estimate.estimateNumber}:`, result.error);
         return res.status(500).json({
@@ -132,16 +124,13 @@ export function createEstimatePdfRouter(prisma) {
 
       const updatedEstimate = await prisma.estimate.findUnique({
         where: { id: estimate.id },
-        include: {
-          customer: true,
-          items: { orderBy: { sortOrder: 'asc' } }
-        }
+        include: { customer: true, items: { orderBy: { sortOrder: 'asc' } } }
       });
 
       res.json({
         estimate:    updatedEstimate,
         emailResult: result,
-        message:     `Estimate sent to ${recipientEmail}`
+        message:     `Estimate sent to ${recipientEmail}${pdfBuffer ? ' with PDF attachment' : ''}`
       });
     } catch (error) {
       console.error('POST /estimates/:id/send error:', error);
@@ -153,7 +142,6 @@ export function createEstimatePdfRouter(prisma) {
   router.get('/:id/email-history', async (req, res) => {
     try {
       const estimate = await prisma.estimate.findUnique({ where: { id: req.params.id } });
-
       if (!estimate) return res.status(404).json({ error: 'Estimate not found' });
       if (req.user.role === 'AGENT' && estimate.createdById !== req.user.id)
         return res.status(403).json({ error: 'Access denied' });
@@ -163,7 +151,6 @@ export function createEstimatePdfRouter(prisma) {
         include: { sentBy: { select: { id: true, name: true, email: true } } },
         orderBy: { sentAt: 'desc' }
       });
-
       res.json(emailLogs);
     } catch (error) {
       console.error('GET /estimates/:id/email-history error:', error);
