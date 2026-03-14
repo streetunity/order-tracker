@@ -150,7 +150,7 @@ export default function InvoicingSettingsPage() {
                 <p style={hint}>Recommended: PNG or SVG, transparent background, max 260×60px. Leave blank to show company name text instead.</p>
               </div>
               {form.logoUrl && (
-                <div style={{ marginTop: 16, padding: 16, background: "#dc2626", borderRadius: 8, display: "inline-block" }}>
+                <div style={{ marginTop: 16, padding: "16px 24px", background: "#000000", borderRadius: 8, display: "inline-block" }}>
                   <img src={form.logoUrl} alt="Logo preview" style={{ maxHeight: 60, maxWidth: 260, display: "block" }} onError={e => e.target.style.display = "none"} />
                 </div>
               )}
