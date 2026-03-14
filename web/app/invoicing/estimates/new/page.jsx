@@ -9,17 +9,18 @@ import { useUnsavedChanges } from "@/contexts/UnsavedChangesContext";
 import InvoicingNav from "@/components/InvoicingNav";
 import "../../modal.css";
 
-// Drag handle icon – 6-dot grip
-// fill defaults to visible grey; brightens on hover via td onMouseEnter
-function GripIcon({ fill = "rgba(255,255,255,0.45)" }) {
+// Six-dot grip rendered as two columns of three circles.
+// Color is passed in so React controls the hover state (DOM setAttribute
+// gets overwritten on re-renders, so we use state instead).
+function GripIcon({ color }) {
   return (
-    <svg width="12" height="18" viewBox="0 0 12 18" fill={fill} style={{ display: "block" }}>
-      <circle cx="3.5" cy="3"  r="1.6"/>
-      <circle cx="3.5" cy="9"  r="1.6"/>
-      <circle cx="3.5" cy="15" r="1.6"/>
-      <circle cx="8.5" cy="3"  r="1.6"/>
-      <circle cx="8.5" cy="9"  r="1.6"/>
-      <circle cx="8.5" cy="15" r="1.6"/>
+    <svg width="14" height="20" viewBox="0 0 14 20" fill={color} style={{ display: "block", margin: "0 auto" }}>
+      <circle cx="4" cy="4"  r="2"/>
+      <circle cx="4" cy="10" r="2"/>
+      <circle cx="4" cy="16" r="2"/>
+      <circle cx="10" cy="4"  r="2"/>
+      <circle cx="10" cy="10" r="2"/>
+      <circle cx="10" cy="16" r="2"/>
     </svg>
   );
 }
@@ -60,11 +61,10 @@ function NewEstimateContent() {
   const [expandedItems,       setExpandedItems]       = useState({});
 
   // Drag-and-drop
-  const [dragIndex,     setDragIndex]     = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
-  // Track whether the drag was initiated from the grip handle.
-  // (In HTML5 DnD, e.target in dragstart is always the draggable <tr>,
-  //  not the element that was actually clicked — so we track via mousedown.)
+  const [dragIndex,        setDragIndex]        = useState(null);
+  const [dragOverIndex,    setDragOverIndex]    = useState(null);
+  const [hoveredGripIndex, setHoveredGripIndex] = useState(null);
+  // mousedown on the grip cell arms the drag; checked in onDragStart
   const dragFromHandleRef = useRef(false);
 
   // Pricing
@@ -113,8 +113,6 @@ function NewEstimateContent() {
 
   function navigateWithWarning(url) { globalNavigateWithWarning(url, router); }
   const toggleItemExpand = (index) => setExpandedItems(prev => ({ ...prev, [index]: !prev[index] }));
-
-  // ── Initial data load ─────────────────────────────────────────────────────
 
   useEffect(() => {
     if (authLoading) return;
@@ -179,10 +177,9 @@ function NewEstimateContent() {
     setShowTemplateModal(false);
   }
 
-  // ── Drag-and-drop handlers ────────────────────────────────────────────────
+  // ── Drag-and-drop ──────────────────────────────────────────────────────────
 
   function handleDragStart(e, index) {
-    // Only proceed if the drag was initiated from the grip handle (tracked via mousedown)
     if (!dragFromHandleRef.current) { e.preventDefault(); return; }
     dragFromHandleRef.current = false;
     setDragIndex(index);
@@ -286,7 +283,6 @@ function NewEstimateContent() {
       <InvoicingNav />
       <div style={{ width: "80%", maxWidth: "1800px", margin: "0 auto", paddingTop: 80, paddingBottom: 60 }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <button type="button" onClick={() => navigateWithWarning("/invoicing/estimates")}
             style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", display: "block", marginBottom: 8, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
@@ -366,7 +362,6 @@ function NewEstimateContent() {
                 style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: "13px" }}>+ Custom Item</button>
             </div>
 
-            {/* Product search */}
             <div style={{ position: "relative", marginBottom: 16 }}>
               <input type="text" placeholder="Search products or bundles to add…" value={productSearch}
                 onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true); }}
@@ -405,24 +400,24 @@ function NewEstimateContent() {
               )}
             </div>
 
-            {/* Items table */}
             {items.length > 0 ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    <th style={{ padding: "8px", width: 24 }}></th>{/* grip */}
-                    <th style={{ padding: "8px", width: 30 }}></th>{/* expand */}
+                    <th style={{ padding: "8px", width: 32 }}></th>
+                    <th style={{ padding: "8px", width: 30 }}></th>
                     <th style={{ padding: "8px", textAlign: "left", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>Item</th>
                     <th style={{ padding: "8px", textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)", width: 80 }}>Qty</th>
                     <th style={{ padding: "8px", textAlign: "right", fontSize: "12px", color: "rgba(255,255,255,0.5)", width: 120 }}>Price</th>
                     <th style={{ padding: "8px", textAlign: "right", fontSize: "12px", color: "rgba(255,255,255,0.5)", width: 100 }}>Total</th>
-                    <th style={{ padding: "8px", width: 36 }}></th>{/* delete */}
+                    <th style={{ padding: "8px", width: 36 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
                     const isDragging   = dragIndex === index;
                     const isDropTarget = dragOverIndex === index && dragIndex !== index;
+                    const gripHovered  = hoveredGripIndex === index;
                     return (
                       <>
                         <tr
@@ -440,15 +435,25 @@ function NewEstimateContent() {
                             transition: "opacity 0.15s, background 0.1s",
                           }}
                         >
-                          {/* Drag grip – mousedown here arms the drag */}
+                          {/* Drag grip */}
                           <td
                             onMouseDown={() => { dragFromHandleRef.current = true; }}
                             onMouseUp={()   => { dragFromHandleRef.current = false; }}
-                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center", width: 24 }}
-                            onMouseEnter={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.75)'); }}
-                            onMouseLeave={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.45)'); }}
+                            onMouseEnter={() => setHoveredGripIndex(index)}
+                            onMouseLeave={() => setHoveredGripIndex(null)}
+                            style={{
+                              padding: "8px 4px",
+                              verticalAlign: "middle",
+                              cursor: "grab",
+                              userSelect: "none",
+                              textAlign: "center",
+                              width: 32,
+                              background: gripHovered ? "rgba(255,255,255,0.06)" : "transparent",
+                              borderRadius: 4,
+                              transition: "background 0.1s",
+                            }}
                           >
-                            <GripIcon />
+                            <GripIcon color={gripHovered ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.55)"} />
                           </td>
 
                           {/* Expand toggle */}
@@ -457,7 +462,6 @@ function NewEstimateContent() {
                               style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: "11px", padding: "4px", transform: expandedItems[index] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</button>
                           </td>
 
-                          {/* Name */}
                           <td style={{ padding: "8px" }}>
                             <input type="text" value={item.name} onChange={(e) => updateItem(index, 'name', e.target.value)} style={{ ...inp, padding: "6px 10px" }} draggable={false} />
                             {item.sku && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.sku}</div>}
@@ -465,29 +469,24 @@ function NewEstimateContent() {
                             {item.description && !expandedItems[index] && <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 60 ? item.description.substring(0, 60) + "…" : item.description}</div>}
                           </td>
 
-                          {/* Qty */}
                           <td style={{ padding: "8px", verticalAlign: "top" }}>
                             <input type="number" value={item.quantity} onChange={(e) => updateItem(index, 'quantity', e.target.value)} style={{ ...inp, padding: "6px 10px", textAlign: "center" }} min="1" draggable={false} />
                           </td>
 
-                          {/* Price */}
                           <td style={{ padding: "8px", verticalAlign: "top" }}>
                             <input type="number" value={item.unitPrice} onChange={(e) => updateItem(index, 'unitPrice', e.target.value)} style={{ ...inp, padding: "6px 10px", textAlign: "right" }} step="0.01" draggable={false} />
                           </td>
 
-                          {/* Line total */}
                           <td style={{ padding: "8px", textAlign: "right", fontWeight: "500", color: "rgba(255,255,255,0.9)", verticalAlign: "top", paddingTop: 14 }}>
                             {fmt(item.quantity * item.unitPrice)}
                           </td>
 
-                          {/* Delete */}
                           <td style={{ padding: "8px 4px", textAlign: "center", verticalAlign: "top" }}>
                             <button type="button" onClick={() => removeItem(index)} draggable={false}
                               style={{ background: "transparent", border: "none", color: "rgba(220,38,38,0.7)", cursor: "pointer", fontSize: 18, padding: "2px", lineHeight: 1 }}>×</button>
                           </td>
                         </tr>
 
-                        {/* Expanded detail row */}
                         {expandedItems[index] && (
                           <tr key={`${item.tempId || index}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                             <td></td>
@@ -581,7 +580,6 @@ function NewEstimateContent() {
             </div>
           </div>
 
-          {/* Actions */}
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
             <button type="button" onClick={() => navigateWithWarning("/invoicing/estimates")}
               style={{ padding: "10px 20px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
@@ -593,7 +591,6 @@ function NewEstimateContent() {
         </form>
       </div>
 
-      {/* Template modal */}
       {showTemplateModal && (
         <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
           <div className="modal-content wide" onClick={(e) => e.stopPropagation()}>

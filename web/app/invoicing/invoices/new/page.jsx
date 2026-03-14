@@ -8,16 +8,15 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import InvoicingNav from "@/components/InvoicingNav";
 
-// Drag handle icon – 6-dot grip
-function GripIcon({ fill = "rgba(255,255,255,0.45)" }) {
+function GripIcon({ color }) {
   return (
-    <svg width="12" height="18" viewBox="0 0 12 18" fill={fill} style={{ display: "block" }}>
-      <circle cx="3.5" cy="3"  r="1.6"/>
-      <circle cx="3.5" cy="9"  r="1.6"/>
-      <circle cx="3.5" cy="15" r="1.6"/>
-      <circle cx="8.5" cy="3"  r="1.6"/>
-      <circle cx="8.5" cy="9"  r="1.6"/>
-      <circle cx="8.5" cy="15" r="1.6"/>
+    <svg width="14" height="20" viewBox="0 0 14 20" fill={color} style={{ display: "block", margin: "0 auto" }}>
+      <circle cx="4" cy="4"  r="2"/>
+      <circle cx="4" cy="10" r="2"/>
+      <circle cx="4" cy="16" r="2"/>
+      <circle cx="10" cy="4"  r="2"/>
+      <circle cx="10" cy="10" r="2"/>
+      <circle cx="10" cy="16" r="2"/>
     </svg>
   );
 }
@@ -33,7 +32,6 @@ function NewInvoiceContent() {
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
 
-  // Form state
   const [customerId,           setCustomerId]           = useState("");
   const [selectedCustomer,     setSelectedCustomer]     = useState(null);
   const [customerSearch,       setCustomerSearch]       = useState("");
@@ -50,7 +48,6 @@ function NewInvoiceContent() {
   const [internalNotes,        setInternalNotes]        = useState("");
   const [termsConditions,      setTermsConditions]      = useState("");
 
-  // Data
   const [customers,           setCustomers]           = useState([]);
   const [products,            setProducts]            = useState([]);
   const [bundles,             setBundles]             = useState([]);
@@ -58,9 +55,9 @@ function NewInvoiceContent() {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [expandedItems,       setExpandedItems]       = useState({});
 
-  // Drag-and-drop
-  const [dragIndex,     setDragIndex]     = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [dragIndex,        setDragIndex]        = useState(null);
+  const [dragOverIndex,    setDragOverIndex]    = useState(null);
+  const [hoveredGripIndex, setHoveredGripIndex] = useState(null);
   const dragFromHandleRef = useRef(false);
 
   const toggleItemExpand = (index) => setExpandedItems(prev => ({ ...prev, [index]: !prev[index] }));
@@ -119,8 +116,6 @@ function NewInvoiceContent() {
     } catch (e) { console.error(e); }
   }
 
-  // ── Drag-and-drop handlers ────────────────────────────────────────────────
-
   function handleDragStart(e, index) {
     if (!dragFromHandleRef.current) { e.preventDefault(); return; }
     dragFromHandleRef.current = false;
@@ -153,8 +148,6 @@ function NewInvoiceContent() {
     setDragOverIndex(null);
   }
 
-  // ── Customer / item helpers ───────────────────────────────────────────────
-
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true;
     const q = customerSearch.toLowerCase();
@@ -179,7 +172,6 @@ function NewInvoiceContent() {
   function updateItem(index, field, value) { const n = [...items]; n[index] = { ...n[index], [field]: value }; setItems(n); }
   function removeItem(index) { setItems(items.filter((_, i) => i !== index)); }
 
-  // Totals
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const discountAmount = discountType === "PERCENTAGE" && discountValue ? subtotal * (parseFloat(discountValue) / 100) : discountType === "FIXED" && discountValue ? parseFloat(discountValue) : 0;
   const taxableAmount = items.filter(i => i.taxable).reduce((s, i) => s + i.quantity * i.unitPrice, 0);
@@ -341,24 +333,24 @@ function NewInvoiceContent() {
               )}
             </div>
 
-            {/* Items table */}
             {items.length > 0 ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    <th style={{ padding: 8, width: 24 }}></th>{/* grip */}
-                    <th style={{ padding: 8, width: 30 }}></th>{/* expand */}
+                    <th style={{ padding: 8, width: 32 }}></th>
+                    <th style={{ padding: 8, width: 30 }}></th>
                     <th style={{ padding: 8, textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Item</th>
                     <th style={{ padding: 8, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 80 }}>Qty</th>
                     <th style={{ padding: 8, textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 120 }}>Price</th>
                     <th style={{ padding: 8, textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 100 }}>Total</th>
-                    <th style={{ padding: 8, width: 36 }}></th>{/* delete */}
+                    <th style={{ padding: 8, width: 36 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
                     const isDragging   = dragIndex === index;
                     const isDropTarget = dragOverIndex === index && dragIndex !== index;
+                    const gripHovered  = hoveredGripIndex === index;
                     return (
                       <>
                         <tr
@@ -376,24 +368,32 @@ function NewInvoiceContent() {
                             transition: "opacity 0.15s, background 0.1s",
                           }}
                         >
-                          {/* Drag grip – mousedown here arms the drag */}
+                          {/* Drag grip */}
                           <td
                             onMouseDown={() => { dragFromHandleRef.current = true; }}
                             onMouseUp={()   => { dragFromHandleRef.current = false; }}
-                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center", width: 24 }}
-                            onMouseEnter={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.75)'); }}
-                            onMouseLeave={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.45)'); }}
+                            onMouseEnter={() => setHoveredGripIndex(index)}
+                            onMouseLeave={() => setHoveredGripIndex(null)}
+                            style={{
+                              padding: "8px 4px",
+                              verticalAlign: "middle",
+                              cursor: "grab",
+                              userSelect: "none",
+                              textAlign: "center",
+                              width: 32,
+                              background: gripHovered ? "rgba(255,255,255,0.06)" : "transparent",
+                              borderRadius: 4,
+                              transition: "background 0.1s",
+                            }}
                           >
-                            <GripIcon />
+                            <GripIcon color={gripHovered ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.55)"} />
                           </td>
 
-                          {/* Expand toggle */}
                           <td style={{ padding: "12px 4px", verticalAlign: "top" }}>
                             <button type="button" onClick={() => toggleItemExpand(index)} draggable={false}
                               style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 11, padding: 4, transform: expandedItems[index] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</button>
                           </td>
 
-                          {/* Name */}
                           <td style={{ padding: "12px 8px" }}>
                             <input type="text" value={item.name} onChange={(e) => updateItem(index, "name", e.target.value)} placeholder="Item name" style={{ ...inp, padding: "6px 10px" }} required draggable={false} />
                             {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.sku}</div>}
@@ -401,29 +401,24 @@ function NewInvoiceContent() {
                             {item.description && !expandedItems[index] && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 60 ? item.description.substring(0, 60) + "…" : item.description}</div>}
                           </td>
 
-                          {/* Qty */}
                           <td style={{ padding: "12px 8px", textAlign: "center", verticalAlign: "top" }}>
                             <input type="number" value={item.quantity} onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || 1)} style={{ ...inp, width: 60, textAlign: "center", padding: 6 }} min="1" draggable={false} />
                           </td>
 
-                          {/* Price */}
                           <td style={{ padding: "12px 8px", textAlign: "right", verticalAlign: "top" }}>
                             <input type="number" value={item.unitPrice} onChange={(e) => updateItem(index, "unitPrice", parseFloat(e.target.value) || 0)} style={{ ...inp, width: 100, textAlign: "right", padding: 6 }} step="0.01" draggable={false} />
                           </td>
 
-                          {/* Line total */}
                           <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.9)", verticalAlign: "top", paddingTop: 18 }}>
                             {fmt(item.quantity * item.unitPrice)}
                           </td>
 
-                          {/* Delete */}
                           <td style={{ padding: "12px 4px", textAlign: "center", verticalAlign: "top" }}>
                             <button type="button" onClick={() => removeItem(index)} draggable={false}
                               style={{ background: "transparent", border: "none", color: "rgba(220,38,38,0.7)", cursor: "pointer", fontSize: 18, padding: "2px", lineHeight: 1 }}>×</button>
                           </td>
                         </tr>
 
-                        {/* Expanded detail row */}
                         {expandedItems[index] && (
                           <tr key={`${item.id}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                             <td></td>
@@ -541,7 +536,6 @@ function NewInvoiceContent() {
             </div>
           </div>
 
-          {/* Actions */}
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
             <Link href="/invoicing/invoices" style={{ padding: "12px 24px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", textDecoration: "none", fontSize: 14 }}>Cancel</Link>
             <button type="submit" disabled={saving}
