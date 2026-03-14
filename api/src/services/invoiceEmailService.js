@@ -1,42 +1,31 @@
 /**
  * Invoice Email Service
- * Handles sending invoices and estimates with PDF attachments via AWS SES
+ * Handles sending invoices and estimates with PDF attachments via AWS SES.
+ *
+ * Templates are rendered directly via JavaScript — no runtime {{}} substitution
+ * is used for estimate/invoice emails, which eliminates conditional-block regex
+ * bugs and ensures customMessage, URLs, and all data always render correctly.
  *
  * Sender strategy
  * ───────────────
  * FROM     : SES_FROM_EMAIL env var (the verified SES identity)
- * REPLY-TO : sales rep's email address (customer replies land in the right inbox)
- *
- * Template variable notes
- * ───────────────────────
- * {{#if foo}}...{{/if}} blocks are processed by processTemplateConditionals() before
- * the standard {{foo}} replacement so conditional sections render correctly.
+ * REPLY-TO : sales rep email address (customer replies go to the right inbox)
  */
 
 import emailService from './emailService.js';
 import { getInvoiceEmailTemplate, getEstimateEmailTemplate } from './emailTemplates.js';
 
 const VERIFIED_SENDER = process.env.SES_FROM_EMAIL || 'orders@stealthlaser.com';
+const FRONTEND_URL    = process.env.FRONTEND_URL   || 'https://smt-orders.com';
 
-/**
- * Process {{#if variable}}...{{/if}} blocks in a template.
- * Removes the block if the variable is falsy; renders the inner content if truthy.
- */
-function processTemplateConditionals(template, variables) {
-  return template.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => {
-    return variables[key] ? inner : '';
-  });
-}
+// ── Send Invoice ──────────────────────────────────────────────────────────────
 
-/**
- * Send invoice email
- */
 export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails, customMessage, pdfBuffer }) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
       customer: true,
-      items: true,
+      items:    true,
       createdBy: { select: { id: true, name: true, email: true } },
     },
   });
@@ -49,42 +38,39 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, invoice.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
-  const templateVariables = {
+  const viewInvoiceUrl = `${FRONTEND_URL}/invoicing/invoices/${invoice.id}`;
+  const payNowUrl      = `${FRONTEND_URL}/invoicing/invoices/${invoice.id}/pay`;
+
+  console.log(`[INVOICE EMAIL] URLs: view=${viewInvoiceUrl}`);
+
+  // Render HTML directly — no {{}} substitution needed
+  const html = getInvoiceEmailTemplate({
     customerFirstName: invoice.customer.firstName || invoice.customer.contactName || 'Customer',
-    customerLastName:  invoice.customer.lastName  || '',
     invoiceNumber:     invoice.invoiceNumber,
-    invoiceDate:       new Date(invoice.invoiceDate).toLocaleDateString(),
+    invoiceDate:       new Date(invoice.invoiceDate || invoice.createdAt).toLocaleDateString(),
     dueDate:           invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A',
-    subtotal:          (invoice.subtotal  || 0).toFixed(2),
-    tax:               (invoice.taxAmount || 0).toFixed(2),
-    total:             (invoice.total     || 0).toFixed(2),
-    balanceDue:        (invoice.balanceDue || 0).toFixed(2),
-    salesRepName:      salesRep?.name       || 'Sales Team',
+    balanceDue:        (invoice.balanceDue || invoice.total || 0).toFixed(2),
+    salesRepName:      salesRep?.name        || 'Sales Team',
     salesRepPhone:     salesRep?.phoneNumber || '',
     signature:         salesRep?.signature   || '',
     companyName:       company.companyName   || 'Stealth Machine Tools',
     customMessage:     customMessage         || '',
-    // Correct frontend URLs — include /invoicing/ prefix
-    payNowUrl:      `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/invoicing/invoices/${invoice.id}/pay`,
-    viewInvoiceUrl: `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/invoicing/invoices/${invoice.id}`,
-  };
-
-  const rawTemplate = getInvoiceEmailTemplate();
-  const withConditionals = processTemplateConditionals(rawTemplate, templateVariables);
-  const html = emailService.processTemplate(withConditionals, templateVariables);
+    viewInvoiceUrl,
+    payNowUrl,
+  });
 
   const subject   = `Invoice ${invoice.invoiceNumber} from ${company.companyName || 'Stealth Machine Tools'}`;
   const fromEmail = VERIFIED_SENDER;
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
-  console.log(`[INVOICE EMAIL] Sending ${invoice.invoiceNumber} to ${recipientEmail} (reply-to: ${replyTo})`);
+  console.log(`[INVOICE EMAIL] Sending ${invoice.invoiceNumber} to ${recipientEmail} | reply-to: ${replyTo} | PDF: ${pdfBuffer ? `yes (${pdfBuffer.length} bytes)` : 'no'}`);
 
   const attachments = [];
-  if (pdfBuffer) {
+  if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
     attachments.push({
       filename:    `Invoice-${invoice.invoiceNumber}.pdf`,
-      content:     pdfBuffer,
+      content:     Buffer.from(pdfBuffer), // fresh copy ensures buffer is not consumed
       contentType: 'application/pdf',
     });
   }
@@ -93,7 +79,7 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
     ? await emailService.sendEmailWithAttachment({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html, attachments })
     : await emailService.sendEmail({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html });
 
-  console.log(`[INVOICE EMAIL] Result for ${invoice.invoiceNumber}:`, result.success ? 'SUCCESS' : `FAILED — ${result.error}`);
+  console.log(`[INVOICE EMAIL] ${invoice.invoiceNumber}: ${result.success ? 'SUCCESS' : `FAILED — ${result.error}`}`);
 
   await prisma.emailLog.create({
     data: {
@@ -122,15 +108,14 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   return result;
 }
 
-/**
- * Send estimate email
- */
+// ── Send Estimate ─────────────────────────────────────────────────────────────
+
 export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmails, customMessage, pdfBuffer }) {
   const estimate = await prisma.estimate.findUnique({
     where: { id: estimateId },
     include: {
       customer: true,
-      items: true,
+      items:    true,
       createdBy: { select: { id: true, name: true, email: true } },
     },
   });
@@ -143,40 +128,38 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, estimate.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
-  const templateVariables = {
+  const viewEstimateUrl = `${FRONTEND_URL}/invoicing/estimates/${estimate.id}`;
+
+  console.log(`[ESTIMATE EMAIL] URLs: view=${viewEstimateUrl}`);
+  console.log(`[ESTIMATE EMAIL] customMessage: "${customMessage || '(none)'}"`);
+
+  // Render HTML directly — no {{}} substitution needed
+  const html = getEstimateEmailTemplate({
     customerFirstName: estimate.customer.firstName || estimate.customer.contactName || 'Customer',
-    customerLastName:  estimate.customer.lastName  || '',
     estimateNumber:    estimate.estimateNumber,
-    estimateDate:      new Date(estimate.estimateDate).toLocaleDateString(),
+    estimateDate:      new Date(estimate.estimateDate || estimate.createdAt).toLocaleDateString(),
     expiryDate:        estimate.expiryDate ? new Date(estimate.expiryDate).toLocaleDateString() : 'N/A',
-    subtotal:          (estimate.subtotal  || 0).toFixed(2),
-    tax:               (estimate.taxAmount || 0).toFixed(2),
-    total:             (estimate.total     || 0).toFixed(2),
-    salesRepName:      salesRep?.name       || 'Sales Team',
+    total:             (estimate.total || 0).toFixed(2),
+    salesRepName:      salesRep?.name        || 'Sales Team',
     salesRepPhone:     salesRep?.phoneNumber || '',
     signature:         salesRep?.signature   || '',
     companyName:       company.companyName   || 'Stealth Machine Tools',
     customMessage:     customMessage         || '',
-    // Correct frontend URL — /invoicing/estimates/:id (no /view suffix, no missing /invoicing/ prefix)
-    viewEstimateUrl: `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/invoicing/estimates/${estimate.id}`,
-  };
-
-  const rawTemplate = getEstimateEmailTemplate();
-  const withConditionals = processTemplateConditionals(rawTemplate, templateVariables);
-  const html = emailService.processTemplate(withConditionals, templateVariables);
+    viewEstimateUrl,
+  });
 
   const subject   = `Estimate ${estimate.estimateNumber} from ${company.companyName || 'Stealth Machine Tools'}`;
   const fromEmail = VERIFIED_SENDER;
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
-  console.log(`[ESTIMATE EMAIL] Sending ${estimate.estimateNumber} to ${recipientEmail} (reply-to: ${replyTo})`);
+  console.log(`[ESTIMATE EMAIL] Sending ${estimate.estimateNumber} to ${recipientEmail} | reply-to: ${replyTo} | PDF: ${pdfBuffer ? `yes (${pdfBuffer.length} bytes)` : 'no'}`);
 
   const attachments = [];
-  if (pdfBuffer) {
+  if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
     attachments.push({
       filename:    `Estimate-${estimate.estimateNumber}.pdf`,
-      content:     pdfBuffer,
+      content:     Buffer.from(pdfBuffer), // fresh copy ensures buffer is not consumed
       contentType: 'application/pdf',
     });
   }
@@ -185,7 +168,7 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
     ? await emailService.sendEmailWithAttachment({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html, attachments })
     : await emailService.sendEmail({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html });
 
-  console.log(`[ESTIMATE EMAIL] Result for ${estimate.estimateNumber}:`, result.success ? 'SUCCESS' : `FAILED — ${result.error}`);
+  console.log(`[ESTIMATE EMAIL] ${estimate.estimateNumber}: ${result.success ? 'SUCCESS' : `FAILED — ${result.error}`}`);
 
   await prisma.emailLog.create({
     data: {
