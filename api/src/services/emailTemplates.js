@@ -2,7 +2,11 @@
  * Email Templates
  * All templates are pure JS functions that accept data objects and return HTML.
  * All CSS is fully inlined (Gmail/Outlook strip <style> blocks).
- * Brand red: #dc2626
+ *
+ * Key email client fixes applied:
+ * - color-scheme: light forces Outlook/webmail out of dark-mode colour shifting
+ * - Logo uses explicit height="60" HTML attribute (CSS max-height ignored by most clients)
+ * - Logo header is white with red bottom border (logo PNG has white background)
  */
 
 const RED    = '#dc2626';
@@ -12,13 +16,14 @@ const MUTED  = '#666666';
 
 function buildHeader(companyName, logoUrl) {
   if (logoUrl) {
-    // Black background when showing logo (preserves transparency, looks clean)
+    // White cell + red bottom border — works with white-background logos.
+    // height="60" is the HTML attribute email clients actually respect.
     return `
-    <tr><td style="background-color:#000000;padding:20px 30px;text-align:center;">
-      <img src="${logoUrl}" alt="${companyName}" style="max-height:60px;max-width:260px;display:inline-block;" />
+    <tr><td style="background-color:#ffffff;padding:16px 30px;text-align:center;border-bottom:4px solid ${RED};">
+      <img src="${logoUrl}" alt="${companyName}" height="60" style="height:60px;width:auto;display:inline-block;border:0;outline:none;" />
     </td></tr>`;
   }
-  // Red background with white text when no logo
+  // Fallback: red bar with white company name text
   return `
     <tr><td style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${companyName}</h1>
@@ -27,13 +32,19 @@ function buildHeader(companyName, logoUrl) {
 
 function wrapInBaseTemplate(content, preheaderText = '') {
   return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Force light-mode rendering in Outlook and webmail dark-mode -->
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>Stealth Machine Tools</title>
+  <style>
+    :root { color-scheme: light; supported-color-schemes: light; }
+  </style>
 </head>
-<body style="margin:0;padding:0;background-color:${LIGHT};font-family:Arial,Helvetica,sans-serif;">
+<body style="margin:0;padding:0;background-color:${LIGHT};font-family:Arial,Helvetica,sans-serif;color-scheme:light;">
   <div style="display:none;max-height:0;overflow:hidden;">${preheaderText}</div>
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color:${LIGHT};">
     <tr><td align="center" style="padding:20px 10px;">
@@ -110,8 +121,8 @@ export function getEstimateEmailTemplate(data) {
       <p style="margin:0 0 16px 0;font-size:14px;color:#555555;">This estimate is valid until <strong>${expiryDate}</strong>. If you have any questions or would like to proceed, please reply to this email.</p>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid ${BORDER};">
-        <p style="margin:0 0 4px 0;font-size:14px;">Best regards,</p>
-        <p style="margin:0;font-size:14px;"><strong>${salesRepName}</strong></p>
+        <p style="margin:0 0 4px 0;font-size:14px;color:#333333;">Best regards,</p>
+        <p style="margin:0;font-size:14px;color:#111111;"><strong>${salesRepName}</strong></p>
         ${salesRepPhone ? `<p style="margin:4px 0 0 0;font-size:13px;color:${MUTED};">${salesRepPhone}</p>` : ''}
         ${signature    ? `<div style="margin-top:8px;font-size:13px;color:#555555;">${signature}</div>` : ''}
       </div>
@@ -121,7 +132,7 @@ export function getEstimateEmailTemplate(data) {
       <p style="margin:0 0 4px 0;font-size:12px;color:${MUTED};">${companyName}</p>
       <p style="margin:0;font-size:12px;color:${MUTED};">If you have questions, simply reply to this email.</p>
     </td></tr>
-  `, `Estimate ${estimateNumber} \u2014 Total: $${total}`);
+  `, `Estimate ${estimateNumber} \u2014 Total: \$${total}`);
 }
 
 /**
@@ -190,8 +201,8 @@ export function getInvoiceEmailTemplate(data) {
       <p style="margin:0 0 16px 0;font-size:14px;color:#555555;">If you have any questions about this invoice, please reply to this email.</p>
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid ${BORDER};">
-        <p style="margin:0 0 4px 0;font-size:14px;">Best regards,</p>
-        <p style="margin:0;font-size:14px;"><strong>${salesRepName}</strong></p>
+        <p style="margin:0 0 4px 0;font-size:14px;color:#333333;">Best regards,</p>
+        <p style="margin:0;font-size:14px;color:#111111;"><strong>${salesRepName}</strong></p>
         ${salesRepPhone ? `<p style="margin:4px 0 0 0;font-size:13px;color:${MUTED};">${salesRepPhone}</p>` : ''}
         ${signature    ? `<div style="margin-top:8px;font-size:13px;color:#555555;">${signature}</div>` : ''}
       </div>
@@ -201,11 +212,11 @@ export function getInvoiceEmailTemplate(data) {
       <p style="margin:0 0 4px 0;font-size:12px;color:${MUTED};">${companyName}</p>
       <p style="margin:0;font-size:12px;color:${MUTED};">If you have questions, simply reply to this email.</p>
     </td></tr>
-  `, `Invoice ${invoiceNumber} \u2014 Amount Due: $${balanceDue}`);
+  `, `Invoice ${invoiceNumber} \u2014 Amount Due: \$${balanceDue}`);
 }
 
 /**
- * Order Stage Update Email Template (still uses {{}} substitution)
+ * Order Stage Update Email Template
  */
 export function getOrderStageEmailTemplate() {
   return wrapInBaseTemplate(`
@@ -237,7 +248,7 @@ export function getOrderStageEmailTemplate() {
 }
 
 /**
- * Commission Notification Template (Internal, still uses {{}} substitution)
+ * Commission Notification Template (Internal)
  */
 export function getCommissionNotificationTemplate() {
   return wrapInBaseTemplate(`
@@ -264,7 +275,7 @@ export function getCommissionNotificationTemplate() {
     <tr><td style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
       <p style="margin:0;font-size:12px;color:${MUTED};">{{companyName}} \u2014 Internal Notification</p>
     </td></tr>
-  `, 'Commission {{type}}: ${{amount}}');
+  `, 'Commission {{type}}: \${{amount}}');
 }
 
 export { wrapInBaseTemplate };
