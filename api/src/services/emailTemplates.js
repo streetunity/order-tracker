@@ -3,18 +3,24 @@
  * All templates are pure JS functions that accept data objects and return HTML.
  *
  * Rendering engine notes:
- * - Desktop Outlook : Word engine — use bgcolor HTML attributes + mso-color-alt
- *                     for text. [data-ogsc] overrides scoped to named classes.
- * - Gmail           : strips ALL HTML comments (including conditional ones) AND
- *                     strips <style> blocks. 100% inline styles required.
- *                     NEVER use <!--[if mso]> conditional comments for buttons —
- *                     Gmail exposes the raw VML which covers the real <a> link.
+ * - Desktop Outlook : Word engine — use bgcolor HTML attrs on <tr> AND <td>,
+ *                     mso-padding-alt (with real values, never 0) to pass
+ *                     padding through to inner <a> elements, mso-color-alt
+ *                     for text colours. [data-ogsc] overrides for dark mode.
+ * - Gmail           : strips <style> blocks — 100% inline styles required.
+ *                     NO conditional comments needed; table-cell buttons work.
  * - Mobile Outlook  : WebView, respects color-scheme:light meta tag.
  *
- * Button approach: table-cell button (no VML, no conditional comments).
- *   <td bgcolor="RED"><a href="...">Label</a></td>
- *   Works in all clients. Outlook gets bgcolor from HTML attr (no rounded corners
- *   but correct color + clickable). Gmail/Apple Mail get full styled button.
+ * Button pattern (works in all clients):
+ *   <tr bgcolor="COLOR"><td mso-padding-alt:Xpx Ypx>
+ *     <a padding:Xpx Ypx>Label</a>
+ *   </td></tr>
+ *   - bgcolor on <tr> AND <td> = Outlook Word engine
+ *   - mso-padding-alt with real values (NOT 0!) lets Outlook respect <a> padding
+ *   - <a> padding = Gmail/Apple Mail/mobile
+ *
+ * Logo header pattern:
+ *   bgcolor="#000000" on both <tr> and <td> = forces black in all Outlook versions
  *
  * Brand red: #dc2626
  */
@@ -26,15 +32,17 @@ const MUTED  = '#666666';
 
 function buildHeader(companyName, logoUrl) {
   if (logoUrl) {
+    // bgcolor on BOTH <tr> and <td> — Outlook Word engine sometimes inherits
+    // the parent table bgcolor onto child cells; setting both prevents that.
     return `
-    <tr>
+    <tr bgcolor="#000000">
       <td class="logo-td" bgcolor="#000000" style="background-color:#000000;padding:20px 30px;text-align:center;border-bottom:4px solid ${RED};">
         <img src="${logoUrl}" alt="${companyName}" height="60" width="auto" style="height:60px;width:auto;display:inline-block;border:0;outline:none;" />
       </td>
     </tr>`;
   }
   return `
-    <tr>
+    <tr bgcolor="${RED}">
       <td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
         <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;mso-color-alt:#ffffff;font-family:Arial,Helvetica,sans-serif;">${companyName}</h1>
       </td>
@@ -42,14 +50,13 @@ function buildHeader(companyName, logoUrl) {
 }
 
 // Table-cell button — works in Outlook, Gmail, Apple Mail, mobile.
-// No conditional comments. No VML. No mso-hide.
-// bgcolor on <td> = Outlook. background-color on <td> style + border-radius = everyone else.
-function button(href, label, bgColor = RED, width = '180px') {
-  return `
-  <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
-    <tr>
-      <td align="center" bgcolor="${bgColor}" style="background-color:${bgColor};border-radius:5px;mso-padding-alt:0;">
-        <a href="${href}" style="display:inline-block;background-color:${bgColor};color:#ffffff;text-decoration:none;padding:13px 32px;border-radius:5px;font-weight:700;font-size:14px;font-family:Arial,Helvetica,sans-serif;mso-color-alt:#ffffff;">${label}</a>
+// Key: mso-padding-alt on <td> must match the <a> padding exactly.
+// NEVER use mso-padding-alt:0 — that zeroes out padding in Outlook.
+function button(href, label, bgColor = RED) {
+  return `<table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+    <tr bgcolor="${bgColor}">
+      <td align="center" bgcolor="${bgColor}" style="background-color:${bgColor};border-radius:5px;mso-padding-alt:12px 28px;">
+        <a href="${href}" style="display:inline-block;background-color:${bgColor};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;font-family:Arial,Helvetica,sans-serif;mso-color-alt:#ffffff;white-space:nowrap;">${label}</a>
       </td>
     </tr>
   </table>`;
@@ -73,7 +80,7 @@ function wrapInBaseTemplate(content, preheaderText = '') {
   <![endif]-->
   <style type="text/css">
     :root { color-scheme: light; supported-color-schemes: light; }
-    /* Outlook dark mode — scope to named classes, never wildcard td */
+    /* Outlook dark mode overrides — named classes only, never wildcard td */
     [data-ogsc] body,  [data-ogsb] body  { background-color: ${LIGHT}  !important; }
     [data-ogsc] .email-outer-table       { background-color: ${LIGHT}  !important; }
     [data-ogsc] .email-inner-table       { background-color: #ffffff   !important; }
@@ -83,8 +90,6 @@ function wrapInBaseTemplate(content, preheaderText = '') {
     [data-ogsc] .custom-msg-div          { background-color: #f9f9f9   !important; color: #333333 !important; }
     [data-ogsc] .logo-td                 { background-color: #000000   !important; }
     [data-ogsc] .header-td               { background-color: ${RED}    !important; }
-    [data-ogsc] .btn-td                  { background-color: ${RED}    !important; }
-    [data-ogsc] .btn-td a                { color: #ffffff !important; background-color: ${RED} !important; }
     [data-ogsc] .total-amount            { color: ${RED} !important; }
   </style>
 </head>
@@ -195,6 +200,19 @@ export function getInvoiceEmailTemplate(data) {
     payNowUrl         = '',
   } = data;
 
+  // Side-by-side buttons using a 2-cell table row (no flexbox — not supported in email)
+  const buttonRow = (payNowUrl || viewInvoiceUrl) ? `
+    <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+      <tr>
+        ${payNowUrl ? `<td style="padding:0 6px 0 0;">
+          ${button(payNowUrl, 'Pay Now', RED)}
+        </td>` : ''}
+        ${viewInvoiceUrl ? `<td style="padding:0 0 0 ${payNowUrl ? '6' : '0'}px;">
+          ${button(viewInvoiceUrl, 'View Invoice', '#444444')}
+        </td>` : ''}
+      </tr>
+    </table>` : '';
+
   return wrapInBaseTemplate(`
     ${buildHeader(companyName, logoUrl)}
     <tr>
@@ -232,9 +250,8 @@ export function getInvoiceEmailTemplate(data) {
         </table>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
-          <tr><td align="center" style="display:flex;gap:12px;justify-content:center;">
-            ${payNowUrl     ? button(payNowUrl,     'Pay Now',      RED,       '130px') : ''}
-            ${viewInvoiceUrl? button(viewInvoiceUrl,'View Invoice', '#444444', '150px') : ''}
+          <tr><td align="center">
+            ${buttonRow}
           </td></tr>
         </table>
 
@@ -259,7 +276,7 @@ export function getInvoiceEmailTemplate(data) {
 
 export function getOrderStageEmailTemplate() {
   return wrapInBaseTemplate(`
-    <tr><td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
+    <tr bgcolor="${RED}"><td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Order Update</h1>
     </td></tr>
     <tr><td class="email-body-td" bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
@@ -275,9 +292,9 @@ export function getOrderStageEmailTemplate() {
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
         <tr><td align="center">
           <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
-            <tr>
-              <td align="center" bgcolor="${RED}" style="background-color:${RED};border-radius:5px;">
-                <a href="{{trackingUrl}}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:5px;font-weight:700;font-size:14px;font-family:Arial,Helvetica,sans-serif;">Track Your Order</a>
+            <tr bgcolor="${RED}">
+              <td align="center" bgcolor="${RED}" style="background-color:${RED};border-radius:5px;mso-padding-alt:12px 28px;">
+                <a href="{{trackingUrl}}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;font-family:Arial,Helvetica,sans-serif;">Track Your Order</a>
               </td>
             </tr>
           </table>
@@ -294,7 +311,7 @@ export function getOrderStageEmailTemplate() {
 
 export function getCommissionNotificationTemplate() {
   return wrapInBaseTemplate(`
-    <tr><td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
+    <tr bgcolor="${RED}"><td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">Commission {{type}}</h1>
     </td></tr>
     <tr><td class="email-body-td" bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
@@ -311,9 +328,9 @@ export function getCommissionNotificationTemplate() {
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 28px 0;">
         <tr><td align="center">
           <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
-            <tr>
-              <td align="center" bgcolor="${RED}" style="background-color:${RED};border-radius:5px;">
-                <a href="{{commissionsUrl}}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:5px;font-weight:700;font-size:14px;font-family:Arial,Helvetica,sans-serif;">View My Commissions</a>
+            <tr bgcolor="${RED}">
+              <td align="center" bgcolor="${RED}" style="background-color:${RED};border-radius:5px;mso-padding-alt:12px 28px;">
+                <a href="{{commissionsUrl}}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;font-family:Arial,Helvetica,sans-serif;">View My Commissions</a>
               </td>
             </tr>
           </table>
