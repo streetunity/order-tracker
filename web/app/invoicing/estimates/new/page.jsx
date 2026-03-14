@@ -12,21 +12,23 @@ import "../../modal.css";
 function NewEstimateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const templateId   = searchParams.get('templateId');
+  const templateId       = searchParams.get('templateId');
   const presetCustomerId = searchParams.get('customer');
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const { setHasUnsavedChanges: setGlobalUnsavedChanges, navigateWithWarning: globalNavigateWithWarning } = useUnsavedChanges();
+
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
   const [templateName, setTemplateName] = useState("");
 
-  // Form state
-  const [customerId,            setCustomerId]            = useState("");
-  const [customers,             setCustomers]             = useState([]);
-  const [customerSearch,        setCustomerSearch]        = useState("");
-  const [showCustomerDropdown,  setShowCustomerDropdown]  = useState(false);
-  const [selectedCustomer,      setSelectedCustomer]      = useState(null);
+  // Customer
+  const [customerId,           setCustomerId]           = useState("");
+  const [customers,            setCustomers]            = useState([]);
+  const [customerSearch,       setCustomerSearch]       = useState("");
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomer,     setSelectedCustomer]     = useState(null);
 
+  // Dates
   const [estimateDate, setEstimateDate] = useState(new Date().toISOString().split('T')[0]);
   const [expiryDate,   setExpiryDate]   = useState(() => {
     const d = new Date();
@@ -34,23 +36,30 @@ function NewEstimateContent() {
     return d.toISOString().split('T')[0];
   });
 
+  // Items
   const [items,               setItems]               = useState([]);
   const [products,            setProducts]            = useState([]);
   const [bundles,             setBundles]             = useState([]);
   const [productSearch,       setProductSearch]       = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [expandedItems,       setExpandedItems]       = useState({});
 
+  // Pricing
   const [taxRate,         setTaxRate]         = useState(0);
+  const [localTaxRate,    setLocalTaxRate]    = useState(6.7);   // loaded from settings
   const [discountType,    setDiscountType]    = useState("");
   const [discountValue,   setDiscountValue]   = useState("");
   const [shippingAmount,  setShippingAmount]  = useState("");
+
+  // Notes
   const [notes,           setNotes]           = useState("");
   const [internalNotes,   setInternalNotes]   = useState("");
   const [termsConditions, setTermsConditions] = useState("");
-  const [expandedItems,   setExpandedItems]   = useState({});
-  const [templates,       setTemplates]       = useState([]);
+
+  // Templates
+  const [templates,         setTemplates]         = useState([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [formSubmitted,   setFormSubmitted]   = useState(false);
+  const [formSubmitted,     setFormSubmitted]     = useState(false);
 
   const hasUnsavedChanges = !formSubmitted && (
     items.length > 0 || customerId !== "" || notes !== "" ||
@@ -70,7 +79,7 @@ function NewEstimateContent() {
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
-    const fn = (e) => {
+    const fn = () => {
       window.history.pushState(null, '', window.location.href);
       globalNavigateWithWarning(document.referrer || '/invoicing/estimates', router);
     };
@@ -82,6 +91,8 @@ function NewEstimateContent() {
   function navigateWithWarning(url) { globalNavigateWithWarning(url, router); }
   const toggleItemExpand = (index) => setExpandedItems(prev => ({ ...prev, [index]: !prev[index] }));
 
+  // ── Initial data load ─────────────────────────────────────────────────────
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
@@ -89,26 +100,35 @@ function NewEstimateContent() {
     loadProducts();
     loadBundles();
     loadTemplates();
+    loadInvoicingSettings();
     if (templateId) loadTemplate(templateId);
   }, [user, router, templateId]);
 
-  // Auto-populate customer when preset param is present
+  // Auto-populate customer from URL param
   useEffect(() => {
     if (!presetCustomerId || !user || authLoading) return;
-    async function fetchPresetCustomer() {
+    async function fetchPreset() {
       try {
         const res = await fetch(`/api/customers/${presetCustomerId}`, { headers: getAuthHeaders() });
         if (res.ok) {
           const c = await res.json();
           setCustomerId(c.id);
           setSelectedCustomer(c);
-          // Also pre-fill payment terms from customer default
-          if (c.paymentTerms) setEstimateDate(new Date().toISOString().split('T')[0]);
         }
       } catch (e) { console.error("Error loading preset customer:", e); }
     }
-    fetchPresetCustomer();
+    fetchPreset();
   }, [presetCustomerId, user, authLoading]);
+
+  async function loadInvoicingSettings() {
+    try {
+      const res = await fetch("/api/invoicing-settings", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.defaultTaxRate != null) setLocalTaxRate(parseFloat(data.defaultTaxRate));
+      }
+    } catch (e) { console.error("Error loading invoicing settings:", e); }
+  }
 
   async function loadTemplate(id) {
     try {
@@ -196,14 +216,17 @@ function NewEstimateContent() {
     setShowTemplateModal(false);
   }
 
-  // Totals
-  const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  // ── Totals ────────────────────────────────────────────────────────────────
+
+  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const discountAmount = discountType === 'PERCENTAGE'
     ? subtotal * (parseFloat(discountValue) || 0) / 100
     : discountType === 'FIXED' ? parseFloat(discountValue) || 0 : 0;
   const taxableAmount = items.filter(i => i.taxable !== false).reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const taxAmount = (taxableAmount - discountAmount * (taxableAmount / subtotal || 0)) * (taxRate / 100);
   const total = subtotal - discountAmount + taxAmount + (parseFloat(shippingAmount) || 0);
+
+  // ── Filtered lists ────────────────────────────────────────────────────────
 
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true;
@@ -223,6 +246,8 @@ function NewEstimateContent() {
     return b.name?.toLowerCase().includes(productSearch.toLowerCase());
   });
 
+  // ── Item actions ──────────────────────────────────────────────────────────
+
   function selectCustomer(c) {
     setCustomerId(c.id); setSelectedCustomer(c); setCustomerSearch(""); setShowCustomerDropdown(false);
   }
@@ -234,9 +259,9 @@ function NewEstimateContent() {
 
   function addBundle(bundle) {
     if (bundle.items?.length > 0) {
-      const total = bundle.items.reduce((s, bi) => s + bi.product.price * bi.quantity, 0);
+      const bTotal = bundle.items.reduce((s, bi) => s + bi.product.price * bi.quantity, 0);
       setItems([...items, ...bundle.items.map(bi => {
-        const ratio = total > 0 ? (bi.product.price * bi.quantity) / total : 0;
+        const ratio = bTotal > 0 ? (bi.product.price * bi.quantity) / bTotal : 0;
         return { tempId: Date.now() + Math.random(), productId: bi.productId, name: bi.product.name, description: bi.product.description, sku: bi.product.sku, quantity: bi.quantity, unitPrice: (bundle.price * ratio) / bi.quantity, unitCost: bi.product.cost, taxable: bi.product.taxable, fromBundleId: bundle.id, fromBundleName: bundle.name };
       })]);
     }
@@ -269,7 +294,11 @@ function NewEstimateContent() {
         body: JSON.stringify({
           customerId, estimateDate, expiryDate,
           items: items.map(item => ({ productId: item.productId, fromBundleId: item.fromBundleId, fromBundleName: item.fromBundleName, name: item.name, description: item.description, sku: item.sku, quantity: parseFloat(item.quantity) || 1, unitPrice: parseFloat(item.unitPrice) || 0, unitCost: item.unitCost ? parseFloat(item.unitCost) : null, taxable: item.taxable })),
-          taxRate: parseFloat(taxRate) || 0, discountType: discountType || null, discountValue: discountValue ? parseFloat(discountValue) : null, shippingAmount: parseFloat(shippingAmount) || 0, notes, internalNotes, termsConditions
+          taxRate: parseFloat(taxRate) || 0,
+          discountType: discountType || null,
+          discountValue: discountValue ? parseFloat(discountValue) : null,
+          shippingAmount: parseFloat(shippingAmount) || 0,
+          notes, internalNotes, termsConditions
         }),
       });
       const data = await res.json();
@@ -315,10 +344,9 @@ function NewEstimateContent() {
 
         <form onSubmit={handleSubmit}>
 
-          {/* ── CUSTOMER + DATES — single two-column row ── */}
+          {/* ── CUSTOMER + DATES ── */}
           <div style={sec}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "start" }}>
-
               {/* LEFT: Customer */}
               <div>
                 <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Customer</h2>
@@ -326,14 +354,8 @@ function NewEstimateContent() {
                   {selectedCustomer ? (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: "8px" }}>
                       <div>
-                        <div style={{ fontWeight: "600", color: "rgba(255,255,255,0.9)", fontSize: 14 }}>
-                          {selectedCustomer.companyName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
-                        </div>
-                        <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
-                          {selectedCustomer.firstName} {selectedCustomer.lastName}
-                          {(selectedCustomer.company || selectedCustomer.companyName) && selectedCustomer.companyName !== (`${selectedCustomer.firstName} ${selectedCustomer.lastName}`) ? "" : ""}
-                          {selectedCustomer.email && ` · ${selectedCustomer.email}`}
-                        </div>
+                        <div style={{ fontWeight: "600", color: "rgba(255,255,255,0.9)", fontSize: 14 }}>{selectedCustomer.companyName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</div>
+                        <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{selectedCustomer.firstName} {selectedCustomer.lastName}{selectedCustomer.email && ` · ${selectedCustomer.email}`}</div>
                         <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", fontFamily: "monospace", marginTop: 2 }}>{selectedCustomer.customerNumber}</div>
                       </div>
                       <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerId(""); }}
@@ -366,14 +388,8 @@ function NewEstimateContent() {
               <div>
                 <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Dates</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <div>
-                    <label style={lbl}>Estimate Date</label>
-                    <input type="date" value={estimateDate} onChange={(e) => setEstimateDate(e.target.value)} style={inp} />
-                  </div>
-                  <div>
-                    <label style={lbl}>Expiry Date</label>
-                    <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} style={inp} />
-                  </div>
+                  <div><label style={lbl}>Estimate Date</label><input type="date" value={estimateDate} onChange={(e) => setEstimateDate(e.target.value)} style={inp} /></div>
+                  <div><label style={lbl}>Expiry Date</label><input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} style={inp} /></div>
                 </div>
               </div>
             </div>
@@ -384,9 +400,7 @@ function NewEstimateContent() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.7px", margin: 0 }}>Line Items</h2>
               <button type="button" onClick={addCustomItem}
-                style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: "13px" }}>
-                + Custom Item
-              </button>
+                style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: "13px" }}>+ Custom Item</button>
             </div>
 
             {/* Product search */}
@@ -521,10 +535,20 @@ function NewEstimateContent() {
           <div style={sec}>
             <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Pricing</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+
+              {/* ── Tax — named options instead of free input ── */}
               <div>
-                <label style={lbl}>Tax Rate (%)</label>
-                <input type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} style={inp} step="0.01" min="0" />
+                <label style={lbl}>Tax</label>
+                <select
+                  value={String(taxRate)}
+                  onChange={(e) => setTaxRate(parseFloat(e.target.value))}
+                  style={inp}
+                >
+                  <option value="0">Out of State — 0%</option>
+                  <option value={String(localTaxRate)}>Pinal County Sales Tax (Local) — {localTaxRate}%</option>
+                </select>
               </div>
+
               <div>
                 <label style={lbl}>Discount Type</label>
                 <select value={discountType} onChange={(e) => setDiscountType(e.target.value)} style={inp}>
@@ -542,6 +566,8 @@ function NewEstimateContent() {
               <label style={lbl}>Shipping</label>
               <input type="number" value={shippingAmount} onChange={(e) => setShippingAmount(e.target.value)} style={inp} step="0.01" min="0" placeholder="$0.00" />
             </div>
+
+            {/* Totals */}
             <div style={{ marginTop: 24, padding: 16, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ color: "rgba(255,255,255,0.6)" }}>Subtotal:</span><span style={{ color: "rgba(255,255,255,0.9)" }}>{fmt(subtotal)}</span></div>
               {discountAmount > 0 && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ color: "rgba(255,255,255,0.6)" }}>Discount:</span><span style={{ color: "#10b981" }}>-{fmt(discountAmount)}</span></div>}

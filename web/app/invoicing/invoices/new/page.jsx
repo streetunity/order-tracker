@@ -28,6 +28,7 @@ function NewInvoiceContent() {
   const [paymentScheduleType,  setPaymentScheduleType]  = useState("NONE");
   const [items,                setItems]                = useState([]);
   const [taxRate,              setTaxRate]              = useState(0);
+  const [localTaxRate,         setLocalTaxRate]         = useState(6.7);  // loaded from settings
   const [discountType,         setDiscountType]         = useState("");
   const [discountValue,        setDiscountValue]        = useState("");
   const [shippingAmount,       setShippingAmount]       = useState("");
@@ -51,6 +52,7 @@ function NewInvoiceContent() {
     loadCustomers();
     loadProducts();
     loadBundles();
+    loadInvoicingSettings();
     if (estimateId) loadEstimate(estimateId);
   }, [user, router, estimateId]);
 
@@ -64,13 +66,22 @@ function NewInvoiceContent() {
           const c = await res.json();
           setCustomerId(c.id);
           setSelectedCustomer(c);
-          // Pre-fill payment terms from customer default
           if (c.paymentTerms) setPaymentTerms(c.paymentTerms);
         }
       } catch (e) { console.error(e); }
     }
     fetchPreset();
   }, [presetCustomerId, user, authLoading]);
+
+  async function loadInvoicingSettings() {
+    try {
+      const res = await fetch("/api/invoicing-settings", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.defaultTaxRate != null) setLocalTaxRate(parseFloat(data.defaultTaxRate));
+      }
+    } catch (e) { console.error("Error loading invoicing settings:", e); }
+  }
 
   async function loadCustomers() {
     try {
@@ -132,13 +143,7 @@ function NewInvoiceContent() {
   }
 
   function addBundle(bundle) {
-    const bundleItems = (bundle.items || []).map((item, idx) => ({
-      id: Date.now() + idx, productId: item.productId,
-      name: item.product?.name || item.name, description: item.product?.description,
-      sku: item.product?.sku, quantity: item.quantity || 1,
-      unitPrice: item.unitPrice || item.product?.price || 0, unitCost: item.product?.cost,
-      taxable: item.product?.taxable !== false, fromBundleName: bundle.name
-    }));
+    const bundleItems = (bundle.items || []).map((item, idx) => ({ id: Date.now() + idx, productId: item.productId, name: item.product?.name || item.name, description: item.product?.description, sku: item.product?.sku, quantity: item.quantity || 1, unitPrice: item.unitPrice || item.product?.price || 0, unitCost: item.product?.cost, taxable: item.product?.taxable !== false, fromBundleName: bundle.name }));
     setItems([...items, ...bundleItems]);
     setProductSearch(""); setShowProductDropdown(false);
   }
@@ -150,7 +155,6 @@ function NewInvoiceContent() {
   function updateItem(id, field, value) {
     setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
   }
-
   function removeItem(id) { setItems(items.filter(item => item.id !== id)); }
 
   // Totals
@@ -167,7 +171,7 @@ function NewInvoiceContent() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!customerId)      { setError("Please select a customer"); return; }
+    if (!customerId)        { setError("Please select a customer"); return; }
     if (items.length === 0) { setError("Please add at least one item"); return; }
     for (const item of items) { if (!item.name) { setError("All items must have a name"); return; } }
     setSaving(true);
@@ -211,10 +215,9 @@ function NewInvoiceContent() {
 
         <form onSubmit={handleSubmit}>
 
-          {/* ── CUSTOMER + PAYMENT TERMS — single two-column row ── */}
+          {/* ── CUSTOMER + PAYMENT TERMS ── */}
           <div style={sec}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "start" }}>
-
               {/* LEFT: Customer */}
               <div>
                 <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Customer</h2>
@@ -222,13 +225,8 @@ function NewInvoiceContent() {
                   {selectedCustomer ? (
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 8 }}>
                       <div>
-                        <div style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)", fontSize: 14 }}>
-                          {selectedCustomer.companyName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
-                        </div>
-                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
-                          {selectedCustomer.firstName} {selectedCustomer.lastName}
-                          {selectedCustomer.email && ` · ${selectedCustomer.email}`}
-                        </div>
+                        <div style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)", fontSize: 14 }}>{selectedCustomer.companyName || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</div>
+                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{selectedCustomer.firstName} {selectedCustomer.lastName}{selectedCustomer.email && ` · ${selectedCustomer.email}`}</div>
                         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontFamily: "monospace", marginTop: 2 }}>{selectedCustomer.customerNumber}</div>
                       </div>
                       <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerId(""); }}
@@ -257,7 +255,7 @@ function NewInvoiceContent() {
                 </div>
               </div>
 
-              {/* RIGHT: Payment terms */}
+              {/* RIGHT: Payment Terms */}
               <div>
                 <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Payment Terms</h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -421,10 +419,20 @@ function NewInvoiceContent() {
             <div style={sec}>
               <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Pricing</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+                {/* ── Tax — named options ── */}
                 <div>
-                  <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Tax Rate (%)</label>
-                  <input type="number" value={taxRate} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} style={inp} step="0.01" min="0" />
+                  <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Tax</label>
+                  <select
+                    value={String(taxRate)}
+                    onChange={(e) => setTaxRate(parseFloat(e.target.value))}
+                    style={{ ...inp, cursor: "pointer" }}
+                  >
+                    <option value="0">Out of State — 0%</option>
+                    <option value={String(localTaxRate)}>Pinal County Sales Tax (Local) — {localTaxRate}%</option>
+                  </select>
                 </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Discount Type</label>
@@ -479,14 +487,8 @@ function NewInvoiceContent() {
           <div style={sec}>
             <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Notes</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Customer Notes (visible to customer)</label>
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Any notes for the customer…" />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Internal Notes (not visible to customer)</label>
-                <textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical", background: "rgba(234,179,8,0.05)" }} placeholder="Internal notes…" />
-              </div>
+              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Customer Notes (visible to customer)</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Any notes for the customer…" /></div>
+              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Internal Notes (not visible to customer)</label><textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical", background: "rgba(234,179,8,0.05)" }} placeholder="Internal notes…" /></div>
             </div>
             <div style={{ marginTop: 16 }}>
               <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Terms & Conditions</label>
