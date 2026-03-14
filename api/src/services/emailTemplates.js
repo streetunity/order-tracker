@@ -12,11 +12,13 @@ const MUTED  = '#666666';
 
 function buildHeader(companyName, logoUrl) {
   if (logoUrl) {
+    // Black background when showing logo (preserves transparency, looks clean)
     return `
-    <tr><td style="background-color:${RED};padding:20px 30px;text-align:center;">
+    <tr><td style="background-color:#000000;padding:20px 30px;text-align:center;">
       <img src="${logoUrl}" alt="${companyName}" style="max-height:60px;max-width:260px;display:inline-block;" />
     </td></tr>`;
   }
+  // Red background with white text when no logo
   return `
     <tr><td style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${companyName}</h1>
