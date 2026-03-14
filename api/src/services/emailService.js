@@ -55,7 +55,7 @@ export async function sendEmail({ to, from, fromName, replyTo, subject, html, te
     console.log(`[EMAIL] Sent to ${actualTo}: ${actualSubject}`);
     return { success: true, messageId: result.MessageId };
   } catch (error) {
-    console.error(`[EMAIL] Failed to send to ${actualTo}:`, error);
+    console.error(`[EMAIL] SES error sending to ${actualTo} (subject: ${actualSubject}):`, error.message);
     return { success: false, error: error.message };
   }
 }
@@ -75,7 +75,7 @@ export async function sendEmailWithAttachment({ to, from, fromName, replyTo, sub
     subject: actualSubject,
     html: html,
     text: text || stripHtml(html),
-    attachments: attachments, // [{ filename: 'Invoice-001.pdf', content: pdfBuffer, contentType: 'application/pdf' }]
+    attachments: attachments,
   };
 
   try {
@@ -83,7 +83,7 @@ export async function sendEmailWithAttachment({ to, from, fromName, replyTo, sub
     console.log(`[EMAIL] Sent with attachment to ${actualTo}: ${actualSubject}`);
     return { success: true, messageId: result.messageId };
   } catch (error) {
-    console.error(`[EMAIL] Failed to send with attachment to ${actualTo}:`, error);
+    console.error(`[EMAIL] SES error sending with attachment to ${actualTo} (subject: ${actualSubject}):`, error.message);
     return { success: false, error: error.message };
   }
 }
@@ -131,11 +131,37 @@ export async function getSalesRepEmailSettings(prisma, userId) {
 }
 
 /**
- * Get company settings for email footer
+ * Get company settings for email footer.
+ * Tries InvoicingSettings first (the invoicing module's config),
+ * then falls back to the legacy CompanySettings table.
  */
 export async function getCompanySettings(prisma) {
-  const settings = await prisma.companySettings.findFirst();
-  return settings || {
+  // 1. Try InvoicingSettings (populated via /invoicing/settings)
+  try {
+    const invSettings = await prisma.invoicingSettings.findFirst();
+    if (invSettings) {
+      return {
+        companyName: invSettings.companyName || "Stealth Machine Tools",
+        address:     invSettings.address     || "",
+        phone:       invSettings.phone       || "",
+        email:       invSettings.email       || "",
+        website:     invSettings.website     || "",
+      };
+    }
+  } catch (_) {
+    // InvoicingSettings table may not exist on older deployments
+  }
+
+  // 2. Fall back to legacy CompanySettings
+  try {
+    const legacySettings = await prisma.companySettings.findFirst();
+    if (legacySettings) return legacySettings;
+  } catch (_) {
+    // CompanySettings table may not exist
+  }
+
+  // 3. Hard-coded defaults
+  return {
     companyName: "Stealth Machine Tools",
     address: "",
     phone: "",
@@ -149,7 +175,6 @@ export async function getCompanySettings(prisma) {
  */
 export async function trackEmailOpen(prisma, estimateId) {
   try {
-    // Update the most recent email log for this estimate
     const emailLog = await prisma.emailLog.findFirst({
       where: { estimateId },
       orderBy: { sentAt: 'desc' },
@@ -165,7 +190,6 @@ export async function trackEmailOpen(prisma, estimateId) {
       });
     }
 
-    // Update estimate viewed status
     await prisma.estimate.update({
       where: { id: estimateId },
       data: {
@@ -183,7 +207,6 @@ export async function trackEmailOpen(prisma, estimateId) {
  */
 export async function trackInvoiceEmailOpen(prisma, invoiceId) {
   try {
-    // Update the most recent email log for this invoice
     const emailLog = await prisma.emailLog.findFirst({
       where: { invoiceId },
       orderBy: { sentAt: 'desc' },
@@ -199,7 +222,6 @@ export async function trackInvoiceEmailOpen(prisma, invoiceId) {
       });
     }
 
-    // Update invoice viewed status
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: {
