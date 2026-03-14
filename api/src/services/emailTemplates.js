@@ -1,19 +1,27 @@
 /**
  * Email Templates
- * All templates are pure JavaScript functions that accept data objects
- * and return fully-rendered HTML strings.
- *
- * NO runtime template substitution (no {{}} syntax) — all values are
- * interpolated directly via JS template literals so there is no risk
- * of regex mismatches, missing conditionals, or variable substitution bugs.
- *
- * All CSS is fully inlined. Gmail / Outlook strip <style> blocks.
+ * All templates are pure JS functions that accept data objects and return HTML.
+ * All CSS is fully inlined (Gmail/Outlook strip <style> blocks).
+ * Brand red: #dc2626
  */
 
-const RED    = '#cc0000';   // vivid brand red (brighter than #dc2626 for email)
+const RED    = '#dc2626';
 const LIGHT  = '#f5f5f5';
 const BORDER = '#dddddd';
 const MUTED  = '#666666';
+
+function buildHeader(companyName, logoUrl) {
+  if (logoUrl) {
+    return `
+    <tr><td style="background-color:${RED};padding:20px 30px;text-align:center;">
+      <img src="${logoUrl}" alt="${companyName}" style="max-height:60px;max-width:260px;display:inline-block;" />
+    </td></tr>`;
+  }
+  return `
+    <tr><td style="background-color:${RED};padding:24px 30px;text-align:center;">
+      <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${companyName}</h1>
+    </td></tr>`;
+}
 
 function wrapInBaseTemplate(content, preheaderText = '') {
   return `<!DOCTYPE html>
@@ -38,7 +46,6 @@ function wrapInBaseTemplate(content, preheaderText = '') {
 
 /**
  * Estimate Email Template
- * @param {Object} data
  */
 export function getEstimateEmailTemplate(data) {
   const {
@@ -51,17 +58,14 @@ export function getEstimateEmailTemplate(data) {
     salesRepPhone     = '',
     signature         = '',
     companyName       = 'Stealth Machine Tools',
+    logoUrl           = null,
     customMessage     = '',
     viewEstimateUrl   = '',
   } = data;
 
   return wrapInBaseTemplate(`
-    <!-- Header -->
-    <tr><td style="background-color:${RED};padding:24px 30px;text-align:center;">
-      <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${companyName}</h1>
-    </td></tr>
+    ${buildHeader(companyName, logoUrl)}
 
-    <!-- Body -->
     <tr><td style="padding:30px;color:#333333;font-size:15px;line-height:1.6;">
       <p style="margin:0 0 16px 0;">Dear ${customerFirstName},</p>
       <p style="margin:0 0 16px 0;">Thank you for your interest! Please find attached your estimate <strong>${estimateNumber}</strong>.</p>
@@ -71,7 +75,6 @@ export function getEstimateEmailTemplate(data) {
         ${customMessage}
       </div>` : ''}
 
-      <!-- Info box -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
         <tr><td style="padding:20px;">
           <table width="100%" cellpadding="0" cellspacing="0">
@@ -96,7 +99,6 @@ export function getEstimateEmailTemplate(data) {
         </td></tr>
       </table>
 
-      <!-- CTA button -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
         <tr><td align="center">
           <a href="${viewEstimateUrl}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:5px;font-weight:700;font-size:14px;">View Estimate</a>
@@ -105,7 +107,6 @@ export function getEstimateEmailTemplate(data) {
 
       <p style="margin:0 0 16px 0;font-size:14px;color:#555555;">This estimate is valid until <strong>${expiryDate}</strong>. If you have any questions or would like to proceed, please reply to this email.</p>
 
-      <!-- Signature -->
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid ${BORDER};">
         <p style="margin:0 0 4px 0;font-size:14px;">Best regards,</p>
         <p style="margin:0;font-size:14px;"><strong>${salesRepName}</strong></p>
@@ -114,7 +115,6 @@ export function getEstimateEmailTemplate(data) {
       </div>
     </td></tr>
 
-    <!-- Footer -->
     <tr><td style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
       <p style="margin:0 0 4px 0;font-size:12px;color:${MUTED};">${companyName}</p>
       <p style="margin:0;font-size:12px;color:${MUTED};">If you have questions, simply reply to this email.</p>
@@ -124,7 +124,6 @@ export function getEstimateEmailTemplate(data) {
 
 /**
  * Invoice Email Template
- * @param {Object} data
  */
 export function getInvoiceEmailTemplate(data) {
   const {
@@ -137,18 +136,15 @@ export function getInvoiceEmailTemplate(data) {
     salesRepPhone     = '',
     signature         = '',
     companyName       = 'Stealth Machine Tools',
+    logoUrl           = null,
     customMessage     = '',
     viewInvoiceUrl    = '',
     payNowUrl         = '',
   } = data;
 
   return wrapInBaseTemplate(`
-    <!-- Header -->
-    <tr><td style="background-color:${RED};padding:24px 30px;text-align:center;">
-      <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${companyName}</h1>
-    </td></tr>
+    ${buildHeader(companyName, logoUrl)}
 
-    <!-- Body -->
     <tr><td style="padding:30px;color:#333333;font-size:15px;line-height:1.6;">
       <p style="margin:0 0 16px 0;">Dear ${customerFirstName},</p>
       <p style="margin:0 0 16px 0;">Please find attached your invoice <strong>${invoiceNumber}</strong>.</p>
@@ -158,7 +154,6 @@ export function getInvoiceEmailTemplate(data) {
         ${customMessage}
       </div>` : ''}
 
-      <!-- Info box -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
         <tr><td style="padding:20px;">
           <table width="100%" cellpadding="0" cellspacing="0">
@@ -183,17 +178,15 @@ export function getInvoiceEmailTemplate(data) {
         </td></tr>
       </table>
 
-      <!-- CTA buttons -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
         <tr><td align="center">
-          ${payNowUrl    ? `<a href="${payNowUrl}"    style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;margin:0 6px;">Pay Now</a>` : ''}
-          ${viewInvoiceUrl ? `<a href="${viewInvoiceUrl}" style="display:inline-block;background-color:#444444;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;margin:0 6px;">View Invoice</a>` : ''}
+          ${payNowUrl     ? `<a href="${payNowUrl}"     style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;margin:0 6px;">Pay Now</a>` : ''}
+          ${viewInvoiceUrl? `<a href="${viewInvoiceUrl}" style="display:inline-block;background-color:#444444;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;margin:0 6px;">View Invoice</a>` : ''}
         </td></tr>
       </table>
 
       <p style="margin:0 0 16px 0;font-size:14px;color:#555555;">If you have any questions about this invoice, please reply to this email.</p>
 
-      <!-- Signature -->
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid ${BORDER};">
         <p style="margin:0 0 4px 0;font-size:14px;">Best regards,</p>
         <p style="margin:0;font-size:14px;"><strong>${salesRepName}</strong></p>
@@ -202,7 +195,6 @@ export function getInvoiceEmailTemplate(data) {
       </div>
     </td></tr>
 
-    <!-- Footer -->
     <tr><td style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
       <p style="margin:0 0 4px 0;font-size:12px;color:${MUTED};">${companyName}</p>
       <p style="margin:0;font-size:12px;color:${MUTED};">If you have questions, simply reply to this email.</p>
@@ -211,19 +203,17 @@ export function getInvoiceEmailTemplate(data) {
 }
 
 /**
- * Order Stage Update Email Template
- * Still uses {{}} substitution (unchanged).
+ * Order Stage Update Email Template (still uses {{}} substitution)
  */
 export function getOrderStageEmailTemplate() {
-  const RED2 = '#cc0000';
   return wrapInBaseTemplate(`
-    <tr><td style="background-color:${RED2};padding:24px 30px;text-align:center;">
+    <tr><td style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">Order Update</h1>
     </td></tr>
     <tr><td style="padding:30px;color:#333333;font-size:15px;line-height:1.6;">
       <p style="margin:0 0 16px 0;">Hello {{customerName}},</p>
       <p style="margin:0 0 16px 0;">{{message}}</p>
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f9f9f9;border:1px solid #dddddd;border-radius:4px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
         <tr><td style="padding:20px;font-size:14px;">
           <p style="margin:0 0 8px 0;"><strong>Order:</strong> #{{orderNumber}}</p>
           <p style="margin:0 0 8px 0;"><strong>Item:</strong> {{productCode}}</p>
@@ -232,34 +222,32 @@ export function getOrderStageEmailTemplate() {
       </table>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
         <tr><td align="center">
-          <a href="{{trackingUrl}}" style="display:inline-block;background-color:${RED2};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;">Track Your Order</a>
+          <a href="{{trackingUrl}}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;">Track Your Order</a>
         </td></tr>
       </table>
       <p style="font-size:14px;color:#555555;">If you have any questions, please contact your sales representative by replying to this email.</p>
     </td></tr>
-    <tr><td style="background-color:#f5f5f5;padding:20px 30px;text-align:center;">
-      <p style="margin:0 0 4px 0;font-size:12px;color:#666666;">{{companyName}}</p>
-      <p style="margin:0;font-size:12px;color:#666666;">{{companyPhone}} | {{companyEmail}}</p>
+    <tr><td style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
+      <p style="margin:0 0 4px 0;font-size:12px;color:${MUTED};">{{companyName}}</p>
+      <p style="margin:0;font-size:12px;color:${MUTED};">{{companyPhone}} | {{companyEmail}}</p>
     </td></tr>
   `, 'Order #{{orderNumber}} Status: {{stageDisplayName}}');
 }
 
 /**
- * Commission Notification Template (Internal)
- * Still uses {{}} substitution (unchanged).
+ * Commission Notification Template (Internal, still uses {{}} substitution)
  */
 export function getCommissionNotificationTemplate() {
-  const RED2 = '#cc0000';
   return wrapInBaseTemplate(`
-    <tr><td style="background-color:${RED2};padding:24px 30px;text-align:center;">
+    <tr><td style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">Commission {{type}}</h1>
     </td></tr>
     <tr><td style="padding:30px;color:#333333;font-size:15px;line-height:1.6;">
       <p style="margin:0 0 16px 0;">Hello {{agentName}},</p>
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f9f9f9;border:1px solid #dddddd;border-radius:4px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
         <tr><td style="padding:24px;text-align:center;">
           <p style="margin:0;font-size:32px;font-weight:700;color:#22c55e;">${{amount}}</p>
-          <p style="margin:8px 0 0 0;font-size:13px;color:#666666;">Commission Amount</p>
+          <p style="margin:8px 0 0 0;font-size:13px;color:${MUTED};">Commission Amount</p>
         </td></tr>
       </table>
       <p style="margin:0 0 8px 0;font-size:14px;"><strong>Order:</strong> #{{orderNumber}}</p>
@@ -267,12 +255,12 @@ export function getCommissionNotificationTemplate() {
       <p style="margin:0 0 20px 0;font-size:14px;"><strong>Stage:</strong> {{payoutStage}}</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 28px 0;">
         <tr><td align="center">
-          <a href="{{commissionsUrl}}" style="display:inline-block;background-color:${RED2};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;">View My Commissions</a>
+          <a href="{{commissionsUrl}}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;">View My Commissions</a>
         </td></tr>
       </table>
     </td></tr>
-    <tr><td style="background-color:#f5f5f5;padding:20px 30px;text-align:center;">
-      <p style="margin:0;font-size:12px;color:#666666;">{{companyName}} \u2014 Internal Notification</p>
+    <tr><td style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
+      <p style="margin:0;font-size:12px;color:${MUTED};">{{companyName}} \u2014 Internal Notification</p>
     </td></tr>
   `, 'Commission {{type}}: ${{amount}}');
 }

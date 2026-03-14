@@ -2,17 +2,15 @@
  * Invoice Email Service
  * Handles sending invoices and estimates with PDF attachments via AWS SES.
  *
- * Templates are rendered directly via JavaScript — no runtime {{}} substitution.
+ * Templates are rendered directly via JavaScript — no runtime {{}} substitution
+ * is used for estimate/invoice emails.
  *
- * Sender strategy
- * ───────────────
  * FROM     : SES_FROM_EMAIL env var (the verified SES identity)
- * REPLY-TO : sales rep email address (customer replies go to the right inbox)
+ * REPLY-TO : sales rep email address
  *
- * Customer-facing URLs
- * ────────────────────
- * Estimates : /estimates/view/:id  (public, no login required)
- * Invoices  : /invoices/view/:id   (public, no login required)
+ * Customer-facing URLs (no login required):
+ * Estimates : /estimates/view/:id
+ * Invoices  : /invoices/view/:id
  */
 
 import emailService from './emailService.js';
@@ -21,7 +19,7 @@ import { getInvoiceEmailTemplate, getEstimateEmailTemplate } from './emailTempla
 const VERIFIED_SENDER = process.env.SES_FROM_EMAIL || 'orders@stealthlaser.com';
 const FRONTEND_URL    = process.env.FRONTEND_URL   || 'https://smt-orders.com';
 
-// ── Send Invoice ─────────────────────────────────────────────────────────────
+// ── Send Invoice ──────────────────────────────────────────────────────────────
 
 export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails, customMessage, pdfBuffer }) {
   const invoice = await prisma.invoice.findUnique({
@@ -41,7 +39,6 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, invoice.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
-  // Public URL — no login required
   const viewInvoiceUrl = `${FRONTEND_URL}/invoices/view/${invoice.id}`;
   const payNowUrl      = `${FRONTEND_URL}/invoices/view/${invoice.id}#pay`;
 
@@ -55,6 +52,7 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
     salesRepPhone:     salesRep?.phoneNumber || '',
     signature:         salesRep?.signature   || '',
     companyName:       company.companyName   || 'Stealth Machine Tools',
+    logoUrl:           company.logoUrl       || null,
     customMessage:     customMessage         || '',
     viewInvoiceUrl,
     payNowUrl,
@@ -65,15 +63,11 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
-  console.log(`[INVOICE EMAIL] ${invoice.invoiceNumber} → ${recipientEmail} | url=${viewInvoiceUrl} | PDF=${pdfBuffer ? `${pdfBuffer.length}b` : 'none'}`);
+  console.log(`[INVOICE EMAIL] ${invoice.invoiceNumber} → ${recipientEmail} | logo=${company.logoUrl || 'none'} | PDF=${pdfBuffer ? `${pdfBuffer.length}b` : 'none'}`);
 
   const attachments = [];
   if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
-    attachments.push({
-      filename:    `Invoice-${invoice.invoiceNumber}.pdf`,
-      content:     Buffer.from(pdfBuffer),
-      contentType: 'application/pdf',
-    });
+    attachments.push({ filename: `Invoice-${invoice.invoiceNumber}.pdf`, content: Buffer.from(pdfBuffer), contentType: 'application/pdf' });
   }
 
   const result = attachments.length > 0
@@ -83,33 +77,20 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   console.log(`[INVOICE EMAIL] ${invoice.invoiceNumber}: ${result.success ? 'SUCCESS' : `FAILED — ${result.error}`}`);
 
   await prisma.emailLog.create({
-    data: {
-      invoiceId:    invoiceId,
-      fromEmail:    fromEmail,
-      toEmail:      recipientEmail,
-      replyTo:      replyTo,
-      subject:      subject,
-      status:       result.success ? 'SENT' : 'FAILED',
-      sesMessageId: result.messageId || null,
-      sentById:     userId,
-    },
+    data: { invoiceId, fromEmail, toEmail: recipientEmail, replyTo, subject, status: result.success ? 'SENT' : 'FAILED', sesMessageId: result.messageId || null, sentById: userId },
   });
 
   if (result.success) {
     await prisma.invoice.update({
       where: { id: invoiceId },
-      data: {
-        status:     invoice.status === 'DRAFT' ? 'SENT' : invoice.status,
-        lastSentAt: new Date(),
-        sentCount:  { increment: 1 },
-      },
+      data: { status: invoice.status === 'DRAFT' ? 'SENT' : invoice.status, lastSentAt: new Date(), sentCount: { increment: 1 } },
     });
   }
 
   return result;
 }
 
-// ── Send Estimate ────────────────────────────────────────────────────────────
+// ── Send Estimate ─────────────────────────────────────────────────────────────
 
 export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmails, customMessage, pdfBuffer }) {
   const estimate = await prisma.estimate.findUnique({
@@ -129,13 +110,10 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, estimate.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
-  // Public URL — no login required
   const viewEstimateUrl = `${FRONTEND_URL}/estimates/view/${estimate.id}`;
 
   console.log(`[ESTIMATE EMAIL] ${estimate.estimateNumber} → ${recipientEmail}`);
-  console.log(`[ESTIMATE EMAIL] url=${viewEstimateUrl}`);
-  console.log(`[ESTIMATE EMAIL] customMessage="${customMessage || '(none)'}"`);
-  console.log(`[ESTIMATE EMAIL] PDF=${pdfBuffer ? `${pdfBuffer.length} bytes` : 'none'}`);
+  console.log(`[ESTIMATE EMAIL] url=${viewEstimateUrl} | logo=${company.logoUrl || 'none'} | msg="${customMessage || '(none)'}" | PDF=${pdfBuffer ? `${pdfBuffer.length}b` : 'none'}`);
 
   const html = getEstimateEmailTemplate({
     customerFirstName: estimate.customer.firstName || estimate.customer.contactName || 'Customer',
@@ -147,6 +125,7 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
     salesRepPhone:     salesRep?.phoneNumber || '',
     signature:         salesRep?.signature   || '',
     companyName:       company.companyName   || 'Stealth Machine Tools',
+    logoUrl:           company.logoUrl       || null,
     customMessage:     customMessage         || '',
     viewEstimateUrl,
   });
@@ -158,11 +137,7 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
 
   const attachments = [];
   if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
-    attachments.push({
-      filename:    `Estimate-${estimate.estimateNumber}.pdf`,
-      content:     Buffer.from(pdfBuffer),
-      contentType: 'application/pdf',
-    });
+    attachments.push({ filename: `Estimate-${estimate.estimateNumber}.pdf`, content: Buffer.from(pdfBuffer), contentType: 'application/pdf' });
   }
 
   const result = attachments.length > 0
@@ -172,26 +147,13 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
   console.log(`[ESTIMATE EMAIL] ${estimate.estimateNumber}: ${result.success ? 'SUCCESS' : `FAILED — ${result.error}`}`);
 
   await prisma.emailLog.create({
-    data: {
-      estimateId:   estimateId,
-      fromEmail:    fromEmail,
-      toEmail:      recipientEmail,
-      replyTo:      replyTo,
-      subject:      subject,
-      status:       result.success ? 'SENT' : 'FAILED',
-      sesMessageId: result.messageId || null,
-      sentById:     userId,
-    },
+    data: { estimateId, fromEmail, toEmail: recipientEmail, replyTo, subject, status: result.success ? 'SENT' : 'FAILED', sesMessageId: result.messageId || null, sentById: userId },
   });
 
   if (result.success) {
     await prisma.estimate.update({
       where: { id: estimateId },
-      data: {
-        status:     estimate.status === 'DRAFT' ? 'SENT' : estimate.status,
-        lastSentAt: new Date(),
-        sentCount:  { increment: 1 },
-      },
+      data: { status: estimate.status === 'DRAFT' ? 'SENT' : estimate.status, lastSentAt: new Date(), sentCount: { increment: 1 } },
     });
   }
 

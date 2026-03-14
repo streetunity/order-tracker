@@ -1502,7 +1502,8 @@ model Product {
 model InvoicingSettings {
   id                  String   @id @default(cuid())
   companyName         String   @default("")
-  companyLogo         String? // S3 key
+  companyLogo         String?  // S3 key (for internal use)
+  logoUrl             String?  // Full public URL used in emails and customer-facing documents
   address             String   @default("")
   city                String   @default("")
   state               String   @default("")
