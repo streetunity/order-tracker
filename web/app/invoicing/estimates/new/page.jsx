@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnsavedChanges } from "@/contexts/UnsavedChangesContext";
@@ -10,15 +10,16 @@ import InvoicingNav from "@/components/InvoicingNav";
 import "../../modal.css";
 
 // Drag handle icon – 6-dot grip
-function GripIcon() {
+// fill defaults to visible grey; brightens on hover via td onMouseEnter
+function GripIcon({ fill = "rgba(255,255,255,0.45)" }) {
   return (
-    <svg width="10" height="16" viewBox="0 0 10 16" fill="rgba(255,255,255,0.28)" style={{ display: "block" }}>
-      <circle cx="3" cy="3"  r="1.4"/>
-      <circle cx="3" cy="8"  r="1.4"/>
-      <circle cx="3" cy="13" r="1.4"/>
-      <circle cx="7" cy="3"  r="1.4"/>
-      <circle cx="7" cy="8"  r="1.4"/>
-      <circle cx="7" cy="13" r="1.4"/>
+    <svg width="12" height="18" viewBox="0 0 12 18" fill={fill} style={{ display: "block" }}>
+      <circle cx="3.5" cy="3"  r="1.6"/>
+      <circle cx="3.5" cy="9"  r="1.6"/>
+      <circle cx="3.5" cy="15" r="1.6"/>
+      <circle cx="8.5" cy="3"  r="1.6"/>
+      <circle cx="8.5" cy="9"  r="1.6"/>
+      <circle cx="8.5" cy="15" r="1.6"/>
     </svg>
   );
 }
@@ -58,9 +59,13 @@ function NewEstimateContent() {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [expandedItems,       setExpandedItems]       = useState({});
 
-  // Drag-and-drop state
+  // Drag-and-drop
   const [dragIndex,     setDragIndex]     = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  // Track whether the drag was initiated from the grip handle.
+  // (In HTML5 DnD, e.target in dragstart is always the draggable <tr>,
+  //  not the element that was actually clicked — so we track via mousedown.)
+  const dragFromHandleRef = useRef(false);
 
   // Pricing
   const [taxRate,         setTaxRate]         = useState(0);
@@ -177,8 +182,9 @@ function NewEstimateContent() {
   // ── Drag-and-drop handlers ────────────────────────────────────────────────
 
   function handleDragStart(e, index) {
-    // Only allow drag if initiated from the grip handle
-    if (!e.target.closest('[data-drag-handle]')) { e.preventDefault(); return; }
+    // Only proceed if the drag was initiated from the grip handle (tracked via mousedown)
+    if (!dragFromHandleRef.current) { e.preventDefault(); return; }
+    dragFromHandleRef.current = false;
     setDragIndex(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(index));
@@ -197,12 +203,13 @@ function NewEstimateContent() {
     const [moved] = newItems.splice(dragIndex, 1);
     newItems.splice(dropIndex, 0, moved);
     setItems(newItems);
-    setExpandedItems({});  // reset expanded state since indices shifted
+    setExpandedItems({});
     setDragIndex(null);
     setDragOverIndex(null);
   }
 
   function handleDragEnd() {
+    dragFromHandleRef.current = false;
     setDragIndex(null);
     setDragOverIndex(null);
   }
@@ -398,12 +405,12 @@ function NewEstimateContent() {
               )}
             </div>
 
-            {/* Items table – 7 columns: grip | expand | name | qty | price | total | delete */}
+            {/* Items table */}
             {items.length > 0 ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    <th style={{ padding: "8px", width: 20 }}></th>{/* grip */}
+                    <th style={{ padding: "8px", width: 24 }}></th>{/* grip */}
                     <th style={{ padding: "8px", width: 30 }}></th>{/* expand */}
                     <th style={{ padding: "8px", textAlign: "left", fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>Item</th>
                     <th style={{ padding: "8px", textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)", width: 80 }}>Qty</th>
@@ -414,7 +421,7 @@ function NewEstimateContent() {
                 </thead>
                 <tbody>
                   {items.map((item, index) => {
-                    const isDragging  = dragIndex === index;
+                    const isDragging   = dragIndex === index;
                     const isDropTarget = dragOverIndex === index && dragIndex !== index;
                     return (
                       <>
@@ -433,10 +440,13 @@ function NewEstimateContent() {
                             transition: "opacity 0.15s, background 0.1s",
                           }}
                         >
-                          {/* Drag grip */}
+                          {/* Drag grip – mousedown here arms the drag */}
                           <td
-                            data-drag-handle="true"
-                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center" }}
+                            onMouseDown={() => { dragFromHandleRef.current = true; }}
+                            onMouseUp={()   => { dragFromHandleRef.current = false; }}
+                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center", width: 24 }}
+                            onMouseEnter={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.75)'); }}
+                            onMouseLeave={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.45)'); }}
                           >
                             <GripIcon />
                           </td>

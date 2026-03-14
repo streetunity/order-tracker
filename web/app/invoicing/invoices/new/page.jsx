@@ -2,22 +2,22 @@
 
 export const dynamic = 'force-dynamic';
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import InvoicingNav from "@/components/InvoicingNav";
 
 // Drag handle icon – 6-dot grip
-function GripIcon() {
+function GripIcon({ fill = "rgba(255,255,255,0.45)" }) {
   return (
-    <svg width="10" height="16" viewBox="0 0 10 16" fill="rgba(255,255,255,0.28)" style={{ display: "block" }}>
-      <circle cx="3" cy="3"  r="1.4"/>
-      <circle cx="3" cy="8"  r="1.4"/>
-      <circle cx="3" cy="13" r="1.4"/>
-      <circle cx="7" cy="3"  r="1.4"/>
-      <circle cx="7" cy="8"  r="1.4"/>
-      <circle cx="7" cy="13" r="1.4"/>
+    <svg width="12" height="18" viewBox="0 0 12 18" fill={fill} style={{ display: "block" }}>
+      <circle cx="3.5" cy="3"  r="1.6"/>
+      <circle cx="3.5" cy="9"  r="1.6"/>
+      <circle cx="3.5" cy="15" r="1.6"/>
+      <circle cx="8.5" cy="3"  r="1.6"/>
+      <circle cx="8.5" cy="9"  r="1.6"/>
+      <circle cx="8.5" cy="15" r="1.6"/>
     </svg>
   );
 }
@@ -58,9 +58,10 @@ function NewInvoiceContent() {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [expandedItems,       setExpandedItems]       = useState({});
 
-  // Drag-and-drop state
+  // Drag-and-drop
   const [dragIndex,     setDragIndex]     = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  const dragFromHandleRef = useRef(false);
 
   const toggleItemExpand = (index) => setExpandedItems(prev => ({ ...prev, [index]: !prev[index] }));
 
@@ -121,7 +122,8 @@ function NewInvoiceContent() {
   // ── Drag-and-drop handlers ────────────────────────────────────────────────
 
   function handleDragStart(e, index) {
-    if (!e.target.closest('[data-drag-handle]')) { e.preventDefault(); return; }
+    if (!dragFromHandleRef.current) { e.preventDefault(); return; }
+    dragFromHandleRef.current = false;
     setDragIndex(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(index));
@@ -145,7 +147,11 @@ function NewInvoiceContent() {
     setDragOverIndex(null);
   }
 
-  function handleDragEnd() { setDragIndex(null); setDragOverIndex(null); }
+  function handleDragEnd() {
+    dragFromHandleRef.current = false;
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }
 
   // ── Customer / item helpers ───────────────────────────────────────────────
 
@@ -335,12 +341,12 @@ function NewInvoiceContent() {
               )}
             </div>
 
-            {/* Items table – 7 columns: grip | expand | name | qty | price | total | delete */}
+            {/* Items table */}
             {items.length > 0 ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    <th style={{ padding: 8, width: 20 }}></th>{/* grip */}
+                    <th style={{ padding: 8, width: 24 }}></th>{/* grip */}
                     <th style={{ padding: 8, width: 30 }}></th>{/* expand */}
                     <th style={{ padding: 8, textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Item</th>
                     <th style={{ padding: 8, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 80 }}>Qty</th>
@@ -370,9 +376,14 @@ function NewInvoiceContent() {
                             transition: "opacity 0.15s, background 0.1s",
                           }}
                         >
-                          {/* Drag grip */}
-                          <td data-drag-handle="true"
-                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center" }}>
+                          {/* Drag grip – mousedown here arms the drag */}
+                          <td
+                            onMouseDown={() => { dragFromHandleRef.current = true; }}
+                            onMouseUp={()   => { dragFromHandleRef.current = false; }}
+                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center", width: 24 }}
+                            onMouseEnter={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.75)'); }}
+                            onMouseLeave={e => { e.currentTarget.querySelector('svg').setAttribute('fill', 'rgba(255,255,255,0.45)'); }}
+                          >
                             <GripIcon />
                           </td>
 
