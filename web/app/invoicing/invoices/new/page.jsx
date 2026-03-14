@@ -8,6 +8,20 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import InvoicingNav from "@/components/InvoicingNav";
 
+// Drag handle icon – 6-dot grip
+function GripIcon() {
+  return (
+    <svg width="10" height="16" viewBox="0 0 10 16" fill="rgba(255,255,255,0.28)" style={{ display: "block" }}>
+      <circle cx="3" cy="3"  r="1.4"/>
+      <circle cx="3" cy="8"  r="1.4"/>
+      <circle cx="3" cy="13" r="1.4"/>
+      <circle cx="7" cy="3"  r="1.4"/>
+      <circle cx="7" cy="8"  r="1.4"/>
+      <circle cx="7" cy="13" r="1.4"/>
+    </svg>
+  );
+}
+
 function NewInvoiceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,7 +42,7 @@ function NewInvoiceContent() {
   const [paymentScheduleType,  setPaymentScheduleType]  = useState("NONE");
   const [items,                setItems]                = useState([]);
   const [taxRate,              setTaxRate]              = useState(0);
-  const [localTaxRate,         setLocalTaxRate]         = useState(6.7);  // loaded from settings
+  const [localTaxRate,         setLocalTaxRate]         = useState(6.7);
   const [discountType,         setDiscountType]         = useState("");
   const [discountValue,        setDiscountValue]        = useState("");
   const [shippingAmount,       setShippingAmount]       = useState("");
@@ -44,7 +58,11 @@ function NewInvoiceContent() {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [expandedItems,       setExpandedItems]       = useState({});
 
-  const toggleItemExpand = (id) => setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
+  // Drag-and-drop state
+  const [dragIndex,     setDragIndex]     = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  const toggleItemExpand = (index) => setExpandedItems(prev => ({ ...prev, [index]: !prev[index] }));
 
   useEffect(() => {
     if (authLoading) return;
@@ -56,18 +74,12 @@ function NewInvoiceContent() {
     if (estimateId) loadEstimate(estimateId);
   }, [user, router, estimateId]);
 
-  // Auto-populate customer from URL param
   useEffect(() => {
     if (!presetCustomerId || !user || authLoading) return;
     async function fetchPreset() {
       try {
         const res = await fetch(`/api/customers/${presetCustomerId}`, { headers: getAuthHeaders() });
-        if (res.ok) {
-          const c = await res.json();
-          setCustomerId(c.id);
-          setSelectedCustomer(c);
-          if (c.paymentTerms) setPaymentTerms(c.paymentTerms);
-        }
+        if (res.ok) { const c = await res.json(); setCustomerId(c.id); setSelectedCustomer(c); if (c.paymentTerms) setPaymentTerms(c.paymentTerms); }
       } catch (e) { console.error(e); }
     }
     fetchPreset();
@@ -76,32 +88,18 @@ function NewInvoiceContent() {
   async function loadInvoicingSettings() {
     try {
       const res = await fetch("/api/invoicing-settings", { headers: getAuthHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.defaultTaxRate != null) setLocalTaxRate(parseFloat(data.defaultTaxRate));
-      }
-    } catch (e) { console.error("Error loading invoicing settings:", e); }
+      if (res.ok) { const d = await res.json(); if (d.defaultTaxRate != null) setLocalTaxRate(parseFloat(d.defaultTaxRate)); }
+    } catch (e) { console.error(e); }
   }
 
   async function loadCustomers() {
-    try {
-      const res = await fetch("/api/customers", { headers: getAuthHeaders() });
-      if (res.ok) { const data = await res.json(); setCustomers(data.filter(c => c.status === "ACTIVE")); }
-    } catch (e) { console.error(e); }
+    try { const r = await fetch("/api/customers", { headers: getAuthHeaders() }); if (r.ok) { const d = await r.json(); setCustomers(d.filter(c => c.status === "ACTIVE")); } } catch (e) { console.error(e); }
   }
-
   async function loadProducts() {
-    try {
-      const res = await fetch("/api/products", { headers: getAuthHeaders() });
-      if (res.ok) { const data = await res.json(); setProducts(data.filter(p => p.isActive)); }
-    } catch (e) { console.error(e); }
+    try { const r = await fetch("/api/products", { headers: getAuthHeaders() }); if (r.ok) { const d = await r.json(); setProducts(d.filter(p => p.isActive)); } } catch (e) { console.error(e); }
   }
-
   async function loadBundles() {
-    try {
-      const res = await fetch("/api/bundles", { headers: getAuthHeaders() });
-      if (res.ok) { const data = await res.json(); setBundles(data.filter(b => b.isActive)); }
-    } catch (e) { console.error(e); }
+    try { const r = await fetch("/api/bundles", { headers: getAuthHeaders() }); if (r.ok) { const d = await r.json(); setBundles(d.filter(b => b.isActive)); } } catch (e) { console.error(e); }
   }
 
   async function loadEstimate(estId) {
@@ -111,31 +109,54 @@ function NewInvoiceContent() {
         const est = await res.json();
         setCustomerId(est.customerId || "");
         setTaxRate(est.taxRate || 0);
-        setDiscountType(est.discountType || "");
-        setDiscountValue(est.discountValue?.toString() || "");
+        setDiscountType(est.discountType || ""); setDiscountValue(est.discountValue?.toString() || "");
         setShippingAmount(est.shippingAmount?.toString() || "");
-        setNotes(est.notes || "");
-        setTermsConditions(est.termsConditions || "");
+        setNotes(est.notes || ""); setTermsConditions(est.termsConditions || "");
         if (est.customer) { setSelectedCustomer(est.customer); if (est.customer.paymentTerms) setPaymentTerms(est.customer.paymentTerms); }
-        if (est.items) {
-          setItems(est.items.map(item => ({ id: Date.now() + Math.random(), productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })));
-        }
+        if (est.items) setItems(est.items.map((item, idx) => ({ id: Date.now() + idx, productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })));
       }
     } catch (e) { console.error(e); }
   }
+
+  // ── Drag-and-drop handlers ────────────────────────────────────────────────
+
+  function handleDragStart(e, index) {
+    if (!e.target.closest('[data-drag-handle]')) { e.preventDefault(); return; }
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  }
+
+  function handleDragOver(e, index) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (index !== dragOverIndex) setDragOverIndex(index);
+  }
+
+  function handleDrop(e, dropIndex) {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === dropIndex) { setDragIndex(null); setDragOverIndex(null); return; }
+    const newItems = [...items];
+    const [moved] = newItems.splice(dragIndex, 1);
+    newItems.splice(dropIndex, 0, moved);
+    setItems(newItems);
+    setExpandedItems({});
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }
+
+  function handleDragEnd() { setDragIndex(null); setDragOverIndex(null); }
+
+  // ── Customer / item helpers ───────────────────────────────────────────────
 
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true;
     const q = customerSearch.toLowerCase();
     return c.firstName?.toLowerCase().includes(q) || c.lastName?.toLowerCase().includes(q) ||
-           c.company?.toLowerCase().includes(q) || c.companyName?.toLowerCase().includes(q) ||
-           c.email?.toLowerCase().includes(q);
+           c.company?.toLowerCase().includes(q) || c.companyName?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q);
   }).slice(0, 10);
 
-  function selectCustomer(c) {
-    setCustomerId(c.id); setSelectedCustomer(c); setCustomerSearch(""); setShowCustomerDropdown(false);
-    if (c.paymentTerms) setPaymentTerms(c.paymentTerms);
-  }
+  function selectCustomer(c) { setCustomerId(c.id); setSelectedCustomer(c); setCustomerSearch(""); setShowCustomerDropdown(false); if (c.paymentTerms) setPaymentTerms(c.paymentTerms); }
 
   function addProduct(product) {
     setItems([...items, { id: Date.now(), productId: product.id, name: product.name, description: product.description, sku: product.sku, quantity: 1, unitPrice: product.price, unitCost: product.cost, taxable: product.taxable !== false }]);
@@ -148,14 +169,9 @@ function NewInvoiceContent() {
     setProductSearch(""); setShowProductDropdown(false);
   }
 
-  function addCustomItem() {
-    setItems([...items, { id: Date.now(), name: "", description: "", quantity: 1, unitPrice: 0, taxable: true }]);
-  }
-
-  function updateItem(id, field, value) {
-    setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
-  }
-  function removeItem(id) { setItems(items.filter(item => item.id !== id)); }
+  function addCustomItem() { setItems([...items, { id: Date.now(), name: "", description: "", quantity: 1, unitPrice: 0, taxable: true }]); }
+  function updateItem(index, field, value) { const n = [...items]; n[index] = { ...n[index], [field]: value }; setItems(n); }
+  function removeItem(index) { setItems(items.filter((_, i) => i !== index)); }
 
   // Totals
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
@@ -171,7 +187,7 @@ function NewInvoiceContent() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!customerId)        { setError("Please select a customer"); return; }
+    if (!customerId) { setError("Please select a customer"); return; }
     if (items.length === 0) { setError("Please add at least one item"); return; }
     for (const item of items) { if (!item.name) { setError("All items must have a name"); return; } }
     setSaving(true);
@@ -180,12 +196,7 @@ function NewInvoiceContent() {
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({
-          customerId, paymentTerms, paymentScheduleType,
-          items: items.map(item => ({ productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })),
-          taxRate, discountType: discountType || null, discountValue: discountValue ? parseFloat(discountValue) : null,
-          shippingAmount: shipping, notes, internalNotes, termsConditions, estimateId: estimateId || null
-        })
+        body: JSON.stringify({ customerId, paymentTerms, paymentScheduleType, items: items.map(item => ({ productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })), taxRate, discountType: discountType || null, discountValue: discountValue ? parseFloat(discountValue) : null, shippingAmount: shipping, notes, internalNotes, termsConditions, estimateId: estimateId || null })
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed to create invoice"); }
       const invoice = await res.json();
@@ -205,7 +216,6 @@ function NewInvoiceContent() {
       <InvoicingNav />
       <div style={{ width: "80%", maxWidth: "1800px", margin: "0 auto", paddingTop: 80, paddingBottom: 60 }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 24 }}>
           <Link href="/invoicing/invoices" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 13, display: "block", marginBottom: 8 }}>← Back to Invoices</Link>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "#dc2626" }}>{estimateId ? "Create Invoice from Estimate" : "New Invoice"}</h1>
@@ -215,10 +225,9 @@ function NewInvoiceContent() {
 
         <form onSubmit={handleSubmit}>
 
-          {/* ── CUSTOMER + PAYMENT TERMS ── */}
+          {/* CUSTOMER + PAYMENT TERMS */}
           <div style={sec}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "start" }}>
-              {/* LEFT: Customer */}
               <div>
                 <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Customer</h2>
                 <div style={{ position: "relative" }}>
@@ -254,8 +263,6 @@ function NewInvoiceContent() {
                   )}
                 </div>
               </div>
-
-              {/* RIGHT: Payment Terms */}
               <div>
                 <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Payment Terms</h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -282,7 +289,7 @@ function NewInvoiceContent() {
             </div>
           </div>
 
-          {/* ── LINE ITEMS ── */}
+          {/* LINE ITEMS */}
           <div style={sec}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.7px", margin: 0 }}>Line Items</h2>
@@ -290,7 +297,6 @@ function NewInvoiceContent() {
                 style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 13 }}>+ Custom Item</button>
             </div>
 
-            {/* Product search */}
             <div style={{ position: "relative", marginBottom: 16 }}>
               <input type="text" placeholder="Search products or bundles to add…" value={productSearch}
                 onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true); }}
@@ -305,10 +311,7 @@ function NewInvoiceContent() {
                           style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }}
                           onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                           onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                          <div>
-                            <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{b.name}</div>
-                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{b.items?.length} items</div>
-                          </div>
+                          <div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{b.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{b.items?.length} items</div></div>
                           <div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(b.price)}</div>
                         </div>
                       ))}
@@ -322,10 +325,7 @@ function NewInvoiceContent() {
                           style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }}
                           onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                           onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                          <div>
-                            <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{p.name}</div>
-                            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{p.sku}</div>
-                          </div>
+                          <div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{p.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{p.sku}</div></div>
                           <div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(p.price)}</div>
                         </div>
                       ))}
@@ -335,78 +335,120 @@ function NewInvoiceContent() {
               )}
             </div>
 
-            {/* Items table */}
+            {/* Items table – 7 columns: grip | expand | name | qty | price | total | delete */}
             {items.length > 0 ? (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    <th style={{ padding: 8, width: 30 }}></th>
+                    <th style={{ padding: 8, width: 20 }}></th>{/* grip */}
+                    <th style={{ padding: 8, width: 30 }}></th>{/* expand */}
                     <th style={{ padding: 8, textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Item</th>
                     <th style={{ padding: 8, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 80 }}>Qty</th>
                     <th style={{ padding: 8, textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 120 }}>Price</th>
                     <th style={{ padding: 8, textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 100 }}>Total</th>
-                    <th style={{ padding: 8, width: 40 }}></th>
+                    <th style={{ padding: 8, width: 36 }}></th>{/* delete */}
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
-                    <>
-                      <tr key={item.id} style={{ borderBottom: expandedItems[item.id] ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
-                        <td style={{ padding: "12px 8px", verticalAlign: "top" }}>
-                          <button type="button" onClick={() => toggleItemExpand(item.id)}
-                            style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, padding: 4, transform: expandedItems[item.id] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</button>
-                        </td>
-                        <td style={{ padding: "12px 8px" }}>
-                          <input type="text" value={item.name} onChange={(e) => updateItem(item.id, "name", e.target.value)} placeholder="Item name" style={{ ...inp, padding: "6px 10px" }} required />
-                          {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.sku}</div>}
-                          {item.fromBundleName && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>From: {item.fromBundleName}</div>}
-                          {item.description && !expandedItems[item.id] && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 60 ? item.description.substring(0, 60) + "…" : item.description}</div>}
-                        </td>
-                        <td style={{ padding: "12px 8px", textAlign: "center", verticalAlign: "top" }}>
-                          <input type="number" value={item.quantity} onChange={(e) => updateItem(item.id, "quantity", parseFloat(e.target.value) || 1)} style={{ ...inp, width: 60, textAlign: "center", padding: 6 }} min="1" />
-                        </td>
-                        <td style={{ padding: "12px 8px", textAlign: "right", verticalAlign: "top" }}>
-                          <input type="number" value={item.unitPrice} onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)} style={{ ...inp, width: 100, textAlign: "right", padding: 6 }} step="0.01" />
-                        </td>
-                        <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.9)", verticalAlign: "top", paddingTop: 18 }}>{fmt(item.quantity * item.unitPrice)}</td>
-                        <td style={{ padding: "12px 8px", textAlign: "center", verticalAlign: "top" }}>
-                          <button type="button" onClick={() => removeItem(item.id)} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18 }}>×</button>
-                        </td>
-                      </tr>
-                      {expandedItems[item.id] && (
-                        <tr key={`${item.id}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                          <td></td>
-                          <td colSpan={5} style={{ padding: "0 8px 16px 8px" }}>
-                            <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: 12, marginTop: 4 }}>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                                <div>
-                                  <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Short Name / SKU</label>
-                                  <input type="text" value={item.sku || ""} onChange={(e) => updateItem(item.id, "sku", e.target.value)} style={{ ...inp, padding: "6px 10px", fontSize: 13 }} placeholder="e.g. SL50AAS-VFD" />
-                                </div>
-                                <div>
-                                  <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Unit Cost</label>
-                                  <input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(item.id, "unitCost", parseFloat(e.target.value) || null)} style={{ ...inp, padding: "6px 10px", fontSize: 13 }} step="0.01" placeholder="$0.00" />
-                                </div>
-                              </div>
-                              <div>
-                                <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Description</label>
-                                <textarea value={item.description || ""} onChange={(e) => updateItem(item.id, "description", e.target.value)} style={{ ...inp, padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical" }} placeholder="Item description…" />
-                              </div>
-                              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
-                                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>
-                                  <input type="checkbox" checked={item.taxable !== false} onChange={(e) => updateItem(item.id, "taxable", e.target.checked)} style={{ cursor: "pointer" }} />
-                                  Taxable
-                                </label>
-                                {item.unitCost && item.unitPrice > 0 && (
-                                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Margin: {((1 - item.unitCost / item.unitPrice) * 100).toFixed(1)}%</span>
-                                )}
-                              </div>
-                            </div>
+                  {items.map((item, index) => {
+                    const isDragging   = dragIndex === index;
+                    const isDropTarget = dragOverIndex === index && dragIndex !== index;
+                    return (
+                      <>
+                        <tr
+                          key={item.id}
+                          draggable={true}
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragOver={(e)  => handleDragOver(e, index)}
+                          onDrop={(e)      => handleDrop(e, index)}
+                          onDragEnd={handleDragEnd}
+                          style={{
+                            borderBottom: expandedItems[index] ? "none" : "1px solid rgba(255,255,255,0.05)",
+                            borderTop: isDropTarget ? "2px solid #dc2626" : "2px solid transparent",
+                            opacity: isDragging ? 0.35 : 1,
+                            background: isDropTarget ? "rgba(220,38,38,0.04)" : "transparent",
+                            transition: "opacity 0.15s, background 0.1s",
+                          }}
+                        >
+                          {/* Drag grip */}
+                          <td data-drag-handle="true"
+                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center" }}>
+                            <GripIcon />
+                          </td>
+
+                          {/* Expand toggle */}
+                          <td style={{ padding: "12px 4px", verticalAlign: "top" }}>
+                            <button type="button" onClick={() => toggleItemExpand(index)} draggable={false}
+                              style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 11, padding: 4, transform: expandedItems[index] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</button>
+                          </td>
+
+                          {/* Name */}
+                          <td style={{ padding: "12px 8px" }}>
+                            <input type="text" value={item.name} onChange={(e) => updateItem(index, "name", e.target.value)} placeholder="Item name" style={{ ...inp, padding: "6px 10px" }} required draggable={false} />
+                            {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.sku}</div>}
+                            {item.fromBundleName && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>From: {item.fromBundleName}</div>}
+                            {item.description && !expandedItems[index] && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 60 ? item.description.substring(0, 60) + "…" : item.description}</div>}
+                          </td>
+
+                          {/* Qty */}
+                          <td style={{ padding: "12px 8px", textAlign: "center", verticalAlign: "top" }}>
+                            <input type="number" value={item.quantity} onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || 1)} style={{ ...inp, width: 60, textAlign: "center", padding: 6 }} min="1" draggable={false} />
+                          </td>
+
+                          {/* Price */}
+                          <td style={{ padding: "12px 8px", textAlign: "right", verticalAlign: "top" }}>
+                            <input type="number" value={item.unitPrice} onChange={(e) => updateItem(index, "unitPrice", parseFloat(e.target.value) || 0)} style={{ ...inp, width: 100, textAlign: "right", padding: 6 }} step="0.01" draggable={false} />
+                          </td>
+
+                          {/* Line total */}
+                          <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.9)", verticalAlign: "top", paddingTop: 18 }}>
+                            {fmt(item.quantity * item.unitPrice)}
+                          </td>
+
+                          {/* Delete */}
+                          <td style={{ padding: "12px 4px", textAlign: "center", verticalAlign: "top" }}>
+                            <button type="button" onClick={() => removeItem(index)} draggable={false}
+                              style={{ background: "transparent", border: "none", color: "rgba(220,38,38,0.7)", cursor: "pointer", fontSize: 18, padding: "2px", lineHeight: 1 }}>×</button>
                           </td>
                         </tr>
-                      )}
-                    </>
-                  ))}
+
+                        {/* Expanded detail row */}
+                        {expandedItems[index] && (
+                          <tr key={`${item.id}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            <td></td>
+                            <td></td>
+                            <td colSpan={5} style={{ padding: "0 8px 16px 8px" }}>
+                              <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: 12, marginTop: 4 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                                  <div>
+                                    <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Short Name / SKU</label>
+                                    <input type="text" value={item.sku || ""} onChange={(e) => updateItem(index, "sku", e.target.value)} style={{ ...inp, padding: "6px 10px", fontSize: 13 }} placeholder="e.g. SL50AAS-VFD" draggable={false} />
+                                  </div>
+                                  <div>
+                                    <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Unit Cost</label>
+                                    <input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(index, "unitCost", parseFloat(e.target.value) || null)} style={{ ...inp, padding: "6px 10px", fontSize: 13 }} step="0.01" placeholder="$0.00" draggable={false} />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Description</label>
+                                  <textarea value={item.description || ""} onChange={(e) => updateItem(index, "description", e.target.value)} style={{ ...inp, padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical" }} placeholder="Item description…" />
+                                </div>
+                                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>
+                                    <input type="checkbox" checked={item.taxable !== false} onChange={(e) => updateItem(index, "taxable", e.target.checked)} style={{ cursor: "pointer" }} />
+                                    Taxable
+                                  </label>
+                                  {item.unitCost && item.unitPrice > 0 && (
+                                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>Margin: {((1 - item.unitCost / item.unitPrice) * 100).toFixed(1)}%</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
                 </tbody>
               </table>
             ) : (
@@ -414,25 +456,18 @@ function NewInvoiceContent() {
             )}
           </div>
 
-          {/* ── PRICING + TOTALS ── */}
+          {/* PRICING + TOTALS */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
             <div style={sec}>
               <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Pricing</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-                {/* ── Tax — named options ── */}
                 <div>
                   <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Tax</label>
-                  <select
-                    value={String(taxRate)}
-                    onChange={(e) => setTaxRate(parseFloat(e.target.value))}
-                    style={{ ...inp, cursor: "pointer" }}
-                  >
+                  <select value={String(taxRate)} onChange={(e) => setTaxRate(parseFloat(e.target.value))} style={{ ...inp, cursor: "pointer" }}>
                     <option value="0">Out of State — 0%</option>
                     <option value={String(localTaxRate)}>Pinal County Sales Tax (Local) — {localTaxRate}%</option>
                   </select>
                 </div>
-
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Discount Type</label>
@@ -453,7 +488,6 @@ function NewInvoiceContent() {
                 </div>
               </div>
             </div>
-
             <div style={sec}>
               <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Summary</h2>
               <div style={{ display: "grid", gap: 12 }}>
@@ -483,7 +517,7 @@ function NewInvoiceContent() {
             </div>
           </div>
 
-          {/* ── NOTES ── */}
+          {/* NOTES */}
           <div style={sec}>
             <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Notes</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
