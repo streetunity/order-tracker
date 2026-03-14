@@ -3,11 +3,17 @@
  * All templates are pure JS functions that accept data objects and return HTML.
  *
  * Rendering engine notes:
- * - Mobile Outlook: WebView, respects color-scheme:light meta tag
- * - Desktop Outlook (Win32): Word engine, ignores color-scheme entirely,
- *   applies its own dark mode algorithm. Fix: bgcolor HTML attributes +
- *   [data-ogsc] overrides + mso-color-alt for VML.
- * - Gmail: strips <style> blocks, needs 100% inline styles
+ * - Mobile Outlook  : WebView — respects color-scheme:light meta tag
+ * - Desktop Outlook : Word engine — ignores color-scheme; apply bgcolor attrs,
+ *                     VML buttons, mso-color-alt for text, and [data-ogsc]
+ *                     overrides scoped to named classes (never wildcard td)
+ * - Gmail           : strips <style> blocks — 100% inline styles required
+ *
+ * Key lessons:
+ * - NEVER use wildcard [data-ogsc] td { background-color } — it overrides
+ *   intentional dark cells (logo header). Always scope to named classes.
+ * - mso-color-alt in the style attribute locks text color on Outlook Word engine.
+ * - Logo cell needs class="logo-td" + explicit [data-ogsc] .logo-td override.
  *
  * Brand red: #dc2626
  */
@@ -19,19 +25,30 @@ const MUTED  = '#666666';
 
 function buildHeader(companyName, logoUrl) {
   if (logoUrl) {
+    // class="logo-td" is overridden in [data-ogsc] to keep background black
+    // even when Outlook's dark mode tries to invert it
     return `
     <tr>
-      <td bgcolor="#000000" style="background-color:#000000;padding:20px 30px;text-align:center;border-bottom:4px solid ${RED};">
+      <td class="logo-td" bgcolor="#000000" style="background-color:#000000;padding:20px 30px;text-align:center;border-bottom:4px solid ${RED};">
         <img src="${logoUrl}" alt="${companyName}" height="60" width="auto" style="height:60px;width:auto;display:inline-block;border:0;outline:none;" />
       </td>
     </tr>`;
   }
   return `
     <tr>
-      <td bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
+      <td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
         <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;mso-color-alt:#ffffff;"><!--[if mso]><span style="color:#ffffff;">${companyName}</span><![endif]--><!--[if !mso]><!-->${companyName}<!--<![endif]--></h1>
       </td>
     </tr>`;
+}
+
+// Shared total amount cell used in both estimate and invoice templates.
+// mso-color-alt locks the color on Outlook's Word engine dark mode.
+function totalAmountCell(amount) {
+  return `<td class="total-amount" style="padding:10px 0 0 0;font-size:22px;font-weight:700;color:${RED};mso-color-alt:${RED};text-align:right;">
+                  <!--[if mso]><span style="color:${RED};mso-color-alt:${RED};font-size:22px;font-weight:700;">$${amount}</span><![endif]-->
+                  <!--[if !mso]><!--><span style="color:${RED};">$${amount}</span><!--<![endif]-->
+                </td>`;
 }
 
 function wrapInBaseTemplate(content, preheaderText = '') {
@@ -51,23 +68,33 @@ function wrapInBaseTemplate(content, preheaderText = '') {
   <![endif]-->
   <style type="text/css">
     :root { color-scheme: light; supported-color-schemes: light; }
-    /* Outlook dark mode overrides - [data-ogsc] targets Outlook's dark-mode injected class */
-    [data-ogsc] body, [data-ogsb] body { background-color: ${LIGHT} !important; }
-    [data-ogsc] table, [data-ogsb] table { background-color: #ffffff !important; }
-    [data-ogsc] td, [data-ogsb] td { color: #333333 !important; background-color: #ffffff !important; }
-    [data-ogsc] .email-body-td { background-color: #ffffff !important; color: #333333 !important; }
-    [data-ogsc] .total-amount { color: ${RED} !important; }
-    [data-ogsc] .info-box-td { background-color: #f9f9f9 !important; }
-    [data-ogsc] .footer-td { background-color: ${LIGHT} !important; color: ${MUTED} !important; }
-    [data-ogsc] .btn-primary { background-color: ${RED} !important; color: #ffffff !important; }
-    [data-ogsc] .custom-msg-div { background-color: #f9f9f9 !important; color: #333333 !important; }
+
+    /* ── Outlook dark mode overrides ────────────────────────────────────
+       [data-ogsc] / [data-ogsb] are classes Outlook injects on the <body>
+       when dark mode is active.
+       IMPORTANT: never target a bare "td" here — that would override
+       intentional dark cells like .logo-td. Always use named classes.
+    ────────────────────────────────────────────────────────────────── */
+    [data-ogsc] body,  [data-ogsb] body  { background-color: ${LIGHT}  !important; }
+    [data-ogsc] .email-outer-table       { background-color: ${LIGHT}  !important; }
+    [data-ogsc] .email-inner-table       { background-color: #ffffff   !important; }
+    [data-ogsc] .email-body-td           { background-color: #ffffff   !important; color: #333333 !important; }
+    [data-ogsc] .info-box-td             { background-color: #f9f9f9   !important; }
+    [data-ogsc] .footer-td               { background-color: ${LIGHT}  !important; color: ${MUTED} !important; }
+    [data-ogsc] .custom-msg-div          { background-color: #f9f9f9   !important; color: #333333 !important; }
+    /* Keep logo cell dark — this explicitly overrides any inherited rule */
+    [data-ogsc] .logo-td                 { background-color: #000000   !important; }
+    [data-ogsc] .header-td               { background-color: ${RED}    !important; }
+    /* Button and total amount color locks */
+    [data-ogsc] .btn-primary             { background-color: ${RED}    !important; color: #ffffff !important; }
+    [data-ogsc] .total-amount            { color: ${RED} !important; }
   </style>
 </head>
 <body style="margin:0;padding:0;background-color:${LIGHT};font-family:Arial,Helvetica,sans-serif;" bgcolor="${LIGHT}">
   <div style="display:none;max-height:0;overflow:hidden;">${preheaderText}&nbsp;</div>
-  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="${LIGHT}" style="background-color:${LIGHT};">
+  <table class="email-outer-table" width="100%" cellpadding="0" cellspacing="0" bgcolor="${LIGHT}" style="background-color:${LIGHT};">
     <tr><td align="center" style="padding:20px 10px;">
-      <table width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:6px;overflow:hidden;">
+      <table class="email-inner-table" width="600" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:6px;overflow:hidden;">
         ${content}
       </table>
     </td></tr>
@@ -122,16 +149,12 @@ export function getEstimateEmailTemplate(data) {
               <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none;border-top:1px solid ${BORDER};margin:0;"></td></tr>
               <tr>
                 <td style="padding:10px 0 0 0;font-size:15px;color:#333333;"><strong style="color:#111111;">Estimated Total:</strong></td>
-                <td class="total-amount" style="padding:10px 0 0 0;font-size:22px;font-weight:700;color:${RED};text-align:right;">
-                  <!--[if mso]><span style="color:${RED};font-size:22px;font-weight:700;">$${total}</span><![endif]-->
-                  <!--[if !mso]><!--><span style="color:${RED};">$${total}</span><!--<![endif]-->
-                </td>
+                ${totalAmountCell(total)}
               </tr>
             </table>
           </td></tr>
         </table>
 
-        <!-- Button: VML for Outlook desktop, HTML for everything else -->
         <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
           <tr><td align="center">
             <!--[if mso]>
@@ -213,10 +236,7 @@ export function getInvoiceEmailTemplate(data) {
               <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none;border-top:1px solid ${BORDER};margin:0;"></td></tr>
               <tr>
                 <td style="padding:10px 0 0 0;font-size:15px;color:#333333;"><strong style="color:#111111;">Amount Due:</strong></td>
-                <td class="total-amount" style="padding:10px 0 0 0;font-size:22px;font-weight:700;color:${RED};text-align:right;">
-                  <!--[if mso]><span style="color:${RED};font-size:22px;font-weight:700;">$${balanceDue}</span><![endif]-->
-                  <!--[if !mso]><!--><span style="color:${RED};">$${balanceDue}</span><!--<![endif]-->
-                </td>
+                ${totalAmountCell(balanceDue)}
               </tr>
             </table>
           </td></tr>
@@ -270,14 +290,14 @@ export function getInvoiceEmailTemplate(data) {
 
 export function getOrderStageEmailTemplate() {
   return wrapInBaseTemplate(`
-    <tr><td bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
+    <tr><td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Order Update</h1>
     </td></tr>
-    <tr><td bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
+    <tr><td class="email-body-td" bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
       <p style="margin:0 0 16px 0;color:#333333;">Hello {{customerName}},</p>
       <p style="margin:0 0 16px 0;color:#333333;">{{message}}</p>
       <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f9f9f9" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
-        <tr><td style="padding:20px;font-size:14px;color:#333333;">
+        <tr><td class="info-box-td" style="padding:20px;font-size:14px;color:#333333;">
           <p style="margin:0 0 8px 0;color:#333333;"><strong>Order:</strong> #{{orderNumber}}</p>
           <p style="margin:0 0 8px 0;color:#333333;"><strong>Item:</strong> {{productCode}}</p>
           <p style="margin:0;color:#333333;"><strong>Status:</strong> {{stageDisplayName}}</p>
@@ -299,7 +319,7 @@ export function getOrderStageEmailTemplate() {
       </table>
       <p style="font-size:14px;color:#555555;">If you have any questions, please contact your sales representative.</p>
     </td></tr>
-    <tr><td bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
+    <tr><td class="footer-td" bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
       <p style="margin:0 0 4px 0;font-size:12px;color:${MUTED};">{{companyName}}</p>
       <p style="margin:0;font-size:12px;color:${MUTED};">{{companyPhone}} | {{companyEmail}}</p>
     </td></tr>
@@ -308,13 +328,13 @@ export function getOrderStageEmailTemplate() {
 
 export function getCommissionNotificationTemplate() {
   return wrapInBaseTemplate(`
-    <tr><td bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
+    <tr><td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">Commission {{type}}</h1>
     </td></tr>
-    <tr><td bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
+    <tr><td class="email-body-td" bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
       <p style="margin:0 0 16px 0;color:#333333;">Hello {{agentName}},</p>
       <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f9f9f9" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
-        <tr><td style="padding:24px;text-align:center;">
+        <tr><td class="info-box-td" style="padding:24px;text-align:center;">
           <p style="margin:0;font-size:32px;font-weight:700;color:#22c55e;">${{amount}}</p>
           <p style="margin:8px 0 0 0;font-size:13px;color:${MUTED};">Commission Amount</p>
         </td></tr>
@@ -328,7 +348,7 @@ export function getCommissionNotificationTemplate() {
         </td></tr>
       </table>
     </td></tr>
-    <tr><td bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
+    <tr><td class="footer-td" bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
       <p style="margin:0;font-size:12px;color:${MUTED};">{{companyName}} \u2014 Internal Notification</p>
     </td></tr>
   `, 'Commission {{type}}: ${{amount}}');
