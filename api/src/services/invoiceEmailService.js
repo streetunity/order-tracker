@@ -2,14 +2,17 @@
  * Invoice Email Service
  * Handles sending invoices and estimates with PDF attachments via AWS SES.
  *
- * Templates are rendered directly via JavaScript — no runtime {{}} substitution
- * is used for estimate/invoice emails, which eliminates conditional-block regex
- * bugs and ensures customMessage, URLs, and all data always render correctly.
+ * Templates are rendered directly via JavaScript — no runtime {{}} substitution.
  *
  * Sender strategy
  * ───────────────
  * FROM     : SES_FROM_EMAIL env var (the verified SES identity)
  * REPLY-TO : sales rep email address (customer replies go to the right inbox)
+ *
+ * Customer-facing URLs
+ * ────────────────────
+ * Estimates : /estimates/view/:id  (public, no login required)
+ * Invoices  : /invoices/view/:id   (public, no login required)
  */
 
 import emailService from './emailService.js';
@@ -18,7 +21,7 @@ import { getInvoiceEmailTemplate, getEstimateEmailTemplate } from './emailTempla
 const VERIFIED_SENDER = process.env.SES_FROM_EMAIL || 'orders@stealthlaser.com';
 const FRONTEND_URL    = process.env.FRONTEND_URL   || 'https://smt-orders.com';
 
-// ── Send Invoice ──────────────────────────────────────────────────────────────
+// ── Send Invoice ─────────────────────────────────────────────────────────────
 
 export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails, customMessage, pdfBuffer }) {
   const invoice = await prisma.invoice.findUnique({
@@ -38,12 +41,10 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, invoice.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
-  const viewInvoiceUrl = `${FRONTEND_URL}/invoicing/invoices/${invoice.id}`;
-  const payNowUrl      = `${FRONTEND_URL}/invoicing/invoices/${invoice.id}/pay`;
+  // Public URL — no login required
+  const viewInvoiceUrl = `${FRONTEND_URL}/invoices/view/${invoice.id}`;
+  const payNowUrl      = `${FRONTEND_URL}/invoices/view/${invoice.id}#pay`;
 
-  console.log(`[INVOICE EMAIL] URLs: view=${viewInvoiceUrl}`);
-
-  // Render HTML directly — no {{}} substitution needed
   const html = getInvoiceEmailTemplate({
     customerFirstName: invoice.customer.firstName || invoice.customer.contactName || 'Customer',
     invoiceNumber:     invoice.invoiceNumber,
@@ -64,13 +65,13 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
-  console.log(`[INVOICE EMAIL] Sending ${invoice.invoiceNumber} to ${recipientEmail} | reply-to: ${replyTo} | PDF: ${pdfBuffer ? `yes (${pdfBuffer.length} bytes)` : 'no'}`);
+  console.log(`[INVOICE EMAIL] ${invoice.invoiceNumber} → ${recipientEmail} | url=${viewInvoiceUrl} | PDF=${pdfBuffer ? `${pdfBuffer.length}b` : 'none'}`);
 
   const attachments = [];
   if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
     attachments.push({
       filename:    `Invoice-${invoice.invoiceNumber}.pdf`,
-      content:     Buffer.from(pdfBuffer), // fresh copy ensures buffer is not consumed
+      content:     Buffer.from(pdfBuffer),
       contentType: 'application/pdf',
     });
   }
@@ -108,7 +109,7 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
   return result;
 }
 
-// ── Send Estimate ─────────────────────────────────────────────────────────────
+// ── Send Estimate ────────────────────────────────────────────────────────────
 
 export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmails, customMessage, pdfBuffer }) {
   const estimate = await prisma.estimate.findUnique({
@@ -128,12 +129,14 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
   const salesRep = await emailService.getSalesRepEmailSettings(prisma, estimate.createdById);
   const company  = await emailService.getCompanySettings(prisma);
 
-  const viewEstimateUrl = `${FRONTEND_URL}/invoicing/estimates/${estimate.id}`;
+  // Public URL — no login required
+  const viewEstimateUrl = `${FRONTEND_URL}/estimates/view/${estimate.id}`;
 
-  console.log(`[ESTIMATE EMAIL] URLs: view=${viewEstimateUrl}`);
-  console.log(`[ESTIMATE EMAIL] customMessage: "${customMessage || '(none)'}"`);
+  console.log(`[ESTIMATE EMAIL] ${estimate.estimateNumber} → ${recipientEmail}`);
+  console.log(`[ESTIMATE EMAIL] url=${viewEstimateUrl}`);
+  console.log(`[ESTIMATE EMAIL] customMessage="${customMessage || '(none)'}"`);
+  console.log(`[ESTIMATE EMAIL] PDF=${pdfBuffer ? `${pdfBuffer.length} bytes` : 'none'}`);
 
-  // Render HTML directly — no {{}} substitution needed
   const html = getEstimateEmailTemplate({
     customerFirstName: estimate.customer.firstName || estimate.customer.contactName || 'Customer',
     estimateNumber:    estimate.estimateNumber,
@@ -153,13 +156,11 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
-  console.log(`[ESTIMATE EMAIL] Sending ${estimate.estimateNumber} to ${recipientEmail} | reply-to: ${replyTo} | PDF: ${pdfBuffer ? `yes (${pdfBuffer.length} bytes)` : 'no'}`);
-
   const attachments = [];
   if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
     attachments.push({
       filename:    `Estimate-${estimate.estimateNumber}.pdf`,
-      content:     Buffer.from(pdfBuffer), // fresh copy ensures buffer is not consumed
+      content:     Buffer.from(pdfBuffer),
       contentType: 'application/pdf',
     });
   }
