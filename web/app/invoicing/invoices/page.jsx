@@ -9,397 +9,268 @@ import { useAuth } from "@/contexts/AuthContext";
 import InvoicingNav from "@/components/InvoicingNav";
 
 const STATUS_COLORS = {
-  DRAFT: { bg: 'rgba(156, 163, 175, 0.1)', border: 'rgba(156, 163, 175, 0.3)', text: '#9ca3af' },
-  SENT: { bg: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.3)', text: '#3b82f6' },
-  VIEWED: { bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.3)', text: '#a855f7' },
-  PARTIAL: { bg: 'rgba(245, 158, 11, 0.1)', border: 'rgba(245, 158, 11, 0.3)', text: '#f59e0b' },
-  PAID: { bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)', text: '#22c55e' },
-  OVERDUE: { bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.3)', text: '#ef4444' },
-  VOID: { bg: 'rgba(107, 114, 128, 0.1)', border: 'rgba(107, 114, 128, 0.3)', text: '#6b7280' }
+  DRAFT:   { bg: 'rgba(156,163,175,0.1)', border: 'rgba(156,163,175,0.3)', text: '#9ca3af' },
+  SENT:    { bg: 'rgba(59,130,246,0.1)',  border: 'rgba(59,130,246,0.3)',  text: '#3b82f6' },
+  VIEWED:  { bg: 'rgba(168,85,247,0.1)',  border: 'rgba(168,85,247,0.3)',  text: '#a855f7' },
+  PARTIAL: { bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)',  text: '#f59e0b' },
+  PAID:    { bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.3)',   text: '#22c55e' },
+  OVERDUE: { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.3)',   text: '#ef4444' },
+  VOID:    { bg: 'rgba(107,114,128,0.1)', border: 'rgba(107,114,128,0.3)', text: '#6b7280' },
 };
+
+const STATUS_DOT = {
+  DRAFT: '#9ca3af', SENT: '#3b82f6', VIEWED: '#a855f7',
+  PARTIAL: '#f59e0b', PAID: '#22c55e', OVERDUE: '#ef4444', VOID: '#6b7280',
+};
+
+const fmt  = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
+const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014';
 
 export default function InvoicesPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
-  const [invoices, setInvoices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [salesRepFilter, setSalesRepFilter] = useState("");
-  const [salesReps, setSalesReps] = useState([]);
+
+  const [invoices,    setInvoices]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [statusFilter,setStatusFilter]= useState("all");
+  const [sortBy,      setSortBy]      = useState("date");
+  const [salesReps,   setSalesReps]   = useState([]);
+  const [repFilter,   setRepFilter]   = useState("");
 
   useEffect(() => {
     if (authLoading) return;
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+    if (!user) { router.push("/login"); return; }
     loadInvoices();
     loadSalesReps();
   }, [user, router]);
 
   async function loadSalesReps() {
     try {
-      const res = await fetch("/api/users", {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Filter to active users flagged as sales reps
-        const reps = data.filter(u =>
-          u.isActive !== false && u.showInSalesRepDropdown === true
-        );
-        setSalesReps(reps);
-      }
-    } catch (e) {
-      console.error("Error loading sales reps:", e);
-    }
+      const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() });
+      if (r.ok) setSalesReps(await r.json());
+    } catch {}
   }
 
   async function loadInvoices() {
     try {
-      const res = await fetch("/api/invoices", {
-        headers: getAuthHeaders(),
-      });
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          router.push("/login");
-          return;
-        }
-        throw new Error("Failed to load invoices");
-      }
-
-      const data = await res.json();
-      setInvoices(data);
-    } catch (e) {
-      console.error("Error loading invoices:", e);
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch("/api/invoices", { headers: getAuthHeaders() });
+      if (!r.ok) { if (r.status === 401) { router.push("/login"); return; } throw new Error(); }
+      const d = await r.json();
+      setInvoices(Array.isArray(d) ? d : (d.invoices || []));
+    } catch {}
+    finally { setLoading(false); }
   }
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount || 0);
-  };
-
-  const formatDate = (date) => {
-    if (!date) return '—';
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const filteredInvoices = invoices.filter((invoice) => {
-    const matchesStatus = statusFilter === "all" || invoice.status === statusFilter;
-    const matchesSalesRep = !salesRepFilter || invoice.createdById === salesRepFilter;
-    const matchesSearch =
-      !searchTerm ||
-      invoice.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (invoice.customer &&
-        (`${invoice.customer.firstName} ${invoice.customer.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (invoice.customer.company || invoice.customer.companyName || '').toLowerCase().includes(searchTerm.toLowerCase())));
-
-    return matchesStatus && matchesSalesRep && matchesSearch;
-  });
-
-  // Calculate summary stats
-  const totalOutstanding = invoices
-    .filter(i => !['PAID', 'VOID'].includes(i.status))
-    .reduce((sum, i) => sum + (i.balanceDue || 0), 0);
-
-  const totalOverdue = invoices
-    .filter(i => i.status === 'OVERDUE' || (new Date(i.dueDate) < new Date() && !['PAID', 'VOID'].includes(i.status)))
-    .reduce((sum, i) => sum + (i.balanceDue || 0), 0);
-
-  const paidThisMonth = invoices
-    .filter(i => {
-      if (i.status !== 'PAID') return false;
-      const paidDate = new Date(i.updatedAt);
-      const now = new Date();
-      return paidDate.getMonth() === now.getMonth() && paidDate.getFullYear() === now.getFullYear();
-    })
-    .reduce((sum, i) => sum + (i.total || 0), 0);
-
-  const inputStyle = {
-    padding: "10px 14px",
-    background: "rgba(255, 255, 255, 0.05)",
-    border: "1px solid rgba(255, 255, 255, 0.1)",
-    borderRadius: "8px",
-    color: "rgba(255, 255, 255, 0.9)",
-    fontSize: "14px",
-    outline: "none"
-  };
-
-  const statCardStyle = {
-    background: "rgba(255, 255, 255, 0.02)",
-    border: "1px solid rgba(255, 255, 255, 0.05)",
-    borderRadius: "12px",
-    padding: "20px 24px"
-  };
-
   if (authLoading || !user) return null;
+
+  const filtered = invoices
+    .filter(inv => {
+      if (statusFilter !== "all" && inv.status !== statusFilter) return false;
+      if (repFilter && inv.createdById !== repFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return (
+          inv.invoiceNumber?.toLowerCase().includes(q) ||
+          inv.customer?.firstName?.toLowerCase().includes(q) ||
+          inv.customer?.lastName?.toLowerCase().includes(q) ||
+          inv.customer?.companyName?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "amount")  return (b.total || 0) - (a.total || 0);
+      if (sortBy === "balance") return (b.balanceDue || 0) - (a.balanceDue || 0);
+      if (sortBy === "due")     return new Date(a.dueDate || 0) - new Date(b.dueDate || 0);
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+  const totalOutstanding = invoices.filter(i => !['PAID','VOID'].includes(i.status)).reduce((s,i) => s + (i.balanceDue||0), 0);
+  const totalOverdue     = invoices.filter(i => i.status === 'OVERDUE' || (new Date(i.dueDate) < new Date() && !['PAID','VOID'].includes(i.status))).reduce((s,i) => s + (i.balanceDue||0), 0);
+  const paidThisMonth   = invoices.filter(i => { if (i.status !== 'PAID') return false; const p = new Date(i.updatedAt), n = new Date(); return p.getMonth() === n.getMonth() && p.getFullYear() === n.getFullYear(); }).reduce((s,i) => s + (i.total||0), 0);
 
   return (
     <>
       <InvoicingNav />
-      <div style={{ width: "80%", maxWidth: "1800px", margin: "0 auto", paddingTop: 80 }}>
-        {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#dc2626", marginBottom: 4 }}>
-                Invoices
-              </h1>
-              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>
-                Manage invoices and track payments
-              </p>
-            </div>
-            <Link
-              href="/invoicing/invoices/new"
-              style={{
-                padding: "10px 20px",
-                background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
-                border: "none",
-                borderRadius: "8px",
-                color: "white",
-                fontSize: "14px",
-                fontWeight: "500",
-                textDecoration: "none",
-                display: "inline-block"
-              }}
-            >
-              + New Invoice
-            </Link>
-          </div>
-        </div>
+      <style>{`
+        .isb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+        .isb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+        .isb-title h2{font-size:18px;font-weight:700;color:#dc2626;margin:0}
+        .isb-new-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:6px;color:#dc2626;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s}
+        .isb-new-btn:hover{background:rgba(220,38,38,0.22)}
+        .isb-search{width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px}
+        .isb-search:focus{border-color:rgba(220,38,38,0.5)}
+        .isb-search::placeholder{color:rgba(255,255,255,0.35)}
+        .isb-filters{display:flex;gap:6px}
+        .isb-filter-sel{flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer}
+        .isb-filter-sel:focus{border-color:rgba(220,38,38,0.4)}
+        .isb-sort-bar{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+        .isb-sort-btn{flex:1;padding:4px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s}
+        .isb-sort-btn:hover{color:rgba(255,255,255,0.7)}
+        .isb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.25);color:#dc2626}
+        .isb-list{flex:1;overflow-y:auto;padding:6px 0}
+        .isb-list::-webkit-scrollbar{width:6px}
+        .isb-list::-webkit-scrollbar-track{background:transparent}
+        .isb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+        .isb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}
+        .isb-item{padding:10px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block}
+        .isb-item:hover{background:rgba(255,255,255,0.04);border-left-color:rgba(220,38,38,0.4)}
+        .isb-item-num{font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace}
+        .isb-item-cust{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .isb-item-foot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
+        .isb-item-bal{font-size:11px;color:rgba(255,255,255,0.45)}
+        .isb-item-bal.owed{color:#f59e0b}
+        .isb-item-status{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.3px}
+        .isb-count{padding:6px 14px;font-size:11px;color:rgba(255,255,255,0.3);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+        .inv-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px}
+        .inv-right::-webkit-scrollbar{width:8px}
+        .inv-right::-webkit-scrollbar-track{background:transparent}
+        .inv-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:4px}
+      `}</style>
 
-        {/* Stats Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-          <div style={statCardStyle}>
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase" }}>
-              Total Invoices
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "rgba(255,255,255,0.9)" }}>
-              {invoices.length}
-            </div>
-          </div>
-          <div style={statCardStyle}>
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase" }}>
-              Outstanding
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#f59e0b" }}>
-              {formatCurrency(totalOutstanding)}
-            </div>
-          </div>
-          <div style={statCardStyle}>
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase" }}>
-              Overdue
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#ef4444" }}>
-              {formatCurrency(totalOverdue)}
-            </div>
-          </div>
-          <div style={statCardStyle}>
-            <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase" }}>
-              Paid This Month
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#22c55e" }}>
-              {formatCurrency(paidThisMonth)}
-            </div>
-          </div>
-        </div>
+      <div style={{ display: "flex", height: "calc(100vh - 60px)", marginTop: 60, overflow: "hidden" }}>
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-          <input
-            type="text"
-            placeholder="Search invoices..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ ...inputStyle, flex: 1, maxWidth: "300px" }}
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ ...inputStyle, minWidth: "150px", cursor: "pointer" }}
-          >
-            <option value="all">All Status</option>
-            <option value="DRAFT">Draft</option>
-            <option value="SENT">Sent</option>
-            <option value="VIEWED">Viewed</option>
-            <option value="PARTIAL">Partially Paid</option>
-            <option value="PAID">Paid</option>
-            <option value="OVERDUE">Overdue</option>
-            <option value="VOID">Void</option>
-          </select>
-          <select
-            value={salesRepFilter}
-            onChange={(e) => setSalesRepFilter(e.target.value)}
-            style={{ ...inputStyle, minWidth: "180px", cursor: "pointer" }}
-          >
-            <option value="">All Sales Reps</option>
-            {salesReps.map(rep => (
-              <option key={rep.id} value={rep.id}>
-                {rep.name || rep.email}
-              </option>
+        {/* Sidebar */}
+        <div style={{ width: 300, minWidth: 300, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
+          <div className="isb-header">
+            <div className="isb-title">
+              <h2>Invoices</h2>
+              <Link href="/invoicing/invoices/new" className="isb-new-btn" title="New Invoice">+</Link>
+            </div>
+            <input type="text" placeholder="Search invoices..." value={search} onChange={e => setSearch(e.target.value)} className="isb-search" />
+            <div className="isb-filters">
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="isb-filter-sel">
+                <option value="all">All Status</option>
+                <option value="DRAFT">Draft</option>
+                <option value="SENT">Sent</option>
+                <option value="VIEWED">Viewed</option>
+                <option value="PARTIAL">Partial</option>
+                <option value="PAID">Paid</option>
+                <option value="OVERDUE">Overdue</option>
+                <option value="VOID">Void</option>
+              </select>
+              <select value={repFilter} onChange={e => setRepFilter(e.target.value)} className="isb-filter-sel">
+                <option value="">All Reps</option>
+                {salesReps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="isb-sort-bar">
+            {[["date","Date"],["amount","Amount"],["balance","Balance"],["due","Due"]].map(([key,label]) => (
+              <button key={key} className={`isb-sort-btn${sortBy === key ? ' active' : ''}`} onClick={() => setSortBy(key)}>{label}</button>
             ))}
-          </select>
+          </div>
+
+          <div className="isb-list">
+            {loading ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading...</div>
+            ) : filtered.length === 0 ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No invoices</div>
+            ) : filtered.map(inv => {
+              const custName = inv.customer?.companyName || [inv.customer?.firstName, inv.customer?.lastName].filter(Boolean).join(" ") || "No customer";
+              const dot      = STATUS_DOT[inv.status] || "#9ca3af";
+              const balOwed  = (inv.balanceDue || 0) > 0;
+              return (
+                <Link key={inv.id} href={`/invoicing/invoices/${inv.id}`} className="isb-item">
+                  <div className="isb-item-num">{inv.invoiceNumber}</div>
+                  <div className="isb-item-cust">{custName}</div>
+                  <div className="isb-item-foot">
+                    <span className={`isb-item-bal${balOwed ? ' owed' : ''}`}>{balOwed ? `${fmt(inv.balanceDue)} due` : fmt(inv.total)}</span>
+                    <span className="isb-item-status">
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />
+                      {inv.status}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="isb-count">{filtered.length} invoice{filtered.length !== 1 ? 's' : ''}</div>
         </div>
 
-        {/* Invoices Table */}
-        {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.5)" }}>
-            Loading invoices...
+        {/* Main content */}
+        <div className="inv-right">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div>
+              <h1 style={{ fontSize: 26, fontWeight: 700, color: "#dc2626", margin: 0, marginBottom: 4 }}>Invoices</h1>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>Manage invoices and track payments</p>
+            </div>
+            <Link href="/invoicing/invoices/new" style={{ padding: "9px 16px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ New Invoice</Link>
           </div>
-        ) : filteredInvoices.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 0" }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>📊</div>
-            <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "20px" }}>
-              {searchTerm || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}
-            </p>
-            {!searchTerm && statusFilter === "all" && (
-              <Link
-                href="/invoicing/invoices/new"
-                style={{
-                  display: "inline-block",
-                  padding: "10px 20px",
-                  background: "rgba(220, 38, 38, 0.1)",
-                  border: "1px solid rgba(220, 38, 38, 0.3)",
-                  borderRadius: "8px",
-                  color: "#dc2626",
-                  textDecoration: "none"
-                }}
-              >
-                Create Your First Invoice
-              </Link>
-            )}
-          </div>
-        ) : (
-          <div style={{
-            background: "rgba(255, 255, 255, 0.02)",
-            border: "1px solid rgba(255, 255, 255, 0.05)",
-            borderRadius: "12px",
-            overflow: "hidden"
-          }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
-                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Invoice #
-                  </th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Customer
-                  </th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Date
-                  </th>
-                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Due Date
-                  </th>
-                  <th style={{ padding: "14px 16px", textAlign: "right", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Total
-                  </th>
-                  <th style={{ padding: "14px 16px", textAlign: "right", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Balance
-                  </th>
-                  <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Status
-                  </th>
-                  <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: "500", textTransform: "uppercase" }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInvoices.map((invoice) => {
-                  const statusColor = STATUS_COLORS[invoice.status] || STATUS_COLORS.DRAFT;
-                  const isOverdue = new Date(invoice.dueDate) < new Date() && !['PAID', 'VOID'].includes(invoice.status);
 
-                  return (
-                    <tr
-                      key={invoice.id}
-                      style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}
-                    >
-                      <td style={{ padding: "14px 16px" }}>
-                        <Link
-                          href={`/invoicing/invoices/${invoice.id}`}
-                          style={{ color: "#dc2626", fontFamily: "monospace", textDecoration: "none", fontWeight: "500" }}
-                        >
-                          {invoice.invoiceNumber}
-                        </Link>
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        {invoice.customer ? (
-                          <div>
-                            <div style={{ color: "rgba(255,255,255,0.9)", fontWeight: "500" }}>
-                              {invoice.customer.firstName} {invoice.customer.lastName}
-                            </div>
-                            {(invoice.customer.company || invoice.customer.companyName) && (
-                              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>
-                                {invoice.customer.company || invoice.customer.companyName}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{ color: "rgba(255,255,255,0.4)" }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px", color: "rgba(255,255,255,0.7)" }}>
-                        {formatDate(invoice.invoiceDate)}
-                      </td>
-                      <td style={{ padding: "14px 16px", color: isOverdue ? "#ef4444" : "rgba(255,255,255,0.7)" }}>
-                        {formatDate(invoice.dueDate)}
-                        {isOverdue && <span style={{ fontSize: "10px", marginLeft: 4 }}>⚠️</span>}
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", color: "rgba(255,255,255,0.9)", fontWeight: "500" }}>
-                        {formatCurrency(invoice.total)}
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", color: invoice.balanceDue > 0 ? "#f59e0b" : "#22c55e", fontWeight: "600" }}>
-                        {formatCurrency(invoice.balanceDue)}
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                        <span style={{
-                          padding: "4px 10px",
-                          background: statusColor.bg,
-                          border: `1px solid ${statusColor.border}`,
-                          borderRadius: "6px",
-                          color: statusColor.text,
-                          fontSize: "12px",
-                          fontWeight: "500"
-                        }}>
-                          {invoice.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                        <Link
-                          href={`/invoicing/invoices/${invoice.id}`}
-                          style={{
-                            padding: "6px 12px",
-                            background: "rgba(255, 255, 255, 0.05)",
-                            border: "1px solid rgba(255, 255, 255, 0.1)",
-                            borderRadius: "6px",
-                            color: "rgba(255, 255, 255, 0.9)",
-                            fontSize: "13px",
-                            textDecoration: "none"
-                          }}
-                        >
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {/* Stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 24 }}>
+            {[
+              { label: "Total Invoices",  value: invoices.length,        color: "rgba(255,255,255,0.85)" },
+              { label: "Outstanding",     value: fmt(totalOutstanding),  color: "#f59e0b" },
+              { label: "Overdue",         value: fmt(totalOverdue),      color: "#ef4444" },
+              { label: "Paid This Month", value: fmt(paidThisMonth),     color: "#22c55e" },
+            ].map(s => (
+              <div key={s.label} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: "16px 20px" }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>{s.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+              </div>
+            ))}
           </div>
-        )}
+
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.4)" }}>Loading invoices...</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 0" }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>\ud83d\udcca</div>
+              <p style={{ color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>{search || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}</p>
+              {!search && statusFilter === "all" && <Link href="/invoicing/invoices/new" style={{ padding: "10px 20px", background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 8, color: "#dc2626", textDecoration: "none" }}>Create Your First Invoice</Link>}
+            </div>
+          ) : (
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.12)" }}>
+                    {["Invoice #","Customer","Date","Due Date","Total","Balance","Status",""].map((h,i) => (
+                      <th key={i} style={{ padding: "10px 14px", textAlign: ["Total","Balance"].includes(h) ? "right" : h === "Status" ? "center" : "left", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(invoice => {
+                    const sc = STATUS_COLORS[invoice.status] || STATUS_COLORS.DRAFT;
+                    const overdue = new Date(invoice.dueDate) < new Date() && !['PAID','VOID'].includes(invoice.status);
+                    return (
+                      <tr key={invoice.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer", transition: "background 0.1s" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        onClick={() => router.push(`/invoicing/invoices/${invoice.id}`)}
+                      >
+                        <td style={{ padding: "13px 14px" }}><span style={{ fontFamily: "monospace", color: "#dc2626", fontWeight: 500 }}>{invoice.invoiceNumber}</span></td>
+                        <td style={{ padding: "13px 14px" }}>
+                          {invoice.customer ? (
+                            <div>
+                              <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>{invoice.customer.firstName} {invoice.customer.lastName}</div>
+                              {(invoice.customer.company || invoice.customer.companyName) && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{invoice.customer.company || invoice.customer.companyName}</div>}
+                            </div>
+                          ) : <span style={{ color: "rgba(255,255,255,0.3)" }}>\u2014</span>}
+                        </td>
+                        <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{fmtD(invoice.invoiceDate)}</td>
+                        <td style={{ padding: "13px 14px", fontSize: 13, color: overdue ? "#ef4444" : "rgba(255,255,255,0.55)" }}>{fmtD(invoice.dueDate)}{overdue && <span style={{ fontSize: 10, marginLeft: 4 }}>\u26a0\ufe0f</span>}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>{fmt(invoice.total)}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 600, color: invoice.balanceDue > 0 ? "#f59e0b" : "#22c55e" }}>{fmt(invoice.balanceDue)}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "center" }}>
+                          <span style={{ padding: "3px 9px", background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 6, color: sc.text, fontSize: 11, fontWeight: 500 }}>{invoice.status}</span>
+                        </td>
+                        <td style={{ padding: "13px 14px", textAlign: "right" }}>
+                          <button onClick={e => { e.stopPropagation(); router.push(`/invoicing/invoices/${invoice.id}`); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.8)", cursor: "pointer", fontSize: 12 }}>View</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
