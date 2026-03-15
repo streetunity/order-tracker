@@ -137,7 +137,21 @@ export function createPublicInvoicingRouter(prisma) {
       const invoice = await prisma.invoice.findUnique({
         where: { id: req.params.id },
         include: {
-          customer: { select: { id: true, firstName: true, lastName: true, company: true, companyName: true, email: true, phone: true, billingAddress: true, address: true } },
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              company: true,
+              companyName: true,
+              email: true,
+              phone: true,
+              billingAddress: true,
+              billingCity: true,
+              billingState: true,
+              billingZipCode: true,
+            }
+          },
           items: { orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, description: true, sku: true, quantity: true, unitPrice: true, amount: true, taxable: true } },
           paymentSchedule: { orderBy: { sortOrder: 'asc' }, select: { id: true, description: true, percentage: true, amount: true, dueDate: true, status: true } },
           createdBy: { select: { id: true, name: true, email: true } }
@@ -155,6 +169,13 @@ export function createPublicInvoicingRouter(prisma) {
         select: { companyName: true, logoUrl: true, address: true, city: true, state: true, zipCode: true, phone: true, email: true, website: true }
       });
 
+      // Build a clean billing address string for the portal
+      const c = invoice.customer;
+      const billingLines = [
+        c?.billingAddress,
+        [c?.billingCity, c?.billingState, c?.billingZipCode].filter(Boolean).join(', ')
+      ].filter(Boolean).join('\n');
+
       res.json({
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
@@ -162,7 +183,7 @@ export function createPublicInvoicingRouter(prisma) {
         invoiceDate: invoice.invoiceDate,
         dueDate: invoice.dueDate,
         paymentTerms: invoice.paymentTerms,
-        customer: invoice.customer,
+        customer: { ...invoice.customer, billingAddressFull: billingLines || null },
         items: invoice.items,
         paymentSchedule: invoice.paymentSchedule,
         subtotal: invoice.subtotal,
@@ -215,8 +236,8 @@ export function createPublicInvoicingRouter(prisma) {
       });
 
       if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
-      if (invoice.status === 'VOID')  return res.status(400).json({ error: 'Cannot pay a voided invoice' });
-      if (invoice.status === 'PAID')  return res.status(400).json({ error: 'Invoice is already paid in full' });
+      if (invoice.status === 'VOID') return res.status(400).json({ error: 'Cannot pay a voided invoice' });
+      if (invoice.status === 'PAID') return res.status(400).json({ error: 'Invoice is already paid in full' });
 
       const parsedAmount = parseFloat(amount);
       if (parsedAmount > invoice.balanceDue + 0.01) {
@@ -225,26 +246,26 @@ export function createPublicInvoicingRouter(prisma) {
 
       // Get next payment number
       const settings = await prisma.invoicingSettings.findFirst();
-      const nextNum   = settings?.nextPaymentNumber || 1;
-      const year      = new Date().getFullYear();
-      const prefix    = settings?.paymentPrefix || 'PAY';
+      const nextNum  = settings?.nextPaymentNumber || 1;
+      const year     = new Date().getFullYear();
+      const prefix   = settings?.paymentPrefix || 'PAY';
       const paymentNumber = `${prefix}-${year}-${String(nextNum).padStart(5, '0')}`;
 
-      // Create a PENDING payment record
+      // Create a PENDING payment record — staff must confirm before it applies to balance
       const payment = await prisma.payment.create({
         data: {
           paymentNumber,
-          customerId:       invoice.customerId,
-          invoiceId:        invoice.id,
-          scheduleItemId:   scheduleItemId || null,
-          amount:           parsedAmount,
-          paymentDate:      new Date(),
-          paymentMethod:    paymentMethod || 'OTHER',
-          referenceNumber:  referenceNumber || null,
-          checkNumber:      paymentMethod === 'CHECK'  ? referenceNumber || null : null,
-          wireReference:    paymentMethod === 'WIRE'   ? referenceNumber || null : null,
-          status:           'PENDING', // Staff must confirm
-          notes:            notes || 'Payment submitted online by customer — awaiting confirmation',
+          customerId:      invoice.customerId,
+          invoiceId:       invoice.id,
+          scheduleItemId:  scheduleItemId || null,
+          amount:          parsedAmount,
+          paymentDate:     new Date(),
+          paymentMethod:   paymentMethod || 'OTHER',
+          referenceNumber: referenceNumber || null,
+          checkNumber:     paymentMethod === 'CHECK' ? referenceNumber || null : null,
+          wireReference:   paymentMethod === 'WIRE'  ? referenceNumber || null : null,
+          status:          'PENDING',
+          notes:           notes || 'Payment submitted online by customer — awaiting confirmation',
         }
       });
 
