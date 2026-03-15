@@ -338,8 +338,8 @@ export default function EstimateDetailPage({ params }) {
   }
 
   const fmt     = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014';
-  const fmtDT   = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '\u2014';
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  const fmtDT   = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
 
   const isExpired = estimate?.expiryDate && new Date(estimate.expiryDate) < new Date();
   const filteredProducts = products.filter(p => !productSearch || p.name?.toLowerCase().includes(productSearch.toLowerCase()) || p.sku?.toLowerCase().includes(productSearch.toLowerCase()));
@@ -348,7 +348,6 @@ export default function EstimateDetailPage({ params }) {
 
   if (authLoading || !user) return null;
 
-  // Sidebar computed
   const filteredSidebarEstimates = allEstimates
     .filter(e => {
       if (sidebarStatus !== "all" && e.status !== sidebarStatus) return false;
@@ -465,7 +464,7 @@ export default function EstimateDetailPage({ params }) {
       <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "#0f0f0f" }}>
         {sidebarJSX}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading estimate\u2026</div>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading estimate…</div>
         </div>
       </div>
     </>
@@ -478,7 +477,7 @@ export default function EstimateDetailPage({ params }) {
         {sidebarJSX}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>\ud83d\udcc4</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>
             <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>{error || "Estimate not found"}</p>
             <Link href="/invoicing/estimates" style={{ padding: "10px 20px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", textDecoration: "none" }}>Back to Estimates</Link>
           </div>
@@ -496,7 +495,6 @@ export default function EstimateDetailPage({ params }) {
         {sidebarJSX}
         <div style={{ flex: 1, minWidth: 0, padding: "24px 28px 60px", overflowX: "hidden" }}>
 
-          {/* Header */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -506,7 +504,7 @@ export default function EstimateDetailPage({ params }) {
                 {isExpired && estimate.status !== 'ACCEPTED' && estimate.status !== 'DECLINED' && (
                   <span style={{ padding: "4px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#ef4444", fontSize: 12 }}>Expired</span>
                 )}
-                {saving && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Saving\u2026</span>}
+                {saving && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Saving…</span>}
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <button onClick={() => { setEmailTo(estimate?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
@@ -535,11 +533,10 @@ export default function EstimateDetailPage({ params }) {
           {error && (
             <div style={{ padding: "12px 16px", marginBottom: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               {error}
-              <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18 }}>\u00d7</button>
+              <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18 }}>×</button>
             </div>
           )}
 
-          {/* Info Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Customer</div>
@@ -578,7 +575,6 @@ export default function EstimateDetailPage({ params }) {
             </div>
           </div>
 
-          {/* Line Items */}
           <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>Line Items ({estimate.items?.length || 0})</h2>
@@ -609,16 +605,16 @@ export default function EstimateDetailPage({ params }) {
               </div>
             )}
             {estimate.items && estimate.items.length > 0 ? (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", background: "transparent" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    {editMode && <th style={{ padding: "12px 8px", width: 32 }}></th>}
-                    <th style={{ padding: "12px 8px", width: 30 }}></th>
-                    <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>Item</th>
-                    <th style={{ padding: "12px 8px", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 100 }}>Qty</th>
-                    <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140 }}>Price</th>
-                    <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140 }}>Total</th>
-                    {editMode && <th style={{ padding: "12px 8px", width: 40 }}></th>}
+                    {editMode && <th style={{ padding: "12px 8px", width: 32, background: "transparent" }}></th>}
+                    <th style={{ padding: "12px 8px", width: 30, background: "transparent" }}></th>
+                    <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, background: "transparent" }}>Item</th>
+                    <th style={{ padding: "12px 8px", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 100, background: "transparent" }}>Qty</th>
+                    <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140, background: "transparent" }}>Price</th>
+                    <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140, background: "transparent" }}>Total</th>
+                    {editMode && <th style={{ padding: "12px 8px", width: 40, background: "transparent" }}></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -640,8 +636,8 @@ export default function EstimateDetailPage({ params }) {
                               <GripIcon color={gripHovered ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.55)"} />
                             </td>
                           )}
-                          <td style={{ padding: "14px 8px", verticalAlign: "top" }}>
-                            <button type="button" onClick={() => toggleItemExpand(item.id)} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, padding: 4, transform: expandedItems[item.id] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>\u25b6</button>
+                          <td style={{ padding: "14px 8px", verticalAlign: "top", background: "transparent" }}>
+                            <button type="button" onClick={() => toggleItemExpand(item.id)} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, padding: 4, transform: expandedItems[item.id] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>&#9654;</button>
                           </td>
                           <td style={{ padding: "14px 8px" }}>
                             {editMode ? <input type="text" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} style={{ ...inp, width: "100%", padding: "6px 10px" }} /> : <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{item.name}</div>}
@@ -656,7 +652,7 @@ export default function EstimateDetailPage({ params }) {
                             {editMode ? <input type="number" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })} style={{ ...inp, width: 100, textAlign: "right", padding: "6px 8px" }} step="0.01" /> : <span style={{ color: "rgba(255,255,255,0.7)" }}>{fmt(item.unitPrice)}</span>}
                           </td>
                           <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: "rgba(255,255,255,0.9)", verticalAlign: "top" }}>{fmt(item.amount || item.quantity * item.unitPrice)}</td>
-                          {editMode && <td style={{ padding: "14px 8px", textAlign: "center", verticalAlign: "top" }}><button onClick={() => confirmDeleteItem(item.id)} disabled={saving} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 18, padding: 4 }}>\u00d7</button></td>}
+                          {editMode && <td style={{ padding: "14px 8px", textAlign: "center", verticalAlign: "top" }}><button onClick={() => confirmDeleteItem(item.id)} disabled={saving} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 18, padding: 4 }}>&times;</button></td>}
                         </tr>
                         {expandedItems[item.id] && (
                           <tr key={`${item.id}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
@@ -718,7 +714,6 @@ export default function EstimateDetailPage({ params }) {
             )}
           </div>
 
-          {/* Notes & History */}
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
             {(estimate.notes || estimate.internalNotes || estimate.termsConditions) && (
               <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 24 }}>
