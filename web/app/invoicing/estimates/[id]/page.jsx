@@ -20,7 +20,11 @@ const STATUS_COLORS = {
   CONVERTED: { bg: 'rgba(20,184,166,0.1)',  border: 'rgba(20,184,166,0.3)',  text: '#14b8a6' },
 };
 
-// Six-dot drag handle
+const STATUS_DOT = {
+  DRAFT: '#9ca3af', SENT: '#3b82f6', VIEWED: '#a855f7',
+  ACCEPTED: '#22c55e', DECLINED: '#ef4444', EXPIRED: '#eab308', CONVERTED: '#14b8a6',
+};
+
 function GripIcon({ color }) {
   return (
     <svg width="14" height="20" viewBox="0 0 14 20" fill={color} style={{ display: "block", margin: "0 auto" }}>
@@ -48,7 +52,6 @@ export default function EstimateDetailPage({ params }) {
   const [versions,     setVersions]     = useState([]);
   const [showVersions, setShowVersions] = useState(false);
 
-  // PDF & Email
   const [generatingPDF,    setGeneratingPDF]    = useState(false);
   const [sendingEmail,     setSendingEmail]     = useState(false);
   const [showSendModal,    setShowSendModal]    = useState(false);
@@ -58,29 +61,32 @@ export default function EstimateDetailPage({ params }) {
   const [emailHistory,     setEmailHistory]     = useState([]);
   const [showEmailHistory, setShowEmailHistory] = useState(false);
 
-  // Product search
   const [products,           setProducts]           = useState([]);
   const [bundles,            setBundles]            = useState([]);
   const [productSearch,      setProductSearch]      = useState("");
   const [showProductDropdown,setShowProductDropdown]= useState(false);
   const [expandedItems,      setExpandedItems]      = useState({});
 
-  // Drag-to-reorder (edit mode)
   const [dragIndex,        setDragIndex]        = useState(null);
   const [dragOverIndex,    setDragOverIndex]    = useState(null);
   const [hoveredGripIndex, setHoveredGripIndex] = useState(null);
   const dragFromHandleRef = useRef(false);
 
-  // Modals
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateName,      setTemplateName]      = useState("");
   const [showConfirmModal,  setShowConfirmModal]  = useState(false);
   const [confirmConfig,     setConfirmConfig]     = useState({ title: "", message: "", onConfirm: null });
   const [showSuccessModal,  setShowSuccessModal]  = useState(false);
   const [successMessage,    setSuccessMessage]    = useState("");
-
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showActionsMenu,   setShowActionsMenu]   = useState(false);
   const actionsRef = useRef(null);
+
+  // Sidebar state
+  const [allEstimates,   setAllEstimates]   = useState([]);
+  const [sidebarLoading, setSidebarLoading] = useState(true);
+  const [sidebarSearch,  setSidebarSearch]  = useState("");
+  const [sidebarStatus,  setSidebarStatus]  = useState("all");
+  const [sidebarSortBy,  setSidebarSortBy]  = useState("date");
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -109,6 +115,15 @@ export default function EstimateDetailPage({ params }) {
     return () => window.removeEventListener('popstate', fn);
   }, [editMode, globalNavigateWithWarning, router]);
 
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.push("/login"); return; }
+    loadEstimate();
+    loadProducts();
+    loadBundles();
+    loadAllEstimates();
+  }, [user, router, id]);
+
   function navigateWithWarning(url) {
     if (editMode) globalNavigateWithWarning(url, router);
     else router.push(url);
@@ -116,13 +131,17 @@ export default function EstimateDetailPage({ params }) {
 
   const toggleItemExpand = (itemId) => setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) { router.push("/login"); return; }
-    loadEstimate();
-    loadProducts();
-    loadBundles();
-  }, [user, router, id]);
+  async function loadAllEstimates() {
+    setSidebarLoading(true);
+    try {
+      const r = await fetch("/api/estimates", { headers: getAuthHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        setAllEstimates(Array.isArray(d) ? d : (d.estimates || []));
+      }
+    } catch {}
+    finally { setSidebarLoading(false); }
+  }
 
   async function loadEstimate() {
     try {
@@ -132,13 +151,9 @@ export default function EstimateDetailPage({ params }) {
         if (res.status === 404) { setError("Estimate not found"); setLoading(false); return; }
         throw new Error("Failed to load estimate");
       }
-      const data = await res.json();
-      setEstimate(data);
-    } catch (e) {
-      setError("Failed to load estimate");
-    } finally {
-      setLoading(false);
-    }
+      setEstimate(await res.json());
+    } catch { setError("Failed to load estimate"); }
+    finally { setLoading(false); }
   }
 
   async function loadProducts() {
@@ -153,8 +168,7 @@ export default function EstimateDetailPage({ params }) {
     try {
       const res = await fetch(`/api/estimates/${id}/items`, { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ productId: product.id, quantity: 1 }) });
       if (!res.ok) throw new Error("Failed to add item");
-      const data = await res.json();
-      setEstimate(data.estimate);
+      setEstimate((await res.json()).estimate);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); setProductSearch(""); setShowProductDropdown(false); }
   }
@@ -164,8 +178,7 @@ export default function EstimateDetailPage({ params }) {
     try {
       const res = await fetch(`/api/estimates/${id}/bundles`, { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ bundleId: bundle.id, quantity: 1 }) });
       if (!res.ok) throw new Error("Failed to add bundle");
-      const data = await res.json();
-      setEstimate(data.estimate);
+      setEstimate((await res.json()).estimate);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); setProductSearch(""); setShowProductDropdown(false); }
   }
@@ -175,13 +188,11 @@ export default function EstimateDetailPage({ params }) {
     try {
       const res = await fetch(`/api/estimates/${id}/items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify(updates) });
       if (!res.ok) throw new Error("Failed to update item");
-      const data = await res.json();
-      setEstimate(data.estimate);
+      setEstimate((await res.json()).estimate);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   }
 
-  // Drag-to-reorder: optimistically reorder in UI, then persist to server
   function handleDragStart(e, index) {
     if (!dragFromHandleRef.current) { e.preventDefault(); return; }
     dragFromHandleRef.current = false;
@@ -189,62 +200,38 @@ export default function EstimateDetailPage({ params }) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(index));
   }
-
   function handleDragOver(e, index) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (index !== dragOverIndex) setDragOverIndex(index);
   }
-
   async function handleDrop(e, dropIndex) {
     e.preventDefault();
     const fromIndex = dragIndex;
-    setDragIndex(null);
-    setDragOverIndex(null);
+    setDragIndex(null); setDragOverIndex(null);
     if (fromIndex === null || fromIndex === dropIndex) return;
-
-    // Optimistic update
     const newItems = [...estimate.items];
     const [moved] = newItems.splice(fromIndex, 1);
     newItems.splice(dropIndex, 0, moved);
     setEstimate(prev => ({ ...prev, items: newItems }));
     setExpandedItems({});
-
-    // Persist to server
     setSaving(true);
     try {
-      const res = await fetch(`/api/estimates/${id}/items/reorder`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ itemIds: newItems.map(i => i.id) }),
-      });
+      const res = await fetch(`/api/estimates/${id}/items/reorder`, { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ itemIds: newItems.map(i => i.id) }) });
       if (!res.ok) throw new Error("Failed to reorder items");
-      const data = await res.json();
-      setEstimate(data);
-    } catch (e) {
-      setError(e.message);
-      loadEstimate(); // roll back on error
-    } finally {
-      setSaving(false);
-    }
+      setEstimate(await res.json());
+    } catch (e) { setError(e.message); loadEstimate(); }
+    finally { setSaving(false); }
   }
-
-  function handleDragEnd() {
-    dragFromHandleRef.current = false;
-    setDragIndex(null);
-    setDragOverIndex(null);
-  }
+  function handleDragEnd() { dragFromHandleRef.current = false; setDragIndex(null); setDragOverIndex(null); }
 
   function confirmDeleteItem(itemId) { showConfirm("Remove Item", "Are you sure you want to remove this item?", () => deleteItem(itemId)); }
-
   async function deleteItem(itemId) {
-    setShowConfirmModal(false);
-    setSaving(true);
+    setShowConfirmModal(false); setSaving(true);
     try {
       const res = await fetch(`/api/estimates/${id}/items/${itemId}`, { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error("Failed to delete item");
-      const data = await res.json();
-      setEstimate(data.estimate);
+      setEstimate((await res.json()).estimate);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   }
@@ -260,7 +247,6 @@ export default function EstimateDetailPage({ params }) {
   }
 
   function confirmDeleteEstimate() { setShowActionsMenu(false); showConfirm("Delete Estimate", "Are you sure you want to delete this estimate? This action cannot be undone.", deleteEstimate); }
-
   async function deleteEstimate() {
     setShowConfirmModal(false); setSaving(true);
     try {
@@ -273,9 +259,7 @@ export default function EstimateDetailPage({ params }) {
   async function loadVersions() {
     try { const r = await fetch(`/api/estimates/${id}/versions`, { headers: getAuthHeaders() }); if (r.ok) setVersions(await r.json()); } catch {}
   }
-
   function confirmCreateNewVersion() { setShowActionsMenu(false); showConfirm("Create New Version", "Create a new version of this estimate? The current version will be marked as expired.", createNewVersion); }
-
   async function createNewVersion() {
     setShowConfirmModal(false); setSaving(true);
     try {
@@ -295,7 +279,6 @@ export default function EstimateDetailPage({ params }) {
   }
 
   function openTemplateModal() { setShowActionsMenu(false); setTemplateName(""); setShowTemplateModal(true); }
-
   async function saveAsTemplate() {
     if (!templateName.trim()) return;
     setShowTemplateModal(false); setSaving(true);
@@ -355,31 +338,153 @@ export default function EstimateDetailPage({ params }) {
   }
 
   const fmt     = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-  const fmtDT   = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014';
+  const fmtDT   = (d) => d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '\u2014';
 
   const isExpired = estimate?.expiryDate && new Date(estimate.expiryDate) < new Date();
-
   const filteredProducts = products.filter(p => !productSearch || p.name?.toLowerCase().includes(productSearch.toLowerCase()) || p.sku?.toLowerCase().includes(productSearch.toLowerCase()));
   const filteredBundles  = bundles.filter(b => !productSearch || b.name?.toLowerCase().includes(productSearch.toLowerCase()));
-
   const inp = { padding: "8px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "rgba(255,255,255,0.9)", fontSize: "14px" };
 
   if (authLoading || !user) return null;
 
+  // Sidebar computed
+  const filteredSidebarEstimates = allEstimates
+    .filter(e => {
+      if (sidebarStatus !== "all" && e.status !== sidebarStatus) return false;
+      if (sidebarSearch.trim()) {
+        const q = sidebarSearch.toLowerCase();
+        return (
+          e.estimateNumber?.toLowerCase().includes(q) ||
+          e.customer?.firstName?.toLowerCase().includes(q) ||
+          e.customer?.lastName?.toLowerCase().includes(q) ||
+          e.customer?.companyName?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) =>
+      sidebarSortBy === "amount"
+        ? (b.total || 0) - (a.total || 0)
+        : new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+  const sidebarJSX = (
+    <div style={{ width: 300, minWidth: 300, flexShrink: 0, position: "sticky", top: 60, height: "calc(100vh - 60px)", background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
+      <style>{`
+        .esb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+        .esb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+        .esb-title h2{font-size:18px;font-weight:700;color:#dc2626;margin:0}
+        .esb-new-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:6px;color:#dc2626;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s}
+        .esb-new-btn:hover{background:rgba(220,38,38,0.22)}
+        .esb-search{width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px}
+        .esb-search:focus{border-color:rgba(220,38,38,0.5)}
+        .esb-search::placeholder{color:rgba(255,255,255,0.35)}
+        .esb-filters{display:flex;gap:6px}
+        .esb-filter-sel{flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer}
+        .esb-filter-sel:focus{border-color:rgba(220,38,38,0.4)}
+        .esb-sort-bar{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+        .esb-sort-btn{flex:1;padding:4px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s}
+        .esb-sort-btn:hover{color:rgba(255,255,255,0.7)}
+        .esb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.25);color:#dc2626}
+        .esb-list{flex:1;overflow-y:auto;padding:6px 0}
+        .esb-list::-webkit-scrollbar{width:6px}
+        .esb-list::-webkit-scrollbar-track{background:transparent}
+        .esb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+        .esb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}
+        .esb-item{padding:10px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block}
+        .esb-item:hover{background:rgba(255,255,255,0.04)}
+        .esb-item.active{background:rgba(220,38,38,0.08);border-left-color:#dc2626}
+        .esb-item-num{font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace}
+        .esb-item.active .esb-item-num{color:#fff}
+        .esb-item-cust{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .esb-item-foot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
+        .esb-item-amt{font-size:11px;color:rgba(255,255,255,0.5)}
+        .esb-item-status{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.3px}
+        .esb-count{padding:6px 14px;font-size:11px;color:rgba(255,255,255,0.3);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+      `}</style>
+
+      <div className="esb-header">
+        <div className="esb-title">
+          <h2>Estimates</h2>
+          <Link href="/invoicing/estimates/new" className="esb-new-btn" title="New Estimate">+</Link>
+        </div>
+        <input type="text" placeholder="Search estimates..." value={sidebarSearch} onChange={e => setSidebarSearch(e.target.value)} className="esb-search" />
+        <div className="esb-filters">
+          <select value={sidebarStatus} onChange={e => setSidebarStatus(e.target.value)} className="esb-filter-sel">
+            <option value="all">All Status</option>
+            <option value="DRAFT">Draft</option>
+            <option value="SENT">Sent</option>
+            <option value="VIEWED">Viewed</option>
+            <option value="ACCEPTED">Accepted</option>
+            <option value="DECLINED">Declined</option>
+            <option value="EXPIRED">Expired</option>
+            <option value="CONVERTED">Converted</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="esb-sort-bar">
+        {[["date","Date"],["amount","Amount"]].map(([key,label]) => (
+          <button key={key} className={`esb-sort-btn${sidebarSortBy === key ? ' active' : ''}`} onClick={() => setSidebarSortBy(key)}>{label}</button>
+        ))}
+      </div>
+
+      <div className="esb-list">
+        {sidebarLoading ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading...</div>
+        ) : filteredSidebarEstimates.length === 0 ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No estimates</div>
+        ) : filteredSidebarEstimates.map(e => {
+          const isActive = e.id === id;
+          const custName = e.customer?.companyName || [e.customer?.firstName, e.customer?.lastName].filter(Boolean).join(" ") || "No customer";
+          const dot = STATUS_DOT[e.status] || "#9ca3af";
+          return (
+            <Link key={e.id} href={`/invoicing/estimates/${e.id}`} className={`esb-item${isActive ? ' active' : ''}`}>
+              <div className="esb-item-num">{e.estimateNumber}</div>
+              <div className="esb-item-cust">{custName}</div>
+              <div className="esb-item-foot">
+                <span className="esb-item-amt">{new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(e.total||0)}</span>
+                <span className="esb-item-status">
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />
+                  {e.status}
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="esb-count">{filteredSidebarEstimates.length} estimate{filteredSidebarEstimates.length !== 1 ? 's' : ''}</div>
+    </div>
+  );
+
   if (loading) return (
-    <><InvoicingNav /><div style={{ width: "80%", maxWidth: "1800px", margin: "0 auto", paddingTop: 80 }}><div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.5)" }}>Loading estimate...</div></div></>
+    <>
+      <InvoicingNav />
+      <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "#0f0f0f" }}>
+        {sidebarJSX}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading estimate\u2026</div>
+        </div>
+      </div>
+    </>
   );
 
   if (!estimate) return (
-    <><InvoicingNav />
-    <div style={{ width: "80%", maxWidth: "1800px", margin: "0 auto", paddingTop: 80 }}>
-      <div style={{ textAlign: "center", padding: "60px 0" }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>
-        <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>{error || "Estimate not found"}</p>
-        <Link href="/invoicing/estimates" style={{ padding: "10px 20px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", textDecoration: "none" }}>Back to Estimates</Link>
+    <>
+      <InvoicingNav />
+      <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "#0f0f0f" }}>
+        {sidebarJSX}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>\ud83d\udcc4</div>
+            <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>{error || "Estimate not found"}</p>
+            <Link href="/invoicing/estimates" style={{ padding: "10px 20px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", textDecoration: "none" }}>Back to Estimates</Link>
+          </div>
+        </div>
       </div>
-    </div></>
+    </>
   );
 
   const statusColor = STATUS_COLORS[estimate.status] || STATUS_COLORS.DRAFT;
@@ -387,405 +492,270 @@ export default function EstimateDetailPage({ params }) {
   return (
     <>
       <InvoicingNav />
-      <div style={{ width: "80%", maxWidth: "1800px", margin: "0 auto", paddingTop: 80 }}>
+      <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "#0f0f0f" }}>
+        {sidebarJSX}
+        <div style={{ flex: 1, minWidth: 0, padding: "24px 28px 60px", overflowX: "hidden" }}>
 
-        {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <button type="button" onClick={() => navigateWithWarning("/invoicing/estimates")} style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, display: "block", marginBottom: 8, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-            ← Back to Estimates
-          </button>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <h1 style={{ fontSize: 28, fontWeight: 700, color: "#dc2626", margin: 0 }}>{estimate.estimateNumber}</h1>
-              {estimate.version > 1 && <span style={{ padding: "4px 8px", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 6, color: "#a855f7", fontSize: 12, fontWeight: 500 }}>v{estimate.version}</span>}
-              <span style={{ padding: "4px 12px", background: statusColor.bg, border: `1px solid ${statusColor.border}`, borderRadius: 6, color: statusColor.text, fontSize: 12, fontWeight: 500 }}>{estimate.status}</span>
-              {isExpired && estimate.status !== 'ACCEPTED' && estimate.status !== 'DECLINED' && (
-                <span style={{ padding: "4px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#ef4444", fontSize: 12 }}>Expired</span>
-              )}
-              {saving && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Saving…</span>}
+          {/* Header */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <h1 style={{ fontSize: 28, fontWeight: 700, color: "#dc2626", margin: 0 }}>{estimate.estimateNumber}</h1>
+                {estimate.version > 1 && <span style={{ padding: "4px 8px", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 6, color: "#a855f7", fontSize: 12, fontWeight: 500 }}>v{estimate.version}</span>}
+                <span style={{ padding: "4px 12px", background: statusColor.bg, border: `1px solid ${statusColor.border}`, borderRadius: 6, color: statusColor.text, fontSize: 12, fontWeight: 500 }}>{estimate.status}</span>
+                {isExpired && estimate.status !== 'ACCEPTED' && estimate.status !== 'DECLINED' && (
+                  <span style={{ padding: "4px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#ef4444", fontSize: 12 }}>Expired</span>
+                )}
+                {saving && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Saving\u2026</span>}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button onClick={() => { setEmailTo(estimate?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
+                <button onClick={generatePDF} disabled={generatingPDF} style={{ padding: "8px 16px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 8, color: "#3b82f6", cursor: generatingPDF ? "not-allowed" : "pointer", fontSize: 14 }}>{generatingPDF ? "Generating..." : (estimate?.pdfS3Key ? "View PDF" : "Generate PDF")}</button>
+                <div style={{ position: "relative" }} ref={actionsRef}>
+                  <button onClick={() => setShowActionsMenu(!showActionsMenu)} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>Actions <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg></button>
+                  {showActionsMenu && (
+                    <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, minWidth: 180, zIndex: 100, overflow: "hidden" }}>
+                      {estimate.status === 'DRAFT' && <button onClick={() => updateStatus('SENT')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#3b82f6", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark as Sent</button>}
+                      {estimate.status !== 'ACCEPTED' && estimate.status !== 'CONVERTED' && <button onClick={() => updateStatus('ACCEPTED')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#22c55e", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark Accepted</button>}
+                      {estimate.status !== 'DECLINED' && estimate.status !== 'CONVERTED' && <button onClick={() => updateStatus('DECLINED')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#ef4444", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark Declined</button>}
+                      <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                      <button onClick={confirmCreateNewVersion} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#a855f7", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>New Version</button>
+                      <button onClick={cloneEstimate} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "rgba(255,255,255,0.9)", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Clone Estimate</button>
+                      <button onClick={openTemplateModal} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "rgba(255,255,255,0.9)", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Save as Template</button>
+                      <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+                      <button onClick={confirmDeleteEstimate} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#ef4444", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Delete Estimate</button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button onClick={() => { setEmailTo(estimate?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
-              <button onClick={generatePDF} disabled={generatingPDF} style={{ padding: "8px 16px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 8, color: "#3b82f6", cursor: generatingPDF ? "not-allowed" : "pointer", fontSize: 14 }}>{generatingPDF ? "Generating..." : (estimate?.pdfS3Key ? "View PDF" : "Generate PDF")}</button>
-              <div style={{ position: "relative" }} ref={actionsRef}>
-                <button onClick={() => setShowActionsMenu(!showActionsMenu)} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>Actions <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg></button>
-                {showActionsMenu && (
-                  <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, minWidth: 180, zIndex: 100, overflow: "hidden" }}>
-                    {estimate.status === 'DRAFT' && <button onClick={() => updateStatus('SENT')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#3b82f6", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark as Sent</button>}
-                    {estimate.status !== 'ACCEPTED' && estimate.status !== 'CONVERTED' && <button onClick={() => updateStatus('ACCEPTED')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#22c55e", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark Accepted</button>}
-                    {estimate.status !== 'DECLINED' && estimate.status !== 'CONVERTED' && <button onClick={() => updateStatus('DECLINED')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#ef4444", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark Declined</button>}
-                    <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
-                    <button onClick={confirmCreateNewVersion} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#a855f7", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>New Version</button>
-                    <button onClick={cloneEstimate} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "rgba(255,255,255,0.9)", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Clone Estimate</button>
-                    <button onClick={openTemplateModal} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "rgba(255,255,255,0.9)", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Save as Template</button>
-                    <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
-                    <button onClick={confirmDeleteEstimate} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#ef4444", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Delete Estimate</button>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>Created by {estimate.createdBy?.name} on {fmtDate(estimate.createdAt)}</p>
+          </div>
+
+          {error && (
+            <div style={{ padding: "12px 16px", marginBottom: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {error}
+              <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18 }}>\u00d7</button>
+            </div>
+          )}
+
+          {/* Info Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Customer</div>
+              {estimate.customer ? (
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{estimate.customer.firstName} {estimate.customer.lastName}</div>
+                  {(estimate.customer.company || estimate.customer.companyName) && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{estimate.customer.company || estimate.customer.companyName}</div>}
+                  {estimate.customer.email && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{estimate.customer.email}</div>}
+                </>
+              ) : <div style={{ color: "rgba(255,255,255,0.4)" }}>No customer assigned</div>}
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Dates</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Created</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.estimateDate)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Expires</span><span style={{ fontSize: 13, color: isExpired ? "#ef4444" : "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.expiryDate)}</span></div>
+                {estimate.sentAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Sent</span><span style={{ fontSize: 13, color: "#3b82f6" }}>{fmtDate(estimate.sentAt)}</span></div>}
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Tracking</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Views</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.9)" }}>{estimate.viewCount || 0}</span></div>
+                {estimate.viewedAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>First View</span><span style={{ fontSize: 13, color: "#a855f7" }}>{fmtDate(estimate.viewedAt)}</span></div>}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>PDF</span>
+                  {estimate.pdfS3Key ? <button onClick={downloadPDF} style={{ padding: "2px 8px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 4, color: "#22c55e", cursor: "pointer", fontSize: 11 }}>Download</button> : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Not generated</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Total</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: "#dc2626" }}>{fmt(estimate.total)}</div>
+              {estimate.discountAmount > 0 && <div style={{ fontSize: 12, color: "#22c55e", marginTop: 4 }}>Includes {fmt(estimate.discountAmount)} discount</div>}
+              {estimate.marginPercent != null && <div style={{ fontSize: 12, color: estimate.marginPercent > 30 ? "#22c55e" : estimate.marginPercent > 15 ? "#eab308" : "#ef4444", marginTop: 4 }}>Margin: {estimate.marginPercent?.toFixed(1)}%</div>}
+            </div>
+          </div>
+
+          {/* Line Items */}
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>Line Items ({estimate.items?.length || 0})</h2>
+              {editMode ? (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Drag rows to reorder</span>
+                  <button onClick={() => setEditMode(false)} style={{ padding: "6px 12px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 6, color: "#22c55e", cursor: "pointer", fontSize: 13 }}>Done Editing</button>
+                </div>
+              ) : estimate.status === 'DRAFT' && (
+                <button onClick={() => setEditMode(true)} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 13 }}>Edit Items</button>
+              )}
+            </div>
+            {editMode && (
+              <div style={{ position: "relative", marginBottom: 16 }}>
+                <input type="text" placeholder="Search products or bundles to add..." value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true); }} onFocus={() => setShowProductDropdown(true)} style={{ ...inp, width: "100%" }} />
+                {showProductDropdown && (filteredProducts.length > 0 || filteredBundles.length > 0) && (
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, marginTop: 4, maxHeight: 300, overflow: "auto", zIndex: 100 }}>
+                    {filteredBundles.length > 0 && (<>
+                      <div style={{ padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>Bundles</div>
+                      {filteredBundles.map(b => (<div key={`b-${b.id}`} onClick={() => addBundle(b)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{b.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{b.itemCount || b.items?.length || 0} items</div></div><div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(b.price)}</div></div>))}
+                    </>)}
+                    {filteredProducts.length > 0 && (<>
+                      <div style={{ padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>Products</div>
+                      {filteredProducts.map(p => (<div key={`p-${p.id}`} onClick={() => addProduct(p)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}><div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{p.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{p.sku}</div></div><div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(p.price)}</div></div>))}
+                    </>)}
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 4 }}>Created by {estimate.createdBy?.name} on {fmtDate(estimate.createdAt)}</p>
-        </div>
-
-        {error && (
-          <div style={{ padding: "12px 16px", marginBottom: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            {error}
-            <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18 }}>×</button>
-          </div>
-        )}
-
-        {/* Info Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Customer</div>
-            {estimate.customer ? (
-              <>
-                <div style={{ fontSize: 15, fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{estimate.customer.firstName} {estimate.customer.lastName}</div>
-                {(estimate.customer.company || estimate.customer.companyName) && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{estimate.customer.company || estimate.customer.companyName}</div>}
-                {estimate.customer.email && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{estimate.customer.email}</div>}
-              </>
-            ) : <div style={{ color: "rgba(255,255,255,0.4)" }}>No customer assigned</div>}
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Dates</div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Created</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.estimateDate)}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Expires</span><span style={{ fontSize: 13, color: isExpired ? "#ef4444" : "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.expiryDate)}</span></div>
-              {estimate.sentAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Sent</span><span style={{ fontSize: 13, color: "#3b82f6" }}>{fmtDate(estimate.sentAt)}</span></div>}
-            </div>
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Tracking</div>
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Views</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.9)" }}>{estimate.viewCount || 0}</span></div>
-              {estimate.viewedAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>First View</span><span style={{ fontSize: 13, color: "#a855f7" }}>{fmtDate(estimate.viewedAt)}</span></div>}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>PDF</span>
-                {estimate.pdfS3Key ? <button onClick={downloadPDF} style={{ padding: "2px 8px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 4, color: "#22c55e", cursor: "pointer", fontSize: 11 }}>Download</button> : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Not generated</span>}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Total</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: "#dc2626" }}>{fmt(estimate.total)}</div>
-            {estimate.discountAmount > 0 && <div style={{ fontSize: 12, color: "#22c55e", marginTop: 4 }}>Includes {fmt(estimate.discountAmount)} discount</div>}
-            {estimate.marginPercent != null && <div style={{ fontSize: 12, color: estimate.marginPercent > 30 ? "#22c55e" : estimate.marginPercent > 15 ? "#eab308" : "#ef4444", marginTop: 4 }}>Margin: {estimate.marginPercent?.toFixed(1)}%</div>}
-          </div>
-        </div>
-
-        {/* Line Items */}
-        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 24, marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>Line Items ({estimate.items?.length || 0})</h2>
-            {editMode ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Drag rows to reorder</span>
-                <button onClick={() => setEditMode(false)} style={{ padding: "6px 12px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 6, color: "#22c55e", cursor: "pointer", fontSize: 13 }}>Done Editing</button>
-              </div>
-            ) : estimate.status === 'DRAFT' && (
-              <button onClick={() => setEditMode(true)} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 13 }}>Edit Items</button>
             )}
-          </div>
-
-          {/* Add Product/Bundle search */}
-          {editMode && (
-            <div style={{ position: "relative", marginBottom: 16 }}>
-              <input type="text" placeholder="Search products or bundles to add..." value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true); }} onFocus={() => setShowProductDropdown(true)} style={{ ...inp, width: "100%" }} />
-              {showProductDropdown && (filteredProducts.length > 0 || filteredBundles.length > 0) && (
-                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, marginTop: 4, maxHeight: 300, overflow: "auto", zIndex: 100 }}>
-                  {filteredBundles.length > 0 && (
-                    <>
-                      <div style={{ padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>Bundles</div>
-                      {filteredBundles.map(b => (
-                        <div key={`b-${b.id}`} onClick={() => addBundle(b)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                          <div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{b.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{b.itemCount || b.items?.length || 0} items</div></div>
-                          <div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(b.price)}</div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                  {filteredProducts.length > 0 && (
-                    <>
-                      <div style={{ padding: "8px 14px", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>Products</div>
-                      {filteredProducts.map(p => (
-                        <div key={`p-${p.id}`} onClick={() => addProduct(p)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                          <div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{p.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{p.sku}</div></div>
-                          <div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(p.price)}</div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {estimate.items && estimate.items.length > 0 ? (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                  {editMode && <th style={{ padding: "12px 8px", width: 32 }}></th>}{/* grip */}
-                  <th style={{ padding: "12px 8px", width: 30 }}></th>{/* expand */}
-                  <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>Item</th>
-                  <th style={{ padding: "12px 8px", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 100 }}>Qty</th>
-                  <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140 }}>Price</th>
-                  <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140 }}>Total</th>
-                  {editMode && <th style={{ padding: "12px 8px", width: 40 }}></th>}{/* delete */}
-                </tr>
-              </thead>
-              <tbody>
-                {estimate.items.map((item, itemIndex) => {
-                  const isDragging   = dragIndex === itemIndex;
-                  const isDropTarget = dragOverIndex === itemIndex && dragIndex !== itemIndex;
-                  const gripHovered  = hoveredGripIndex === itemIndex;
-                  return (
-                    <>
-                      <tr
-                        key={item.id}
-                        draggable={editMode}
-                        onDragStart={editMode ? (e) => handleDragStart(e, itemIndex) : undefined}
-                        onDragOver={editMode  ? (e) => handleDragOver(e, itemIndex)  : undefined}
-                        onDrop={editMode      ? (e) => handleDrop(e, itemIndex)      : undefined}
-                        onDragEnd={editMode   ? handleDragEnd                         : undefined}
-                        style={{
-                          borderBottom: expandedItems[item.id] ? "none" : "1px solid rgba(255,255,255,0.05)",
-                          borderTop: isDropTarget ? "2px solid #dc2626" : "2px solid transparent",
-                          opacity: isDragging ? 0.35 : 1,
-                          background: isDropTarget ? "rgba(220,38,38,0.04)" : "transparent",
-                          transition: "opacity 0.15s, background 0.1s",
-                        }}
-                      >
-                        {/* Drag grip — only shown in edit mode */}
-                        {editMode && (
-                          <td
-                            onMouseDown={() => { dragFromHandleRef.current = true; }}
-                            onMouseUp={()   => { dragFromHandleRef.current = false; }}
-                            onMouseEnter={() => setHoveredGripIndex(itemIndex)}
-                            onMouseLeave={() => setHoveredGripIndex(null)}
-                            style={{
-                              padding: "8px 4px",
-                              verticalAlign: "middle",
-                              cursor: "grab",
-                              userSelect: "none",
-                              textAlign: "center",
-                              width: 32,
-                              background: gripHovered ? "rgba(255,255,255,0.06)" : "transparent",
-                              borderRadius: 4,
-                              transition: "background 0.1s",
-                            }}
-                          >
-                            <GripIcon color={gripHovered ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.55)"} />
-                          </td>
-                        )}
-
-                        {/* Expand toggle */}
-                        <td style={{ padding: "14px 8px", verticalAlign: "top" }}>
-                          <button type="button" onClick={() => toggleItemExpand(item.id)} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, padding: 4, transform: expandedItems[item.id] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▶</button>
-                        </td>
-
-                        {/* Name */}
-                        <td style={{ padding: "14px 8px" }}>
-                          {editMode ? (
-                            <input type="text" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} style={{ ...inp, width: "100%", padding: "6px 10px" }} />
-                          ) : (
-                            <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{item.name}</div>
+            {estimate.items && estimate.items.length > 0 ? (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    {editMode && <th style={{ padding: "12px 8px", width: 32 }}></th>}
+                    <th style={{ padding: "12px 8px", width: 30 }}></th>
+                    <th style={{ padding: "12px 8px", textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>Item</th>
+                    <th style={{ padding: "12px 8px", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 100 }}>Qty</th>
+                    <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140 }}>Price</th>
+                    <th style={{ padding: "12px 8px", textAlign: "right", fontSize: 12, color: "rgba(255,255,255,0.5)", fontWeight: 500, width: 140 }}>Total</th>
+                    {editMode && <th style={{ padding: "12px 8px", width: 40 }}></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {estimate.items.map((item, itemIndex) => {
+                    const isDragging   = dragIndex === itemIndex;
+                    const isDropTarget = dragOverIndex === itemIndex && dragIndex !== itemIndex;
+                    const gripHovered  = hoveredGripIndex === itemIndex;
+                    return (
+                      <>
+                        <tr key={item.id} draggable={editMode}
+                          onDragStart={editMode ? (e) => handleDragStart(e, itemIndex) : undefined}
+                          onDragOver={editMode  ? (e) => handleDragOver(e, itemIndex)  : undefined}
+                          onDrop={editMode      ? (e) => handleDrop(e, itemIndex)      : undefined}
+                          onDragEnd={editMode   ? handleDragEnd                        : undefined}
+                          style={{ borderBottom: expandedItems[item.id] ? "none" : "1px solid rgba(255,255,255,0.05)", borderTop: isDropTarget ? "2px solid #dc2626" : "2px solid transparent", opacity: isDragging ? 0.35 : 1, background: isDropTarget ? "rgba(220,38,38,0.04)" : "transparent", transition: "opacity 0.15s, background 0.1s" }}>
+                          {editMode && (
+                            <td onMouseDown={() => { dragFromHandleRef.current = true; }} onMouseUp={() => { dragFromHandleRef.current = false; }} onMouseEnter={() => setHoveredGripIndex(itemIndex)} onMouseLeave={() => setHoveredGripIndex(null)}
+                              style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center", width: 32, background: gripHovered ? "rgba(255,255,255,0.06)" : "transparent", borderRadius: 4, transition: "background 0.1s" }}>
+                              <GripIcon color={gripHovered ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.55)"} />
+                            </td>
                           )}
-                          {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.sku}</div>}
-                          {item.fromBundleName && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>From: {item.fromBundleName}</div>}
-                          {item.description && !expandedItems[item.id] && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 80 ? item.description.substring(0, 80) + "..." : item.description}</div>}
-                        </td>
-
-                        {/* Qty */}
-                        <td style={{ padding: "14px 8px", textAlign: "center", verticalAlign: "top" }}>
-                          {editMode ? <input type="number" value={item.quantity} onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 1 })} style={{ ...inp, width: 70, textAlign: "center", padding: "6px 8px" }} min="1" /> : <span style={{ color: "rgba(255,255,255,0.7)" }}>{item.quantity}</span>}
-                        </td>
-
-                        {/* Price */}
-                        <td style={{ padding: "14px 8px", textAlign: "right", verticalAlign: "top" }}>
-                          {editMode ? <input type="number" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })} style={{ ...inp, width: 100, textAlign: "right", padding: "6px 8px" }} step="0.01" /> : <span style={{ color: "rgba(255,255,255,0.7)" }}>{fmt(item.unitPrice)}</span>}
-                        </td>
-
-                        {/* Total */}
-                        <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: "rgba(255,255,255,0.9)", verticalAlign: "top" }}>{fmt(item.amount || item.quantity * item.unitPrice)}</td>
-
-                        {/* Delete */}
-                        {editMode && (
+                          <td style={{ padding: "14px 8px", verticalAlign: "top" }}>
+                            <button type="button" onClick={() => toggleItemExpand(item.id)} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12, padding: 4, transform: expandedItems[item.id] ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>\u25b6</button>
+                          </td>
+                          <td style={{ padding: "14px 8px" }}>
+                            {editMode ? <input type="text" value={item.name} onChange={(e) => updateItem(item.id, { name: e.target.value })} style={{ ...inp, width: "100%", padding: "6px 10px" }} /> : <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{item.name}</div>}
+                            {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.sku}</div>}
+                            {item.fromBundleName && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>From: {item.fromBundleName}</div>}
+                            {item.description && !expandedItems[item.id] && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 80 ? item.description.substring(0, 80) + "..." : item.description}</div>}
+                          </td>
                           <td style={{ padding: "14px 8px", textAlign: "center", verticalAlign: "top" }}>
-                            <button onClick={() => confirmDeleteItem(item.id)} disabled={saving} title="Remove" style={{ background: "transparent", border: "none", color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 18, padding: 4 }}>×</button>
+                            {editMode ? <input type="number" value={item.quantity} onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 1 })} style={{ ...inp, width: 70, textAlign: "center", padding: "6px 8px" }} min="1" /> : <span style={{ color: "rgba(255,255,255,0.7)" }}>{item.quantity}</span>}
                           </td>
-                        )}
-                      </tr>
-
-                      {/* Expanded detail row */}
-                      {expandedItems[item.id] && (
-                        <tr key={`${item.id}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                          {editMode && <td></td>}
-                          <td></td>
-                          <td colSpan={editMode ? 5 : 4} style={{ padding: "0 8px 16px 8px" }}>
-                            <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: 16, marginTop: 4 }}>
-                              {editMode ? (
-                                <>
-                                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
-                                    <div>
-                                      <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Short Name</label>
-                                      <input type="text" value={item.sku || ""} onChange={(e) => updateItem(item.id, { sku: e.target.value })} style={{ ...inp, width: "100%", padding: "6px 10px", fontSize: 13 }} placeholder="e.g. SL50AAS-VFD" />
-                                    </div>
-                                    <div>
-                                      <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Unit Cost</label>
-                                      <input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(item.id, { unitCost: parseFloat(e.target.value) || null })} style={{ ...inp, width: "100%", padding: "6px 10px", fontSize: 13 }} step="0.01" placeholder="$0.00" />
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
-                                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>
-                                        <input type="checkbox" checked={item.taxable !== false} onChange={(e) => updateItem(item.id, { taxable: e.target.checked })} style={{ cursor: "pointer" }} />
-                                        Taxable
-                                      </label>
-                                      {item.unitCost && item.unitPrice > 0 && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Margin: {((1 - item.unitCost / item.unitPrice) * 100).toFixed(1)}%</span>}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Description</label>
-                                    <textarea value={item.description || ""} onChange={(e) => updateItem(item.id, { description: e.target.value })} style={{ ...inp, width: "100%", padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical", boxSizing: "border-box" }} placeholder="Enter item description..." />
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  {item.description ? <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 12 }}>{item.description}</div> : <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontStyle: "italic", marginBottom: 12 }}>No description</div>}
-                                  <div style={{ display: "flex", gap: 32, fontSize: 12 }}>
-                                    {item.sku && <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Short Name: </span><span style={{ color: "rgba(255,255,255,0.7)" }}>{item.sku}</span></div>}
-                                    {item.unitCost && <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Cost: </span><span style={{ color: "rgba(255,255,255,0.7)" }}>{fmt(item.unitCost)}</span></div>}
-                                    {item.unitCost && item.unitPrice > 0 && <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Margin: </span><span style={{ color: ((1 - item.unitCost / item.unitPrice) * 100) > 30 ? "#22c55e" : ((1 - item.unitCost / item.unitPrice) * 100) > 15 ? "#eab308" : "#ef4444" }}>{((1 - item.unitCost / item.unitPrice) * 100).toFixed(1)}%</span></div>}
-                                    <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Taxable: </span><span style={{ color: "rgba(255,255,255,0.7)" }}>{item.taxable !== false ? "Yes" : "No"}</span></div>
-                                  </div>
-                                </>
-                              )}
-                            </div>
+                          <td style={{ padding: "14px 8px", textAlign: "right", verticalAlign: "top" }}>
+                            {editMode ? <input type="number" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })} style={{ ...inp, width: 100, textAlign: "right", padding: "6px 8px" }} step="0.01" /> : <span style={{ color: "rgba(255,255,255,0.7)" }}>{fmt(item.unitPrice)}</span>}
                           </td>
+                          <td style={{ padding: "14px 8px", textAlign: "right", fontWeight: 600, color: "rgba(255,255,255,0.9)", verticalAlign: "top" }}>{fmt(item.amount || item.quantity * item.unitPrice)}</td>
+                          {editMode && <td style={{ padding: "14px 8px", textAlign: "center", verticalAlign: "top" }}><button onClick={() => confirmDeleteItem(item.id)} disabled={saving} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 18, padding: 4 }}>\u00d7</button></td>}
                         </tr>
-                      )}
-                    </>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr style={{ borderTop: "2px solid rgba(255,255,255,0.1)" }}>
-                  <td colSpan={editMode ? 4 : 3}></td>
-                  <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Subtotal</td>
-                  <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 14, color: "rgba(255,255,255,0.9)" }}>{fmt(estimate.subtotal)}</td>
-                  {editMode && <td></td>}
-                </tr>
-                {estimate.discountAmount > 0 && (
-                  <tr>
+                        {expandedItems[item.id] && (
+                          <tr key={`${item.id}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            {editMode && <td></td>}
+                            <td></td>
+                            <td colSpan={editMode ? 5 : 4} style={{ padding: "0 8px 16px 8px" }}>
+                              <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: 16, marginTop: 4 }}>
+                                {editMode ? (
+                                  <>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+                                      <div><label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Short Name</label><input type="text" value={item.sku || ""} onChange={(e) => updateItem(item.id, { sku: e.target.value })} style={{ ...inp, width: "100%", padding: "6px 10px", fontSize: 13 }} /></div>
+                                      <div><label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Unit Cost</label><input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(item.id, { unitCost: parseFloat(e.target.value) || null })} style={{ ...inp, width: "100%", padding: "6px 10px", fontSize: 13 }} step="0.01" /></div>
+                                      <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
+                                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}><input type="checkbox" checked={item.taxable !== false} onChange={(e) => updateItem(item.id, { taxable: e.target.checked })} style={{ cursor: "pointer" }} />Taxable</label>
+                                        {item.unitCost && item.unitPrice > 0 && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Margin: {((1 - item.unitCost / item.unitPrice) * 100).toFixed(1)}%</span>}
+                                      </div>
+                                    </div>
+                                    <div><label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Description</label><textarea value={item.description || ""} onChange={(e) => updateItem(item.id, { description: e.target.value })} style={{ ...inp, width: "100%", padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical", boxSizing: "border-box" }} /></div>
+                                  </>
+                                ) : (
+                                  <>
+                                    {item.description ? <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 12 }}>{item.description}</div> : <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontStyle: "italic", marginBottom: 12 }}>No description</div>}
+                                    <div style={{ display: "flex", gap: 32, fontSize: 12 }}>
+                                      {item.sku && <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Short Name: </span><span style={{ color: "rgba(255,255,255,0.7)" }}>{item.sku}</span></div>}
+                                      {item.unitCost && <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Cost: </span><span style={{ color: "rgba(255,255,255,0.7)" }}>{fmt(item.unitCost)}</span></div>}
+                                      {item.unitCost && item.unitPrice > 0 && <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Margin: </span><span style={{ color: ((1 - item.unitCost / item.unitPrice) * 100) > 30 ? "#22c55e" : ((1 - item.unitCost / item.unitPrice) * 100) > 15 ? "#eab308" : "#ef4444" }}>{((1 - item.unitCost / item.unitPrice) * 100).toFixed(1)}%</span></div>}
+                                      <div><span style={{ color: "rgba(255,255,255,0.4)" }}>Taxable: </span><span style={{ color: "rgba(255,255,255,0.7)" }}>{item.taxable !== false ? "Yes" : "No"}</span></div>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid rgba(255,255,255,0.1)" }}>
                     <td colSpan={editMode ? 4 : 3}></td>
-                    <td style={{ padding: "8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Discount</td>
-                    <td style={{ padding: "8px", textAlign: "right", fontSize: 14, color: "#22c55e" }}>-{fmt(estimate.discountAmount)}</td>
+                    <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Subtotal</td>
+                    <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 14, color: "rgba(255,255,255,0.9)" }}>{fmt(estimate.subtotal)}</td>
                     {editMode && <td></td>}
                   </tr>
-                )}
-                {estimate.taxAmount > 0 && (
+                  {estimate.discountAmount > 0 && <tr><td colSpan={editMode ? 4 : 3}></td><td style={{ padding: "8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Discount</td><td style={{ padding: "8px", textAlign: "right", fontSize: 14, color: "#22c55e" }}>-{fmt(estimate.discountAmount)}</td>{editMode && <td></td>}</tr>}
+                  {estimate.taxAmount > 0 && <tr><td colSpan={editMode ? 4 : 3}></td><td style={{ padding: "8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Tax ({estimate.taxRate}%)</td><td style={{ padding: "8px", textAlign: "right", fontSize: 14, color: "rgba(255,255,255,0.9)" }}>{fmt(estimate.taxAmount)}</td>{editMode && <td></td>}</tr>}
+                  {estimate.shippingAmount > 0 && <tr><td colSpan={editMode ? 4 : 3}></td><td style={{ padding: "8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Shipping</td><td style={{ padding: "8px", textAlign: "right", fontSize: 14, color: "rgba(255,255,255,0.9)" }}>{fmt(estimate.shippingAmount)}</td>{editMode && <td></td>}</tr>}
                   <tr>
                     <td colSpan={editMode ? 4 : 3}></td>
-                    <td style={{ padding: "8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Tax ({estimate.taxRate}%)</td>
-                    <td style={{ padding: "8px", textAlign: "right", fontSize: 14, color: "rgba(255,255,255,0.9)" }}>{fmt(estimate.taxAmount)}</td>
+                    <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>Total</td>
+                    <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 20, fontWeight: 700, color: "#dc2626" }}>{fmt(estimate.total)}</td>
                     {editMode && <td></td>}
                   </tr>
-                )}
-                {estimate.shippingAmount > 0 && (
-                  <tr>
-                    <td colSpan={editMode ? 4 : 3}></td>
-                    <td style={{ padding: "8px", textAlign: "right", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Shipping</td>
-                    <td style={{ padding: "8px", textAlign: "right", fontSize: 14, color: "rgba(255,255,255,0.9)" }}>{fmt(estimate.shippingAmount)}</td>
-                    {editMode && <td></td>}
-                  </tr>
-                )}
-                <tr>
-                  <td colSpan={editMode ? 4 : 3}></td>
-                  <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>Total</td>
-                  <td style={{ padding: "12px 8px", textAlign: "right", fontSize: 20, fontWeight: 700, color: "#dc2626" }}>{fmt(estimate.total)}</td>
-                  {editMode && <td></td>}
-                </tr>
-              </tfoot>
-            </table>
-          ) : (
-            <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.4)" }}>No items in this estimate</div>
-          )}
-        </div>
+                </tfoot>
+              </table>
+            ) : (
+              <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.4)" }}>No items in this estimate</div>
+            )}
+          </div>
 
-        {/* Notes & History */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
-          {(estimate.notes || estimate.internalNotes || estimate.termsConditions) && (
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 24 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0, marginBottom: 16 }}>Notes</h2>
-              {estimate.notes && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Customer Notes:</div><div style={{ color: "rgba(255,255,255,0.7)", whiteSpace: "pre-wrap" }}>{estimate.notes}</div></div>}
-              {estimate.internalNotes && <div style={{ marginBottom: 16, padding: 12, background: "rgba(234,179,8,0.1)", borderRadius: 6 }}><div style={{ fontSize: 12, color: "#eab308", marginBottom: 4 }}>Internal Notes:</div><div style={{ color: "rgba(255,255,255,0.7)", whiteSpace: "pre-wrap" }}>{estimate.internalNotes}</div></div>}
-              {estimate.termsConditions && <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Terms & Conditions:</div><div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, whiteSpace: "pre-wrap" }}>{estimate.termsConditions}</div></div>}
-            </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {estimate.invoices && estimate.invoices.length > 0 && (
-              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: 0, marginBottom: 12, textTransform: "uppercase" }}>Related Invoices</h3>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {estimate.invoices.map(inv => (
-                    <Link key={inv.id} href={`/invoicing/invoices/${inv.id}`} style={{ display: "block", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 6, textDecoration: "none" }}>
-                      <div style={{ color: "#dc2626", fontFamily: "monospace" }}>{inv.invoiceNumber}</div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{inv.status}</div>
-                    </Link>
-                  ))}
-                </div>
+          {/* Notes & History */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
+            {(estimate.notes || estimate.internalNotes || estimate.termsConditions) && (
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 24 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0, marginBottom: 16 }}>Notes</h2>
+                {estimate.notes && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Customer Notes:</div><div style={{ color: "rgba(255,255,255,0.7)", whiteSpace: "pre-wrap" }}>{estimate.notes}</div></div>}
+                {estimate.internalNotes && <div style={{ marginBottom: 16, padding: 12, background: "rgba(234,179,8,0.1)", borderRadius: 6 }}><div style={{ fontSize: 12, color: "#eab308", marginBottom: 4 }}>Internal Notes:</div><div style={{ color: "rgba(255,255,255,0.7)", whiteSpace: "pre-wrap" }}>{estimate.internalNotes}</div></div>}
+                {estimate.termsConditions && <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>Terms & Conditions:</div><div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, whiteSpace: "pre-wrap" }}>{estimate.termsConditions}</div></div>}
               </div>
             )}
-
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showEmailHistory ? 12 : 0 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: 0, textTransform: "uppercase" }}>Email History</h3>
-                <button onClick={() => { setShowEmailHistory(!showEmailHistory); if (!showEmailHistory) loadEmailHistory(); }} style={{ padding: "4px 8px", background: "transparent", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 12 }}>{showEmailHistory ? "Hide" : "Show"}</button>
-              </div>
-              {showEmailHistory && (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {emailHistory.length === 0 ? <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No emails sent yet</div>
-                  : emailHistory.map(em => (
-                    <div key={em.id} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 6 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{em.toEmail}</div>
-                        {em.openedAt && <span style={{ padding: "2px 6px", background: "rgba(34,197,94,0.1)", borderRadius: 4, fontSize: 10, color: "#22c55e" }}>Opened</span>}
-                      </div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Sent {fmtDT(em.sentAt)}</div>
-                    </div>
-                  ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {estimate.invoices && estimate.invoices.length > 0 && (
+                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: 0, marginBottom: 12, textTransform: "uppercase" }}>Related Invoices</h3>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {estimate.invoices.map(inv => (<Link key={inv.id} href={`/invoicing/invoices/${inv.id}`} style={{ display: "block", padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 6, textDecoration: "none" }}><div style={{ color: "#dc2626", fontFamily: "monospace" }}>{inv.invoiceNumber}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{inv.status}</div></Link>))}
+                  </div>
                 </div>
               )}
-            </div>
-
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showVersions ? 12 : 0 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: 0, textTransform: "uppercase" }}>Versions</h3>
-                <button onClick={() => { setShowVersions(!showVersions); if (!showVersions) loadVersions(); }} style={{ padding: "4px 8px", background: "transparent", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 12 }}>{showVersions ? "Hide" : "Show"}</button>
-              </div>
-              {showVersions && (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {versions.length === 0 ? <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No other versions</div>
-                  : versions.map(v => (
-                    <Link key={v.id} href={`/invoicing/estimates/${v.id}`} style={{ display: "block", padding: "10px 12px", background: v.id === id ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.03)", border: v.id === id ? "1px solid rgba(220,38,38,0.3)" : "1px solid rgba(255,255,255,0.05)", borderRadius: 6, textDecoration: "none" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ color: "#dc2626", fontFamily: "monospace", fontSize: 13 }}>{v.estimateNumber}</div>
-                        <span style={{ padding: "2px 6px", background: STATUS_COLORS[v.status]?.bg || "rgba(156,163,175,0.1)", borderRadius: 4, fontSize: 10, color: STATUS_COLORS[v.status]?.text || "#9ca3af" }}>{v.status}</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{fmtDate(v.estimateDate)}</div>
-                    </Link>
-                  ))}
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showEmailHistory ? 12 : 0 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: 0, textTransform: "uppercase" }}>Email History</h3>
+                  <button onClick={() => { setShowEmailHistory(!showEmailHistory); if (!showEmailHistory) loadEmailHistory(); }} style={{ padding: "4px 8px", background: "transparent", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 12 }}>{showEmailHistory ? "Hide" : "Show"}</button>
                 </div>
-              )}
+                {showEmailHistory && <div style={{ display: "grid", gap: 8 }}>{emailHistory.length === 0 ? <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No emails sent yet</div> : emailHistory.map(em => (<div key={em.id} style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 6 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{em.toEmail}</div>{em.openedAt && <span style={{ padding: "2px 6px", background: "rgba(34,197,94,0.1)", borderRadius: 4, fontSize: 10, color: "#22c55e" }}>Opened</span>}</div><div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Sent {fmtDT(em.sentAt)}</div></div>))}</div>}
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showVersions ? 12 : 0 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: 0, textTransform: "uppercase" }}>Versions</h3>
+                  <button onClick={() => { setShowVersions(!showVersions); if (!showVersions) loadVersions(); }} style={{ padding: "4px 8px", background: "transparent", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 12 }}>{showVersions ? "Hide" : "Show"}</button>
+                </div>
+                {showVersions && <div style={{ display: "grid", gap: 8 }}>{versions.length === 0 ? <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No other versions</div> : versions.map(v => (<Link key={v.id} href={`/invoicing/estimates/${v.id}`} style={{ display: "block", padding: "10px 12px", background: v.id === id ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.03)", border: v.id === id ? "1px solid rgba(220,38,38,0.3)" : "1px solid rgba(255,255,255,0.05)", borderRadius: 6, textDecoration: "none" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ color: "#dc2626", fontFamily: "monospace", fontSize: 13 }}>{v.estimateNumber}</div><span style={{ padding: "2px 6px", background: STATUS_COLORS[v.status]?.bg || "rgba(156,163,175,0.1)", borderRadius: 4, fontSize: 10, color: STATUS_COLORS[v.status]?.text || "#9ca3af" }}>{v.status}</span></div><div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{fmtDate(v.estimateDate)}</div></Link>))}</div>}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Send Email Modal */}
       {showSendModal && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -801,8 +771,6 @@ export default function EstimateDetailPage({ params }) {
           </div>
         </div>
       )}
-
-      {/* Save as Template Modal */}
       {showTemplateModal && (
         <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -815,8 +783,6 @@ export default function EstimateDetailPage({ params }) {
           </div>
         </div>
       )}
-
-      {/* Confirm Modal */}
       {showConfirmModal && (
         <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -829,8 +795,6 @@ export default function EstimateDetailPage({ params }) {
           </div>
         </div>
       )}
-
-      {/* Success Modal */}
       {showSuccessModal && (
         <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
