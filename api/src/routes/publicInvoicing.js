@@ -49,7 +49,6 @@ export function createPublicInvoicingRouter(prisma) {
 
       if (!estimate || estimate.isDeleted) return res.status(404).json({ error: 'Estimate not found' });
 
-      // Update view tracking
       const statusUpdate = estimate.status === 'SENT'
         ? { status: 'VIEWED', lastViewedAt: new Date(), viewCount: { increment: 1 } }
         : { lastViewedAt: new Date(), viewCount: { increment: 1 } };
@@ -63,7 +62,7 @@ export function createPublicInvoicingRouter(prisma) {
         id: estimate.id,
         estimateNumber: estimate.estimateNumber,
         version: estimate.version,
-        status: estimate.status === 'SENT' ? 'VIEWED' : estimate.status, // reflect the update we just made
+        status: estimate.status === 'SENT' ? 'VIEWED' : estimate.status,
         estimateDate: estimate.estimateDate,
         expiryDate: estimate.expiryDate,
         customer: estimate.customer,
@@ -77,7 +76,6 @@ export function createPublicInvoicingRouter(prisma) {
         shippingAmount: estimate.shippingAmount,
         total: estimate.total,
         notes: estimate.notes,
-        // Fall back to default terms from settings if estimate has none
         termsConditions: estimate.termsConditions || companySettings?.defaultEstimateTerms || null,
         createdBy: { name: estimate.createdBy?.name },
         company: companySettings,
@@ -89,29 +87,18 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // POST /accept-estimate/:id — customer accepts the estimate
   router.post('/accept-estimate/:id', async (req, res) => {
     try {
       const { signerName } = req.body;
-
       const estimate = await prisma.estimate.findUnique({
         where: { id: req.params.id },
         select: { id: true, status: true, estimateNumber: true, total: true, customerId: true, isDeleted: true }
       });
-
       if (!estimate || estimate.isDeleted) return res.status(404).json({ error: 'Estimate not found' });
-
-      const nonAcceptableStatuses = ['ACCEPTED', 'CONVERTED', 'EXPIRED', 'VOID'];
-      if (nonAcceptableStatuses.includes(estimate.status)) {
+      if (['ACCEPTED', 'CONVERTED', 'EXPIRED', 'VOID'].includes(estimate.status)) {
         return res.status(400).json({ error: `Estimate cannot be accepted in its current status (${estimate.status})` });
       }
-
-      await prisma.estimate.update({
-        where: { id: estimate.id },
-        data: { status: 'ACCEPTED' }
-      });
-
-      // Log the acceptance
+      await prisma.estimate.update({ where: { id: estimate.id }, data: { status: 'ACCEPTED' } });
       try {
         await prisma.customerActivityLog.create({
           data: {
@@ -122,8 +109,7 @@ export function createPublicInvoicingRouter(prisma) {
             actorName: signerName || 'Customer (online)',
           }
         });
-      } catch (_) { /* activity log failure is non-fatal */ }
-
+      } catch (_) {}
       res.json({ success: true, estimateNumber: estimate.estimateNumber, total: estimate.total });
     } catch (error) {
       console.error('POST /accept-estimate/:id error:', error);
@@ -213,6 +199,84 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
+  // ── Public payment notification (offline/manual payment submitted by customer) ─
+
+  router.post('/notify-payment/:id', async (req, res) => {
+    try {
+      const { amount, paymentMethod, referenceNumber, notes, scheduleItemId } = req.body;
+
+      if (!amount || isNaN(parseFloat(amount))) {
+        return res.status(400).json({ error: 'Valid amount is required' });
+      }
+
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, invoiceNumber: true, status: true, balanceDue: true, customerId: true, isDeleted: true }
+      });
+
+      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
+      if (invoice.status === 'VOID')  return res.status(400).json({ error: 'Cannot pay a voided invoice' });
+      if (invoice.status === 'PAID')  return res.status(400).json({ error: 'Invoice is already paid in full' });
+
+      const parsedAmount = parseFloat(amount);
+      if (parsedAmount > invoice.balanceDue + 0.01) {
+        return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
+      }
+
+      // Get next payment number
+      const settings = await prisma.invoicingSettings.findFirst();
+      const nextNum   = settings?.nextPaymentNumber || 1;
+      const year      = new Date().getFullYear();
+      const prefix    = settings?.paymentPrefix || 'PAY';
+      const paymentNumber = `${prefix}-${year}-${String(nextNum).padStart(5, '0')}`;
+
+      // Create a PENDING payment record
+      const payment = await prisma.payment.create({
+        data: {
+          paymentNumber,
+          customerId:       invoice.customerId,
+          invoiceId:        invoice.id,
+          scheduleItemId:   scheduleItemId || null,
+          amount:           parsedAmount,
+          paymentDate:      new Date(),
+          paymentMethod:    paymentMethod || 'OTHER',
+          referenceNumber:  referenceNumber || null,
+          checkNumber:      paymentMethod === 'CHECK'  ? referenceNumber || null : null,
+          wireReference:    paymentMethod === 'WIRE'   ? referenceNumber || null : null,
+          status:           'PENDING', // Staff must confirm
+          notes:            notes || 'Payment submitted online by customer — awaiting confirmation',
+        }
+      });
+
+      // Increment payment number sequence
+      if (settings) {
+        await prisma.invoicingSettings.update({
+          where: { id: settings.id },
+          data: { nextPaymentNumber: { increment: 1 } }
+        });
+      }
+
+      // Activity log
+      try {
+        await prisma.customerActivityLog.create({
+          data: {
+            customerId: invoice.customerId,
+            invoiceId:  invoice.id,
+            paymentId:  payment.id,
+            type:       'payment_notification',
+            description: `Customer submitted payment notification for $${parsedAmount.toFixed(2)} via ${paymentMethod || 'OTHER'} on invoice ${invoice.invoiceNumber}${referenceNumber ? ` (ref: ${referenceNumber})` : ''}`,
+            actorName:  'Customer (online)',
+          }
+        });
+      } catch (_) {}
+
+      res.json({ success: true, paymentNumber, message: 'Payment notification received. Our team will confirm receipt shortly.' });
+    } catch (error) {
+      console.error('POST /notify-payment/:id error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ── Customer portal ───────────────────────────────────────────────────────
 
   router.get('/portal/:token', async (req, res) => {
@@ -250,7 +314,7 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── Public payments ───────────────────────────────────────────────────────
+  // ── Public Stripe payments ────────────────────────────────────────────────
 
   router.post('/pay/invoice/:id/create-intent', async (req, res) => {
     try {
