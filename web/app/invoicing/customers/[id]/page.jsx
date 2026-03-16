@@ -60,40 +60,19 @@ const TABS = [
 
 const NAV_H = 60;
 
-function fmt(n) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
-}
-
-function fmtDate(d) {
-  if (!d) return "\u2014";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function fmtMoney(n) {
-  if (n == null) return "\u2014";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
-}
-
+function fmt(n)  { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0); }
+function fmtDate(d) { if (!d) return "\u2014"; return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+function fmtMoney(n) { if (n == null) return "\u2014"; return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n); }
 function relativeDate(dateStr) {
-  const date = new Date(dateStr);
-  const diffMs   = Date.now() - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffH    = Math.floor(diffMs / 3600000);
-  const diffD    = Math.floor(diffMs / 86400000);
-  if (diffMins < 1)  return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffH < 24)    return `${diffH}h ago`;
-  if (diffD < 7)     return `${diffD}d ago`;
+  const date = new Date(dateStr); const diffMs = Date.now() - date;
+  const diffMins = Math.floor(diffMs / 60000); const diffH = Math.floor(diffMs / 3600000); const diffD = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return "Just now"; if (diffMins < 60) return `${diffMins}m ago`; if (diffH < 24) return `${diffH}h ago`; if (diffD < 7) return `${diffD}d ago`;
   return date.toLocaleDateString();
 }
 
 function StatusBadge({ meta }) {
   if (!meta) return null;
-  return (
-    <span style={{ padding: "2px 9px", background: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 12, color: meta.text, fontSize: 11, fontWeight: 600, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>
-      {meta.label}
-    </span>
-  );
+  return <span style={{ padding: "2px 9px", background: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 12, color: meta.text, fontSize: 11, fontWeight: 600, letterSpacing: "0.4px", whiteSpace: "nowrap" }}>{meta.label}</span>;
 }
 
 function SectionHeader({ label }) {
@@ -126,8 +105,8 @@ export default function CustomerDetailPage() {
   const [activeTab,         setActiveTab]           = useState("transactions");
   const [txTypeFilter,      setTxTypeFilter]        = useState("ALL");
   const [txStatusFilter,    setTxStatusFilter]      = useState("ALL");
+  const [sendingPortalLink, setSendingPortalLink]   = useState(false);
 
-  // Sidebar state — mirrors the list page exactly
   const [sidebarSearch,     setSidebarSearch]       = useState("");
   const [sidebarStatus,     setSidebarStatus]       = useState("ACTIVE");
   const [sidebarRepFilter,  setSidebarRepFilter]    = useState("all");
@@ -149,8 +128,7 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
-    loadAllCustomers();
-    loadSidebarReps();
+    loadAllCustomers(); loadSidebarReps();
     if (params.id) { loadCustomer(); loadContacts(); loadActivities(); loadSalesReps(); }
   }, [user, authLoading, router, params.id]);
 
@@ -180,38 +158,25 @@ export default function CustomerDetailPage() {
     try { const r = await fetch("/api/customers", { headers: getAuthHeaders() }); if (r.ok) setAllCustomers(await r.json()); } catch {}
     finally { setSidebarLoading(false); }
   }
-
-  async function loadSidebarReps() {
-    try { const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() }); if (r.ok) setSidebarReps(await r.json()); } catch {}
-  }
-
-  async function loadSalesReps() {
-    try { const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() }); if (r.ok) setSalesReps(await r.json()); } catch {}
-  }
+  async function loadSidebarReps() { try { const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() }); if (r.ok) setSidebarReps(await r.json()); } catch {} }
+  async function loadSalesReps()   { try { const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() }); if (r.ok) setSalesReps(await r.json()); } catch {} }
 
   async function loadCustomer() {
     setLoading(true);
     try {
       const r = await fetch(`/api/customers/${params.id}`, { headers: getAuthHeaders() });
-      if (!r.ok) {
-        if (r.status === 401) { router.push("/login"); return; }
-        if (r.status === 404) { setError("Customer not found"); setLoading(false); return; }
-        throw new Error("Failed to load customer");
-      }
+      if (!r.ok) { if (r.status === 401) { router.push("/login"); return; } if (r.status === 404) { setError("Customer not found"); setLoading(false); return; } throw new Error("Failed to load customer"); }
       const data = await r.json();
       setCustomer(data);
       const fd = {
         companyName: data.companyName || "", firstName: data.firstName || "", lastName: data.lastName || "",
         email: data.email || "", phone: data.phone || "",
         billingAddress: data.billingAddress || "", billingCity: data.billingCity || "",
-        billingState: data.billingState || "", billingZipCode: data.billingZipCode || "",
-        billingCountry: data.billingCountry || "USA",
+        billingState: data.billingState || "", billingZipCode: data.billingZipCode || "", billingCountry: data.billingCountry || "USA",
         shippingAddress: data.shippingAddress || "", shippingCity: data.shippingCity || "",
-        shippingState: data.shippingState || "", shippingZipCode: data.shippingZipCode || "",
-        shippingCountry: data.shippingCountry || "USA",
+        shippingState: data.shippingState || "", shippingZipCode: data.shippingZipCode || "", shippingCountry: data.shippingCountry || "USA",
         sameAsBilling: data.sameAsBilling ?? true,
-        paymentTerms: data.paymentTerms || "NET30", taxExempt: data.taxExempt || false,
-        taxExemptId: data.taxExemptId || "",
+        paymentTerms: data.paymentTerms || "NET30", taxExempt: data.taxExempt || false, taxExemptId: data.taxExemptId || "",
         tags: Array.isArray(data.tags) ? data.tags.join(", ") : (data.tags || ""),
         notes: data.notes || "", status: data.status || "ACTIVE", assignedToId: data.assignedToId || "",
       };
@@ -220,10 +185,7 @@ export default function CustomerDetailPage() {
     finally { setLoading(false); }
   }
 
-  async function loadContacts() {
-    try { const r = await fetch(`/api/customers/${params.id}/contacts`, { headers: getAuthHeaders() }); if (r.ok) setContacts(await r.json()); } catch {}
-  }
-
+  async function loadContacts()  { try { const r = await fetch(`/api/customers/${params.id}/contacts`, { headers: getAuthHeaders() }); if (r.ok) setContacts(await r.json()); } catch {} }
   async function loadActivities() {
     setActivitiesLoading(true);
     try { const r = await fetch(`/api/customers/${params.id}/activity?limit=20`, { headers: getAuthHeaders() }); if (r.ok) { const d = await r.json(); setActivities(d.activities || []); } } catch {}
@@ -235,8 +197,7 @@ export default function CustomerDetailPage() {
     try {
       const body = { ...formData, tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [], assignedToId: formData.assignedToId || null };
       const r = await fetch(`/api/customers/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify(body) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Failed to update customer");
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || "Failed to update customer");
       setCustomer(d); setIsEditing(false); setSuccess("Customer updated successfully");
       loadAllCustomers(); setTimeout(() => setSuccess(""), 3000);
     } catch (e) { setError(e.message); }
@@ -257,8 +218,7 @@ export default function CustomerDetailPage() {
       const r = await fetch(`/api/customers/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ status: ns }) });
       const d = await r.json(); if (!r.ok) throw new Error(d.error);
       setCustomer(d); setFormData(p => ({ ...p, status: ns })); setOriginalFormData(p => ({ ...p, status: ns }));
-      loadAllCustomers();
-      setSuccess(`Customer ${ns === "ACTIVE" ? "activated" : "deactivated"}`); setTimeout(() => setSuccess(""), 3000);
+      loadAllCustomers(); setSuccess(`Customer ${ns === "ACTIVE" ? "activated" : "deactivated"}`); setTimeout(() => setSuccess(""), 3000);
     } catch (e) { setError(e.message); }
   }
 
@@ -275,6 +235,16 @@ export default function CustomerDetailPage() {
       const d = await r.json(); if (!r.ok) throw new Error(d.error);
       setCustomer(p => ({ ...p, portalToken: d.portalToken })); setSuccess("Portal token regenerated"); setTimeout(() => setSuccess(""), 3000);
     } catch (e) { setError(e.message); }
+  }
+
+  async function handleSendPortalLink() {
+    setSendingPortalLink(true); setError(""); setSuccess("");
+    try {
+      const r = await fetch(`/api/customers/${params.id}/send-portal-link`, { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() } });
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || "Failed to send portal link");
+      setSuccess(d.message || "Portal link sent successfully"); setTimeout(() => setSuccess(""), 5000);
+    } catch (e) { setError(e.message); }
+    finally { setSendingPortalLink(false); }
   }
 
   function openContactModal(contact = null) {
@@ -301,16 +271,11 @@ export default function CustomerDetailPage() {
     catch (e) { setError(e.message); }
   }
 
-  function activityColor(type) {
-    return { created: "#10b981", updated: "#3b82f6", sent: "#8b5cf6", viewed: "#6366f1", signed: "#10b981", paid: "#10b981", comment: "#f59e0b", status_change: "#f97316", assigned: "#06b6d4", reminder_created: "#f59e0b", converted: "#10b981", order_created: "#dc2626" }[type] || "#6b7280";
-  }
-  function activityLabel(type) {
-    return { created: "Created", updated: "Updated", sent: "Sent", viewed: "Viewed", signed: "Signed", paid: "Payment", comment: "Comment", status_change: "Status", assigned: "Assigned", reminder_created: "Reminder", converted: "Converted", order_created: "Order" }[type] || type;
-  }
+  function activityColor(type) { return { created: "#10b981", updated: "#3b82f6", sent: "#8b5cf6", viewed: "#6366f1", signed: "#10b981", paid: "#10b981", comment: "#f59e0b", status_change: "#f97316", assigned: "#06b6d4", reminder_created: "#f59e0b", converted: "#10b981", order_created: "#dc2626" }[type] || "#6b7280"; }
+  function activityLabel(type) { return { created: "Created", updated: "Updated", sent: "Sent", viewed: "Viewed", signed: "Signed", paid: "Payment", comment: "Comment", status_change: "Status", assigned: "Assigned", reminder_created: "Reminder", converted: "Converted", order_created: "Order" }[type] || type; }
 
-  const estimates = customer?.estimates || [];
-  const invoices  = customer?.invoices  || [];
-
+  const estimates   = customer?.estimates || [];
+  const invoices    = customer?.invoices  || [];
   const openBalance = useMemo(() => invoices.filter(i => !["PAID","VOID"].includes(i.status)).reduce((s, i) => s + (i.balanceDue || 0), 0), [invoices]);
 
   const transactions = useMemo(() => {
@@ -327,7 +292,6 @@ export default function CustomerDetailPage() {
 
   const txTotalCount = transactions.length;
 
-  // Sidebar filtering + sorting — mirrors list page exactly
   const filteredSidebarCustomers = useMemo(() => {
     return allCustomers
       .filter(c => {
@@ -336,13 +300,7 @@ export default function CustomerDetailPage() {
         if (sidebarRepFilter !== "all" && sidebarRepFilter !== "unassigned" && c.assignedToId !== sidebarRepFilter) return false;
         if (sidebarSearch.trim()) {
           const q = sidebarSearch.toLowerCase();
-          return (
-            c.firstName?.toLowerCase().includes(q) ||
-            c.lastName?.toLowerCase().includes(q) ||
-            c.email?.toLowerCase().includes(q) ||
-            c.companyName?.toLowerCase().includes(q) ||
-            c.customerNumber?.toLowerCase().includes(q)
-          );
+          return (c.firstName?.toLowerCase().includes(q) || c.lastName?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.companyName?.toLowerCase().includes(q) || c.customerNumber?.toLowerCase().includes(q));
         }
         return true;
       })
@@ -362,41 +320,39 @@ export default function CustomerDetailPage() {
 
   if (authLoading || !user) return null;
 
-  // Sidebar — identical markup/style to the list page's left panel
   const sidebarJSX = (
     <div style={{ width: 300, minWidth: 300, flexShrink: 0, position: "sticky", top: NAV_H, height: `calc(100vh - ${NAV_H}px)`, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
       <style>{`
-        .sb-header { padding: 16px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
-        .sb-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .sb-title h2 { font-size: 18px; font-weight: 700; color: #dc2626; margin: 0; }
-        .sb-new-btn { display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:6px;color:#dc2626;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s; }
-        .sb-new-btn:hover { background: rgba(220,38,38,0.22); }
-        .sb-search { width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px; }
-        .sb-search:focus { border-color: rgba(220,38,38,0.5); }
-        .sb-search::placeholder { color: rgba(255,255,255,0.35); }
-        .sb-filters { display:flex;gap:6px; }
-        .sb-filter-sel { flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer; }
-        .sb-filter-sel:focus { border-color: rgba(220,38,38,0.4); }
-        .sb-sort-bar { display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0; }
-        .sb-sort-btn { flex:1;padding:4px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s; }
-        .sb-sort-btn:hover { color: rgba(255,255,255,0.7); }
-        .sb-sort-btn.active { background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.25);color:#dc2626; }
-        .sb-list { flex:1;overflow-y:auto;padding:6px 0; }
-        .sb-list::-webkit-scrollbar { width:6px; }
-        .sb-list::-webkit-scrollbar-track { background:transparent; }
-        .sb-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15);border-radius:3px; }
-        .sb-list::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.25); }
-        .sb-item { padding:10px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block; }
-        .sb-item:hover { background:rgba(255,255,255,0.04); }
-        .sb-item.active { background:rgba(220,38,38,0.08);border-left-color:#dc2626; }
-        .sb-item-name { font-size:13px;font-weight:600;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-        .sb-item.active .sb-item-name { color:#ffffff; }
-        .sb-item-sub { font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-        .sb-item-bal { font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px; }
-        .sb-item-bal.has-bal { color:#f59e0b; }
-        .sb-count { padding:6px 14px;font-size:11px;color:rgba(255,255,255,0.3);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0; }
+        .sb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+        .sb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+        .sb-title h2{font-size:18px;font-weight:700;color:#dc2626;margin:0}
+        .sb-new-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:6px;color:#dc2626;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s}
+        .sb-new-btn:hover{background:rgba(220,38,38,0.22)}
+        .sb-search{width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px}
+        .sb-search:focus{border-color:rgba(220,38,38,0.5)}
+        .sb-search::placeholder{color:rgba(255,255,255,0.35)}
+        .sb-filters{display:flex;gap:6px}
+        .sb-filter-sel{flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer}
+        .sb-filter-sel:focus{border-color:rgba(220,38,38,0.4)}
+        .sb-sort-bar{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+        .sb-sort-btn{flex:1;padding:4px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s}
+        .sb-sort-btn:hover{color:rgba(255,255,255,0.7)}
+        .sb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.25);color:#dc2626}
+        .sb-list{flex:1;overflow-y:auto;padding:6px 0}
+        .sb-list::-webkit-scrollbar{width:6px}
+        .sb-list::-webkit-scrollbar-track{background:transparent}
+        .sb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+        .sb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}
+        .sb-item{padding:10px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block}
+        .sb-item:hover{background:rgba(255,255,255,0.04)}
+        .sb-item.active{background:rgba(220,38,38,0.08);border-left-color:#dc2626}
+        .sb-item-name{font-size:13px;font-weight:600;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .sb-item.active .sb-item-name{color:#ffffff}
+        .sb-item-sub{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .sb-item-bal{font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px}
+        .sb-item-bal.has-bal{color:#f59e0b}
+        .sb-count{padding:6px 14px;font-size:11px;color:rgba(255,255,255,0.3);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0}
       `}</style>
-
       <div className="sb-header">
         <div className="sb-title">
           <h2>Customers</h2>
@@ -405,30 +361,23 @@ export default function CustomerDetailPage() {
         <input type="text" placeholder="Search by name or details" value={sidebarSearch} onChange={e => setSidebarSearch(e.target.value)} className="sb-search" />
         <div className="sb-filters">
           <select value={sidebarStatus} onChange={e => setSidebarStatus(e.target.value)} className="sb-filter-sel">
-            <option value="all">All</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
+            <option value="all">All</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
           </select>
           <select value={sidebarRepFilter} onChange={e => setSidebarRepFilter(e.target.value)} className="sb-filter-sel">
-            <option value="all">All Reps</option>
-            <option value="unassigned">Unassigned</option>
+            <option value="all">All Reps</option><option value="unassigned">Unassigned</option>
             {sidebarReps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </div>
       </div>
-
       <div className="sb-sort-bar">
         {[["name","Name"],["number","#"],["balance","Balance"]].map(([key, label]) => (
           <button key={key} className={`sb-sort-btn${sidebarSortBy === key ? ' active' : ''}`} onClick={() => setSidebarSortBy(key)}>{label}</button>
         ))}
       </div>
-
       <div className="sb-list">
-        {sidebarLoading ? (
-          <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading...</div>
-        ) : filteredSidebarCustomers.length === 0 ? (
-          <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No customers</div>
-        ) : filteredSidebarCustomers.map(c => {
+        {sidebarLoading ? <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading...</div>
+        : filteredSidebarCustomers.length === 0 ? <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No customers</div>
+        : filteredSidebarCustomers.map(c => {
           const isActive = c.id === params.id;
           const name = c.companyName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'No Name';
           const sub  = c.companyName ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : (c.email || '');
@@ -442,12 +391,11 @@ export default function CustomerDetailPage() {
           );
         })}
       </div>
-
       <div className="sb-count">{filteredSidebarCustomers.length} customer{filteredSidebarCustomers.length !== 1 ? 's' : ''}</div>
     </div>
   );
 
-  if (loading) return (<><InvoicingNav /><div style={{ display: "flex", paddingTop: NAV_H, minHeight: "100vh", background: "#0f0f0f" }}>{sidebarJSX}<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading customer\u2026</div></div></div></>);
+  if (loading) return (<><InvoicingNav /><div style={{ display: "flex", paddingTop: NAV_H, minHeight: "100vh", background: "#0f0f0f" }}>{sidebarJSX}<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading customer…</div></div></div></>);
   if (!customer) return (<><InvoicingNav /><div style={{ display: "flex", paddingTop: NAV_H, minHeight: "100vh", background: "#0f0f0f" }}>{sidebarJSX}<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 48, marginBottom: 16 }}>404</div><p style={{ color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>Customer not found</p></div></div></div></>);
 
   const statusColor = CUSTOMER_STATUS_COLORS[customer.status] || CUSTOMER_STATUS_COLORS.ACTIVE;
@@ -549,7 +497,7 @@ export default function CustomerDetailPage() {
                 )}
                 {filteredTx.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "50px 0" }}>
-                    <div style={{ fontSize: 34, marginBottom: 10 }}>\ud83d\udcc4</div>
+                    <div style={{ fontSize: 34, marginBottom: 10 }}>📄</div>
                     <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginBottom: 16 }}>{transactions.length === 0 ? "No transactions yet for this customer" : "No transactions match the current filters"}</p>
                     <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                       <Link href={`/invoicing/estimates/new?customer=${params.id}`} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: "rgba(255,255,255,0.65)", textDecoration: "none", fontSize: 12 }}>New Estimate</Link>
@@ -701,7 +649,7 @@ export default function CustomerDetailPage() {
             {activeTab === "activity" && (
               <div style={{ padding: "24px" }}>
                 <SectionHeader label="Activity Timeline" />
-                {activitiesLoading ? <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)" }}>Loading\u2026</div>
+                {activitiesLoading ? <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)" }}>Loading…</div>
                 : activities.length === 0 ? <div style={{ textAlign: "center", padding: "40px 0" }}><p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No activity recorded yet</p></div>
                 : (
                   <div style={{ position: "relative", paddingLeft: 24 }}>
@@ -772,19 +720,45 @@ export default function CustomerDetailPage() {
             )}
 
             {activeTab === "portal" && (
-              <div style={{ padding: "24px", maxWidth: 500 }}>
+              <div style={{ padding: "24px", maxWidth: 540 }}>
                 <SectionHeader label="Customer Portal Access" />
                 <div style={{ background: "#252525", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: 20 }}>
                   {customer.portalToken ? (
                     <>
+                      {/* Status indicator */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "8px 11px", background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.16)", borderRadius: 7 }}>
-                        <span style={{ color: "#10b981", fontSize: 12, fontWeight: 500 }}>Portal access is active</span>
+                        <span style={{ color: "#10b981", fontSize: 12, fontWeight: 500 }}>&#10003; Portal access is active</span>
                       </div>
+
+                      {/* Show/hide URL */}
                       <button onClick={() => setShowPortalUrl(!showPortalUrl)} style={{ padding: "8px 13px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.65)", cursor: "pointer", fontSize: 12, width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showPortalUrl ? 9 : 13 }}>
                         <span>{showPortalUrl ? "Hide URL" : "Show Portal URL"}</span>
+                        <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 16 }}>{showPortalUrl ? "\u2212" : "+"}</span>
                       </button>
-                      {showPortalUrl && <div style={{ padding: "9px 11px", background: "rgba(0,0,0,0.22)", borderRadius: 7, marginBottom: 13, wordBreak: "break-all", fontSize: 11, fontFamily: "monospace", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.05)" }}>{typeof window !== "undefined" ? `${window.location.origin}/portal/${customer.portalToken}` : `/portal/${customer.portalToken}`}</div>}
-                      <button onClick={() => showConfirm("Regenerate Token", "This will invalidate the current portal link. Continue?", handleRegenerateToken)} style={{ padding: "7px 13px", background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 7, color: "#dc2626", cursor: "pointer", fontSize: 12 }}>Regenerate Token</button>
+                      {showPortalUrl && (
+                        <div style={{ padding: "9px 11px", background: "rgba(0,0,0,0.22)", borderRadius: 7, marginBottom: 13, wordBreak: "break-all", fontSize: 11, fontFamily: "monospace", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                          {typeof window !== "undefined" ? `${window.location.origin}/portal/${customer.portalToken}` : `/portal/${customer.portalToken}`}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          onClick={handleSendPortalLink}
+                          disabled={sendingPortalLink || !customer.email}
+                          title={!customer.email ? "Customer has no email address" : ""}
+                          style={{ flex: 1, padding: "8px 13px", background: sendingPortalLink ? "rgba(59,130,246,0.05)" : "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 7, color: sendingPortalLink ? "rgba(59,130,246,0.5)" : "#3b82f6", cursor: sendingPortalLink || !customer.email ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: !customer.email ? 0.5 : 1 }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                          {sendingPortalLink ? "Sending\u2026" : `Email Link to ${customer.email || "customer"}`}
+                        </button>
+                        <button
+                          onClick={() => showConfirm("Regenerate Token", "This will invalidate the current portal link. Continue?", handleRegenerateToken)}
+                          style={{ padding: "8px 13px", background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 7, color: "#dc2626", cursor: "pointer", fontSize: 12 }}
+                        >
+                          Regenerate Token
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <div style={{ textAlign: "center", padding: "18px 0 14px" }}>
