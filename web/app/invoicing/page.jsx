@@ -67,7 +67,7 @@ export default function InvoicingDashboard() {
   const fmt = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v || 0);
 
   const fmtDate = (d) => {
-    if (!d) return "\u2014";
+    if (!d) return "—";
     return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
@@ -118,14 +118,14 @@ export default function InvoicingDashboard() {
       <div style={{ minHeight: "100vh", background: "#0f0f0f" }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "80px 28px 60px" }}>
 
-          {/* ── Header ── */}
+          {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 6 }}>{todayStr}</div>
               <h1 style={{ fontSize: 30, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.5px" }}>
                 {greeting()}, {user.name?.split(" ")[0]}
               </h1>
-              <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, margin: 0 }}>Here\u2019s what\u2019s happening with your pipeline today.</p>
+              <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, margin: 0 }}>Here&#8217;s what&#8217;s happening with your pipeline today.</p>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <Link href="/invoicing/leads/new" className="dash-action-btn" style={{ padding: "10px 18px", background: "#dc2626", borderRadius: 8, color: "#fff", textDecoration: "none", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
@@ -140,38 +140,38 @@ export default function InvoicingDashboard() {
             </div>
           </div>
 
-          {/* ── Overdue Alert ── */}
+          {/* Overdue Alert */}
           {overdueInvoices.length > 0 && (
             <div style={{ padding: "14px 20px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 10, marginBottom: 28, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(239,68,68,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>\u26a0\ufe0f</div>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(239,68,68,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>&#9888;&#65039;</div>
                 <div>
                   <div style={{ fontWeight: 600, color: "#f87171", fontSize: 14 }}>{overdueInvoices.length} overdue invoice{overdueInvoices.length !== 1 ? "s" : ""} requiring attention</div>
                   <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 1 }}>Total outstanding: {fmt(overdueInvoices.reduce((s, inv) => s + (inv.balanceDue || 0), 0))}</div>
                 </div>
               </div>
-              <Link href="/invoicing/invoices" style={{ padding: "7px 14px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#f87171", textDecoration: "none", fontSize: 12, fontWeight: 600 }}>View Invoices \u2192</Link>
+              <Link href="/invoicing/invoices" style={{ padding: "7px 14px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#f87171", textDecoration: "none", fontSize: 12, fontWeight: 600 }}>View Invoices &#8594;</Link>
             </div>
           )}
 
-          {/* ── Stat Cards ── */}
+          {/* Stat Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
             {[
-              { label: "Total Pipeline", value: fmt(stats?.totalPipeline), sub: "Active estimate value", color: "#dc2626", icon: "\uD83D\uDCC8", accent: "rgba(220,38,38,0.08)" },
-              { label: "Open Estimates", value: stats?.totalEstimates ?? 0, sub: "Awaiting response", color: "rgba(255,255,255,0.9)", icon: "\uD83D\uDCCB", accent: "rgba(255,255,255,0.03)" },
-              { label: "Pending Invoices", value: loading ? "\u2014" : pendingInvoices.length, sub: "Sent & awaiting payment", color: "#f59e0b", icon: "\uD83D\uDCB3", accent: "rgba(245,158,11,0.06)" },
-              { label: "Avg Deal Size", value: fmt(stats?.avgDealSize), sub: "Per estimate", color: "rgba(255,255,255,0.9)", icon: "\uD83C\uDFAF", accent: "rgba(255,255,255,0.03)" },
+              { label: "Total Pipeline", value: fmt(stats?.totalPipeline), sub: "Active estimate value", color: "#dc2626", icon: "📈", accent: "rgba(220,38,38,0.08)" },
+              { label: "Open Estimates", value: stats?.totalEstimates ?? 0, sub: "Awaiting response", color: "rgba(255,255,255,0.9)", icon: "📋", accent: "rgba(255,255,255,0.03)" },
+              { label: "Pending Invoices", value: loading ? "—" : pendingInvoices.length, sub: "Sent & awaiting payment", color: "#f59e0b", icon: "💳", accent: "rgba(245,158,11,0.06)" },
+              { label: "Avg Deal Size", value: fmt(stats?.avgDealSize), sub: "Per estimate", color: "rgba(255,255,255,0.9)", icon: "🎯", accent: "rgba(255,255,255,0.03)" },
             ].map((s) => (
               <div key={s.label} className="dash-stat-card" style={{ background: s.accent, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "22px 24px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: 18, right: 20, fontSize: 22, opacity: 0.35 }}>{s.icon}</div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 10 }}>{s.label}</div>
-                <div style={{ fontSize: 30, fontWeight: 700, color: s.color, letterSpacing: "-0.5px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>\u2014</span> : s.value}</div>
+                <div style={{ fontSize: 30, fontWeight: 700, color: s.color, letterSpacing: "-0.5px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>—</span> : s.value}</div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginTop: 8 }}>{s.sub}</div>
               </div>
             ))}
           </div>
 
-          {/* ── Main Content Grid ── */}
+          {/* Main Content Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
 
             {/* Recent Leads */}
@@ -181,14 +181,14 @@ export default function InvoicingDashboard() {
                   <div style={{ width: 3, height: 14, background: "#dc2626", borderRadius: 2 }} />
                   <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Recent Leads</span>
                 </div>
-                <Link href="/invoicing/leads" style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", fontWeight: 600 }}>View all \u2192</Link>
+                <Link href="/invoicing/leads" style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", fontWeight: 600 }}>View all &#8594;</Link>
               </div>
               <div style={{ padding: "8px 0" }}>
                 {loading ? (
-                  <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.2)", fontSize: 13 }}>Loading\u2026</div>
+                  <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.2)", fontSize: 13 }}>Loading&#8230;</div>
                 ) : recentLeads.length === 0 ? (
                   <div style={{ padding: "28px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>\uD83D\uDCC2</div>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No leads yet</div>
                     <Link href="/invoicing/leads/new" style={{ display: "inline-block", marginTop: 10, fontSize: 12, color: "#dc2626", textDecoration: "none", fontWeight: 600 }}>+ Add first lead</Link>
                   </div>
@@ -196,7 +196,7 @@ export default function InvoicingDashboard() {
                   <Link key={lead.id} href={`/invoicing/leads/${lead.id}`} className="dash-row-link" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 20px", textDecoration: "none", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ color: "rgba(255,255,255,0.85)", fontWeight: 500, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.firstName} {lead.lastName}</div>
-                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company || lead.email || "\u2014"}</div>
+                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lead.company || lead.email || "—"}</div>
                     </div>
                     <span style={{ padding: "2px 8px", background: sc(lead.status).bg, border: `1px solid ${sc(lead.status).border}`, borderRadius: 4, color: sc(lead.status).text, fontSize: 10, fontWeight: 700, letterSpacing: "0.4px", flexShrink: 0, marginLeft: 10 }}>{lead.status}</span>
                   </Link>
@@ -211,14 +211,14 @@ export default function InvoicingDashboard() {
                   <div style={{ width: 3, height: 14, background: "#dc2626", borderRadius: 2 }} />
                   <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Recent Estimates</span>
                 </div>
-                <Link href="/invoicing/estimates" style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", fontWeight: 600 }}>View all \u2192</Link>
+                <Link href="/invoicing/estimates" style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", fontWeight: 600 }}>View all &#8594;</Link>
               </div>
               <div style={{ padding: "8px 0" }}>
                 {loading ? (
-                  <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.2)", fontSize: 13 }}>Loading\u2026</div>
+                  <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.2)", fontSize: 13 }}>Loading&#8230;</div>
                 ) : recentEstimates.length === 0 ? (
                   <div style={{ padding: "28px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>\uD83D\uDCCB</div>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No estimates yet</div>
                     <Link href="/invoicing/estimates/new" style={{ display: "inline-block", marginTop: 10, fontSize: 12, color: "#dc2626", textDecoration: "none", fontWeight: 600 }}>+ Create estimate</Link>
                   </div>
@@ -226,7 +226,7 @@ export default function InvoicingDashboard() {
                   <Link key={est.id} href={`/invoicing/estimates/${est.id}`} className="dash-row-link" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 20px", textDecoration: "none", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600, fontSize: 13, fontFamily: "monospace", letterSpacing: "0.3px" }}>{est.estimateNumber}</div>
-                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{est.customer?.companyName || `${est.customer?.firstName || ""} ${est.customer?.lastName || ""}`.trim() || "\u2014"}</div>
+                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{est.customer?.companyName || `${est.customer?.firstName || ""} ${est.customer?.lastName || ""}`.trim() || "—"}</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 10 }}>
                       <div style={{ color: "rgba(255,255,255,0.85)", fontWeight: 700, fontSize: 13 }}>{fmt(est.total)}</div>
@@ -244,14 +244,14 @@ export default function InvoicingDashboard() {
                   <div style={{ width: 3, height: 14, background: "#dc2626", borderRadius: 2 }} />
                   <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Pending Invoices</span>
                 </div>
-                <Link href="/invoicing/invoices" style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", fontWeight: 600 }}>View all \u2192</Link>
+                <Link href="/invoicing/invoices" style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", fontWeight: 600 }}>View all &#8594;</Link>
               </div>
               <div style={{ padding: "8px 0" }}>
                 {loading ? (
-                  <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.2)", fontSize: 13 }}>Loading\u2026</div>
+                  <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.2)", fontSize: 13 }}>Loading&#8230;</div>
                 ) : pendingInvoices.length === 0 ? (
                   <div style={{ padding: "28px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>\u2705</div>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>&#9989;</div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>All invoices settled</div>
                   </div>
                 ) : pendingInvoices.map((inv) => {
@@ -261,7 +261,7 @@ export default function InvoicingDashboard() {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600, fontSize: 13, fontFamily: "monospace", letterSpacing: "0.3px" }}>{inv.invoiceNumber}</div>
                         <div style={{ fontSize: 11, marginTop: 2, color: isOverdue ? "#f87171" : "rgba(255,255,255,0.35)" }}>
-                          {isOverdue ? "\u26a0 Overdue \u00b7 " : "Due "}{fmtDate(inv.dueDate)}
+                          {isOverdue ? "⚠ Overdue · " : "Due "}{fmtDate(inv.dueDate)}
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 10 }}>
@@ -275,18 +275,18 @@ export default function InvoicingDashboard() {
             </div>
           </div>
 
-          {/* ── Quick Nav Strip ── */}
+          {/* Quick Nav Strip */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginTop: 20 }}>
             {[
-              { href: "/invoicing/leads",     label: "Leads",     icon: "\uD83D\uDCE5" },
-              { href: "/invoicing/customers", label: "Customers", icon: "\uD83D\uDC64" },
-              { href: "/invoicing/estimates", label: "Estimates", icon: "\uD83D\uDCCB" },
-              { href: "/invoicing/invoices",  label: "Invoices",  icon: "\uD83D\uDCB3" },
-              { href: "/invoicing/products",  label: "Products",  icon: "\uD83D\uDCE6" },
+              { href: "/invoicing/leads",     label: "Leads",     icon: "📥" },
+              { href: "/invoicing/customers", label: "Customers", icon: "👤" },
+              { href: "/invoicing/estimates", label: "Estimates", icon: "📋" },
+              { href: "/invoicing/invoices",  label: "Invoices",  icon: "💳" },
+              { href: "/invoicing/products",  label: "Products",  icon: "📦" },
             ].map(({ href, label, icon }) => (
               <Link key={href} href={href} className="dash-nav-card" style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, textDecoration: "none", color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 500 }}>
                 <span style={{ fontSize: 18 }}>{icon}</span>
-                <span>{label} \u2192</span>
+                <span>{label} &#8594;</span>
               </Link>
             ))}
           </div>
