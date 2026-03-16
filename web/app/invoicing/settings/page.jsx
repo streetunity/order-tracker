@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import InvoicingNav from "@/components/InvoicingNav";
+import TopNav from "@/components/TopNav";
 import { useAuth } from "@/contexts/AuthContext";
 
 // ---- Constants ----------------------------------------------------------------
@@ -81,6 +82,15 @@ export default function UnifiedSettingsPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const [activeTab, setActiveTab] = useState("company");
+
+  // Detect ?from=admin to show Order Tracker nav instead of Invoicing nav
+  const [fromAdmin, setFromAdmin] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setFromAdmin(params.get("from") === "admin");
+    }
+  }, []);
 
   const [invLoading, setInvLoading]     = useState(true);
   const [form, setForm]                 = useState({
@@ -429,11 +439,13 @@ export default function UnifiedSettingsPage() {
   const stageTotal = stageDist.reduce((s, x) => s + Number(x.percentage), 0);
 
   const OVERLAY = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
-  const DIALOG = { background: "#1f1f1f", border: "1px solid #404040", borderRadius: 10, padding: 28, width: "90%", maxWidth: 500, boxShadow: "0 4px 24px rgba(0,0,0,0.6)" };
+  const DIALOG  = { background: "#1f1f1f", border: "1px solid #404040", borderRadius: 10, padding: 28, width: "90%", maxWidth: 500, boxShadow: "0 4px 24px rgba(0,0,0,0.6)" };
 
   return (
     <>
-      <InvoicingNav />
+      {/* Render the correct nav based on where the user came from */}
+      {fromAdmin ? <TopNav /> : <InvoicingNav />}
+
       <div style={{ display: "flex", minHeight: "100vh", background: "#0f0f0f", paddingTop: 60 }}>
 
         {/* Sidebar */}
@@ -805,7 +817,6 @@ export default function UnifiedSettingsPage() {
 
       {/* ===== MODALS ===== */}
 
-      {/* Email Preview */}
       {showPreview && (
         <div style={OVERLAY} onClick={() => setShowPreview(false)}>
           <div style={{ ...DIALOG, maxWidth: 680, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", padding: 0 }} onClick={e => e.stopPropagation()}>
@@ -818,7 +829,6 @@ export default function UnifiedSettingsPage() {
         </div>
       )}
 
-      {/* Test Send */}
       {showTestSend && (
         <div style={OVERLAY} onClick={() => setShowTestSend(false)}>
           <div style={DIALOG} onClick={e => e.stopPropagation()}>
@@ -834,16 +844,11 @@ export default function UnifiedSettingsPage() {
         </div>
       )}
 
-      {/* ===== ETA RECALCULATE CONFIRM — full detail modal ===== */}
       {showETAConfirm && (
         <div style={OVERLAY} onClick={() => setShowETAConfirm(false)}>
           <div style={DIALOG} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 10 }}>
-              \u26a0\ufe0f Recalculate All Customer ETAs?
-            </h3>
-            <p style={{ fontSize: 15, margin: "0 0 16px", color: "rgba(255,255,255,0.85)", lineHeight: 1.6 }}>
-              This will recalculate and <strong>overwrite</strong> the estimated delivery dates for <strong>ALL existing orders</strong>.
-            </p>
+            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 10 }}>\u26a0\ufe0f Recalculate All Customer ETAs?</h3>
+            <p style={{ fontSize: 15, margin: "0 0 16px", color: "rgba(255,255,255,0.85)", lineHeight: 1.6 }}>This will recalculate and <strong>overwrite</strong> the estimated delivery dates for <strong>ALL existing orders</strong>.</p>
             <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, marginBottom: 16 }}>
               <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>What will happen:</p>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.8 }}>
@@ -854,9 +859,7 @@ export default function UnifiedSettingsPage() {
                 <li>This process cannot be undone</li>
               </ul>
             </div>
-            <p style={{ margin: "0 0 20px", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
-              <strong style={{ color: "rgba(255,255,255,0.75)" }}>When to use this:</strong> After updating stage thresholds or extended shipping days.
-            </p>
+            <p style={{ margin: "0 0 20px", fontSize: 13, color: "rgba(255,255,255,0.5)" }}><strong style={{ color: "rgba(255,255,255,0.75)" }}>When to use this:</strong> After updating stage thresholds or extended shipping days.</p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setShowETAConfirm(false)} style={{ padding: "10px 22px", background: "#2d2d2d", border: "1px solid #404040", borderRadius: 7, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
               <button onClick={recalcETAs} disabled={recalcETA} style={{ padding: "10px 22px", background: recalcETA ? "rgba(220,38,38,0.4)" : "#dc2626", border: "none", borderRadius: 7, color: "#fff", cursor: recalcETA ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 700 }}>{recalcETA ? "Recalculating\u2026" : "Yes, Recalculate All ETAs"}</button>
@@ -865,16 +868,11 @@ export default function UnifiedSettingsPage() {
         </div>
       )}
 
-      {/* ===== RECALCULATE COMMISSIONS — full detail modal ===== */}
       {showRecalcModal && (
         <div style={OVERLAY} onClick={() => { setShowRecalcModal(false); setRecalcReason(""); }}>
           <div style={DIALOG} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 10 }}>
-              \uD83D\uDD04 Recalculate All Commissions
-            </h3>
-            <p style={{ fontSize: 14, margin: "0 0 16px", color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>
-              This will recalculate ALL unpaid commissions based on current rates and stage settings.
-            </p>
+            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 10 }}>\uD83D\uDD04 Recalculate All Commissions</h3>
+            <p style={{ fontSize: 14, margin: "0 0 16px", color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>This will recalculate ALL unpaid commissions based on current rates and stage settings.</p>
             <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, marginBottom: 20 }}>
               <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Note:</p>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.8 }}>
@@ -884,22 +882,10 @@ export default function UnifiedSettingsPage() {
               </ul>
             </div>
             <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Please provide a reason:</p>
-            <textarea
-              value={recalcReason}
-              onChange={e => setRecalcReason(e.target.value)}
-              placeholder="Enter reason for recalculation (minimum 10 characters)"
-              rows={4}
-              style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginBottom: 20, minHeight: 90 }}
-            />
+            <textarea value={recalcReason} onChange={e => setRecalcReason(e.target.value)} placeholder="Enter reason for recalculation (minimum 10 characters)" rows={4} style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginBottom: 20, minHeight: 90 }} />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => { setShowRecalcModal(false); setRecalcReason(""); }} style={{ padding: "10px 22px", background: "#2d2d2d", border: "1px solid #404040", borderRadius: 7, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
-              <button
-                onClick={executeRecalc}
-                disabled={recalculating || recalcReason.trim().length < 10}
-                style={{ padding: "10px 22px", background: recalcReason.trim().length >= 10 && !recalculating ? "#f59e0b" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 7, color: recalcReason.trim().length >= 10 && !recalculating ? "#000" : "rgba(255,255,255,0.3)", cursor: recalcReason.trim().length >= 10 && !recalculating ? "pointer" : "not-allowed", fontSize: 14, fontWeight: 700 }}
-              >
-                {recalculating ? "Recalculating\u2026" : "Recalculate Commissions"}
-              </button>
+              <button onClick={executeRecalc} disabled={recalculating || recalcReason.trim().length < 10} style={{ padding: "10px 22px", background: recalcReason.trim().length >= 10 && !recalculating ? "#f59e0b" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 7, color: recalcReason.trim().length >= 10 && !recalculating ? "#000" : "rgba(255,255,255,0.3)", cursor: recalcReason.trim().length >= 10 && !recalculating ? "pointer" : "not-allowed", fontSize: 14, fontWeight: 700 }}>{recalculating ? "Recalculating\u2026" : "Recalculate Commissions"}</button>
             </div>
           </div>
         </div>
