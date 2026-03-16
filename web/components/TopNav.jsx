@@ -17,7 +17,6 @@ export default function TopNav() {
   const isManufacturer = user?.role === 'MANUFACTURER';
   const isBroker = user?.role === 'BROKER';
   const isLimitedAccess = isManufacturer || isBroker;
-  const canSeeEmailTemplates = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'].includes(user?.role);
 
   useEffect(() => {
     if (user && !isLimitedAccess) {
@@ -28,9 +27,7 @@ export default function TopNav() {
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setDropdownOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -40,14 +37,14 @@ export default function TopNav() {
     try {
       const res = await fetch(`/api/notifications/stats`, { headers: getAuthHeaders() });
       if (res.ok) { const data = await res.json(); setNotificationCount(data.unread || 0); }
-    } catch (e) { console.error("Failed to load notification count:", e); }
+    } catch (e) { console.error(e); }
   }
 
   async function loadYearlyTotal() {
     try {
       const res = await fetch("/api/orders/yearly-total", { headers: getAuthHeaders() });
       if (res.ok) { const data = await res.json(); setYearlyTotal(data); }
-    } catch (e) { console.error("Failed to load yearly total:", e); }
+    } catch (e) { console.error(e); }
   }
 
   function getInitials(name) {
@@ -153,7 +150,6 @@ export default function TopNav() {
                   My Profile
                 </Link>
 
-                {/* Link to Invoicing */}
                 {!isLimitedAccess && (
                   <Link href="/invoicing" className="dropdown-item">
                     <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" /></svg>
@@ -187,23 +183,12 @@ export default function TopNav() {
 
                 {!isLimitedAccess && (
                   <>
-                    <Link href="/admin/settings" className="dropdown-item">
+                    <div className="dropdown-divider"></div>
+                    <Link href="/invoicing/settings" className="dropdown-item">
                       <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                      Report Settings
-                    </Link>
-                    <Link href="/admin/commission-settings" className="dropdown-item">
-                      <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      Commission Settings
+                      Settings
                     </Link>
                   </>
-                )}
-
-                {/* Email Templates — visible to admins in both modes */}
-                {canSeeEmailTemplates && (
-                  <Link href="/admin/email" className="dropdown-item">
-                    <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    Email Templates
-                  </Link>
                 )}
 
                 <Link href="/admin/change-password" className="dropdown-item">
