@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import TopNav from "@/components/TopNav";
 import { UserTable } from "./UserTable";
 import { UserModal } from "./UserModal";
+import { ManufacturerTable } from "../manufacturers/ManufacturerTable";
+import { ManufacturerModal } from "../manufacturers/ManufacturerModal";
 import {
   getRoleDisplayName,
   getAssignableRoles as getLocalAssignableRoles,
@@ -14,12 +16,13 @@ import {
 import "./users.css";
 
 const TABS = [
-  { id: 'system',       label: 'System Users',         addLabel: 'Add New User',             defaultRole: 'AGENT' },
-  { id: 'manufacturer', label: 'Manufacturer Accounts', addLabel: 'Add Manufacturer Account',  defaultRole: 'MANUFACTURER' },
-  { id: 'broker',       label: 'Broker Accounts',       addLabel: 'Add Broker Account',        defaultRole: 'BROKER' },
+  { id: 'system',       label: 'System Users',         addLabel: 'Add New User',            defaultRole: 'AGENT' },
+  { id: 'manufacturer', label: 'Manufacturer Accounts', addLabel: 'Add New Manufacturer',    defaultRole: 'MANUFACTURER' },
+  { id: 'broker',       label: 'Broker Accounts',       addLabel: 'Add Broker Account',      defaultRole: 'BROKER' },
 ];
 
 export default function UsersPage() {
+  // ---- System users state ----
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,19 +32,25 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [assignableRoles, setAssignableRoles] = useState([]);
   const [togglingUserId, setTogglingUserId] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'AGENT',
-    showInSalesRepDropdown: true
-  });
-  const [error, setError] = useState('');
-  const router = useRouter();
-
+  const [userFormData, setUserFormData] = useState({ name: '', email: '', password: '', role: 'AGENT', showInSalesRepDropdown: true });
+  const [userError, setUserError] = useState('');
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [pendingDeactivate, setPendingDeactivate] = useState(null);
 
+  // ---- Manufacturer state ----
+  const [manufacturers, setManufacturers] = useState([]);
+  const [mfgLoading, setMfgLoading] = useState(false);
+  const [mfgLoaded, setMfgLoaded] = useState(false);
+  const [showMfgModal, setShowMfgModal] = useState(false);
+  const [editingMfg, setEditingMfg] = useState(null);
+  const [mfgFormData, setMfgFormData] = useState({ name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' });
+  const [mfgError, setMfgError] = useState('');
+  const [showMfgToggleConfirm, setShowMfgToggleConfirm] = useState(false);
+  const [pendingMfgToggle, setPendingMfgToggle] = useState(null);
+
+  const router = useRouter();
+
+  // ---- Init ----
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -59,6 +68,12 @@ export default function UsersPage() {
     }
   }, []);
 
+  // Lazy-load manufacturers on first visit to that tab
+  useEffect(() => {
+    if (activeTab === 'manufacturer' && !mfgLoaded) loadManufacturers();
+  }, [activeTab]);
+
+  // ---- User data ----
   async function loadUsers() {
     try {
       const token = localStorage.getItem('token');
@@ -66,11 +81,8 @@ export default function UsersPage() {
       if (!res.ok) { if (res.status === 401) { router.push('/login'); return; } throw new Error('Failed to load users'); }
       setUsers(await res.json());
     } catch (e) {
-      console.error('Failed to load users:', e);
-      setError('Failed to load users');
-    } finally {
-      setLoading(false);
-    }
+      setUserError('Failed to load users');
+    } finally { setLoading(false); }
   }
 
   async function loadAssignableRoles() {
@@ -78,36 +90,54 @@ export default function UsersPage() {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/users/roles/assignable', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setAssignableRoles(await res.json());
-    } catch (e) { console.error('Failed to load assignable roles from API:', e); }
+    } catch (e) { console.error('Failed to load assignable roles:', e); }
   }
 
-  const { regularUsers, manufacturerUsers, brokerUsers } = useMemo(() => {
+  // ---- Manufacturer data ----
+  async function loadManufacturers() {
+    setMfgLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/manufacturers', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Failed to load manufacturers');
+      setManufacturers(await res.json());
+      setMfgLoaded(true);
+    } catch (e) {
+      setMfgError('Failed to load manufacturers');
+    } finally { setMfgLoading(false); }
+  }
+
+  // ---- User derived ----
+  const { regularUsers, brokerUsers } = useMemo(() => {
     const filtered = showInactive ? users : users.filter(u => u.isActive);
     return {
-      regularUsers:     filtered.filter(u => u.role !== 'MANUFACTURER' && u.role !== 'BROKER'),
-      manufacturerUsers: filtered.filter(u => u.role === 'MANUFACTURER'),
-      brokerUsers:       filtered.filter(u => u.role === 'BROKER'),
+      regularUsers: filtered.filter(u => u.role !== 'MANUFACTURER' && u.role !== 'BROKER'),
+      brokerUsers:  filtered.filter(u => u.role === 'BROKER'),
     };
   }, [users, showInactive]);
 
-  const canEdit     = (t) => !currentUser ? false : currentUser.id === t.id || canEditRole(currentUser.role, t.role);
+  const filteredManufacturers = useMemo(() => {
+    return showInactive ? manufacturers : manufacturers.filter(m => m.isActive);
+  }, [manufacturers, showInactive]);
+
+  const canEdit       = (t) => !currentUser ? false : currentUser.id === t.id || canEditRole(currentUser.role, t.role);
   const canDeactivate = (t) => !currentUser ? false : currentUser.id !== t.id && canDeactivateUser(currentUser.role, t.role);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError('');
+  // ---- User handlers ----
+  async function handleUserSubmit(e) {
+    e.preventDefault(); setUserError('');
     try {
       const token = localStorage.getItem('token');
       const url    = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
       const method = editingUser ? 'PATCH' : 'POST';
-      const body   = { ...formData };
+      const body   = { ...userFormData };
       if (editingUser && !body.password) delete body.password;
       const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save user');
       await loadUsers();
-      closeModal();
-    } catch (e) { setError(e.message); }
+      closeUserModal();
+    } catch (e) { setUserError(e.message); }
   }
 
   async function toggleSalesRep(user) {
@@ -116,16 +146,15 @@ export default function UsersPage() {
       const token = localStorage.getItem('token');
       const res  = await fetch(`/api/users/${user.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ showInSalesRepDropdown: !user.showInSalesRepDropdown }) });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update sales rep status');
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
       await loadUsers();
-    } catch (e) { setError(e.message || 'Failed to update sales rep status'); }
+    } catch (e) { setUserError(e.message); }
     finally { setTogglingUserId(null); }
   }
 
   function deactivateUser(user) {
-    if (!canDeactivate(user)) { setError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`); return; }
-    setPendingDeactivate(user);
-    setShowDeactivateConfirm(true);
+    if (!canDeactivate(user)) { setUserError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`); return; }
+    setPendingDeactivate(user); setShowDeactivateConfirm(true);
   }
 
   async function executeDeactivate() {
@@ -135,59 +164,90 @@ export default function UsersPage() {
       const res  = await fetch(`/api/users/${pendingDeactivate.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ isActive: false }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to deactivate user');
-      await loadUsers();
-      setShowDeactivateConfirm(false);
-      setPendingDeactivate(null);
-    } catch (e) { setError(e.message || 'Failed to deactivate user'); }
+      await loadUsers(); setShowDeactivateConfirm(false); setPendingDeactivate(null);
+    } catch (e) { setUserError(e.message); }
   }
 
-  function cancelDeactivate() { setShowDeactivateConfirm(false); setPendingDeactivate(null); }
-
-  function openAddModal() {
+  function openUserAddModal() {
     const tab = TABS.find(t => t.id === activeTab);
-    setFormData({ name: '', email: '', password: '', role: tab?.defaultRole || 'AGENT', showInSalesRepDropdown: tab?.id === 'system' });
-    setEditingUser(null);
-    setError('');
-    setShowAddModal(true);
+    setUserFormData({ name: '', email: '', password: '', role: tab?.defaultRole || 'AGENT', showInSalesRepDropdown: false });
+    setEditingUser(null); setUserError(''); setShowAddModal(true);
   }
 
-  function openEditModal(user) {
-    if (!canEdit(user)) { setError(`You cannot edit users with role ${getRoleDisplayName(user.role)}`); return; }
-    setFormData({ name: user.name, email: user.email, password: '', role: user.role, showInSalesRepDropdown: user.showInSalesRepDropdown ?? true });
-    setEditingUser(user);
-    setError('');
-    setShowAddModal(true);
+  function openUserEditModal(user) {
+    if (!canEdit(user)) { setUserError(`You cannot edit users with role ${getRoleDisplayName(user.role)}`); return; }
+    setUserFormData({ name: user.name, email: user.email, password: '', role: user.role, showInSalesRepDropdown: user.showInSalesRepDropdown ?? false });
+    setEditingUser(user); setUserError(''); setShowAddModal(true);
   }
 
-  function closeModal() {
-    setShowAddModal(false);
-    setEditingUser(null);
-    setFormData({ name: '', email: '', password: '', role: 'AGENT', showInSalesRepDropdown: true });
-    setError('');
+  function closeUserModal() {
+    setShowAddModal(false); setEditingUser(null);
+    setUserFormData({ name: '', email: '', password: '', role: 'AGENT', showInSalesRepDropdown: true }); setUserError('');
   }
 
-  if (loading) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: '#a0a0a0' }}>Loading users...</div>;
+  // ---- Manufacturer handlers ----
+  async function handleMfgSubmit(e) {
+    e.preventDefault(); setMfgError('');
+    try {
+      const token = localStorage.getItem('token');
+      const url    = editingMfg ? `/api/manufacturers/${editingMfg.id}` : '/api/manufacturers';
+      const method = editingMfg ? 'PATCH' : 'POST';
+      const body   = { ...mfgFormData };
+      if (editingMfg) { delete body.createUserAccount; delete body.email; delete body.password; }
+      else if (!body.createUserAccount) { delete body.email; delete body.password; }
+      const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save manufacturer');
+      await loadManufacturers(); closeMfgModal();
+    } catch (e) { setMfgError(e.message); }
   }
 
-  const inactiveCount = users.filter(u => !u.isActive).length;
-  const currentTab    = TABS.find(t => t.id === activeTab);
-  const activeUsers   = activeTab === 'system' ? regularUsers : activeTab === 'manufacturer' ? manufacturerUsers : brokerUsers;
-  const hideSalesRep  = activeTab !== 'system';
+  function deactivateMfg(mfg) { setPendingMfgToggle(mfg); setShowMfgToggleConfirm(true); }
 
-  // tab style helpers
+  async function executeMfgToggle() {
+    if (!pendingMfgToggle) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res  = await fetch(`/api/manufacturers/${pendingMfgToggle.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ isActive: !pendingMfgToggle.isActive }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      await loadManufacturers(); setShowMfgToggleConfirm(false); setPendingMfgToggle(null);
+    } catch (e) { setMfgError(e.message); }
+  }
+
+  function openMfgAddModal() {
+    setMfgFormData({ name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' });
+    setEditingMfg(null); setMfgError(''); setShowMfgModal(true);
+  }
+
+  function openMfgEditModal(mfg) {
+    setMfgFormData({ name: mfg.name, contactInfo: mfg.contactInfo || '', notes: mfg.notes || '', createUserAccount: false, email: '', password: '' });
+    setEditingMfg(mfg); setMfgError(''); setShowMfgModal(true);
+  }
+
+  function closeMfgModal() {
+    setShowMfgModal(false); setEditingMfg(null);
+    setMfgFormData({ name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' }); setMfgError('');
+  }
+
+  // ---- Render ----
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: '#a0a0a0' }}>Loading...</div>;
+
+  const inactiveUserCount = users.filter(u => !u.isActive).length;
+  const inactiveMfgCount  = manufacturers.filter(m => !m.isActive).length;
+  const currentTab = TABS.find(t => t.id === activeTab);
+  const isMfgTab   = activeTab === 'manufacturer';
+  const isBrokerTab = activeTab === 'broker';
+
+  const error = isMfgTab ? mfgError : userError;
+  const setError = isMfgTab ? setMfgError : setUserError;
+
   const tabStyle = (id) => ({
-    padding: '10px 20px',
-    background: 'none',
-    border: 'none',
+    padding: '10px 20px', background: 'none', border: 'none',
     borderBottom: activeTab === id ? '2px solid #dc2626' : '2px solid transparent',
     color: activeTab === id ? '#dc2626' : 'rgba(255,255,255,0.5)',
-    cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: activeTab === id ? 600 : 400,
-    marginBottom: -1,
-    transition: 'all 0.15s',
-    whiteSpace: 'nowrap',
+    cursor: 'pointer', fontSize: 14, fontWeight: activeTab === id ? 600 : 400,
+    marginBottom: -1, transition: 'all 0.15s', whiteSpace: 'nowrap',
   });
 
   return (
@@ -198,8 +258,10 @@ export default function UsersPage() {
           <h1 className="h1" style={{ margin: 0 }}>User Management</h1>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '14px', color: '#e4e4e4', cursor: 'pointer' }}>
             <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
-            Show inactive users
-            {inactiveCount > 0 && <span style={{ color: '#a0a0a0', fontSize: '12px' }}>({inactiveCount} hidden)</span>}
+            Show inactive
+            {(inactiveUserCount > 0 || inactiveMfgCount > 0) && (
+              <span style={{ color: '#a0a0a0', fontSize: '12px' }}>({isMfgTab ? inactiveMfgCount : inactiveUserCount} hidden)</span>
+            )}
           </label>
         </div>
 
@@ -216,57 +278,103 @@ export default function UsersPage() {
             <button key={tab.id} style={tabStyle(tab.id)} onClick={() => setActiveTab(tab.id)}>
               {tab.label}
               <span style={{ marginLeft: 6, fontSize: 12, opacity: 0.6 }}>
-                ({tab.id === 'system' ? regularUsers.length : tab.id === 'manufacturer' ? manufacturerUsers.length : brokerUsers.length})
+                ({tab.id === 'system' ? regularUsers.length : tab.id === 'manufacturer' ? filteredManufacturers.length : brokerUsers.length})
               </span>
             </button>
           ))}
-          {/* Add button pushed right */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', paddingBottom: 2 }}>
-            <button onClick={openAddModal} className="btn primary" style={{ fontSize: 13, padding: '7px 16px' }}>
-              {currentTab?.addLabel || 'Add New User'}
+            <button
+              onClick={isMfgTab ? openMfgAddModal : openUserAddModal}
+              className="btn primary"
+              style={{ fontSize: 13, padding: '7px 16px' }}
+            >
+              {currentTab?.addLabel || 'Add'}
             </button>
           </div>
         </div>
 
         {/* Tab description */}
-        {activeTab === 'manufacturer' && (
+        {isMfgTab && (
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>
-            Login accounts for manufacturers. To manage manufacturer entities and item assignments, visit the{' '}
-            <a href="/admin/manufacturers" style={{ color: '#dc2626', textDecoration: 'none' }}>Manufacturers page</a>.
+            Manufacturer entities with their assigned order items. Click Edit to update contact info or notes.
           </p>
         )}
-        {activeTab === 'broker' && (
+        {isBrokerTab && (
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>
             Read-only broker portal accounts. Brokers can view assigned shipments and documents.
           </p>
         )}
 
-        <UserTable
-          users={activeUsers}
-          currentUser={currentUser}
-          onEdit={openEditModal}
-          onDeactivate={deactivateUser}
-          onToggleSalesRep={toggleSalesRep}
-          togglingUserId={togglingUserId}
-          showInactive={showInactive}
-          hideSalesRep={hideSalesRep}
-        />
+        {/* Manufacturer tab — uses ManufacturerTable */}
+        {isMfgTab && (
+          mfgLoading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Loading manufacturers...</div>
+          ) : (
+            <ManufacturerTable
+              manufacturers={filteredManufacturers}
+              onEdit={openMfgEditModal}
+              onDeactivate={deactivateMfg}
+              showInactive={showInactive}
+            />
+          )
+        )}
 
+        {/* System users tab */}
+        {activeTab === 'system' && (
+          <UserTable
+            users={regularUsers}
+            currentUser={currentUser}
+            onEdit={openUserEditModal}
+            onDeactivate={deactivateUser}
+            onToggleSalesRep={toggleSalesRep}
+            togglingUserId={togglingUserId}
+            showInactive={showInactive}
+            hideSalesRep={false}
+          />
+        )}
+
+        {/* Broker tab — UserTable without sales rep column */}
+        {isBrokerTab && (
+          <UserTable
+            users={brokerUsers}
+            currentUser={currentUser}
+            onEdit={openUserEditModal}
+            onDeactivate={deactivateUser}
+            onToggleSalesRep={toggleSalesRep}
+            togglingUserId={togglingUserId}
+            showInactive={showInactive}
+            hideSalesRep={true}
+          />
+        )}
+
+        {/* User modal (system users + brokers) */}
         <UserModal
           show={showAddModal}
           editingUser={editingUser}
-          formData={formData}
-          setFormData={setFormData}
-          onSubmit={handleSubmit}
-          onClose={closeModal}
-          error={error}
+          formData={userFormData}
+          setFormData={setUserFormData}
+          onSubmit={handleUserSubmit}
+          onClose={closeUserModal}
+          error={userError}
           assignableRoles={assignableRoles}
           currentUser={currentUser}
+          hideSalesRep={isBrokerTab}
         />
 
-        {/* Deactivate Confirmation Modal */}
+        {/* Manufacturer modal */}
+        <ManufacturerModal
+          show={showMfgModal}
+          editingManufacturer={editingMfg}
+          formData={mfgFormData}
+          setFormData={setMfgFormData}
+          onSubmit={handleMfgSubmit}
+          onClose={closeMfgModal}
+          error={mfgError}
+        />
+
+        {/* Deactivate user confirm */}
         {showDeactivateConfirm && pendingDeactivate && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={cancelDeactivate}>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => { setShowDeactivateConfirm(false); setPendingDeactivate(null); }}>
             <div style={{ backgroundColor: '#1f1f1f', border: '1px solid #404040', borderRadius: 8, padding: '2rem', maxWidth: 500, width: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
               <h3 style={{ fontSize: 20, fontWeight: 600, color: '#fff', marginTop: 0, marginBottom: '1rem' }}>Deactivate User</h3>
               <p style={{ fontSize: 14, marginBottom: '1rem', color: '#d1d5db' }}>Are you sure you want to deactivate <strong>{pendingDeactivate.name}</strong>?</p>
@@ -274,8 +382,33 @@ export default function UsersPage() {
                 <p style={{ margin: 0, fontSize: 14, color: '#ef4444' }}><strong>Note:</strong> This user will no longer be able to log in until reactivated.</p>
               </div>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-                <button onClick={cancelDeactivate} style={{ background: '#2d2d2d', color: '#fff', border: '1px solid #404040', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-                <button onClick={executeDeactivate} style={{ backgroundColor: '#dc2626', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Deactivate User</button>
+                <button onClick={() => { setShowDeactivateConfirm(false); setPendingDeactivate(null); }} style={{ background: '#2d2d2d', color: '#fff', border: '1px solid #404040', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+                <button onClick={executeDeactivate} style={{ backgroundColor: '#dc2626', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Deactivate</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Manufacturer deactivate/reactivate confirm */}
+        {showMfgToggleConfirm && pendingMfgToggle && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => { setShowMfgToggleConfirm(false); setPendingMfgToggle(null); }}>
+            <div style={{ backgroundColor: '#1f1f1f', border: '1px solid #404040', borderRadius: 8, padding: '2rem', maxWidth: 500, width: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+              <h3 style={{ fontSize: 20, fontWeight: 600, color: '#fff', marginTop: 0, marginBottom: '1rem' }}>
+                {pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'} Manufacturer
+              </h3>
+              <p style={{ fontSize: 14, marginBottom: '1rem', color: '#d1d5db' }}>
+                Are you sure you want to {pendingMfgToggle.isActive ? 'deactivate' : 'reactivate'} <strong>{pendingMfgToggle.name}</strong>?
+              </p>
+              <div style={{ padding: '1rem', backgroundColor: pendingMfgToggle.isActive ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${pendingMfgToggle.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}`, borderRadius: 6, marginBottom: '1rem' }}>
+                <p style={{ margin: 0, fontSize: 14, color: pendingMfgToggle.isActive ? '#ef4444' : '#10b981' }}>
+                  <strong>Note:</strong> {pendingMfgToggle.isActive ? 'This manufacturer will be deactivated and hidden from the list.' : 'This manufacturer will be reactivated and visible again.'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <button onClick={() => { setShowMfgToggleConfirm(false); setPendingMfgToggle(null); }} style={{ background: '#2d2d2d', color: '#fff', border: '1px solid #404040', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+                <button onClick={executeMfgToggle} style={{ backgroundColor: pendingMfgToggle.isActive ? '#dc2626' : '#10b981', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>
+                  {pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'}
+                </button>
               </div>
             </div>
           </div>

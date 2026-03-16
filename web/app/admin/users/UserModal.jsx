@@ -1,4 +1,4 @@
-export function UserModal({ show, editingUser, formData, setFormData, onSubmit, onClose, error, assignableRoles, currentUser }) {
+export function UserModal({ show, editingUser, formData, setFormData, onSubmit, onClose, error, assignableRoles, currentUser, hideSalesRep }) {
   if (!show) return null;
 
   const assignableRoleNames = assignableRoles.map(r => r.label).join(', ');
@@ -8,9 +8,9 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
     <div className="modal-overlay">
       <div className="modal-content">
         <h2>{editingUser ? 'Edit User' : 'Add New User'}</h2>
-        
+
         {error && <div className="modal-error">{error}</div>}
-        
+
         <form onSubmit={onSubmit}>
           <div className="form-group">
             <label>Name</label>
@@ -21,7 +21,7 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
           </div>
-          
+
           <div className="form-group">
             <label>Email</label>
             <input
@@ -31,7 +31,7 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
           </div>
-          
+
           <div className="form-group">
             <label>
               Password {editingUser && <span className="hint">(leave blank to keep current)</span>}
@@ -44,7 +44,7 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
               placeholder={editingUser ? 'Leave blank to keep current password' : ''}
             />
           </div>
-          
+
           <div className="form-group">
             <label>Role</label>
             <select
@@ -59,19 +59,22 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
             {isSelfEdit && <div className="hint">You cannot change your own role</div>}
             {!isSelfEdit && <div className="hint">You can assign: {assignableRoleNames}</div>}
           </div>
-          
-          <div className="form-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={formData.showInSalesRepDropdown}
-                onChange={(e) => setFormData({ ...formData, showInSalesRepDropdown: e.target.checked })}
-              />
-              Show in Sales Rep dropdown
-            </label>
-            <div className="hint">When checked, this user will appear in the "Sales Person" field when adding/editing orders</div>
-          </div>
-          
+
+          {/* Only show Sales Rep toggle for system users — never for manufacturer or broker accounts */}
+          {!hideSalesRep && (
+            <div className="form-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={formData.showInSalesRepDropdown}
+                  onChange={(e) => setFormData({ ...formData, showInSalesRepDropdown: e.target.checked })}
+                />
+                Show in Sales Rep dropdown
+              </label>
+              <div className="hint">When checked, this user will appear in the "Sales Person" field when adding/editing orders</div>
+            </div>
+          )}
+
           <div className="modal-actions">
             <button type="button" onClick={onClose} className="btn">Cancel</button>
             <button type="submit" className="btn primary">{editingUser ? 'Update' : 'Create'} User</button>
