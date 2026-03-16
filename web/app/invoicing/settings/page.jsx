@@ -28,7 +28,6 @@ const EMAIL_CATEGORIES = {
   internal:  { label: "Internal",       color: "#8b5cf6" },
 };
 
-// All 10 manufacturing stages with labels and descriptions
 const ALL_STAGES = [
   { key: "MANUFACTURING", label: "MANUFACTURING", desc: "Manufacturing & Assembly phase" },
   { key: "TESTING",       label: "TESTING",       desc: "Testing, calibration & export preparation" },
@@ -42,7 +41,6 @@ const ALL_STAGES = [
   { key: "FOLLOW_UP",     label: "FOLLOW UP",     desc: "Post-delivery follow-up" },
 ];
 
-// Stages that contribute to ETA calculation (through DELIVERED only)
 const ETA_STAGES_KEYS = ["MANUFACTURING","TESTING","SHIPPING","AT_SEA","SMT","QC","DELIVERED"];
 
 // ---- Helpers ------------------------------------------------------------------
@@ -79,14 +77,11 @@ const LBL  = { display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255
 const CARD = { background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 24, marginBottom: 20 };
 const HINT = { fontSize: 11, color: "rgba(255,255,255,0.28)", marginTop: 4 };
 
-// ---- Main Component -----------------------------------------------------------
-
 export default function UnifiedSettingsPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const [activeTab, setActiveTab] = useState("company");
 
-  // ---- Invoicing Settings ----
   const [invLoading, setInvLoading]     = useState(true);
   const [form, setForm]                 = useState({
     companyName: "", logoUrl: "", address: "", city: "", state: "", zipCode: "",
@@ -102,7 +97,6 @@ export default function UnifiedSettingsPage() {
   const [invMsg,   setInvMsg]           = useState({ type: "", text: "" });
   const [invSaving, setInvSaving]       = useState(false);
 
-  // ---- Email Templates ----
   const [emailLoading,    setEmailLoading]    = useState(false);
   const [emailLoaded,     setEmailLoaded]     = useState(false);
   const [templates,       setTemplates]       = useState([]);
@@ -124,7 +118,6 @@ export default function UnifiedSettingsPage() {
   const [sendingTest,     setSendingTest]     = useState(false);
   const bodyRef = useRef(null);
 
-  // ---- Order Stages ----
   const [stagesLoading,    setStagesLoading]    = useState(false);
   const [stagesLoaded,     setStagesLoaded]     = useState(false);
   const [localThresh,      setLocalThresh]      = useState([]);
@@ -141,7 +134,6 @@ export default function UnifiedSettingsPage() {
   const [recalcETA,        setRecalcETA]        = useState(false);
   const [showETAConfirm,   setShowETAConfirm]   = useState(false);
 
-  // ---- Commissions ----
   const [commLoading,     setCommLoading]     = useState(false);
   const [commLoaded,      setCommLoaded]      = useState(false);
   const [commTab,         setCommTab]         = useState("global");
@@ -157,7 +149,6 @@ export default function UnifiedSettingsPage() {
   const [recalcReason,    setRecalcReason]    = useState("");
   const [recalculating,   setRecalculating]   = useState(false);
 
-  // ---- Auth guard ----
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
@@ -171,10 +162,6 @@ export default function UnifiedSettingsPage() {
     if (activeTab === "stages"      && !stagesLoaded) loadStageSettings();
     if (activeTab === "commissions" && !commLoaded)   loadCommissions();
   }, [activeTab, user]);
-
-  // =============================================================================
-  // DATA LOADERS
-  // =============================================================================
 
   const loadInvSettings = useCallback(async () => {
     setInvLoading(true);
@@ -252,16 +239,11 @@ export default function UnifiedSettingsPage() {
     } finally { setCommLoading(false); }
   };
 
-  // =============================================================================
-  // SAVE HANDLERS
-  // =============================================================================
-
   const saveCompany = async () => {
     setCompSaving(true); setCompMsg({ type: "", text: "" });
     const companyFields = ["companyName","logoUrl","address","city","state","zipCode","phone","email","website"];
-    const body = { ...form };
     try {
-      const res = await fetch("/api/invoicing-settings", { method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify(body) });
+      const res = await fetch("/api/invoicing-settings", { method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ ...form }) });
       if (res.ok) { setOrigForm({ ...origForm, ...Object.fromEntries(companyFields.map(k => [k, form[k]])) }); setCompMsg({ type: "success", text: "\u2713 Saved" }); setTimeout(() => setCompMsg({ type: "", text: "" }), 3000); }
       else { const e = await res.json(); setCompMsg({ type: "error", text: e.error || "Save failed" }); }
     } finally { setCompSaving(false); }
@@ -276,7 +258,6 @@ export default function UnifiedSettingsPage() {
     } finally { setInvSaving(false); }
   };
 
-  // Email helpers
   const selectTemplate = (tpl) => {
     setSelTpl(tpl); setEditSubject(tpl.subject); setEditBody(tpl.bodyContent);
     setEditClosing(tpl.closingContent || ""); setEditFooter(tpl.footerContent || "");
@@ -345,7 +326,6 @@ export default function UnifiedSettingsPage() {
     setTplSaving(false); setTimeout(() => setTplMsg({ type: "", text: "" }), 3000);
   };
 
-  // Stage thresholds
   const saveThresholds = async () => {
     setThreshSaving(true); setThreshMsg({ type: "", text: "" });
     try {
@@ -382,7 +362,6 @@ export default function UnifiedSettingsPage() {
     setRecalcETA(false); setTimeout(() => setThreshMsg({ type: "", text: "" }), 5000);
   };
 
-  // Commissions
   const saveGlobalComm = async () => {
     setCommSaving(true); setCommMsg({ type: "", text: "" });
     const res = await fetch("/api/commission-settings/global", { method: "PUT", headers: { ...getAuthHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(globalComm) });
@@ -415,38 +394,33 @@ export default function UnifiedSettingsPage() {
     setRecalculating(false); setTimeout(() => setCommMsg({ type: "", text: "" }), 8000);
   };
 
-  // =============================================================================
-  // DERIVED
-  // =============================================================================
-
   if (authLoading || !user) return null;
 
   const companyFields   = ["companyName","logoUrl","address","city","state","zipCode","phone","email","website"];
   const invoicingFields = ["invoicePrefix","estimatePrefix","paymentPrefix","customerPrefix","defaultTaxRate","defaultPaymentTerms","defaultValidityDays","discountApprovalThreshold","amountApprovalThreshold","defaultEstimateTerms","defaultInvoiceTerms"];
-  const companyHasChanges   = companyFields.some(k   => String(form[k])   !== String(origForm[k]   ?? ""));
-  const invoicingHasChanges = invoicingFields.some(k  => String(form[k])   !== String(origForm[k]   ?? ""));
+  const companyHasChanges   = companyFields.some(k   => String(form[k]) !== String(origForm[k]   ?? ""));
+  const invoicingHasChanges = invoicingFields.some(k  => String(form[k]) !== String(origForm[k]   ?? ""));
 
   const isSuperAdmin = user.role === "SUPER_ADMIN";
   const isAdmin      = ["SUPER_ADMIN","ADMIN"].includes(user.role);
 
-  // ETA totals — computed live from current threshold inputs
   const etaTotals = (() => {
     let warnTotal = 0, critTotal = 0;
     ETA_STAGES_KEYS.forEach(s => {
       const t = localThresh.find(x => x.stage === s);
       if (t) { warnTotal += t.warningDays || 0; critTotal += t.criticalDays || 0; }
     });
-    const avg    = (warnTotal + critTotal) / 2;
+    const avg = (warnTotal + critTotal) / 2;
     const extDays = parseInt(extendedDays || "0", 10);
     return { warnTotal, critTotal, avg, extDays, extAvg: avg + extDays };
   })();
 
   const TABS = [
-    { id: "company",        label: "Company",         icon: "\uD83C\uDFE2" },
-    { id: "invoicing",      label: "Invoicing",        icon: "\uD83D\uDCC4" },
-    ...(isAdmin      ? [{ id: "email",        label: "Email Templates", icon: "\u2709\uFE0F" }] : []),
-    ...(isAdmin      ? [{ id: "stages",       label: "Order Stages",    icon: "\u2699\uFE0F" }] : []),
-    ...(isSuperAdmin ? [{ id: "commissions",  label: "Commissions",     icon: "\uD83D\uDCB0" }] : []),
+    { id: "company",       label: "Company",         icon: "\uD83C\uDFE2" },
+    { id: "invoicing",     label: "Invoicing",        icon: "\uD83D\uDCC4" },
+    ...(isAdmin      ? [{ id: "email",       label: "Email Templates", icon: "\u2709\uFE0F" }] : []),
+    ...(isAdmin      ? [{ id: "stages",      label: "Order Stages",    icon: "\u2699\uFE0F" }] : []),
+    ...(isSuperAdmin ? [{ id: "commissions", label: "Commissions",     icon: "\uD83D\uDCB0" }] : []),
   ];
 
   const groupedTemplates = {};
@@ -454,16 +428,15 @@ export default function UnifiedSettingsPage() {
 
   const stageTotal = stageDist.reduce((s, x) => s + Number(x.percentage), 0);
 
-  // =============================================================================
-  // RENDER
-  // =============================================================================
+  const OVERLAY = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
+  const DIALOG = { background: "#1f1f1f", border: "1px solid #404040", borderRadius: 10, padding: 28, width: "90%", maxWidth: 500, boxShadow: "0 4px 24px rgba(0,0,0,0.6)" };
 
   return (
     <>
       <InvoicingNav />
       <div style={{ display: "flex", minHeight: "100vh", background: "#0f0f0f", paddingTop: 60 }}>
 
-        {/* ---- Left sidebar ---- */}
+        {/* Sidebar */}
         <div style={{ width: 220, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", position: "sticky", top: 60, height: "calc(100vh - 60px)", overflowY: "auto", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "20px 16px 10px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>Settings</div>
@@ -478,7 +451,7 @@ export default function UnifiedSettingsPage() {
           })}
         </div>
 
-        {/* ---- Right content ---- */}
+        {/* Content */}
         <div style={{ flex: 1, minWidth: 0, padding: "32px 36px 80px", overflowX: "hidden" }}>
           <div style={{ marginBottom: 28 }}>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{TABS.find(t => t.id === activeTab)?.label}</h1>
@@ -489,9 +462,7 @@ export default function UnifiedSettingsPage() {
             <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, paddingTop: 40 }}>Loading\u2026</div>
           ) : (
             <>
-              {/* ================================================================ */}
-              {/* COMPANY                                                          */}
-              {/* ================================================================ */}
+              {/* ===== COMPANY ===== */}
               {activeTab === "company" && (
                 <>
                   <div style={CARD}>
@@ -520,9 +491,7 @@ export default function UnifiedSettingsPage() {
                 </>
               )}
 
-              {/* ================================================================ */}
-              {/* INVOICING                                                        */}
-              {/* ================================================================ */}
+              {/* ===== INVOICING ===== */}
               {activeTab === "invoicing" && (
                 <>
                   <div style={CARD}>
@@ -539,7 +508,12 @@ export default function UnifiedSettingsPage() {
                       <div><label style={LBL}>Local Tax Rate (%)</label><input style={INP} type="number" step="0.01" min="0" value={form.defaultTaxRate} onChange={e => setForm(p => ({...p,defaultTaxRate:e.target.value}))} /><p style={HINT}>Applied when Pinal County Sales Tax is selected</p></div>
                       <div><label style={LBL}>Default Payment Terms</label>
                         <select style={{ ...INP, cursor: "pointer" }} value={form.defaultPaymentTerms} onChange={e => setForm(p => ({...p,defaultPaymentTerms:e.target.value}))}>
-                          {["DUE_ON_RECEIPT","NET15","NET30","NET45","NET60","NET90"].map(v => <option key={v} value={v}>{v.replace("_"," ").replace("DUE ON RECEIPT","Due on Receipt").replace("NET","Net ")}</option>)}
+                          <option value="DUE_ON_RECEIPT">Due on Receipt</option>
+                          <option value="NET15">Net 15</option>
+                          <option value="NET30">Net 30</option>
+                          <option value="NET45">Net 45</option>
+                          <option value="NET60">Net 60</option>
+                          <option value="NET90">Net 90</option>
                         </select>
                       </div>
                       <div><label style={LBL}>Estimate Validity (days)</label><input style={INP} type="number" min="1" value={form.defaultValidityDays} onChange={e => setForm(p => ({...p,defaultValidityDays:e.target.value}))} /></div>
@@ -566,9 +540,7 @@ export default function UnifiedSettingsPage() {
                 </>
               )}
 
-              {/* ================================================================ */}
-              {/* EMAIL TEMPLATES                                                  */}
-              {/* ================================================================ */}
+              {/* ===== EMAIL TEMPLATES ===== */}
               {activeTab === "email" && (
                 <>
                   <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
@@ -662,51 +634,29 @@ export default function UnifiedSettingsPage() {
                 </>
               )}
 
-              {/* ================================================================ */}
-              {/* ORDER STAGES                                                     */}
-              {/* ================================================================ */}
+              {/* ===== ORDER STAGES ===== */}
               {activeTab === "stages" && (
                 <>
                   {stagesLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading\u2026</div> : (
                     <>
-                      {/* Special Shipping & Holiday */}
                       <div style={CARD}>
                         <SectionHeader label="Special Shipping & Holiday Configuration" desc="Configure holiday season dates and special shipping requirements for extended lead time items." />
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                          <div>
-                            <label style={LBL}>Holiday Season Start (MM-DD)</label>
-                            <input style={INP} value={holidayStart} onChange={e => { setHolidayStart(e.target.value); setHolidayChanges(true); }} placeholder="10-01" />
-                            <p style={HINT}>Format: MM-DD (e.g., 10-01 for October 1st)</p>
-                          </div>
-                          <div>
-                            <label style={LBL}>Holiday Season End (MM-DD)</label>
-                            <input style={INP} value={holidayEnd} onChange={e => { setHolidayEnd(e.target.value); setHolidayChanges(true); }} placeholder="12-31" />
-                            <p style={HINT}>Format: MM-DD (e.g., 12-31 for December 31st)</p>
-                          </div>
-                          <div>
-                            <label style={LBL}>Holiday Buffer Days (Manufacturing Only)</label>
-                            <input style={INP} type="number" min="0" max="100" value={bufferDays} onChange={e => { setBufferDays(e.target.value); setHolidayChanges(true); }} />
-                            <p style={HINT}>Extra days for MANUFACTURING stage only during holidays (0&#8211;100)</p>
-                          </div>
-                          <div>
-                            <label style={{ ...LBL, color: "#10b981" }}>Extended Shipping Days &#11088;</label>
-                            <input style={{ ...INP, borderColor: "rgba(16,185,129,0.3)" }} type="number" min="0" max="100" value={extendedDays} onChange={e => { setExtendedDays(e.target.value); setHolidayChanges(true); }} />
-                            <p style={{ ...HINT, color: "rgba(16,185,129,0.6)" }}>Additional days for items marked as &#8220;Extended Shipping&#8221; (special machines)</p>
-                          </div>
+                          <div><label style={LBL}>Holiday Season Start (MM-DD)</label><input style={INP} value={holidayStart} onChange={e => { setHolidayStart(e.target.value); setHolidayChanges(true); }} placeholder="10-01" /><p style={HINT}>Format: MM-DD (e.g., 10-01 for October 1st)</p></div>
+                          <div><label style={LBL}>Holiday Season End (MM-DD)</label><input style={INP} value={holidayEnd} onChange={e => { setHolidayEnd(e.target.value); setHolidayChanges(true); }} placeholder="12-31" /><p style={HINT}>Format: MM-DD (e.g., 12-31 for December 31st)</p></div>
+                          <div><label style={LBL}>Holiday Buffer Days (Manufacturing Only)</label><input style={INP} type="number" min="0" max="100" value={bufferDays} onChange={e => { setBufferDays(e.target.value); setHolidayChanges(true); }} /><p style={HINT}>Extra days for MANUFACTURING stage only during holidays (0&#8211;100)</p></div>
+                          <div><label style={{ ...LBL, color: "#10b981" }}>Extended Shipping Days &#11088;</label><input style={{ ...INP, borderColor: "rgba(16,185,129,0.3)" }} type="number" min="0" max="100" value={extendedDays} onChange={e => { setExtendedDays(e.target.value); setHolidayChanges(true); }} /><p style={{ ...HINT, color: "rgba(16,185,129,0.6)" }}>Additional days for items marked as &#8220;Extended Shipping&#8221; (special machines)</p></div>
                         </div>
                         <SaveBar hasChanges={holidayChanges} saving={holidaySaving} onSave={saveHoliday} msg={holidayMsg} />
                       </div>
 
-                      {/* Stage Time Thresholds */}
                       <div style={CARD}>
                         <SectionHeader label="Stage Time Thresholds" desc="Set warning and critical thresholds for each manufacturing stage. Orders exceeding these times will be flagged in OVaR and Chokepoints reports." />
                         <div style={{ overflowX: "auto" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead>
                               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                                {["Stage","Warning Days","Critical Days","Description"].map(h => (
-                                  <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{h}</th>
-                                ))}
+                                {["Stage","Warning Days","Critical Days","Description"].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{h}</th>)}
                               </tr>
                             </thead>
                             <tbody>
@@ -719,66 +669,36 @@ export default function UnifiedSettingsPage() {
                                       <span style={{ color: isETA ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.5)" }}>{stage.label}</span>
                                       {isETA && <span style={{ marginLeft: 7, fontSize: 10, color: "#dc2626", fontWeight: 700, background: "rgba(220,38,38,0.1)", padding: "1px 5px", borderRadius: 3 }}>(ETA)</span>}
                                     </td>
-                                    <td style={{ padding: "10px 12px" }}>
-                                      <input type="number" min="1" max="365" value={t.warningDays || ""} onChange={e => { setLocalThresh(p => p.map(x => x.stage === stage.key ? { ...x, warningDays: parseInt(e.target.value) || 0 } : x)); setThreshChanges(true); }} style={{ ...INP, width: 90 }} />
-                                    </td>
-                                    <td style={{ padding: "10px 12px" }}>
-                                      <input type="number" min="1" max="365" value={t.criticalDays || ""} onChange={e => { setLocalThresh(p => p.map(x => x.stage === stage.key ? { ...x, criticalDays: parseInt(e.target.value) || 0 } : x)); setThreshChanges(true); }} style={{ ...INP, width: 90 }} />
-                                    </td>
+                                    <td style={{ padding: "10px 12px" }}><input type="number" min="1" max="365" value={t.warningDays || ""} onChange={e => { setLocalThresh(p => p.map(x => x.stage === stage.key ? { ...x, warningDays: parseInt(e.target.value) || 0 } : x)); setThreshChanges(true); }} style={{ ...INP, width: 90 }} /></td>
+                                    <td style={{ padding: "10px 12px" }}><input type="number" min="1" max="365" value={t.criticalDays || ""} onChange={e => { setLocalThresh(p => p.map(x => x.stage === stage.key ? { ...x, criticalDays: parseInt(e.target.value) || 0 } : x)); setThreshChanges(true); }} style={{ ...INP, width: 90 }} /></td>
                                     <td style={{ padding: "10px 12px", fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{t.description || stage.desc}</td>
                                   </tr>
                                 );
                               })}
-
-                              {/* Standard ETA Totals row */}
                               <tr style={{ borderTop: "2px solid #dc2626", background: "rgba(220,38,38,0.07)", fontWeight: 700 }}>
-                                <td style={{ padding: "11px 12px" }}>
-                                  <span style={{ fontSize: 12, color: "#dc2626" }}>STANDARD ETA TOTALS</span>
-                                  <div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>Includes stages through DELIVERED only</div>
-                                </td>
+                                <td style={{ padding: "11px 12px" }}><span style={{ fontSize: 12, color: "#dc2626" }}>STANDARD ETA TOTALS</span><div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>Includes stages through DELIVERED only</div></td>
                                 <td style={{ padding: "11px 12px", color: "#dc2626", fontSize: 14 }}>{etaTotals.warnTotal} days</td>
                                 <td style={{ padding: "11px 12px", color: "#dc2626", fontSize: 14 }}>{etaTotals.critTotal} days</td>
-                                <td style={{ padding: "11px 12px" }}>
-                                  <span style={{ color: "#dc2626", fontSize: 14, fontWeight: 700 }}>Average: {etaTotals.avg.toFixed(1)} days</span>
-                                  <div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>Base ETA calculation for standard items</div>
-                                </td>
+                                <td style={{ padding: "11px 12px" }}><span style={{ color: "#dc2626", fontSize: 14, fontWeight: 700 }}>Average: {etaTotals.avg.toFixed(1)} days</span><div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>Base ETA calculation for standard items</div></td>
                               </tr>
-
-                              {/* Extended Shipping Totals row */}
                               <tr style={{ background: "rgba(16,185,129,0.06)", fontWeight: 700 }}>
-                                <td style={{ padding: "11px 12px" }}>
-                                  <span style={{ fontSize: 12, color: "#10b981" }}>EXTENDED SHIPPING TOTALS &#11088;</span>
-                                  <div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>For items marked as Extended Shipping</div>
-                                </td>
+                                <td style={{ padding: "11px 12px" }}><span style={{ fontSize: 12, color: "#10b981" }}>EXTENDED SHIPPING TOTALS &#11088;</span><div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>For items marked as Extended Shipping</div></td>
                                 <td style={{ padding: "11px 12px", color: "#10b981", fontSize: 14 }}>{etaTotals.warnTotal + etaTotals.extDays} days</td>
                                 <td style={{ padding: "11px 12px", color: "#10b981", fontSize: 14 }}>{etaTotals.critTotal + etaTotals.extDays} days</td>
-                                <td style={{ padding: "11px 12px" }}>
-                                  <span style={{ color: "#10b981", fontSize: 14, fontWeight: 700 }}>Average: {etaTotals.extAvg.toFixed(1)} days</span>
-                                  <div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>Standard ETA + {etaTotals.extDays} extended days</div>
-                                </td>
+                                <td style={{ padding: "11px 12px" }}><span style={{ color: "#10b981", fontSize: 14, fontWeight: 700 }}>Average: {etaTotals.extAvg.toFixed(1)} days</span><div style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>Standard ETA + {etaTotals.extDays} extended days</div></td>
                               </tr>
                             </tbody>
                           </table>
                         </div>
-
-                        {/* ETA Calculation Examples */}
                         <div style={{ marginTop: 20, padding: 16, background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.18)", borderRadius: 8 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#10b981", marginBottom: 10 }}>&#128197; ETA Calculation Examples</div>
-                          <div style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: 2 }}>Standard Items:</div>
-                            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", paddingLeft: 16 }}>Order Date + <strong style={{ color: "rgba(255,255,255,0.8)" }}>{etaTotals.avg.toFixed(0)} days</strong> = Estimated Delivery</div>
-                          </div>
-                          <div style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "#10b981", marginBottom: 2 }}>Extended Shipping Items (Special Machines):</div>
-                            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", paddingLeft: 16 }}>Order Date + <strong style={{ color: "#10b981" }}>{etaTotals.extAvg.toFixed(0)} days</strong> = Estimated Delivery</div>
-                          </div>
+                          <div style={{ marginBottom: 8 }}><div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: 2 }}>Standard Items:</div><div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", paddingLeft: 16 }}>Order Date + <strong style={{ color: "rgba(255,255,255,0.8)" }}>{etaTotals.avg.toFixed(0)} days</strong> = Estimated Delivery</div></div>
+                          <div style={{ marginBottom: 8 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#10b981", marginBottom: 2 }}>Extended Shipping Items (Special Machines):</div><div style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", paddingLeft: 16 }}>Order Date + <strong style={{ color: "#10b981" }}>{etaTotals.extAvg.toFixed(0)} days</strong> = Estimated Delivery</div></div>
                           <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginTop: 8 }}>Note: If ANY item in an order requires extended shipping, the entire order uses the extended ETA.</div>
                         </div>
-
                         <SaveBar hasChanges={threshChanges} saving={threshSaving} onSave={saveThresholds} msg={threshMsg} />
                       </div>
 
-                      {/* Customer ETA Management */}
                       <div style={CARD}>
                         <SectionHeader label="Customer ETA Management" desc="Recalculate estimated delivery dates for all existing orders based on current threshold settings. This will update the ETA shown on all customer tracking pages." />
                         <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 8, marginBottom: 16 }}>
@@ -790,21 +710,11 @@ export default function UnifiedSettingsPage() {
                         {threshMsg.text && <span style={{ marginLeft: 12, fontSize: 13, color: threshMsg.type === "success" ? "#10b981" : "#dc2626" }}>{threshMsg.text}</span>}
                       </div>
 
-                      {/* How Thresholds Work */}
                       <div style={{ ...CARD, background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa", marginBottom: 14 }}>&#128161; How Thresholds Work</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {[
-                            ["Warning",         "Items exceeding this time are flagged yellow (attention needed)"],
-                            ["Critical",         "Items exceeding this time are flagged red (urgent action required)"],
-                            ["Holiday Adjustment","Buffer days are ONLY added to MANUFACTURING stage (Oct\u2013Dec)"],
-                            ["Extended Shipping",  "Additional days for special machines that require extended lead times"],
-                            ["ETA Calculation",    "Uses average of Warning and Critical days for stages through DELIVERED"],
-                            ["Order-Level ETA",    "If ANY item has extended shipping, the entire order uses the extended timeline"],
-                          ].map(([term, def]) => (
-                            <div key={term} style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
-                              <strong style={{ color: "rgba(255,255,255,0.8)" }}>{term}:</strong> {def}
-                            </div>
+                          {[["Warning","Items exceeding this time are flagged yellow (attention needed)"],["Critical","Items exceeding this time are flagged red (urgent action required)"],["Holiday Adjustment","Buffer days are ONLY added to MANUFACTURING stage (Oct\u2013Dec)"],["Extended Shipping","Additional days for special machines that require extended lead times"],["ETA Calculation","Uses average of Warning and Critical days for stages through DELIVERED"],["Order-Level ETA","If ANY item has extended shipping, the entire order uses the extended timeline"]].map(([term,def]) => (
+                            <div key={term} style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}><strong style={{ color: "rgba(255,255,255,0.8)" }}>{term}:</strong> {def}</div>
                           ))}
                         </div>
                       </div>
@@ -813,15 +723,13 @@ export default function UnifiedSettingsPage() {
                 </>
               )}
 
-              {/* ================================================================ */}
-              {/* COMMISSIONS                                                      */}
-              {/* ================================================================ */}
+              {/* ===== COMMISSIONS ===== */}
               {activeTab === "commissions" && (
                 <>
                   {commLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading\u2026</div> : (
                     <>
                       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                        {[["global","Global Settings"],["stages","Stage Distribution"],["rates","Individual Rates"]].map(([id, label]) => (
+                        {[["global","Global Settings"],["stages","Stage Distribution"],["rates","Individual Rates"]].map(([id,label]) => (
                           <button key={id} onClick={() => setCommTab(id)} style={{ padding: "9px 18px", background: "none", border: "none", borderBottom: commTab === id ? "2px solid #dc2626" : "2px solid transparent", color: commTab === id ? "#dc2626" : "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, fontWeight: commTab === id ? 600 : 400, marginBottom: -1 }}>{label}</button>
                         ))}
                         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, paddingBottom: 4 }}>
@@ -833,23 +741,12 @@ export default function UnifiedSettingsPage() {
                       {commTab === "global" && (
                         <div style={CARD}>
                           <SectionHeader label="Global Commission Settings" />
-                          <div style={{ padding: "12px 14px", background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.15)", borderRadius: 8, marginBottom: 18, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
-                            Commissions are calculated based on the total order value when an order reaches specified stages. Individual agent rates override the default rate. Stage distribution determines when payouts occur.
-                          </div>
+                          <div style={{ padding: "12px 14px", background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.15)", borderRadius: 8, marginBottom: 18, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>Commissions are calculated based on the total order value when an order reaches specified stages. Individual agent rates override the default rate. Stage distribution determines when payouts occur.</div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                              <input type="checkbox" checked={globalComm.enabled} onChange={e => { setGlobalComm(p => ({...p,enabled:e.target.checked})); setGlobalChanges(true); }} />
-                              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>Enable commission system</span>
-                            </label>
+                            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}><input type="checkbox" checked={globalComm.enabled} onChange={e => { setGlobalComm(p => ({...p,enabled:e.target.checked})); setGlobalChanges(true); }} /><span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>Enable commission system</span></label>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                               <div><label style={LBL}>Default Rate (%)</label><input style={INP} type="number" step="0.1" min="0" max="100" value={globalComm.defaultRate} onChange={e => { setGlobalComm(p => ({...p,defaultRate:parseFloat(e.target.value)||0})); setGlobalChanges(true); }} /></div>
-                              <div><label style={LBL}>Calculation Basis</label>
-                                <select style={{ ...INP, cursor: "pointer" }} value={globalComm.calculationBasis} onChange={e => { setGlobalComm(p => ({...p,calculationBasis:e.target.value})); setGlobalChanges(true); }}>
-                                  <option value="ORDER_TOTAL">Order Total Value</option>
-                                  <option value="SUBTOTAL">Order Subtotal (before tax)</option>
-                                  <option value="PROFIT_MARGIN">Profit Margin</option>
-                                </select>
-                              </div>
+                              <div><label style={LBL}>Calculation Basis</label><select style={{ ...INP, cursor: "pointer" }} value={globalComm.calculationBasis} onChange={e => { setGlobalComm(p => ({...p,calculationBasis:e.target.value})); setGlobalChanges(true); }}><option value="ORDER_TOTAL">Order Total Value</option><option value="SUBTOTAL">Order Subtotal (before tax)</option><option value="PROFIT_MARGIN">Profit Margin</option></select></div>
                               <div><label style={LBL}>Min. Order Value ($)</label><input style={INP} type="number" step="100" min="0" value={globalComm.minimumOrderValue} onChange={e => { setGlobalComm(p => ({...p,minimumOrderValue:parseFloat(e.target.value)||0})); setGlobalChanges(true); }} /></div>
                             </div>
                           </div>
@@ -859,24 +756,11 @@ export default function UnifiedSettingsPage() {
 
                       {commTab === "stages" && (
                         <div style={CARD}>
-                          <SectionHeader label="Stage Distribution" desc="Set the percentage of total commission paid when an order reaches each stage. Must total 100%. Changes only apply to NEW orders — existing commissions use their original distribution." />
+                          <SectionHeader label="Stage Distribution" desc="Set the percentage of total commission paid when an order reaches each stage. Must total 100%. Changes only apply to NEW orders \u2014 existing commissions use their original distribution." />
                           <div style={{ overflowX: "auto", marginBottom: 14 }}>
                             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                              <thead>
-                                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                                  {["Stage","Commission %","Example ($10k @ 5%)",""].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{h}</th>)}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {stageDist.map((item, i) => (
-                                  <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                                    <td style={{ padding: "10px 12px" }}><select style={{ ...INP, width: 160 }} value={item.stage} onChange={e => { const n = [...stageDist]; n[i].stage = e.target.value; setStageDist(n); setStageDistChange(true); }}>{COMM_STAGES.map(s => <option key={s} value={s} disabled={stageDist.some((d, j) => d.stage === s && j !== i)}>{s}</option>)}</select></td>
-                                    <td style={{ padding: "10px 12px" }}><input type="number" step="0.1" min="0" max="100" value={item.percentage} onChange={e => { const n = [...stageDist]; n[i].percentage = Number(e.target.value); setStageDist(n); setStageDistChange(true); }} style={{ ...INP, width: 80 }} /></td>
-                                    <td style={{ padding: "10px 12px", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>${(500 * item.percentage / 100).toFixed(2)}</td>
-                                    <td style={{ padding: "10px 12px" }}><button onClick={() => { setStageDist(p => p.filter((_,j) => j !== i)); setStageDistChange(true); }} disabled={stageDist.length <= 1} style={{ padding: "4px 10px", background: stageDist.length > 1 ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.05)", border: stageDist.length > 1 ? "1px solid rgba(220,38,38,0.2)" : "1px solid transparent", borderRadius: 5, color: stageDist.length > 1 ? "#dc2626" : "rgba(255,255,255,0.2)", fontSize: 11, cursor: stageDist.length > 1 ? "pointer" : "not-allowed" }}>Remove</button></td>
-                                  </tr>
-                                ))}
-                              </tbody>
+                              <thead><tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>{["Stage","Commission %","Example ($10k @ 5%)",""].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{h}</th>)}</tr></thead>
+                              <tbody>{stageDist.map((item, i) => (<tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}><td style={{ padding: "10px 12px" }}><select style={{ ...INP, width: 160 }} value={item.stage} onChange={e => { const n = [...stageDist]; n[i].stage = e.target.value; setStageDist(n); setStageDistChange(true); }}>{COMM_STAGES.map(s => <option key={s} value={s} disabled={stageDist.some((d,j) => d.stage === s && j !== i)}>{s}</option>)}</select></td><td style={{ padding: "10px 12px" }}><input type="number" step="0.1" min="0" max="100" value={item.percentage} onChange={e => { const n = [...stageDist]; n[i].percentage = Number(e.target.value); setStageDist(n); setStageDistChange(true); }} style={{ ...INP, width: 80 }} /></td><td style={{ padding: "10px 12px", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>${(500 * item.percentage / 100).toFixed(2)}</td><td style={{ padding: "10px 12px" }}><button onClick={() => { setStageDist(p => p.filter((_,j) => j !== i)); setStageDistChange(true); }} disabled={stageDist.length <= 1} style={{ padding: "4px 10px", background: stageDist.length > 1 ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.05)", border: stageDist.length > 1 ? "1px solid rgba(220,38,38,0.2)" : "1px solid transparent", borderRadius: 5, color: stageDist.length > 1 ? "#dc2626" : "rgba(255,255,255,0.2)", fontSize: 11, cursor: stageDist.length > 1 ? "pointer" : "not-allowed" }}>Remove</button></td></tr>))}</tbody>
                             </table>
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
@@ -890,9 +774,7 @@ export default function UnifiedSettingsPage() {
                       {commTab === "rates" && (
                         <div style={CARD}>
                           <SectionHeader label="Individual Rates" desc="Set custom commission rates per sales agent. Leave blank to use the global default rate." />
-                          {salesReps.length === 0 ? (
-                            <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No sales reps found. Enable \u201cShow in Sales Rep Dropdown\u201d on user accounts.</div>
-                          ) : (
+                          {salesReps.length === 0 ? <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No sales reps found. Enable \u201cShow in Sales Rep Dropdown\u201d on user accounts.</div> : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                               {salesReps.map(rep => (
                                 <div key={rep.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "#252525", borderRadius: 8 }}>
@@ -921,13 +803,12 @@ export default function UnifiedSettingsPage() {
         </div>
       </div>
 
-      {/* ================================================================ */}
-      {/* MODALS                                                           */}
-      {/* ================================================================ */}
+      {/* ===== MODALS ===== */}
 
+      {/* Email Preview */}
       {showPreview && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowPreview(false)}>
-          <div style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, width: "90%", maxWidth: 680, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+        <div style={OVERLAY} onClick={() => setShowPreview(false)}>
+          <div style={{ ...DIALOG, maxWidth: 680, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", padding: 0 }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontSize: 14, fontWeight: 600 }}>Email Preview</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Subject: {previewSubject}</div></div>
               <button onClick={() => setShowPreview(false)} style={{ padding: "5px 12px", background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 6, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12 }}>Close</button>
@@ -937,9 +818,10 @@ export default function UnifiedSettingsPage() {
         </div>
       )}
 
+      {/* Test Send */}
       {showTestSend && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowTestSend(false)}>
-          <div style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 28, width: "90%", maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+        <div style={OVERLAY} onClick={() => setShowTestSend(false)}>
+          <div style={DIALOG} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>Send Test Email</h3>
             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16 }}>Send a test version of \u201c{selTpl?.name}\u201d with sample data.</p>
             <label style={LBL}>Recipient Email</label>
@@ -952,34 +834,72 @@ export default function UnifiedSettingsPage() {
         </div>
       )}
 
-      {/* ETA Recalculate Confirm Modal */}
+      {/* ===== ETA RECALCULATE CONFIRM — full detail modal ===== */}
       {showETAConfirm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowETAConfirm(false)}>
-          <div style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 28, width: "90%", maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Recalculate All ETAs</h3>
-            <div style={{ padding: "12px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 8, marginBottom: 16 }}>
-              <p style={{ margin: "0 0 8px", fontSize: 13, color: "#f59e0b", fontWeight: 600 }}>&#9888;&#65039; This will overwrite ALL existing ETA dates on customer tracking pages.</p>
-              <p style={{ margin: "0 0 4px", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Standard orders: Order Date + <strong>{etaTotals.avg.toFixed(0)} days</strong> = ETA</p>
-              <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Extended shipping orders: Order Date + <strong>{etaTotals.extAvg.toFixed(0)} days</strong> = ETA</p>
+        <div style={OVERLAY} onClick={() => setShowETAConfirm(false)}>
+          <div style={DIALOG} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 10 }}>
+              \u26a0\ufe0f Recalculate All Customer ETAs?
+            </h3>
+            <p style={{ fontSize: 15, margin: "0 0 16px", color: "rgba(255,255,255,0.85)", lineHeight: 1.6 }}>
+              This will recalculate and <strong>overwrite</strong> the estimated delivery dates for <strong>ALL existing orders</strong>.
+            </p>
+            <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, marginBottom: 16 }}>
+              <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>What will happen:</p>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.8 }}>
+                <li>All customer tracking pages will show updated ETA dates</li>
+                <li>Standard items: Order Date + <strong style={{ color: "#fff" }}>{etaTotals.avg.toFixed(0)} days</strong></li>
+                <li>Extended shipping items: Order Date + <strong style={{ color: "#fff" }}>{etaTotals.extAvg.toFixed(0)} days</strong></li>
+                <li>Orders with ANY extended shipping items will use the extended timeline</li>
+                <li>This process cannot be undone</li>
+              </ul>
             </div>
+            <p style={{ margin: "0 0 20px", fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
+              <strong style={{ color: "rgba(255,255,255,0.75)" }}>When to use this:</strong> After updating stage thresholds or extended shipping days.
+            </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowETAConfirm(false)} style={{ padding: "8px 18px", background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 6, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 13 }}>Cancel</button>
-              <button onClick={recalcETAs} style={{ padding: "8px 18px", background: "#dc2626", border: "none", borderRadius: 6, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Yes, Recalculate All ETAs</button>
+              <button onClick={() => setShowETAConfirm(false)} style={{ padding: "10px 22px", background: "#2d2d2d", border: "1px solid #404040", borderRadius: 7, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+              <button onClick={recalcETAs} disabled={recalcETA} style={{ padding: "10px 22px", background: recalcETA ? "rgba(220,38,38,0.4)" : "#dc2626", border: "none", borderRadius: 7, color: "#fff", cursor: recalcETA ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 700 }}>{recalcETA ? "Recalculating\u2026" : "Yes, Recalculate All ETAs"}</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ===== RECALCULATE COMMISSIONS — full detail modal ===== */}
       {showRecalcModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setShowRecalcModal(false); setRecalcReason(""); }}>
-          <div style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: 28, width: "90%", maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Recalculate All Commissions</h3>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>This will recalculate all unpaid commissions based on current rates and stage settings. Commissions with paid payouts will be skipped. This action will be logged in the audit trail.</p>
-            <label style={LBL}>Reason (minimum 10 characters)</label>
-            <textarea value={recalcReason} onChange={e => setRecalcReason(e.target.value)} placeholder="Enter reason for recalculation\u2026" rows={3} style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginBottom: 20 }} />
+        <div style={OVERLAY} onClick={() => { setShowRecalcModal(false); setRecalcReason(""); }}>
+          <div style={DIALOG} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 10 }}>
+              \uD83D\uDD04 Recalculate All Commissions
+            </h3>
+            <p style={{ fontSize: 14, margin: "0 0 16px", color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>
+              This will recalculate ALL unpaid commissions based on current rates and stage settings.
+            </p>
+            <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, marginBottom: 20 }}>
+              <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Note:</p>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.8 }}>
+                <li>Only unpaid commissions will be recalculated</li>
+                <li>Commissions with paid payouts will be skipped</li>
+                <li>This action will be logged in the audit trail</li>
+              </ul>
+            </div>
+            <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Please provide a reason:</p>
+            <textarea
+              value={recalcReason}
+              onChange={e => setRecalcReason(e.target.value)}
+              placeholder="Enter reason for recalculation (minimum 10 characters)"
+              rows={4}
+              style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginBottom: 20, minHeight: 90 }}
+            />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => { setShowRecalcModal(false); setRecalcReason(""); }} style={{ padding: "8px 18px", background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 6, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 13 }}>Cancel</button>
-              <button onClick={executeRecalc} disabled={recalculating || recalcReason.trim().length < 10} style={{ padding: "8px 18px", background: recalcReason.trim().length >= 10 ? "#f59e0b" : "rgba(255,255,255,0.07)", border: "none", borderRadius: 6, color: recalcReason.trim().length >= 10 ? "#000" : "rgba(255,255,255,0.3)", cursor: recalcReason.trim().length >= 10 ? "pointer" : "not-allowed", fontSize: 13, fontWeight: 600 }}>{recalculating ? "Recalculating\u2026" : "Recalculate Commissions"}</button>
+              <button onClick={() => { setShowRecalcModal(false); setRecalcReason(""); }} style={{ padding: "10px 22px", background: "#2d2d2d", border: "1px solid #404040", borderRadius: 7, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+              <button
+                onClick={executeRecalc}
+                disabled={recalculating || recalcReason.trim().length < 10}
+                style={{ padding: "10px 22px", background: recalcReason.trim().length >= 10 && !recalculating ? "#f59e0b" : "rgba(245,158,11,0.25)", border: "none", borderRadius: 7, color: recalcReason.trim().length >= 10 && !recalculating ? "#000" : "rgba(255,255,255,0.3)", cursor: recalcReason.trim().length >= 10 && !recalculating ? "pointer" : "not-allowed", fontSize: 14, fontWeight: 700 }}
+              >
+                {recalculating ? "Recalculating\u2026" : "Recalculate Commissions"}
+              </button>
             </div>
           </div>
         </div>
