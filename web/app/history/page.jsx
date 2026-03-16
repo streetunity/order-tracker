@@ -23,6 +23,8 @@ import {
 } from './historyHelpers';
 import './history.css';
 
+const DEFAULT_PAGINATION = { page: 1, limit: 50, totalCount: 0, totalPages: 0, hasMore: false };
+
 // Debounce hook
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -43,13 +45,7 @@ export default function AuditHistoryViewer() {
   const [datePreset, setDatePreset] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 50,
-    totalCount: 0,
-    totalPages: 0,
-    hasMore: false
-  });
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
   
   // Orders/Customers sidebar state (for legacy tabs)
   const [orders, setOrders] = useState([]);
@@ -112,11 +108,12 @@ export default function AuditHistoryViewer() {
       if (res.ok) {
         const data = await res.json();
         if (append) {
-          setLogs(prev => [...prev, ...data.logs]);
+          setLogs(prev => [...prev, ...(data.logs || [])]);
         } else {
-          setLogs(data.logs);
+          setLogs(data.logs || []);
         }
-        setPagination(data.pagination);
+        // Guard: always fall back to defaults if pagination is missing
+        setPagination(data.pagination || DEFAULT_PAGINATION);
       }
     } catch (e) {
       console.error('Failed to load logs:', e);
@@ -348,8 +345,6 @@ export default function AuditHistoryViewer() {
   }
 
   // Determine if we should show the sidebar view or unified search results view
-  // Use searchQuery directly (not debounced) so UI switches immediately when typing
-  // Show unified view when: search is active OR not on orders/customers tab
   const isSearchActive = searchQuery && searchQuery.trim().length > 0;
   const showSidebarView = (activeTab === 'orders' || activeTab === 'customers') && !isSearchActive;
 
