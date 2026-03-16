@@ -88,187 +88,41 @@ export default function CustomersPage() {
       <InvoicingNav />
 
       <style>{`
-        .cust-panel { display: flex; height: calc(100vh - 60px); overflow: hidden; }
-
-        .cust-left {
-          width: 280px;
-          min-width: 280px;
-          display: flex;
-          flex-direction: column;
-          background: #141414;
-          border-right: 1px solid rgba(255,255,255,0.07);
-        }
-        .cust-left-header {
-          padding: 16px 14px 10px;
-          border-bottom: 1px solid rgba(255,255,255,0.07);
-          flex-shrink: 0;
-        }
-        .cust-left-title {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 10px;
-        }
-        .cust-left-title h2 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 11px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.7);
-          margin: 0;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-        }
-        .cust-left-title h2::before {
-          content: '';
-          display: block;
-          width: 3px;
-          height: 13px;
-          background: #dc2626;
-          border-radius: 2px;
-          flex-shrink: 0;
-        }
-        .cust-new-btn {
-          display: flex; align-items: center; justify-content: center;
-          width: 26px; height: 26px;
-          background: rgba(220,38,38,0.1);
-          border: 1px solid rgba(220,38,38,0.25);
-          border-radius: 6px;
-          color: #dc2626;
-          font-size: 16px;
-          text-decoration: none;
-          line-height: 1;
-          cursor: pointer;
-          transition: background 0.15s;
-        }
+        .cust-panel { display: flex; height: calc(100vh - 64px); overflow: hidden; }
+        .cust-left { width: 280px; min-width: 280px; display: flex; flex-direction: column; background: #141414; border-right: 1px solid rgba(255,255,255,0.07); }
+        .cust-left-header { padding: 16px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+        .cust-left-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .cust-left-title h2 { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.7); margin: 0; text-transform: uppercase; letter-spacing: 0.8px; }
+        .cust-left-title h2::before { content: ''; display: block; width: 3px; height: 13px; background: #dc2626; border-radius: 2px; flex-shrink: 0; }
+        .cust-new-btn { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: rgba(220,38,38,0.1); border: 1px solid rgba(220,38,38,0.25); border-radius: 6px; color: #dc2626; font-size: 16px; text-decoration: none; line-height: 1; cursor: pointer; transition: background 0.15s; }
         .cust-new-btn:hover { background: rgba(220,38,38,0.2); }
-        .cust-search {
-          width: 100%;
-          padding: 8px 12px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.09);
-          border-radius: 7px;
-          color: rgba(255,255,255,0.9);
-          font-size: 13px;
-          outline: none;
-          box-sizing: border-box;
-          margin-bottom: 8px;
-          transition: border-color 0.15s;
-        }
+        .cust-search { width: 100%; padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 7px; color: rgba(255,255,255,0.9); font-size: 13px; outline: none; box-sizing: border-box; margin-bottom: 8px; transition: border-color 0.15s; }
         .cust-search:focus { border-color: rgba(220,38,38,0.45); }
         .cust-search::placeholder { color: rgba(255,255,255,0.28); }
         .cust-filters { display: flex; gap: 6px; }
-        .cust-filter-select {
-          flex: 1;
-          padding: 5px 8px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.09);
-          border-radius: 6px;
-          color: rgba(255,255,255,0.7);
-          font-size: 12px;
-          outline: none;
-          cursor: pointer;
-        }
+        .cust-filter-select { flex: 1; padding: 5px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 6px; color: rgba(255,255,255,0.7); font-size: 12px; outline: none; cursor: pointer; }
         .cust-filter-select:focus { border-color: rgba(220,38,38,0.4); }
-
-        .cust-list {
-          flex: 1;
-          overflow-y: auto;
-          padding: 4px 0;
-        }
+        .cust-list { flex: 1; overflow-y: auto; padding: 4px 0; }
         .cust-list::-webkit-scrollbar { width: 5px; }
         .cust-list::-webkit-scrollbar-track { background: transparent; }
         .cust-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
         .cust-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
-
-        .cust-item {
-          padding: 11px 14px;
-          cursor: pointer;
-          border-left: 3px solid transparent;
-          transition: background 0.12s, border-color 0.12s;
-          border-bottom: 1px solid rgba(255,255,255,0.04);
-        }
-        .cust-item:hover {
-          background: rgba(255,255,255,0.04);
-          border-left-color: rgba(220,38,38,0.45);
-        }
-        .cust-item-name {
-          font-size: 13px;
-          font-weight: 600;
-          color: rgba(255,255,255,0.88);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .cust-item-sub {
-          font-size: 11px;
-          color: rgba(255,255,255,0.38);
-          margin-top: 2px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .cust-item-balance {
-          font-size: 11px;
-          color: rgba(255,255,255,0.35);
-          margin-top: 3px;
-        }
+        .cust-item { padding: 11px 14px; cursor: pointer; border-left: 3px solid transparent; transition: background 0.12s, border-color 0.12s; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .cust-item:hover { background: rgba(255,255,255,0.04); border-left-color: rgba(220,38,38,0.45); }
+        .cust-item-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.88); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cust-item-sub { font-size: 11px; color: rgba(255,255,255,0.38); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cust-item-balance { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 3px; }
         .cust-item-balance.has-balance { color: #f59e0b; font-weight: 600; }
-        .cust-count {
-          padding: 7px 14px;
-          font-size: 11px;
-          color: rgba(255,255,255,0.25);
-          text-align: center;
-          border-top: 1px solid rgba(255,255,255,0.05);
-          flex-shrink: 0;
-        }
-
-        .cust-right {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #0f0f0f;
-        }
-        .cust-empty {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-          gap: 10px;
-        }
-
-        .cust-sort-bar {
-          display: flex;
-          gap: 3px;
-          padding: 6px 8px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
-          flex-shrink: 0;
-        }
-        .cust-sort-btn {
-          flex: 1;
-          padding: 5px 6px;
-          background: transparent;
-          border: 1px solid transparent;
-          border-radius: 5px;
-          color: rgba(255,255,255,0.35);
-          font-size: 11px;
-          cursor: pointer;
-          text-align: center;
-          transition: all 0.12s;
-          font-weight: 500;
-        }
+        .cust-count { padding: 7px 14px; font-size: 11px; color: rgba(255,255,255,0.25); text-align: center; border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+        .cust-right { flex: 1; display: flex; align-items: center; justify-content: center; background: #0f0f0f; }
+        .cust-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+        .cust-sort-bar { display: flex; gap: 3px; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+        .cust-sort-btn { flex: 1; padding: 5px 6px; background: transparent; border: 1px solid transparent; border-radius: 5px; color: rgba(255,255,255,0.35); font-size: 11px; cursor: pointer; text-align: center; transition: all 0.12s; font-weight: 500; }
         .cust-sort-btn:hover { color: rgba(255,255,255,0.65); background: rgba(255,255,255,0.04); }
-        .cust-sort-btn.active {
-          background: rgba(220,38,38,0.1);
-          border-color: rgba(220,38,38,0.22);
-          color: #dc2626;
-        }
+        .cust-sort-btn.active { background: rgba(220,38,38,0.1); border-color: rgba(220,38,38,0.22); color: #dc2626; }
       `}</style>
 
-      <div className="cust-panel" style={{ marginTop: 60 }}>
-
+      <div className="cust-panel">
         {/* Left Panel */}
         <div className="cust-left">
           <div className="cust-left-header">
@@ -276,13 +130,7 @@ export default function CustomersPage() {
               <h2>Customers</h2>
               <Link href="/invoicing/customers/new" className="cust-new-btn" title="New Customer">+</Link>
             </div>
-            <input
-              type="text"
-              placeholder="Search by name or details"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="cust-search"
-            />
+            <input type="text" placeholder="Search by name or details" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="cust-search" />
             <div className="cust-filters">
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="cust-filter-select">
                 <option value="all">All</option>
@@ -310,24 +158,18 @@ export default function CustomersPage() {
               <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>
                 {searchTerm ? "No matches" : "No customers"}
               </div>
-            ) : (
-              filtered.map(c => {
-                const name = c.companyName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'No Name';
-                const sub  = c.companyName ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : (c.email || '');
-                const bal  = c.openBalance || 0;
-                return (
-                  <div
-                    key={c.id}
-                    className="cust-item"
-                    onClick={() => router.push(`/invoicing/customers/${c.id}`)}
-                  >
-                    <div className="cust-item-name">{name}</div>
-                    {sub && <div className="cust-item-sub">{sub}</div>}
-                    <div className={`cust-item-balance${bal > 0 ? ' has-balance' : ''}`}>{fmt(bal)}</div>
-                  </div>
-                );
-              })
-            )}
+            ) : filtered.map(c => {
+              const name = c.companyName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'No Name';
+              const sub  = c.companyName ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : (c.email || '');
+              const bal  = c.openBalance || 0;
+              return (
+                <div key={c.id} className="cust-item" onClick={() => router.push(`/invoicing/customers/${c.id}`)}>
+                  <div className="cust-item-name">{name}</div>
+                  {sub && <div className="cust-item-sub">{sub}</div>}
+                  <div className={`cust-item-balance${bal > 0 ? ' has-balance' : ''}`}>{fmt(bal)}</div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="cust-count">{filtered.length} customer{filtered.length !== 1 ? 's' : ''}</div>

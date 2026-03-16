@@ -30,14 +30,14 @@ export default function EstimatesPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
 
-  const [estimates,   setEstimates]   = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState("");
-  const [search,      setSearch]      = useState("");
-  const [statusFilter,setStatusFilter]= useState("all");
-  const [sortBy,      setSortBy]      = useState("date");
-  const [salesReps,   setSalesReps]   = useState([]);
-  const [repFilter,   setRepFilter]   = useState("");
+  const [estimates,    setEstimates]    = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState("");
+  const [search,       setSearch]       = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy,       setSortBy]       = useState("date");
+  const [salesReps,    setSalesReps]    = useState([]);
+  const [repFilter,    setRepFilter]    = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -124,8 +124,7 @@ export default function EstimatesPage() {
         .est-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
       `}</style>
 
-      <div style={{ display: "flex", height: "calc(100vh - 60px)", marginTop: 60, overflow: "hidden" }}>
-
+      <div style={{ display: "flex", height: "calc(100vh - 64px)", overflow: "hidden" }}>
         {/* Sidebar */}
         <div style={{ width: 280, minWidth: 280, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
           <div className="esb-header">
@@ -151,13 +150,11 @@ export default function EstimatesPage() {
               </select>
             </div>
           </div>
-
           <div className="esb-sort-bar">
             {[["date","Date"],["amount","Amount"]].map(([key,label]) => (
               <button key={key} className={`esb-sort-btn${sortBy === key ? ' active' : ''}`} onClick={() => setSortBy(key)}>{label}</button>
             ))}
           </div>
-
           <div className="esb-list">
             {loading ? (
               <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>Loading&#8230;</div>
@@ -181,7 +178,6 @@ export default function EstimatesPage() {
               );
             })}
           </div>
-
           <div className="esb-count">{filtered.length} estimate{filtered.length !== 1 ? 's' : ''}</div>
         </div>
 
@@ -197,9 +193,7 @@ export default function EstimatesPage() {
               <Link href="/invoicing/estimates/new" style={{ padding: "9px 16px", background: "#dc2626", border: "none", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ New Estimate</Link>
             </div>
           </div>
-
           {error && <div style={{ padding: "12px 16px", marginBottom: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444" }}>{error}</div>}
-
           {loading ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.3)" }}>Loading estimates&#8230;</div>
           ) : filtered.length === 0 ? (
@@ -233,17 +227,11 @@ export default function EstimatesPage() {
                           {(estimate.customer?.company || estimate.customer?.companyName) && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{estimate.customer?.company || estimate.customer?.companyName}</div>}
                         </td>
                         <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.45)", fontSize: 12 }}>{fmtD(estimate.estimateDate)}</td>
-                        <td style={{ padding: "13px 14px", fontSize: 12 }}>
-                          <span style={{ color: expired ? "#ef4444" : "rgba(255,255,255,0.45)" }}>{fmtD(estimate.expiryDate)}{expired && <span style={{ fontSize: 10, marginLeft: 5, color: '#ef4444' }}>(Expired)</span>}</span>
-                        </td>
+                        <td style={{ padding: "13px 14px", fontSize: 12 }}><span style={{ color: expired ? "#ef4444" : "rgba(255,255,255,0.45)" }}>{fmtD(estimate.expiryDate)}{expired && <span style={{ fontSize: 10, marginLeft: 5, color: '#ef4444' }}>(Expired)</span>}</span></td>
                         <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{fmt(estimate.total)}</td>
                         <td style={{ padding: "13px 14px", textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>{estimate._count?.items || 0}</td>
-                        <td style={{ padding: "13px 14px", textAlign: "center" }}>
-                          <span style={{ padding: "3px 9px", background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 5, color: sc.text, fontSize: 11, fontWeight: 600, letterSpacing: '0.3px' }}>{estimate.status}</span>
-                        </td>
-                        <td style={{ padding: "13px 14px", textAlign: "right" }}>
-                          <button onClick={ev => { ev.stopPropagation(); router.push(`/invoicing/estimates/${estimate.id}`); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 12 }}>View</button>
-                        </td>
+                        <td style={{ padding: "13px 14px", textAlign: "center" }}><span style={{ padding: "3px 9px", background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 5, color: sc.text, fontSize: 11, fontWeight: 600, letterSpacing: '0.3px' }}>{estimate.status}</span></td>
+                        <td style={{ padding: "13px 14px", textAlign: "right" }}><button onClick={ev => { ev.stopPropagation(); router.push(`/invoicing/estimates/${estimate.id}`); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 12 }}>View</button></td>
                       </tr>
                     );
                   })}

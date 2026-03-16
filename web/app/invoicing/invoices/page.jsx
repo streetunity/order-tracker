@@ -17,41 +17,30 @@ const STATUS_COLORS = {
   OVERDUE: { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.3)',   text: '#ef4444' },
   VOID:    { bg: 'rgba(107,114,128,0.1)', border: 'rgba(107,114,128,0.3)', text: '#6b7280' },
 };
-
-const STATUS_DOT = {
-  DRAFT: '#9ca3af', SENT: '#3b82f6', VIEWED: '#a855f7',
-  PARTIAL: '#f59e0b', PAID: '#22c55e', OVERDUE: '#ef4444', VOID: '#6b7280',
-};
-
+const STATUS_DOT = { DRAFT: '#9ca3af', SENT: '#3b82f6', VIEWED: '#a855f7', PARTIAL: '#f59e0b', PAID: '#22c55e', OVERDUE: '#ef4444', VOID: '#6b7280' };
 const fmt  = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014';
 
 export default function InvoicesPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
-
-  const [invoices,    setInvoices]    = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [search,      setSearch]      = useState("");
-  const [statusFilter,setStatusFilter]= useState("all");
-  const [sortBy,      setSortBy]      = useState("date");
-  const [salesReps,   setSalesReps]   = useState([]);
-  const [repFilter,   setRepFilter]   = useState("");
+  const [invoices,     setInvoices]     = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy,       setSortBy]       = useState("date");
+  const [salesReps,    setSalesReps]    = useState([]);
+  const [repFilter,    setRepFilter]    = useState("");
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
-    loadInvoices();
-    loadSalesReps();
+    loadInvoices(); loadSalesReps();
   }, [user, router]);
 
   async function loadSalesReps() {
-    try {
-      const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() });
-      if (r.ok) setSalesReps(await r.json());
-    } catch {}
+    try { const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() }); if (r.ok) setSalesReps(await r.json()); } catch {}
   }
-
   async function loadInvoices() {
     try {
       const r = await fetch("/api/invoices", { headers: getAuthHeaders() });
@@ -70,12 +59,7 @@ export default function InvoicesPage() {
       if (repFilter && inv.createdById !== repFilter) return false;
       if (search) {
         const q = search.toLowerCase();
-        return (
-          inv.invoiceNumber?.toLowerCase().includes(q) ||
-          inv.customer?.firstName?.toLowerCase().includes(q) ||
-          inv.customer?.lastName?.toLowerCase().includes(q) ||
-          inv.customer?.companyName?.toLowerCase().includes(q)
-        );
+        return inv.invoiceNumber?.toLowerCase().includes(q) || inv.customer?.firstName?.toLowerCase().includes(q) || inv.customer?.lastName?.toLowerCase().includes(q) || inv.customer?.companyName?.toLowerCase().includes(q);
       }
       return true;
     })
@@ -130,8 +114,7 @@ export default function InvoicesPage() {
         .inv-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
       `}</style>
 
-      <div style={{ display: "flex", height: "calc(100vh - 60px)", marginTop: 60, overflow: "hidden" }}>
-
+      <div style={{ display: "flex", height: "calc(100vh - 64px)", overflow: "hidden" }}>
         {/* Sidebar */}
         <div style={{ width: 280, minWidth: 280, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
           <div className="isb-header">
@@ -143,13 +126,8 @@ export default function InvoicesPage() {
             <div className="isb-filters">
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="isb-filter-sel">
                 <option value="all">All Status</option>
-                <option value="DRAFT">Draft</option>
-                <option value="SENT">Sent</option>
-                <option value="VIEWED">Viewed</option>
-                <option value="PARTIAL">Partial</option>
-                <option value="PAID">Paid</option>
-                <option value="OVERDUE">Overdue</option>
-                <option value="VOID">Void</option>
+                <option value="DRAFT">Draft</option><option value="SENT">Sent</option><option value="VIEWED">Viewed</option>
+                <option value="PARTIAL">Partial</option><option value="PAID">Paid</option><option value="OVERDUE">Overdue</option><option value="VOID">Void</option>
               </select>
               <select value={repFilter} onChange={e => setRepFilter(e.target.value)} className="isb-filter-sel">
                 <option value="">All Reps</option>
@@ -157,13 +135,11 @@ export default function InvoicesPage() {
               </select>
             </div>
           </div>
-
           <div className="isb-sort-bar">
             {[["date","Date"],["amount","Amount"],["balance","Balance"],["due","Due"]].map(([key,label]) => (
               <button key={key} className={`isb-sort-btn${sortBy === key ? ' active' : ''}`} onClick={() => setSortBy(key)}>{label}</button>
             ))}
           </div>
-
           <div className="isb-list">
             {loading ? (
               <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>Loading&#8230;</div>
@@ -171,24 +147,20 @@ export default function InvoicesPage() {
               <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>No invoices</div>
             ) : filtered.map(inv => {
               const custName = inv.customer?.companyName || [inv.customer?.firstName, inv.customer?.lastName].filter(Boolean).join(" ") || "No customer";
-              const dot      = STATUS_DOT[inv.status] || "#9ca3af";
-              const balOwed  = (inv.balanceDue || 0) > 0;
+              const dot = STATUS_DOT[inv.status] || "#9ca3af";
+              const balOwed = (inv.balanceDue || 0) > 0;
               return (
                 <Link key={inv.id} href={`/invoicing/invoices/${inv.id}`} className="isb-item">
                   <div className="isb-item-num">{inv.invoiceNumber}</div>
                   <div className="isb-item-cust">{custName}</div>
                   <div className="isb-item-foot">
                     <span className={`isb-item-bal${balOwed ? ' owed' : ''}`}>{balOwed ? `${fmt(inv.balanceDue)} due` : fmt(inv.total)}</span>
-                    <span className="isb-item-status">
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />
-                      {inv.status}
-                    </span>
+                    <span className="isb-item-status"><span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />{inv.status}</span>
                   </div>
                 </Link>
               );
             })}
           </div>
-
           <div className="isb-count">{filtered.length} invoice{filtered.length !== 1 ? 's' : ''}</div>
         </div>
 
@@ -201,8 +173,6 @@ export default function InvoicesPage() {
             </div>
             <Link href="/invoicing/invoices/new" style={{ padding: "9px 16px", background: "#dc2626", border: "none", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ New Invoice</Link>
           </div>
-
-          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 24 }}>
             {[
               { label: "Total Invoices",  value: invoices.length,       color: "rgba(255,255,255,0.85)" },
@@ -216,7 +186,6 @@ export default function InvoicesPage() {
               </div>
             ))}
           </div>
-
           {loading ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.3)" }}>Loading invoices&#8230;</div>
           ) : filtered.length === 0 ? (
@@ -259,12 +228,8 @@ export default function InvoicesPage() {
                         <td style={{ padding: "13px 14px", fontSize: 12, color: overdue ? "#ef4444" : "rgba(255,255,255,0.45)" }}>{fmtD(invoice.dueDate)}{overdue && <span style={{ fontSize: 10, marginLeft: 4 }}>&#9888;</span>}</td>
                         <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{fmt(invoice.total)}</td>
                         <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, fontSize: 13, color: invoice.balanceDue > 0 ? "#f59e0b" : "#22c55e" }}>{fmt(invoice.balanceDue)}</td>
-                        <td style={{ padding: "13px 14px", textAlign: "center" }}>
-                          <span style={{ padding: "3px 9px", background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 5, color: sc.text, fontSize: 11, fontWeight: 600, letterSpacing: '0.3px' }}>{invoice.status}</span>
-                        </td>
-                        <td style={{ padding: "13px 14px", textAlign: "right" }}>
-                          <button onClick={e => { e.stopPropagation(); router.push(`/invoicing/invoices/${invoice.id}`); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 12 }}>View</button>
-                        </td>
+                        <td style={{ padding: "13px 14px", textAlign: "center" }}><span style={{ padding: "3px 9px", background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 5, color: sc.text, fontSize: 11, fontWeight: 600, letterSpacing: '0.3px' }}>{invoice.status}</span></td>
+                        <td style={{ padding: "13px 14px", textAlign: "right" }}><button onClick={e => { e.stopPropagation(); router.push(`/invoicing/invoices/${invoice.id}`); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 12 }}>View</button></td>
                       </tr>
                     );
                   })}
