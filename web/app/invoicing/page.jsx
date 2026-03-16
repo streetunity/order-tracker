@@ -65,11 +65,7 @@ export default function InvoicingDashboard() {
   }, [user, getAuthHeaders]);
 
   const fmt = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v || 0);
-
-  const fmtDate = (d) => {
-    if (!d) return "\u2014";
-    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  };
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "\u2014";
 
   const STATUS_COLORS = {
     DRAFT:     { bg: "rgba(107,114,128,0.12)", text: "#9ca3af",  border: "rgba(107,114,128,0.25)" },
@@ -91,55 +87,36 @@ export default function InvoicingDashboard() {
 
   if (authLoading || !user) return null;
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
-  };
-
+  const greeting = () => { const h = new Date().getHours(); if (h < 12) return "Good morning"; if (h < 17) return "Good afternoon"; return "Good evening"; };
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-
-  // Shared action button style — outlined, consistent across all three
-  const actionBtn = { padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s" };
+  const actionBtn = { padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 5 };
 
   return (
     <>
       <InvoicingNav />
-
       <style>{`
         .dash-stat-card { transition: transform 0.15s, box-shadow 0.15s; }
         .dash-stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-        .dash-action-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
         .dash-row-link { transition: background 0.12s; }
         .dash-row-link:hover { background: rgba(255,255,255,0.05) !important; }
         .dash-nav-card { transition: all 0.15s; }
         .dash-nav-card:hover { background: rgba(255,255,255,0.06) !important; border-color: rgba(220,38,38,0.3) !important; }
       `}</style>
 
-      <div style={{ minHeight: "100vh", background: "#0f0f0f" }}>
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "80px 28px 60px" }}>
+      <div style={{ minHeight: "calc(100vh - 64px)", background: "#0f0f0f" }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 28px 60px" }}>
 
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 6 }}>{todayStr}</div>
-              <h1 style={{ fontSize: 30, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.5px" }}>
-                {greeting()}, {user.name?.split(" ")[0]}
-              </h1>
+              <h1 style={{ fontSize: 30, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.5px" }}>{greeting()}, {user.name?.split(" ")[0]}</h1>
               <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, margin: 0 }}>Here&#8217;s what&#8217;s happening with your pipeline today.</p>
             </div>
-            {/* All three buttons now share the same outlined-red style */}
             <div style={{ display: "flex", gap: 8 }}>
-              <Link href="/invoicing/leads/new" className="dash-action-btn" style={actionBtn}>
-                <span style={{ fontSize: 15, lineHeight: 1 }}>+</span> New Lead
-              </Link>
-              <Link href="/invoicing/estimates/new" className="dash-action-btn" style={actionBtn}>
-                <span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Estimate
-              </Link>
-              <Link href="/invoicing/invoices/new" className="dash-action-btn" style={actionBtn}>
-                <span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Invoice
-              </Link>
+              <Link href="/invoicing/leads/new"     style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> New Lead</Link>
+              <Link href="/invoicing/estimates/new" style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Estimate</Link>
+              <Link href="/invoicing/invoices/new"  style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Invoice</Link>
             </div>
           </div>
 
@@ -176,7 +153,6 @@ export default function InvoicingDashboard() {
 
           {/* Main Content Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
-
             {/* Recent Leads */}
             <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
               <div style={{ padding: "18px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -263,9 +239,7 @@ export default function InvoicingDashboard() {
                     <Link key={inv.id} href={`/invoicing/invoices/${inv.id}`} className="dash-row-link" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 20px", textDecoration: "none", borderBottom: "1px solid rgba(255,255,255,0.03)", background: isOverdue ? "rgba(239,68,68,0.04)" : "transparent" }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600, fontSize: 13, fontFamily: "monospace", letterSpacing: "0.3px" }}>{inv.invoiceNumber}</div>
-                        <div style={{ fontSize: 11, marginTop: 2, color: isOverdue ? "#f87171" : "rgba(255,255,255,0.35)" }}>
-                          {isOverdue ? "&#9888; Overdue &#183; " : "Due "}{fmtDate(inv.dueDate)}
-                        </div>
+                        <div style={{ fontSize: 11, marginTop: 2, color: isOverdue ? "#f87171" : "rgba(255,255,255,0.35)" }}>{isOverdue ? "\u26a0 Overdue \u00b7 " : "Due "}{fmtDate(inv.dueDate)}</div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 10 }}>
                         <div style={{ color: isOverdue ? "#f87171" : "rgba(255,255,255,0.85)", fontWeight: 700, fontSize: 13 }}>{fmt(inv.balanceDue)}</div>

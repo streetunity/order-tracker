@@ -35,7 +35,6 @@ export default function ProductsPage() {
   const [showModal, setShowModal]           = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [saving, setSaving]                 = useState(false);
-
   const [bundles, setBundles]               = useState([]);
   const [bundlesLoading, setBundlesLoading] = useState(true);
   const [bundleSearchTerm, setBundleSearchTerm] = useState("");
@@ -47,14 +46,12 @@ export default function ProductsPage() {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showConfirmModal, setShowConfirmModal]     = useState(false);
   const [confirmConfig, setConfirmConfig]           = useState({ title: "", message: "", onConfirm: null });
-
   const [formData, setFormData] = useState({ sku: '', name: '', description: '', modelNumber: '', price: '', cost: '', category: '', taxable: true, isActive: true });
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
-    loadProducts();
-    loadBundles();
+    loadProducts(); loadBundles();
   }, [user, router]);
 
   async function loadProducts() {
@@ -87,9 +84,7 @@ export default function ProductsPage() {
     const q = searchTerm.toLowerCase();
     return p.sku?.toLowerCase().includes(q) || p.name?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q) || p.modelNumber?.toLowerCase().includes(q);
   });
-
   const filteredBundles = bundles.filter(b => !bundleSearchTerm || b.name?.toLowerCase().includes(bundleSearchTerm.toLowerCase()));
-
   const searchedProducts = products.filter(p => {
     if (!productSearch) return false;
     const q = productSearch.toLowerCase();
@@ -125,7 +120,6 @@ export default function ProductsPage() {
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
-
   const handleBundleSubmit = async (e) => {
     e.preventDefault(); setSaving(true); setError("");
     if (bundleFormData.items.length === 0) { setError("Add at least one product to the bundle"); setSaving(false); return; }
@@ -140,24 +134,16 @@ export default function ProductsPage() {
   function showConfirm(title, message, onConfirm) { setConfirmConfig({ title, message, onConfirm }); setShowConfirmModal(true); }
   function confirmDeactivateProduct(p) { showConfirm("Deactivate Product", `Deactivate "${p.name}"?`, () => handleDelete(p)); }
   function confirmDeactivateBundle(b)  { showConfirm("Deactivate Bundle",  `Deactivate "${b.name}"?`,  () => handleDeleteBundle(b)); }
-
-  const handleDelete = async (p) => {
-    setShowConfirmModal(false);
-    const res = await fetch('/api/products/' + p.id, { method: 'DELETE', headers: getAuthHeaders() });
-    if (!res.ok) setError('Failed to deactivate product'); else loadProducts();
-  };
-  const handleDeleteBundle = async (b) => {
-    setShowConfirmModal(false);
-    const res = await fetch('/api/bundles/' + b.id, { method: 'DELETE', headers: getAuthHeaders() });
-    if (!res.ok) setError('Failed to deactivate bundle'); else loadBundles();
-  };
+  const handleDelete = async (p) => { setShowConfirmModal(false); const res = await fetch('/api/products/' + p.id, { method: 'DELETE', headers: getAuthHeaders() }); if (!res.ok) setError('Failed to deactivate product'); else loadProducts(); };
+  const handleDeleteBundle = async (b) => { setShowConfirmModal(false); const res = await fetch('/api/bundles/' + b.id, { method: 'DELETE', headers: getAuthHeaders() }); if (!res.ok) setError('Failed to deactivate bundle'); else loadBundles(); };
 
   if (authLoading || !user) return null;
 
+  // Outlined tab buttons — matches the reference image
   const tabBtn = (id, label, count) => {
     const active = activeTab === id;
     return (
-      <button onClick={() => setActiveTab(id)} style={{ padding: "7px 16px", background: active ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${active ? "rgba(220,38,38,0.3)" : "rgba(255,255,255,0.08)"}`, borderRadius: 7, color: active ? "#dc2626" : "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", transition: "all 0.12s" }}>
+      <button onClick={() => setActiveTab(id)} style={{ padding: "6px 14px", background: active ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${active ? "rgba(220,38,38,0.3)" : "rgba(255,255,255,0.08)"}`, borderRadius: 6, color: active ? "#dc2626" : "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", transition: "all 0.12s" }}>
         {label} <span style={{ opacity: 0.65, fontSize: 11 }}>({count})</span>
       </button>
     );
@@ -168,7 +154,6 @@ export default function ProductsPage() {
   return (
     <>
       <InvoicingNav />
-
       <style>{`
         .prod-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.1s; }
         .prod-row:hover { background: rgba(255,255,255,0.03); }
@@ -177,7 +162,7 @@ export default function ProductsPage() {
         .prod-search::placeholder { color: rgba(255,255,255,0.28); }
       `}</style>
 
-      <div style={{ minHeight: "100vh", background: "#0f0f0f", padding: "80px 32px 60px" }}>
+      <div style={{ minHeight: "calc(100vh - 64px)", background: "#0f0f0f", padding: "32px 32px 60px" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
@@ -187,7 +172,8 @@ export default function ProductsPage() {
               {activeTab === "products" ? `${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''}` : `${filteredBundles.length} bundle${filteredBundles.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          <button onClick={activeTab === "products" ? openNewProductModal : openNewBundleModal} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 8, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={activeTab === "products" ? openNewProductModal : openNewBundleModal}
+            style={{ padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             + New {activeTab === "products" ? "Product" : "Bundle"}
           </button>
         </div>
@@ -217,7 +203,6 @@ export default function ProductsPage() {
                 <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> Show Inactive
               </label>
             </div>
-
             <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
@@ -269,7 +254,6 @@ export default function ProductsPage() {
                 <input type="checkbox" checked={showBundleInactive} onChange={e => setShowBundleInactive(e.target.checked)} /> Show Inactive
               </label>
             </div>
-
             <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>

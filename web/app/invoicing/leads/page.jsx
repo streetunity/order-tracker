@@ -25,7 +25,6 @@ export default function LeadsPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
@@ -54,11 +53,8 @@ export default function LeadsPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setLeads(await res.json());
       setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load leads");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : "Failed to load leads"); }
+    finally { setLoading(false); }
   }
 
   useEffect(() => { if (user) loadLeads(); }, [user, statusFilter]);
@@ -73,8 +69,7 @@ export default function LeadsPage() {
     try {
       const res = await fetch(`/api/leads/${pendingDelete.id}`, { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
-      await loadLeads();
-      setShowDeleteConfirm(false); setPendingDelete(null);
+      await loadLeads(); setShowDeleteConfirm(false); setPendingDelete(null);
       showNotif("Lead deleted successfully", "success");
     } catch (err) { showNotif(`Failed to delete: ${err.message}`, "error"); }
   }
@@ -86,8 +81,7 @@ export default function LeadsPage() {
       const res = await fetch(`/api/leads/${pendingConvert.id}/convert`, { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({}) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      await loadLeads();
-      setShowConvertConfirm(false); setPendingConvert(null);
+      await loadLeads(); setShowConvertConfirm(false); setPendingConvert(null);
       showNotif(`Lead converted to customer ${data.customer.customerNumber}`, "success");
       router.push(`/invoicing/customers/${data.customer.id}`);
     } catch (err) { showNotif(`Failed to convert: ${err.message}`, "error"); }
@@ -97,8 +91,7 @@ export default function LeadsPage() {
     try {
       const res = await fetch(`/api/leads/${lead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ status: newStatus }) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await loadLeads();
-      showNotif(`Status updated to ${newStatus}`, "success");
+      await loadLeads(); showNotif(`Status updated to ${newStatus}`, "success");
     } catch (err) { showNotif(`Failed to update status: ${err.message}`, "error"); }
   }
 
@@ -113,21 +106,18 @@ export default function LeadsPage() {
 
   if (authLoading || !user) return null;
 
-  // Shared outlined button style
-  const activeRedBtn  = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.12s", border: "1px solid rgba(220,38,38,0.3)", background: "rgba(220,38,38,0.1)", color: "#dc2626" };
-  const inactiveBtn   = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 400, cursor: "pointer", transition: "all 0.12s", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.5)" };
+  const activeRedBtn = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid rgba(220,38,38,0.3)", background: "rgba(220,38,38,0.1)", color: "#dc2626" };
+  const inactiveBtn  = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 400, cursor: "pointer", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.5)" };
 
   return (
     <>
       <InvoicingNav />
-
       <style>{`
-        .leads-page { min-height: 100vh; background: #0f0f0f; padding: 80px 32px 60px; }
         .leads-row-tr { border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background 0.1s; }
         .leads-row-tr:hover { background: rgba(255,255,255,0.03); }
       `}</style>
 
-      <div className="leads-page">
+      <div style={{ minHeight: "calc(100vh - 64px)", background: "#0f0f0f", padding: "32px 32px 60px" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
@@ -135,9 +125,7 @@ export default function LeadsPage() {
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>Leads</h1>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>Manage your sales pipeline and convert leads to customers</p>
           </div>
-          <Link href="/invoicing/leads/new" style={{ padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13 }}>
-            + New Lead
-          </Link>
+          <Link href="/invoicing/leads/new" style={{ padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13 }}>+ New Lead</Link>
         </div>
 
         {/* Status Tabs */}
@@ -147,48 +135,24 @@ export default function LeadsPage() {
             const isActive = statusFilter === status;
             const isAll = status === 'ALL';
             return (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
+              <button key={status} onClick={() => setStatusFilter(status)}
                 style={isAll
                   ? (isActive ? activeRedBtn : inactiveBtn)
-                  : {
-                      padding: "6px 14px",
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: isActive ? 600 : 400,
-                      cursor: "pointer",
-                      transition: "all 0.12s",
-                      border: `1px solid ${isActive ? sc.border : 'rgba(255,255,255,0.08)'}`,
-                      background: isActive ? sc.bg : 'rgba(255,255,255,0.03)',
-                      color: isActive ? sc.text : 'rgba(255,255,255,0.5)',
-                    }
+                  : { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: isActive ? 600 : 400, cursor: "pointer", border: `1px solid ${isActive ? sc.border : 'rgba(255,255,255,0.08)'}`, background: isActive ? sc.bg : 'rgba(255,255,255,0.03)', color: isActive ? sc.text : 'rgba(255,255,255,0.5)' }
                 }
               >
                 {status} <span style={{ opacity: 0.65, fontSize: 11 }}>({statusCounts[status] || 0})</span>
               </button>
             );
           })}
-
-          {/* Search inline */}
           <div style={{ marginLeft: 'auto' }}>
-            <input
-              type="text"
-              placeholder="Search leads..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ padding: "7px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.9)", fontSize: 13, outline: "none", width: 220 }}
-            />
+            <input type="text" placeholder="Search leads..." value={search} onChange={e => setSearch(e.target.value)}
+              style={{ padding: "7px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.9)", fontSize: 13, outline: "none", width: 220 }} />
           </div>
         </div>
 
-        {error && (
-          <div style={{ padding: "12px 16px", marginBottom: 16, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 13 }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ padding: "12px 16px", marginBottom: 16, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 13 }}>{error}</div>}
 
-        {/* Table */}
         {loading ? (
           <div style={{ color: "rgba(255,255,255,0.3)", padding: "60px 0", textAlign: "center", fontSize: 14 }}>Loading leads&#8230;</div>
         ) : leads.length === 0 ? (
@@ -214,31 +178,15 @@ export default function LeadsPage() {
                     <td style={{ padding: "13px 14px", fontSize: 16 }} title={lead.source}>
                       {lead.source === 'zapier' ? '&#9889;' : lead.source === 'website' ? '&#127760;' : lead.source === 'referral' ? '&#129309;' : lead.source === 'email' ? '&#128231;' : lead.source === 'phone' ? '&#128222;' : '&#9998;'}
                     </td>
-                    <td style={{ padding: "13px 14px" }}>
-                      <div style={{ fontWeight: 600, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{lead.firstName} {lead.lastName}</div>
-                    </td>
+                    <td style={{ padding: "13px 14px" }}><div style={{ fontWeight: 600, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{lead.firstName} {lead.lastName}</div></td>
                     <td style={{ padding: "13px 14px" }}>
                       <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>{lead.email}</div>
                       {lead.phone && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{lead.phone}</div>}
                     </td>
                     <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{lead.company || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&#8212;</span>}</td>
                     <td style={{ padding: "13px 14px" }} onClick={e => e.stopPropagation()}>
-                      <select
-                        value={lead.status}
-                        onChange={e => handleStatusChange(lead, e.target.value)}
-                        disabled={lead.status === "CONVERTED"}
-                        style={{
-                          padding: "4px 8px",
-                          background: STATUS_COLORS[lead.status]?.bg || "rgba(255,255,255,0.07)",
-                          border: `1px solid ${STATUS_COLORS[lead.status]?.border || "rgba(255,255,255,0.15)"}`,
-                          borderRadius: 5,
-                          color: STATUS_COLORS[lead.status]?.text || "#fff",
-                          fontSize: 11,
-                          fontWeight: 600,
-                          cursor: lead.status === "CONVERTED" ? "not-allowed" : "pointer",
-                          letterSpacing: '0.3px',
-                        }}
-                      >
+                      <select value={lead.status} onChange={e => handleStatusChange(lead, e.target.value)} disabled={lead.status === "CONVERTED"}
+                        style={{ padding: "4px 8px", background: STATUS_COLORS[lead.status]?.bg || "rgba(255,255,255,0.07)", border: `1px solid ${STATUS_COLORS[lead.status]?.border || "rgba(255,255,255,0.15)"}`, borderRadius: 5, color: STATUS_COLORS[lead.status]?.text || "#fff", fontSize: 11, fontWeight: 600, cursor: lead.status === "CONVERTED" ? "not-allowed" : "pointer", letterSpacing: '0.3px' }}>
                         <option value="NEW">NEW</option>
                         <option value="CONTACTED">CONTACTED</option>
                         <option value="QUALIFIED">QUALIFIED</option>
@@ -267,7 +215,6 @@ export default function LeadsPage() {
         )}
       </div>
 
-      {/* Delete Modal */}
       {showDeleteConfirm && pendingDelete && (
         <div className="modal-overlay" onClick={() => { setShowDeleteConfirm(false); setPendingDelete(null); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -281,7 +228,6 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Convert Modal */}
       {showConvertConfirm && pendingConvert && (
         <div className="modal-overlay" onClick={() => { setShowConvertConfirm(false); setPendingConvert(null); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -296,7 +242,6 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* Toast */}
       {notification.show && (
         <div style={{ position: "fixed", top: 80, right: 24, background: notification.type === "error" ? "#1a0505" : notification.type === "success" ? "#051a0a" : "#1a1a1a", border: `1px solid ${notification.type === "error" ? "rgba(239,68,68,0.4)" : notification.type === "success" ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, padding: "12px 18px", zIndex: 1200, maxWidth: 380, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
           <span style={{ color: notification.type === "error" ? "#f87171" : notification.type === "success" ? "#34d399" : "#d1d5db", fontSize: 13 }}>{notification.message}</span>
