@@ -16,13 +16,12 @@ import {
 import "./users.css";
 
 const TABS = [
-  { id: 'system',       label: 'System Users',         addLabel: 'Add New User',            defaultRole: 'AGENT' },
-  { id: 'manufacturer', label: 'Manufacturer Accounts', addLabel: 'Add New Manufacturer',    defaultRole: 'MANUFACTURER' },
-  { id: 'broker',       label: 'Broker Accounts',       addLabel: 'Add Broker Account',      defaultRole: 'BROKER' },
+  { id: 'system',       label: 'System Users',         addLabel: 'Add New User',         defaultRole: 'AGENT' },
+  { id: 'manufacturer', label: 'Manufacturer Accounts', addLabel: 'Add New Manufacturer', defaultRole: 'MANUFACTURER' },
+  { id: 'broker',       label: 'Broker Accounts',       addLabel: 'Add Broker Account',   defaultRole: 'BROKER' },
 ];
 
 export default function UsersPage() {
-  // ---- System users state ----
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,8 +35,6 @@ export default function UsersPage() {
   const [userError, setUserError] = useState('');
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [pendingDeactivate, setPendingDeactivate] = useState(null);
-
-  // ---- Manufacturer state ----
   const [manufacturers, setManufacturers] = useState([]);
   const [mfgLoading, setMfgLoading] = useState(false);
   const [mfgLoaded, setMfgLoaded] = useState(false);
@@ -47,10 +44,8 @@ export default function UsersPage() {
   const [mfgError, setMfgError] = useState('');
   const [showMfgToggleConfirm, setShowMfgToggleConfirm] = useState(false);
   const [pendingMfgToggle, setPendingMfgToggle] = useState(null);
-
   const router = useRouter();
 
-  // ---- Init ----
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -62,27 +57,21 @@ export default function UsersPage() {
       setAssignableRoles(localRoles.map(r => ({ value: r, label: getRoleDisplayName(r) })));
       loadUsers();
       loadAssignableRoles();
-    } catch (e) {
-      console.error('Failed to parse user:', e);
-      router.push('/login');
-    }
+    } catch (e) { console.error('Failed to parse user:', e); router.push('/login'); }
   }, []);
 
-  // Lazy-load manufacturers on first visit to that tab
   useEffect(() => {
     if (activeTab === 'manufacturer' && !mfgLoaded) loadManufacturers();
   }, [activeTab]);
 
-  // ---- User data ----
   async function loadUsers() {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
       if (!res.ok) { if (res.status === 401) { router.push('/login'); return; } throw new Error('Failed to load users'); }
       setUsers(await res.json());
-    } catch (e) {
-      setUserError('Failed to load users');
-    } finally { setLoading(false); }
+    } catch (e) { setUserError('Failed to load users'); }
+    finally { setLoading(false); }
   }
 
   async function loadAssignableRoles() {
@@ -93,21 +82,17 @@ export default function UsersPage() {
     } catch (e) { console.error('Failed to load assignable roles:', e); }
   }
 
-  // ---- Manufacturer data ----
   async function loadManufacturers() {
     setMfgLoading(true);
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/manufacturers', { headers: { 'Authorization': `Bearer ${token}` } });
       if (!res.ok) throw new Error('Failed to load manufacturers');
-      setManufacturers(await res.json());
-      setMfgLoaded(true);
-    } catch (e) {
-      setMfgError('Failed to load manufacturers');
-    } finally { setMfgLoading(false); }
+      setManufacturers(await res.json()); setMfgLoaded(true);
+    } catch (e) { setMfgError('Failed to load manufacturers'); }
+    finally { setMfgLoading(false); }
   }
 
-  // ---- User derived ----
   const { regularUsers, brokerUsers } = useMemo(() => {
     const filtered = showInactive ? users : users.filter(u => u.isActive);
     return {
@@ -123,7 +108,6 @@ export default function UsersPage() {
   const canEdit       = (t) => !currentUser ? false : currentUser.id === t.id || canEditRole(currentUser.role, t.role);
   const canDeactivate = (t) => !currentUser ? false : currentUser.id !== t.id && canDeactivateUser(currentUser.role, t.role);
 
-  // ---- User handlers ----
   async function handleUserSubmit(e) {
     e.preventDefault(); setUserError('');
     try {
@@ -135,8 +119,7 @@ export default function UsersPage() {
       const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save user');
-      await loadUsers();
-      closeUserModal();
+      await loadUsers(); closeUserModal();
     } catch (e) { setUserError(e.message); }
   }
 
@@ -185,7 +168,6 @@ export default function UsersPage() {
     setUserFormData({ name: '', email: '', password: '', role: 'AGENT', showInSalesRepDropdown: true }); setUserError('');
   }
 
-  // ---- Manufacturer handlers ----
   async function handleMfgSubmit(e) {
     e.preventDefault(); setMfgError('');
     try {
@@ -230,7 +212,6 @@ export default function UsersPage() {
     setMfgFormData({ name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' }); setMfgError('');
   }
 
-  // ---- Render ----
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: '#a0a0a0' }}>Loading...</div>;
 
   const inactiveUserCount = users.filter(u => !u.isActive).length;
@@ -238,37 +219,38 @@ export default function UsersPage() {
   const currentTab = TABS.find(t => t.id === activeTab);
   const isMfgTab   = activeTab === 'manufacturer';
   const isBrokerTab = activeTab === 'broker';
-
   const error = isMfgTab ? mfgError : userError;
   const setError = isMfgTab ? setMfgError : setUserError;
 
   const tabStyle = (id) => ({
-    padding: '10px 20px', background: 'none', border: 'none',
+    padding: '8px 16px', background: 'none', border: 'none',
     borderBottom: activeTab === id ? '2px solid #dc2626' : '2px solid transparent',
     color: activeTab === id ? '#dc2626' : 'rgba(255,255,255,0.5)',
-    cursor: 'pointer', fontSize: 14, fontWeight: activeTab === id ? 600 : 400,
+    cursor: 'pointer', fontSize: 13, fontWeight: activeTab === id ? 600 : 400,
     marginBottom: -1, transition: 'all 0.15s', whiteSpace: 'nowrap',
   });
 
   return (
     <>
       <TopNav />
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '80px 16px 40px' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 16px 40px' }}>
+
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 className="h1" style={{ margin: 0 }}>User Management</h1>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '14px', color: '#e4e4e4', cursor: 'pointer' }}>
-            <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>User Management</h1>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} style={{ width: 15, height: 15, cursor: 'pointer' }} />
             Show inactive
             {(inactiveUserCount > 0 || inactiveMfgCount > 0) && (
-              <span style={{ color: '#a0a0a0', fontSize: '12px' }}>({isMfgTab ? inactiveMfgCount : inactiveUserCount} hidden)</span>
+              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>({isMfgTab ? inactiveMfgCount : inactiveUserCount} hidden)</span>
             )}
           </label>
         </div>
 
         {error && (
-          <div style={{ padding: '10px', marginBottom: 16, backgroundColor: '#7f1d1d', border: '1px solid #991b1b', borderRadius: 6, color: '#fecaca' }}>
+          <div style={{ padding: '10px 14px', marginBottom: 16, backgroundColor: '#7f1d1d', border: '1px solid #991b1b', borderRadius: 6, color: '#fecaca', fontSize: 13 }}>
             {error}
-            <button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 'none', color: '#fecaca', cursor: 'pointer', fontWeight: 'bold' }}>×</button>
+            <button onClick={() => setError('')} style={{ float: 'right', background: 'none', border: 'none', color: '#fecaca', cursor: 'pointer', fontWeight: 'bold' }}>&#215;</button>
           </div>
         )}
 
@@ -277,7 +259,7 @@ export default function UsersPage() {
           {TABS.map(tab => (
             <button key={tab.id} style={tabStyle(tab.id)} onClick={() => setActiveTab(tab.id)}>
               {tab.label}
-              <span style={{ marginLeft: 6, fontSize: 12, opacity: 0.6 }}>
+              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.6 }}>
                 ({tab.id === 'system' ? regularUsers.length : tab.id === 'manufacturer' ? filteredManufacturers.length : brokerUsers.length})
               </span>
             </button>
@@ -285,94 +267,33 @@ export default function UsersPage() {
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', paddingBottom: 2 }}>
             <button
               onClick={isMfgTab ? openMfgAddModal : openUserAddModal}
-              className="btn primary"
-              style={{ fontSize: 13, padding: '7px 16px' }}
+              style={{ padding: '7px 16px', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.28)', borderRadius: 7, color: '#dc2626', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
             >
               {currentTab?.addLabel || 'Add'}
             </button>
           </div>
         </div>
 
-        {/* Tab description */}
-        {isMfgTab && (
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>
-            Manufacturer entities with their assigned order items. Click Edit to update contact info or notes.
-          </p>
-        )}
-        {isBrokerTab && (
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>
-            Read-only broker portal accounts. Brokers can view assigned shipments and documents.
-          </p>
-        )}
+        {isMfgTab && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>Manufacturer entities with their assigned order items. Click Edit to update contact info or notes.</p>}
+        {isBrokerTab && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>Read-only broker portal accounts. Brokers can view assigned shipments and documents.</p>}
 
-        {/* Manufacturer tab — uses ManufacturerTable */}
-        {isMfgTab && (
-          mfgLoading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Loading manufacturers...</div>
-          ) : (
-            <ManufacturerTable
-              manufacturers={filteredManufacturers}
-              onEdit={openMfgEditModal}
-              onDeactivate={deactivateMfg}
-              showInactive={showInactive}
-            />
-          )
-        )}
+        {isMfgTab && (mfgLoading ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>Loading manufacturers...</div>
+        ) : (
+          <ManufacturerTable manufacturers={filteredManufacturers} onEdit={openMfgEditModal} onDeactivate={deactivateMfg} showInactive={showInactive} />
+        ))}
 
-        {/* System users tab */}
         {activeTab === 'system' && (
-          <UserTable
-            users={regularUsers}
-            currentUser={currentUser}
-            onEdit={openUserEditModal}
-            onDeactivate={deactivateUser}
-            onToggleSalesRep={toggleSalesRep}
-            togglingUserId={togglingUserId}
-            showInactive={showInactive}
-            hideSalesRep={false}
-          />
+          <UserTable users={regularUsers} currentUser={currentUser} onEdit={openUserEditModal} onDeactivate={deactivateUser} onToggleSalesRep={toggleSalesRep} togglingUserId={togglingUserId} showInactive={showInactive} hideSalesRep={false} />
         )}
 
-        {/* Broker tab — UserTable without sales rep column */}
         {isBrokerTab && (
-          <UserTable
-            users={brokerUsers}
-            currentUser={currentUser}
-            onEdit={openUserEditModal}
-            onDeactivate={deactivateUser}
-            onToggleSalesRep={toggleSalesRep}
-            togglingUserId={togglingUserId}
-            showInactive={showInactive}
-            hideSalesRep={true}
-          />
+          <UserTable users={brokerUsers} currentUser={currentUser} onEdit={openUserEditModal} onDeactivate={deactivateUser} onToggleSalesRep={toggleSalesRep} togglingUserId={togglingUserId} showInactive={showInactive} hideSalesRep={true} />
         )}
 
-        {/* User modal (system users + brokers) */}
-        <UserModal
-          show={showAddModal}
-          editingUser={editingUser}
-          formData={userFormData}
-          setFormData={setUserFormData}
-          onSubmit={handleUserSubmit}
-          onClose={closeUserModal}
-          error={userError}
-          assignableRoles={assignableRoles}
-          currentUser={currentUser}
-          hideSalesRep={isBrokerTab}
-        />
+        <UserModal show={showAddModal} editingUser={editingUser} formData={userFormData} setFormData={setUserFormData} onSubmit={handleUserSubmit} onClose={closeUserModal} error={userError} assignableRoles={assignableRoles} currentUser={currentUser} hideSalesRep={isBrokerTab} />
+        <ManufacturerModal show={showMfgModal} editingManufacturer={editingMfg} formData={mfgFormData} setFormData={setMfgFormData} onSubmit={handleMfgSubmit} onClose={closeMfgModal} error={mfgError} />
 
-        {/* Manufacturer modal */}
-        <ManufacturerModal
-          show={showMfgModal}
-          editingManufacturer={editingMfg}
-          formData={mfgFormData}
-          setFormData={setMfgFormData}
-          onSubmit={handleMfgSubmit}
-          onClose={closeMfgModal}
-          error={mfgError}
-        />
-
-        {/* Deactivate user confirm */}
         {showDeactivateConfirm && pendingDeactivate && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => { setShowDeactivateConfirm(false); setPendingDeactivate(null); }}>
             <div style={{ backgroundColor: '#1f1f1f', border: '1px solid #404040', borderRadius: 8, padding: '2rem', maxWidth: 500, width: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
@@ -389,26 +310,17 @@ export default function UsersPage() {
           </div>
         )}
 
-        {/* Manufacturer deactivate/reactivate confirm */}
         {showMfgToggleConfirm && pendingMfgToggle && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={() => { setShowMfgToggleConfirm(false); setPendingMfgToggle(null); }}>
             <div style={{ backgroundColor: '#1f1f1f', border: '1px solid #404040', borderRadius: 8, padding: '2rem', maxWidth: 500, width: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
-              <h3 style={{ fontSize: 20, fontWeight: 600, color: '#fff', marginTop: 0, marginBottom: '1rem' }}>
-                {pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'} Manufacturer
-              </h3>
-              <p style={{ fontSize: 14, marginBottom: '1rem', color: '#d1d5db' }}>
-                Are you sure you want to {pendingMfgToggle.isActive ? 'deactivate' : 'reactivate'} <strong>{pendingMfgToggle.name}</strong>?
-              </p>
+              <h3 style={{ fontSize: 20, fontWeight: 600, color: '#fff', marginTop: 0, marginBottom: '1rem' }}>{pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'} Manufacturer</h3>
+              <p style={{ fontSize: 14, marginBottom: '1rem', color: '#d1d5db' }}>Are you sure you want to {pendingMfgToggle.isActive ? 'deactivate' : 'reactivate'} <strong>{pendingMfgToggle.name}</strong>?</p>
               <div style={{ padding: '1rem', backgroundColor: pendingMfgToggle.isActive ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${pendingMfgToggle.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}`, borderRadius: 6, marginBottom: '1rem' }}>
-                <p style={{ margin: 0, fontSize: 14, color: pendingMfgToggle.isActive ? '#ef4444' : '#10b981' }}>
-                  <strong>Note:</strong> {pendingMfgToggle.isActive ? 'This manufacturer will be deactivated and hidden from the list.' : 'This manufacturer will be reactivated and visible again.'}
-                </p>
+                <p style={{ margin: 0, fontSize: 14, color: pendingMfgToggle.isActive ? '#ef4444' : '#10b981' }}><strong>Note:</strong> {pendingMfgToggle.isActive ? 'This manufacturer will be deactivated and hidden from the list.' : 'This manufacturer will be reactivated and visible again.'}</p>
               </div>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                 <button onClick={() => { setShowMfgToggleConfirm(false); setPendingMfgToggle(null); }} style={{ background: '#2d2d2d', color: '#fff', border: '1px solid #404040', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-                <button onClick={executeMfgToggle} style={{ backgroundColor: pendingMfgToggle.isActive ? '#dc2626' : '#10b981', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>
-                  {pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'}
-                </button>
+                <button onClick={executeMfgToggle} style={{ backgroundColor: pendingMfgToggle.isActive ? '#dc2626' : '#10b981', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>{pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'}</button>
               </div>
             </div>
           </div>
