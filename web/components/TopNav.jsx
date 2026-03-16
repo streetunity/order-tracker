@@ -145,7 +145,8 @@ export default function TopNav() {
                 </div>
                 <div className="dropdown-divider"></div>
 
-                <Link href="/admin/profile" className="dropdown-item">
+                {/* ?from=admin tells the profile page to render the Order Tracker nav */}
+                <Link href="/admin/profile?from=admin" className="dropdown-item">
                   <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                   My Profile
                 </Link>
@@ -193,10 +194,8 @@ export default function TopNav() {
                   </>
                 )}
 
-                <Link href="/admin/change-password" className="dropdown-item">
-                  <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
-                  Change Password
-                </Link>
+                {/* Change Password removed — now contained within My Profile */}
+
                 <div className="dropdown-divider"></div>
                 <button onClick={logout} className="dropdown-item dropdown-item-danger">
                   <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
+import InvoicingNav from "@/components/InvoicingNav";
 
 const TABS = [
   { id: "account",  label: "Account Information" },
@@ -17,6 +18,7 @@ export default function ProfilePage() {
   const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("account");
+  const [fromInvoicing, setFromInvoicing] = useState(false);
 
   // ---- Account Info ----
   const [name,       setName]       = useState("");
@@ -48,6 +50,12 @@ export default function ProfilePage() {
   const [pwSuccess,        setPwSuccess]        = useState(false);
 
   const isManufacturer = user?.role === "MANUFACTURER";
+
+  // Read ?from= on the client side
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setFromInvoicing(params.get("from") === "invoicing");
+  }, []);
 
   useEffect(() => {
     if (!user) { router.push("/login"); return; }
@@ -104,7 +112,7 @@ export default function ProfilePage() {
         body: JSON.stringify(body)
       });
       if (res.ok) {
-        setMessage({ type: "success", text: "Profile updated. Refreshing…" });
+        setMessage({ type: "success", text: "Profile updated. Refreshing\u2026" });
         setTimeout(() => window.location.reload(), 1200);
       } else {
         const err = await res.json();
@@ -194,7 +202,7 @@ export default function ProfilePage() {
           disabled={!hasChanges || saving}
           style={{ padding: "9px 20px", background: hasChanges && !saving ? "#dc2626" : "rgba(255,255,255,0.06)", border: "none", borderRadius: 7, color: hasChanges && !saving ? "#fff" : "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: 600, cursor: hasChanges && !saving ? "pointer" : "not-allowed" }}
         >
-          {saving ? "Saving…" : hasChanges ? "Save Changes" : "No Changes"}
+          {saving ? "Saving\u2026" : hasChanges ? "Save Changes" : "No Changes"}
         </button>
       </div>
     );
@@ -210,7 +218,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <TopNav />
+      {fromInvoicing ? <InvoicingNav /> : <TopNav />}
       <div style={{ maxWidth: 700, margin: "0 auto", padding: "80px 24px 80px" }}>
 
         {/* Avatar + name header */}
@@ -270,7 +278,7 @@ export default function ProfilePage() {
             </p>
 
             {emailSettingsLoading ? (
-              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "20px 0" }}>Loading…</div>
+              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "20px 0" }}>Loading\u2026</div>
             ) : (
               <>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
@@ -298,7 +306,7 @@ export default function ProfilePage() {
                   <textarea
                     value={emailSignature}
                     onChange={e => setEmailSignature(e.target.value)}
-                    placeholder="Your signature text appended to all outgoing emails…"
+                    placeholder="Your signature text appended to all outgoing emails\u2026"
                     rows={4}
                     style={{ ...INP, resize: "vertical", lineHeight: 1.6 }}
                   />
@@ -309,13 +317,13 @@ export default function ProfilePage() {
 
                 <details style={{ marginBottom: 14 }}>
                   <summary style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", cursor: "pointer", userSelect: "none", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.6px" }}>Default Invoice Email Body (optional)</summary>
-                  <textarea value={invoiceEmailBody} onChange={e => setInvoiceEmailBody(e.target.value)} placeholder="Leave blank to use the system default template…" rows={5} style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginTop: 8 }} />
+                  <textarea value={invoiceEmailBody} onChange={e => setInvoiceEmailBody(e.target.value)} placeholder="Leave blank to use the system default template\u2026" rows={5} style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginTop: 8 }} />
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 4 }}>Overrides the system default invoice email body when you send invoices.</div>
                 </details>
 
                 <details>
                   <summary style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", cursor: "pointer", userSelect: "none", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.6px" }}>Default Estimate Email Body (optional)</summary>
-                  <textarea value={estimateEmailBody} onChange={e => setEstimateEmailBody(e.target.value)} placeholder="Leave blank to use the system default template…" rows={5} style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginTop: 8 }} />
+                  <textarea value={estimateEmailBody} onChange={e => setEstimateEmailBody(e.target.value)} placeholder="Leave blank to use the system default template\u2026" rows={5} style={{ ...INP, resize: "vertical", lineHeight: 1.6, marginTop: 8 }} />
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 4 }}>Overrides the system default estimate email body when you send estimates.</div>
                 </details>
 
@@ -332,7 +340,7 @@ export default function ProfilePage() {
 
             {pwSuccess && (
               <div style={{ padding: "12px 16px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 8, color: "#10b981", marginBottom: 20 }}>
-                ✓ Password changed successfully!
+                &#10003; Password changed successfully!
               </div>
             )}
 
@@ -364,7 +372,7 @@ export default function ProfilePage() {
                   disabled={pwLoading}
                   style={{ padding: "9px 24px", background: pwLoading ? "rgba(220,38,38,0.4)" : "#dc2626", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: pwLoading ? "not-allowed" : "pointer" }}
                 >
-                  {pwLoading ? "Changing…" : "Change Password"}
+                  {pwLoading ? "Changing\u2026" : "Change Password"}
                 </button>
               </div>
             </form>
