@@ -386,12 +386,14 @@ app.use('/orders', authGuard, stagesRouter);
 app.use('/orders', authGuard, locksRouter);
 
 // Audit logs (manufacturers blocked)
-app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
+// CRITICAL: auditSearchRouter and auditBackfillRouter MUST be mounted BEFORE auditRouter
+// because auditRouter has a /:entityId catch-all that would swallow /search and /search-raw
 app.use('/audit', authGuard, nonManufacturerGuard, auditSearchRouter);
 app.use('/audit', authGuard, nonManufacturerGuard, auditBackfillRouter);
-app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
+app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
 app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditSearchRouter);
 app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditBackfillRouter);
+app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
 // Notifications API (auth required, role-filtered)
 app.use('/notifications', authGuard, notificationsRouter);
