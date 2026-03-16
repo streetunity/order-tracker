@@ -1,13 +1,13 @@
 import express from 'express';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import { requireInvoicingPermission, applyInvoicingDataFilter } from '../middleware/invoicingAuth.js';
 import { generateCustomerNumber } from '../utils/numberGenerators.js';
-import { sendPortalLinkEmail } from '../services/emailService.js';
 
 export function createCustomersRouter(prisma) {
   const router = express.Router();
 
-  // GET /customers/search/autocomplete - Quick search for dropdowns
+  // GET /customers/search/autocomplete
   router.get('/search/autocomplete', async (req, res) => {
     try {
       const { q, limit = 10 } = req.query;
@@ -35,7 +35,7 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // GET /customers - List all customers
+  // GET /customers
   router.get('/', async (req, res) => {
     try {
       const { status, assignedToId, search, tags } = req.query;
@@ -68,7 +68,7 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // GET /customers/:id - Get single customer with full details
+  // GET /customers/:id
   router.get('/:id', async (req, res) => {
     try {
       const customer = await prisma.customer.findUnique({
@@ -93,7 +93,7 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // POST /customers - Create new customer
+  // POST /customers
   router.post('/', requireInvoicingPermission('CREATE_CUSTOMER'), async (req, res) => {
     try {
       const { firstName, lastName, email, phone, company, companyName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, sameAsBilling, taxExempt, taxExemptId, creditLimit, paymentTerms, assignedToId, status, notes, internalNotes, tags, leadId } = req.body;
@@ -130,7 +130,7 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // PUT /customers/:id - Full update
+  // PUT /customers/:id
   router.put('/:id', requireInvoicingPermission('EDIT_CUSTOMER'), async (req, res) => {
     try {
       const existing = await prisma.customer.findUnique({ where: { id: req.params.id } });
@@ -164,7 +164,7 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // PATCH /customers/:id - Partial update
+  // PATCH /customers/:id
   router.patch('/:id', requireInvoicingPermission('EDIT_CUSTOMER'), async (req, res) => {
     try {
       const existing = await prisma.customer.findUnique({ where: { id: req.params.id } });
@@ -189,7 +189,7 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // DELETE /customers/:id - Soft delete
+  // DELETE /customers/:id
   router.delete('/:id', requireInvoicingPermission('DELETE_CUSTOMER'), async (req, res) => {
     try {
       const customer = await prisma.customer.findUnique({ where: { id: req.params.id } });
@@ -294,7 +294,7 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // POST /customers/:id/send-portal-link - Email the portal link to the customer
+  // POST /customers/:id/send-portal-link
   router.post('/:id/send-portal-link', requireInvoicingPermission('EDIT_CUSTOMER'), async (req, res) => {
     try {
       const customer = await prisma.customer.findUnique({
@@ -306,7 +306,6 @@ export function createCustomersRouter(prisma) {
       if (!customer.portalToken) return res.status(400).json({ error: 'No portal token generated for this customer' });
       if (!customer.email) return res.status(400).json({ error: 'Customer has no email address' });
 
-      // Get company settings for the email
       const settings = await prisma.invoicingSettings.findFirst({
         select: { companyName: true, logoUrl: true, phone: true, email: true, website: true }
       });
@@ -316,33 +315,28 @@ export function createCustomersRouter(prisma) {
       const portalUrl = `${baseUrl}/portal/${customer.portalToken}`;
       const customerName = customer.companyName || `${customer.firstName} ${customer.lastName}`;
 
-      // Get the sending user info
       const sender = req.user;
-      const senderSettings = await prisma.userEmailSettings.findUnique({ where: { userId: sender.id } });
-      const fromName  = senderSettings?.fromName  || sender.name || companyName;
+      const senderSettings = await prisma.userEmailSettings.findUnique({ where: { userId: sender.id } }).catch(() => null);
+      const fromName  = senderSettings?.fromName || sender.name || companyName;
       const fromEmail = `${fromName.replace(/[^a-zA-Z0-9 ]/g, '').replace(/ /g, '')}@stealthlaser.com`;
 
-      // Build the email HTML
       const logoHtml = settings?.logoUrl
         ? `<img src="${settings.logoUrl}" alt="${companyName}" style="height:52px;width:auto;display:block;" />`
         : `<span style="color:#ffffff;font-size:20px;font-weight:700;">${companyName}</span>`;
 
-      const html = `
-<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="light"/></head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;color-scheme:light;">
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
 <div style="max-width:600px;margin:24px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
   <div style="background:${settings?.logoUrl ? '#000' : '#dc2626'};padding:24px 28px;">${logoHtml}</div>
   <div style="padding:32px 28px;">
-    <h1 style="font-size:22px;font-weight:700;color:#111;margin:0 0 8px;">Your Customer Portal</h1>
-    <p style="font-size:15px;color:#555;margin:0 0 24px;">Hi ${customerName},</p>
-    <p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 24px;">You now have access to your customer portal where you can view your estimates, invoices, and make payments online.</p>
+    <h1 style="font-size:22px;font-weight:700;color:#111;margin:0 0 16px;">Your Customer Portal</h1>
+    <p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 24px;">Hi ${customerName}, you now have access to your customer portal where you can view your estimates, invoices, and submit payments online.</p>
     <div style="text-align:center;margin:32px 0;">
-      <a href="${portalUrl}" style="display:inline-block;padding:14px 36px;background:#dc2626;color:#ffffff;text-decoration:none;border-radius:8px;font-size:16px;font-weight:700;letter-spacing:0.3px;">Access Your Portal</a>
+      <a href="${portalUrl}" style="display:inline-block;padding:14px 36px;background:#dc2626;color:#ffffff;text-decoration:none;border-radius:8px;font-size:16px;font-weight:700;">Access Your Portal</a>
     </div>
-    <p style="font-size:12px;color:#888;margin:0 0 8px;">Or copy this link into your browser:</p>
+    <p style="font-size:12px;color:#888;margin:0 0 8px;">Or copy this link:</p>
     <p style="font-size:12px;color:#dc2626;word-break:break-all;margin:0 0 32px;">${portalUrl}</p>
-    <p style="font-size:13px;color:#666;margin:0;">Questions? Contact us at ${settings?.email || 'Sales@StealthLaser.com'}${settings?.phone ? ` or call ${settings.phone}` : ''}.</p>
+    <p style="font-size:13px;color:#666;margin:0;">Questions? Contact us at ${settings?.email || 'Sales@StealthLaser.com'}${settings?.phone ? ` or ${settings.phone}` : ''}.</p>
   </div>
   <div style="background:#f0f0f0;padding:16px 28px;text-align:center;font-size:12px;color:#888;border-top:1px solid #ddd;">
     <p style="margin:0;">${companyName}${settings?.phone ? ` &bull; ${settings.phone}` : ''}</p>
@@ -350,8 +344,6 @@ export function createCustomersRouter(prisma) {
 </div>
 </body></html>`;
 
-      // Import nodemailer dynamically (already used elsewhere in the codebase)
-      const nodemailer = (await import('nodemailer')).default;
       const transporter = nodemailer.createTransport({
         host: 'email-smtp.us-east-1.amazonaws.com',
         port: 587,
@@ -365,17 +357,16 @@ export function createCustomersRouter(prisma) {
         replyTo: sender.email || fromEmail,
         subject: `Your ${companyName} Customer Portal`,
         html,
-        text: `Hi ${customerName},\n\nYou now have access to your customer portal where you can view your estimates, invoices, and make payments online.\n\nAccess your portal here:\n${portalUrl}\n\nQuestions? Contact us at ${settings?.email || 'Sales@StealthLaser.com'}.\n\n${companyName}`,
+        text: `Hi ${customerName},\n\nAccess your portal: ${portalUrl}\n\n${companyName}`,
       });
 
-      // Log the activity
       try {
         await prisma.customerActivityLog.create({
           data: {
             customerId: customer.id,
             type: 'sent',
             description: `Portal access link emailed to ${customer.email}`,
-            actorId:   sender.id,
+            actorId: sender.id,
             actorName: sender.name,
           }
         });
