@@ -91,8 +91,8 @@ export default function CustomersPage() {
         .cust-panel { display: flex; height: calc(100vh - 60px); overflow: hidden; }
 
         .cust-left {
-          width: 300px;
-          min-width: 300px;
+          width: 280px;
+          min-width: 280px;
           display: flex;
           flex-direction: column;
           background: #141414;
@@ -109,43 +109,63 @@ export default function CustomersPage() {
           align-items: center;
           margin-bottom: 10px;
         }
-        .cust-left-title h2 { font-size: 18px; font-weight: 700; color: #dc2626; margin: 0; }
+        .cust-left-title h2 {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          color: rgba(255,255,255,0.7);
+          margin: 0;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+        }
+        .cust-left-title h2::before {
+          content: '';
+          display: block;
+          width: 3px;
+          height: 13px;
+          background: #dc2626;
+          border-radius: 2px;
+          flex-shrink: 0;
+        }
         .cust-new-btn {
           display: flex; align-items: center; justify-content: center;
-          width: 28px; height: 28px;
-          background: rgba(220,38,38,0.12);
-          border: 1px solid rgba(220,38,38,0.3);
+          width: 26px; height: 26px;
+          background: rgba(220,38,38,0.1);
+          border: 1px solid rgba(220,38,38,0.25);
           border-radius: 6px;
           color: #dc2626;
-          font-size: 18px;
+          font-size: 16px;
           text-decoration: none;
           line-height: 1;
           cursor: pointer;
           transition: background 0.15s;
         }
-        .cust-new-btn:hover { background: rgba(220,38,38,0.22); }
+        .cust-new-btn:hover { background: rgba(220,38,38,0.2); }
         .cust-search {
           width: 100%;
           padding: 8px 12px;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.1);
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.09);
           border-radius: 7px;
           color: rgba(255,255,255,0.9);
           font-size: 13px;
           outline: none;
           box-sizing: border-box;
           margin-bottom: 8px;
+          transition: border-color 0.15s;
         }
-        .cust-search:focus { border-color: rgba(220,38,38,0.5); }
-        .cust-search::placeholder { color: rgba(255,255,255,0.35); }
+        .cust-search:focus { border-color: rgba(220,38,38,0.45); }
+        .cust-search::placeholder { color: rgba(255,255,255,0.28); }
         .cust-filters { display: flex; gap: 6px; }
         .cust-filter-select {
           flex: 1;
           padding: 5px 8px;
           background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.09);
           border-radius: 6px;
-          color: rgba(255,255,255,0.8);
+          color: rgba(255,255,255,0.7);
           font-size: 12px;
           outline: none;
           cursor: pointer;
@@ -155,100 +175,95 @@ export default function CustomersPage() {
         .cust-list {
           flex: 1;
           overflow-y: auto;
-          padding: 6px 0;
+          padding: 4px 0;
         }
-        .cust-list::-webkit-scrollbar { width: 6px; }
+        .cust-list::-webkit-scrollbar { width: 5px; }
         .cust-list::-webkit-scrollbar-track { background: transparent; }
-        .cust-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
-        .cust-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+        .cust-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+        .cust-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
         .cust-item {
-          padding: 10px 14px;
+          padding: 11px 14px;
           cursor: pointer;
           border-left: 3px solid transparent;
-          transition: background 0.12s;
+          transition: background 0.12s, border-color 0.12s;
           border-bottom: 1px solid rgba(255,255,255,0.04);
         }
         .cust-item:hover {
-          background: rgba(255,255,255,0.05);
-          border-left-color: rgba(220,38,38,0.4);
+          background: rgba(255,255,255,0.04);
+          border-left-color: rgba(220,38,38,0.45);
         }
         .cust-item-name {
           font-size: 13px;
           font-weight: 600;
-          color: rgba(255,255,255,0.9);
+          color: rgba(255,255,255,0.88);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
         .cust-item-sub {
           font-size: 11px;
-          color: rgba(255,255,255,0.4);
+          color: rgba(255,255,255,0.38);
           margin-top: 2px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
         .cust-item-balance {
-          font-size: 12px;
-          color: rgba(255,255,255,0.45);
-          margin-top: 2px;
-        }
-        .cust-item-balance.has-balance { color: #f59e0b; }
-        .cust-count {
-          padding: 6px 14px;
           font-size: 11px;
-          color: rgba(255,255,255,0.3);
+          color: rgba(255,255,255,0.35);
+          margin-top: 3px;
+        }
+        .cust-item-balance.has-balance { color: #f59e0b; font-weight: 600; }
+        .cust-count {
+          padding: 7px 14px;
+          font-size: 11px;
+          color: rgba(255,255,255,0.25);
           text-align: center;
           border-top: 1px solid rgba(255,255,255,0.05);
           flex-shrink: 0;
         }
 
-        /* Right empty state */
         .cust-right {
           flex: 1;
           display: flex;
           align-items: center;
           justify-content: center;
+          background: #0f0f0f;
         }
         .cust-empty {
           display: flex;
           flex-direction: column;
           align-items: center;
-          color: rgba(255,255,255,0.3);
           text-align: center;
+          gap: 10px;
         }
-        .cust-empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
-        .cust-empty p { margin: 0 0 20px 0; font-size: 14px; }
 
         .cust-sort-bar {
           display: flex;
-          gap: 4px;
+          gap: 3px;
           padding: 6px 8px;
           border-bottom: 1px solid rgba(255,255,255,0.05);
           flex-shrink: 0;
         }
         .cust-sort-btn {
           flex: 1;
-          padding: 4px 6px;
+          padding: 5px 6px;
           background: transparent;
           border: 1px solid transparent;
           border-radius: 5px;
-          color: rgba(255,255,255,0.4);
+          color: rgba(255,255,255,0.35);
           font-size: 11px;
           cursor: pointer;
           text-align: center;
           transition: all 0.12s;
+          font-weight: 500;
         }
-        .cust-sort-btn:hover { color: rgba(255,255,255,0.7); }
+        .cust-sort-btn:hover { color: rgba(255,255,255,0.65); background: rgba(255,255,255,0.04); }
         .cust-sort-btn.active {
           background: rgba(220,38,38,0.1);
-          border-color: rgba(220,38,38,0.25);
+          border-color: rgba(220,38,38,0.22);
           color: #dc2626;
-        }
-
-        @media (max-width: 900px) {
-          .cust-left { width: 240px; min-width: 240px; }
         }
       `}</style>
 
@@ -290,9 +305,9 @@ export default function CustomersPage() {
 
           <div className="cust-list">
             {loading ? (
-              <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading...</div>
+              <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>Loading&#8230;</div>
             ) : filtered.length === 0 ? (
-              <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+              <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>
                 {searchTerm ? "No matches" : "No customers"}
               </div>
             ) : (
@@ -318,24 +333,30 @@ export default function CustomersPage() {
           <div className="cust-count">{filtered.length} customer{filtered.length !== 1 ? 's' : ''}</div>
         </div>
 
-        {/* Right — empty state only (navigates away on click) */}
+        {/* Right — empty state */}
         <div className="cust-right">
           {error && (
-            <div style={{ padding: "12px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", marginBottom: 20 }}>
+            <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', padding: "12px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444" }}>
               {error}
             </div>
           )}
           <div className="cust-empty">
-            <div className="cust-empty-icon">👥</div>
             {loading ? (
-              <p>Loading customers...</p>
+              <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13 }}>Loading customers&#8230;</div>
             ) : filtered.length === 0 && !searchTerm ? (
               <>
-                <p>No customers yet</p>
-                <Link href="/invoicing/customers/new" style={{ padding: "10px 20px", background: "linear-gradient(135deg,#ef4444,#dc2626)", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>Create first customer</Link>
+                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 4 }}>&#128101;</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>No customers yet</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', maxWidth: 220, lineHeight: 1.6 }}>Add your first customer to start creating estimates and invoices.</div>
+                <Link href="/invoicing/customers/new" style={{ marginTop: 6, padding: '8px 18px', background: '#dc2626', borderRadius: 7, color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>+ New Customer</Link>
               </>
             ) : (
-              <p style={{ color: "rgba(255,255,255,0.25)" }}>← Select a customer</p>
+              <>
+                <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 4 }}>&#128101;</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>Select a customer</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.22)', maxWidth: 200, lineHeight: 1.6 }}>Choose a customer from the list to view their details and activity</div>
+                <Link href="/invoicing/customers/new" style={{ marginTop: 6, padding: '7px 14px', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.22)', borderRadius: 7, color: '#dc2626', textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>+ New Customer</Link>
+              </>
             )}
           </div>
         </div>

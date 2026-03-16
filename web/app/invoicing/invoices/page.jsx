@@ -88,7 +88,7 @@ export default function InvoicesPage() {
 
   const totalOutstanding = invoices.filter(i => !['PAID','VOID'].includes(i.status)).reduce((s,i) => s + (i.balanceDue||0), 0);
   const totalOverdue     = invoices.filter(i => i.status === 'OVERDUE' || (new Date(i.dueDate) < new Date() && !['PAID','VOID'].includes(i.status))).reduce((s,i) => s + (i.balanceDue||0), 0);
-  const paidThisMonth   = invoices.filter(i => { if (i.status !== 'PAID') return false; const p = new Date(i.updatedAt), n = new Date(); return p.getMonth() === n.getMonth() && p.getFullYear() === n.getFullYear(); }).reduce((s,i) => s + (i.total||0), 0);
+  const paidThisMonth    = invoices.filter(i => { if (i.status !== 'PAID') return false; const p = new Date(i.updatedAt), n = new Date(); return p.getMonth() === n.getMonth() && p.getFullYear() === n.getFullYear(); }).reduce((s,i) => s + (i.total||0), 0);
 
   return (
     <>
@@ -96,43 +96,44 @@ export default function InvoicesPage() {
       <style>{`
         .isb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
         .isb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-        .isb-title h2{font-size:18px;font-weight:700;color:#dc2626;margin:0}
-        .isb-new-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:6px;color:#dc2626;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s}
-        .isb-new-btn:hover{background:rgba(220,38,38,0.22)}
-        .isb-search{width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px}
-        .isb-search:focus{border-color:rgba(220,38,38,0.5)}
-        .isb-search::placeholder{color:rgba(255,255,255,0.35)}
+        .isb-title h2{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.7);margin:0;text-transform:uppercase;letter-spacing:0.8px}
+        .isb-title h2::before{content:'';display:block;width:3px;height:13px;background:#dc2626;border-radius:2px;flex-shrink:0}
+        .isb-new-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.25);border-radius:6px;color:#dc2626;font-size:16px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s}
+        .isb-new-btn:hover{background:rgba(220,38,38,0.2)}
+        .isb-search{width:100%;padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px;transition:border-color 0.15s}
+        .isb-search:focus{border-color:rgba(220,38,38,0.45)}
+        .isb-search::placeholder{color:rgba(255,255,255,0.28)}
         .isb-filters{display:flex;gap:6px}
-        .isb-filter-sel{flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer}
+        .isb-filter-sel{flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:6px;color:rgba(255,255,255,0.7);font-size:12px;outline:none;cursor:pointer}
         .isb-filter-sel:focus{border-color:rgba(220,38,38,0.4)}
-        .isb-sort-bar{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0}
-        .isb-sort-btn{flex:1;padding:4px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s}
-        .isb-sort-btn:hover{color:rgba(255,255,255,0.7)}
-        .isb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.25);color:#dc2626}
-        .isb-list{flex:1;overflow-y:auto;padding:6px 0}
-        .isb-list::-webkit-scrollbar{width:6px}
+        .isb-sort-bar{display:flex;gap:3px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+        .isb-sort-btn{flex:1;padding:5px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.35);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s;font-weight:500}
+        .isb-sort-btn:hover{color:rgba(255,255,255,0.65);background:rgba(255,255,255,0.04)}
+        .isb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.22);color:#dc2626}
+        .isb-list{flex:1;overflow-y:auto;padding:4px 0}
+        .isb-list::-webkit-scrollbar{width:5px}
         .isb-list::-webkit-scrollbar-track{background:transparent}
-        .isb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
-        .isb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}
-        .isb-item{padding:10px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block}
-        .isb-item:hover{background:rgba(255,255,255,0.04);border-left-color:rgba(220,38,38,0.4)}
-        .isb-item-num{font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace}
-        .isb-item-cust{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .isb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
+        .isb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.22)}
+        .isb-item{padding:11px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s,border-color 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block}
+        .isb-item:hover{background:rgba(255,255,255,0.04);border-left-color:rgba(220,38,38,0.45)}
+        .isb-item-num{font-size:12px;font-weight:600;color:rgba(255,255,255,0.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace}
+        .isb-item-cust{font-size:11px;color:rgba(255,255,255,0.38);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .isb-item-foot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
         .isb-item-bal{font-size:11px;color:rgba(255,255,255,0.45)}
-        .isb-item-bal.owed{color:#f59e0b}
-        .isb-item-status{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.3px}
-        .isb-count{padding:6px 14px;font-size:11px;color:rgba(255,255,255,0.3);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0}
-        .inv-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px}
+        .isb-item-bal.owed{color:#f59e0b;font-weight:600}
+        .isb-item-status{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.3px}
+        .isb-count{padding:7px 14px;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+        .inv-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px;background:#0f0f0f}
         .inv-right::-webkit-scrollbar{width:8px}
         .inv-right::-webkit-scrollbar-track{background:transparent}
-        .inv-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:4px}
+        .inv-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
       `}</style>
 
       <div style={{ display: "flex", height: "calc(100vh - 60px)", marginTop: 60, overflow: "hidden" }}>
 
         {/* Sidebar */}
-        <div style={{ width: 300, minWidth: 300, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
+        <div style={{ width: 280, minWidth: 280, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
           <div className="isb-header">
             <div className="isb-title">
               <h2>Invoices</h2>
@@ -165,9 +166,9 @@ export default function InvoicesPage() {
 
           <div className="isb-list">
             {loading ? (
-              <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading...</div>
+              <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>Loading&#8230;</div>
             ) : filtered.length === 0 ? (
-              <div style={{ padding: "20px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No invoices</div>
+              <div style={{ padding: "24px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>No invoices</div>
             ) : filtered.map(inv => {
               const custName = inv.customer?.companyName || [inv.customer?.firstName, inv.customer?.lastName].filter(Boolean).join(" ") || "No customer";
               const dot      = STATUS_DOT[inv.status] || "#9ca3af";
@@ -195,42 +196,43 @@ export default function InvoicesPage() {
         <div className="inv-right">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
             <div>
-              <h1 style={{ fontSize: 26, fontWeight: 700, color: "#dc2626", margin: 0, marginBottom: 4 }}>Invoices</h1>
-              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: 0 }}>Manage invoices and track payments</p>
+              <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: 0, marginBottom: 4, letterSpacing: "-0.3px" }}>Invoices</h1>
+              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>Manage invoices and track payments</p>
             </div>
-            <Link href="/invoicing/invoices/new" style={{ padding: "9px 16px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ New Invoice</Link>
+            <Link href="/invoicing/invoices/new" style={{ padding: "9px 16px", background: "#dc2626", border: "none", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ New Invoice</Link>
           </div>
 
           {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 24 }}>
             {[
-              { label: "Total Invoices",  value: invoices.length,        color: "rgba(255,255,255,0.85)" },
-              { label: "Outstanding",     value: fmt(totalOutstanding),  color: "#f59e0b" },
-              { label: "Overdue",         value: fmt(totalOverdue),      color: "#ef4444" },
-              { label: "Paid This Month", value: fmt(paidThisMonth),     color: "#22c55e" },
+              { label: "Total Invoices",  value: invoices.length,       color: "rgba(255,255,255,0.85)" },
+              { label: "Outstanding",     value: fmt(totalOutstanding), color: "#f59e0b" },
+              { label: "Overdue",         value: fmt(totalOverdue),     color: "#ef4444" },
+              { label: "Paid This Month", value: fmt(paidThisMonth),    color: "#22c55e" },
             ].map(s => (
-              <div key={s.label} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: "16px 20px" }}>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+              <div key={s.label} style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 7, fontWeight: 600 }}>{s.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: s.color, letterSpacing: "-0.3px" }}>{s.value}</div>
               </div>
             ))}
           </div>
 
           {loading ? (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.4)" }}>Loading invoices...</div>
+            <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.3)" }}>Loading invoices&#8230;</div>
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 0" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>\ud83d\udcca</div>
-              <p style={{ color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>{search || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}</p>
-              {!search && statusFilter === "all" && <Link href="/invoicing/invoices/new" style={{ padding: "10px 20px", background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 8, color: "#dc2626", textDecoration: "none" }}>Create Your First Invoice</Link>}
+            <div style={{ textAlign: "center", padding: "80px 0" }}>
+              <div style={{ fontSize: 44, marginBottom: 14 }}>&#128202;</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>{search || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginBottom: 20 }}>{search || statusFilter !== "all" ? "Try adjusting your search or filters" : "Create your first invoice to get started"}</div>
+              {!search && statusFilter === "all" && <Link href="/invoicing/invoices/new" style={{ padding: "10px 20px", background: "#dc2626", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Create First Invoice</Link>}
             </div>
           ) : (
-            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.12)" }}>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}>
                     {["Invoice #","Customer","Date","Due Date","Total","Balance","Status",""].map((h,i) => (
-                      <th key={i} style={{ padding: "10px 14px", textAlign: ["Total","Balance"].includes(h) ? "right" : h === "Status" ? "center" : "left", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{h}</th>
+                      <th key={i} style={{ padding: "11px 14px", textAlign: ["Total","Balance"].includes(h) ? "right" : h === "Status" ? "center" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -244,24 +246,24 @@ export default function InvoicesPage() {
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                         onClick={() => router.push(`/invoicing/invoices/${invoice.id}`)}
                       >
-                        <td style={{ padding: "13px 14px" }}><span style={{ fontFamily: "monospace", color: "#dc2626", fontWeight: 500 }}>{invoice.invoiceNumber}</span></td>
+                        <td style={{ padding: "13px 14px" }}><span style={{ fontFamily: "monospace", color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{invoice.invoiceNumber}</span></td>
                         <td style={{ padding: "13px 14px" }}>
                           {invoice.customer ? (
                             <div>
-                              <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>{invoice.customer.firstName} {invoice.customer.lastName}</div>
-                              {(invoice.customer.company || invoice.customer.companyName) && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{invoice.customer.company || invoice.customer.companyName}</div>}
+                              <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{invoice.customer.firstName} {invoice.customer.lastName}</div>
+                              {(invoice.customer.company || invoice.customer.companyName) && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{invoice.customer.company || invoice.customer.companyName}</div>}
                             </div>
-                          ) : <span style={{ color: "rgba(255,255,255,0.3)" }}>\u2014</span>}
+                          ) : <span style={{ color: "rgba(255,255,255,0.25)" }}>&#8212;</span>}
                         </td>
-                        <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{fmtD(invoice.invoiceDate)}</td>
-                        <td style={{ padding: "13px 14px", fontSize: 13, color: overdue ? "#ef4444" : "rgba(255,255,255,0.55)" }}>{fmtD(invoice.dueDate)}{overdue && <span style={{ fontSize: 10, marginLeft: 4 }}>\u26a0\ufe0f</span>}</td>
-                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>{fmt(invoice.total)}</td>
-                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 600, color: invoice.balanceDue > 0 ? "#f59e0b" : "#22c55e" }}>{fmt(invoice.balanceDue)}</td>
+                        <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.45)", fontSize: 12 }}>{fmtD(invoice.invoiceDate)}</td>
+                        <td style={{ padding: "13px 14px", fontSize: 12, color: overdue ? "#ef4444" : "rgba(255,255,255,0.45)" }}>{fmtD(invoice.dueDate)}{overdue && <span style={{ fontSize: 10, marginLeft: 4 }}>&#9888;</span>}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{fmt(invoice.total)}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, fontSize: 13, color: invoice.balanceDue > 0 ? "#f59e0b" : "#22c55e" }}>{fmt(invoice.balanceDue)}</td>
                         <td style={{ padding: "13px 14px", textAlign: "center" }}>
-                          <span style={{ padding: "3px 9px", background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 6, color: sc.text, fontSize: 11, fontWeight: 500 }}>{invoice.status}</span>
+                          <span style={{ padding: "3px 9px", background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 5, color: sc.text, fontSize: 11, fontWeight: 600, letterSpacing: '0.3px' }}>{invoice.status}</span>
                         </td>
                         <td style={{ padding: "13px 14px", textAlign: "right" }}>
-                          <button onClick={e => { e.stopPropagation(); router.push(`/invoicing/invoices/${invoice.id}`); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.8)", cursor: "pointer", fontSize: 12 }}>View</button>
+                          <button onClick={e => { e.stopPropagation(); router.push(`/invoicing/invoices/${invoice.id}`); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 12 }}>View</button>
                         </td>
                       </tr>
                     );
