@@ -17,19 +17,16 @@ const STATUS_COLORS = {
   EXPIRED:   { bg: 'rgba(234,179,8,0.1)',   border: 'rgba(234,179,8,0.3)',   text: '#eab308' },
   CONVERTED: { bg: 'rgba(20,184,166,0.1)',  border: 'rgba(20,184,166,0.3)',  text: '#14b8a6' },
 };
-
 const STATUS_DOT = {
   DRAFT: '#9ca3af', SENT: '#3b82f6', VIEWED: '#a855f7',
   ACCEPTED: '#22c55e', DECLINED: '#ef4444', EXPIRED: '#eab308', CONVERTED: '#14b8a6',
 };
-
 const fmt  = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
 const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014';
 
 export default function EstimatesPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
-
   const [estimates,    setEstimates]    = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState("");
@@ -42,17 +39,12 @@ export default function EstimatesPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
-    loadEstimates();
-    loadSalesReps();
+    loadEstimates(); loadSalesReps();
   }, [user, router]);
 
   async function loadSalesReps() {
-    try {
-      const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() });
-      if (r.ok) setSalesReps(await r.json());
-    } catch {}
+    try { const r = await fetch("/api/users/sales-reps", { headers: getAuthHeaders() }); if (r.ok) setSalesReps(await r.json()); } catch {}
   }
-
   async function loadEstimates() {
     try {
       const r = await fetch("/api/estimates", { headers: getAuthHeaders() });
@@ -71,19 +63,15 @@ export default function EstimatesPage() {
       if (repFilter && e.createdById !== repFilter) return false;
       if (search) {
         const q = search.toLowerCase();
-        return (
-          e.estimateNumber?.toLowerCase().includes(q) ||
-          e.customer?.firstName?.toLowerCase().includes(q) ||
-          e.customer?.lastName?.toLowerCase().includes(q) ||
-          e.customer?.companyName?.toLowerCase().includes(q)
-        );
+        return e.estimateNumber?.toLowerCase().includes(q) || e.customer?.firstName?.toLowerCase().includes(q) || e.customer?.lastName?.toLowerCase().includes(q) || e.customer?.companyName?.toLowerCase().includes(q);
       }
       return true;
     })
-    .sort((a, b) =>
-      sortBy === "amount" ? (b.total || 0) - (a.total || 0)
-      : new Date(b.createdAt) - new Date(a.createdAt)
-    );
+    .sort((a, b) => sortBy === "amount" ? (b.total || 0) - (a.total || 0) : new Date(b.createdAt) - new Date(a.createdAt));
+
+  // Shared button styles
+  const btnOutlinedRed  = { padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontSize: 13, fontWeight: 600 };
+  const btnOutlinedGray = { padding: "7px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: "rgba(255,255,255,0.6)", textDecoration: "none", fontSize: 13, fontWeight: 500 };
 
   return (
     <>
@@ -136,13 +124,9 @@ export default function EstimatesPage() {
             <div className="esb-filters">
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="esb-filter-sel">
                 <option value="all">All Status</option>
-                <option value="DRAFT">Draft</option>
-                <option value="SENT">Sent</option>
-                <option value="VIEWED">Viewed</option>
-                <option value="ACCEPTED">Accepted</option>
-                <option value="DECLINED">Declined</option>
-                <option value="EXPIRED">Expired</option>
-                <option value="CONVERTED">Converted</option>
+                <option value="DRAFT">Draft</option><option value="SENT">Sent</option><option value="VIEWED">Viewed</option>
+                <option value="ACCEPTED">Accepted</option><option value="DECLINED">Declined</option>
+                <option value="EXPIRED">Expired</option><option value="CONVERTED">Converted</option>
               </select>
               <select value={repFilter} onChange={e => setRepFilter(e.target.value)} className="esb-filter-sel">
                 <option value="">All Reps</option>
@@ -169,10 +153,7 @@ export default function EstimatesPage() {
                   <div className="esb-item-cust">{custName}</div>
                   <div className="esb-item-foot">
                     <span className="esb-item-amt">{fmt(e.total)}</span>
-                    <span className="esb-item-status">
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />
-                      {e.status}
-                    </span>
+                    <span className="esb-item-status"><span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, display: "inline-block", flexShrink: 0 }} />{e.status}</span>
                   </div>
                 </Link>
               );
@@ -188,9 +169,9 @@ export default function EstimatesPage() {
               <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: 0, marginBottom: 4, letterSpacing: "-0.3px" }}>Estimates</h1>
               <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>{filtered.length} estimate{filtered.length !== 1 ? 's' : ''}</p>
             </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <Link href="/invoicing/estimate-templates" style={{ padding: "9px 16px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 8, color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 13 }}>Templates</Link>
-              <Link href="/invoicing/estimates/new" style={{ padding: "9px 16px", background: "#dc2626", border: "none", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ New Estimate</Link>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Link href="/invoicing/estimate-templates" style={btnOutlinedGray}>Templates</Link>
+              <Link href="/invoicing/estimates/new" style={btnOutlinedRed}>+ New Estimate</Link>
             </div>
           </div>
           {error && <div style={{ padding: "12px 16px", marginBottom: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444" }}>{error}</div>}
@@ -201,7 +182,7 @@ export default function EstimatesPage() {
               <div style={{ fontSize: 44, marginBottom: 14 }}>&#128196;</div>
               <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>{search || statusFilter !== "all" ? "No estimates match your filters" : "No estimates yet"}</div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginBottom: 20 }}>{search || statusFilter !== "all" ? "Try adjusting your search or filters" : "Create your first estimate to get started"}</div>
-              {!search && statusFilter === "all" && <Link href="/invoicing/estimates/new" style={{ padding: "10px 20px", background: "#dc2626", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Create First Estimate</Link>}
+              {!search && statusFilter === "all" && <Link href="/invoicing/estimates/new" style={btnOutlinedRed}>+ Create First Estimate</Link>}
             </div>
           ) : (
             <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>

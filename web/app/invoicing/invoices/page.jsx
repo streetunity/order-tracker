@@ -74,6 +74,8 @@ export default function InvoicesPage() {
   const totalOverdue     = invoices.filter(i => i.status === 'OVERDUE' || (new Date(i.dueDate) < new Date() && !['PAID','VOID'].includes(i.status))).reduce((s,i) => s + (i.balanceDue||0), 0);
   const paidThisMonth    = invoices.filter(i => { if (i.status !== 'PAID') return false; const p = new Date(i.updatedAt), n = new Date(); return p.getMonth() === n.getMonth() && p.getFullYear() === n.getFullYear(); }).reduce((s,i) => s + (i.total||0), 0);
 
+  const btnOutlinedRed = { padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontSize: 13, fontWeight: 600 };
+
   return (
     <>
       <InvoicingNav />
@@ -171,7 +173,7 @@ export default function InvoicesPage() {
               <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: 0, marginBottom: 4, letterSpacing: "-0.3px" }}>Invoices</h1>
               <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>Manage invoices and track payments</p>
             </div>
-            <Link href="/invoicing/invoices/new" style={{ padding: "9px 16px", background: "#dc2626", border: "none", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ New Invoice</Link>
+            <Link href="/invoicing/invoices/new" style={btnOutlinedRed}>+ New Invoice</Link>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 24 }}>
             {[
@@ -193,7 +195,7 @@ export default function InvoicesPage() {
               <div style={{ fontSize: 44, marginBottom: 14 }}>&#128202;</div>
               <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>{search || statusFilter !== "all" ? "No invoices match your filters" : "No invoices yet"}</div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginBottom: 20 }}>{search || statusFilter !== "all" ? "Try adjusting your search or filters" : "Create your first invoice to get started"}</div>
-              {!search && statusFilter === "all" && <Link href="/invoicing/invoices/new" style={{ padding: "10px 20px", background: "#dc2626", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Create First Invoice</Link>}
+              {!search && statusFilter === "all" && <Link href="/invoicing/invoices/new" style={btnOutlinedRed}>+ Create First Invoice</Link>}
             </div>
           ) : (
             <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>

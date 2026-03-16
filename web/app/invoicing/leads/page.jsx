@@ -17,11 +17,6 @@ const STATUS_COLORS = {
   LOST:      { bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.35)',   text: '#f87171' },
 };
 
-const SOURCE_ICONS = {
-  manual: '&#9998;', zapier: '&#9889;', website: '&#127760;', referral: '&#129309;',
-  facebook: '&#128216;', google: '&#128269;', email: '&#128231;', phone: '&#128222;', default: '&#128203;'
-};
-
 export default function LeadsPage() {
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
@@ -118,6 +113,10 @@ export default function LeadsPage() {
 
   if (authLoading || !user) return null;
 
+  // Shared outlined button style
+  const activeRedBtn  = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.12s", border: "1px solid rgba(220,38,38,0.3)", background: "rgba(220,38,38,0.1)", color: "#dc2626" };
+  const inactiveBtn   = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 400, cursor: "pointer", transition: "all 0.12s", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.5)" };
+
   return (
     <>
       <InvoicingNav />
@@ -126,24 +125,6 @@ export default function LeadsPage() {
         .leads-page { min-height: 100vh; background: #0f0f0f; padding: 80px 32px 60px; }
         .leads-row-tr { border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background 0.1s; }
         .leads-row-tr:hover { background: rgba(255,255,255,0.03); }
-        .leads-status-tab {
-          padding: 6px 14px;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.12s;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.04);
-          color: rgba(255,255,255,0.55);
-        }
-        .leads-status-tab:hover { color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.15); }
-        .leads-status-tab.active-all {
-          background: rgba(220,38,38,0.1);
-          border-color: rgba(220,38,38,0.3);
-          color: #dc2626;
-          font-weight: 600;
-        }
       `}</style>
 
       <div className="leads-page">
@@ -154,7 +135,7 @@ export default function LeadsPage() {
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>Leads</h1>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>Manage your sales pipeline and convert leads to customers</p>
           </div>
-          <Link href="/invoicing/leads/new" style={{ padding: "9px 18px", background: "#dc2626", color: "white", border: "none", borderRadius: 8, textDecoration: "none", fontWeight: 600, fontSize: 13 }}>
+          <Link href="/invoicing/leads/new" style={{ padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13 }}>
             + New Lead
           </Link>
         </div>
@@ -164,22 +145,25 @@ export default function LeadsPage() {
           {["ALL", "NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "LOST"].map(status => {
             const sc = STATUS_COLORS[status];
             const isActive = statusFilter === status;
+            const isAll = status === 'ALL';
             return (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={status === 'ALL' ? `leads-status-tab${isActive ? ' active-all' : ''}` : ''}
-                style={status !== 'ALL' ? {
-                  padding: "6px 14px",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: isActive ? 600 : 400,
-                  cursor: "pointer",
-                  transition: "all 0.12s",
-                  border: `1px solid ${isActive ? sc.border : 'rgba(255,255,255,0.08)'}`,
-                  background: isActive ? sc.bg : 'rgba(255,255,255,0.03)',
-                  color: isActive ? sc.text : 'rgba(255,255,255,0.5)',
-                } : undefined}
+                style={isAll
+                  ? (isActive ? activeRedBtn : inactiveBtn)
+                  : {
+                      padding: "6px 14px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: isActive ? 600 : 400,
+                      cursor: "pointer",
+                      transition: "all 0.12s",
+                      border: `1px solid ${isActive ? sc.border : 'rgba(255,255,255,0.08)'}`,
+                      background: isActive ? sc.bg : 'rgba(255,255,255,0.03)',
+                      color: isActive ? sc.text : 'rgba(255,255,255,0.5)',
+                    }
+                }
               >
                 {status} <span style={{ opacity: 0.65, fontSize: 11 }}>({statusCounts[status] || 0})</span>
               </button>
@@ -212,7 +196,7 @@ export default function LeadsPage() {
             <div style={{ fontSize: 44, marginBottom: 14 }}>&#128203;</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>No leads found</div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginBottom: 20 }}>Add your first lead to start tracking your pipeline</div>
-            <Link href="/invoicing/leads/new" style={{ padding: "10px 20px", background: "#dc2626", borderRadius: 8, color: "white", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>Create First Lead</Link>
+            <Link href="/invoicing/leads/new" style={{ padding: "8px 18px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ Create First Lead</Link>
           </div>
         ) : (
           <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
@@ -267,29 +251,12 @@ export default function LeadsPage() {
                     <td style={{ padding: "13px 14px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                         {lead.status !== "CONVERTED" && lead.status !== "LOST" && (
-                          <button
-                            onClick={() => handleConvert(lead)}
-                            style={{ padding: "5px 10px", background: "rgba(147,51,234,0.1)", border: "1px solid rgba(147,51,234,0.3)", borderRadius: 5, color: "#a78bfa", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-                          >
-                            Convert
-                          </button>
+                          <button onClick={() => handleConvert(lead)} style={{ padding: "5px 10px", background: "rgba(147,51,234,0.1)", border: "1px solid rgba(147,51,234,0.3)", borderRadius: 5, color: "#a78bfa", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Convert</button>
                         )}
                         {lead.status === "CONVERTED" && lead.convertedToCustomer && (
-                          <Link
-                            href={`/invoicing/customers/${lead.convertedToCustomer.id}`}
-                            onClick={e => e.stopPropagation()}
-                            style={{ padding: "5px 10px", background: "rgba(147,51,234,0.08)", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 5, color: "#a78bfa", fontSize: 11, fontWeight: 600, textDecoration: "none" }}
-                          >
-                            {lead.convertedToCustomer.customerNumber}
-                          </Link>
+                          <Link href={`/invoicing/customers/${lead.convertedToCustomer.id}`} onClick={e => e.stopPropagation()} style={{ padding: "5px 10px", background: "rgba(147,51,234,0.08)", border: "1px solid rgba(147,51,234,0.2)", borderRadius: 5, color: "#a78bfa", fontSize: 11, fontWeight: 600, textDecoration: "none" }}>{lead.convertedToCustomer.customerNumber}</Link>
                         )}
-                        <button
-                          onClick={() => handleDelete(lead)}
-                          disabled={lead.status === "CONVERTED"}
-                          style={{ padding: "5px 10px", background: lead.status === "CONVERTED" ? "rgba(255,255,255,0.02)" : "rgba(239,68,68,0.08)", border: `1px solid ${lead.status === "CONVERTED" ? "rgba(255,255,255,0.05)" : "rgba(239,68,68,0.25)"}`, borderRadius: 5, color: lead.status === "CONVERTED" ? "rgba(255,255,255,0.2)" : "#f87171", fontSize: 11, fontWeight: 600, cursor: lead.status === "CONVERTED" ? "not-allowed" : "pointer" }}
-                        >
-                          Delete
-                        </button>
+                        <button onClick={() => handleDelete(lead)} disabled={lead.status === "CONVERTED"} style={{ padding: "5px 10px", background: lead.status === "CONVERTED" ? "rgba(255,255,255,0.02)" : "rgba(239,68,68,0.08)", border: `1px solid ${lead.status === "CONVERTED" ? "rgba(255,255,255,0.05)" : "rgba(239,68,68,0.25)"}`, borderRadius: 5, color: lead.status === "CONVERTED" ? "rgba(255,255,255,0.2)" : "#f87171", fontSize: 11, fontWeight: 600, cursor: lead.status === "CONVERTED" ? "not-allowed" : "pointer" }}>Delete</button>
                       </div>
                     </td>
                   </tr>

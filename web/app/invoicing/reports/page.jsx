@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import InvoicingNav from "@/components/InvoicingNav";
 import { hasInvoicingPermission } from "@/lib/roleUtils";
 
@@ -202,9 +201,9 @@ export default function ReportsPage() {
               <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>End Date</label>
               <input type="date" className="rpt-date-input" value={dateRange.endDate} onChange={e => setDateRange({ ...dateRange, endDate: e.target.value })} />
             </div>
-            <button onClick={handleExport} style={{ width: "100%", padding: "9px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-              onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background="rgba(255,255,255,0.06)"}
+            <button onClick={handleExport} style={{ width: "100%", padding: "8px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+              onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,0.09)"}
+              onMouseLeave={e => e.currentTarget.style.background="rgba(255,255,255,0.05)"}
             >
               &#8595; Export CSV
             </button>
@@ -213,12 +212,9 @@ export default function ReportsPage() {
 
         {/* Main */}
         <div className="rpt-main" style={{ flex: 1, overflowY: "auto", padding: "28px 32px 60px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-            <div>
-              <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>{activeReportInfo?.name}</h1>
-              <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>{activeReportInfo?.description}</p>
-            </div>
-            <Link href="/invoicing" style={{ padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.6)", textDecoration: "none", fontSize: 12, fontWeight: 500 }}>&#8592; Invoicing</Link>
+          <div style={{ marginBottom: 24 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>{activeReportInfo?.name}</h1>
+            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>{activeReportInfo?.description}</p>
           </div>
           {renderContent()}
         </div>
