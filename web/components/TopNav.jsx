@@ -150,12 +150,13 @@ export default function TopNav() {
                   My Profile
                 </Link>
 
-                {!isLimitedAccess && (
+                {/* Invoicing link temporarily hidden — module not yet released */}
+                {/* {!isLimitedAccess && (
                   <Link href="/invoicing" className="dropdown-item">
                     <svg className="dropdown-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" /></svg>
                     Invoicing
                   </Link>
-                )}
+                )} */}
 
                 {user?.role === 'SUPER_ADMIN' && (
                   <>
