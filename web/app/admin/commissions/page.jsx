@@ -603,8 +603,10 @@ export default function CommissionsPage() {
   return (
     <>
       <TopNav />
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "100px 24px 24px" }}>
-        <h1 style={{ fontSize: "32px", fontWeight: "700", marginBottom: "32px", color: "#dc2626" }}>Commission Management</h1>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px 24px 40px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h1 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "#fff", letterSpacing: "-0.3px" }}>Commission Management</h1>
+        </div>
 
         {/* Tabs and Generate Report Button */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "30px", borderBottom: "2px solid #333" }}>
@@ -614,13 +616,14 @@ export default function CommissionsPage() {
                 padding: "12px 24px", background: "none", color: activeTab === tab ? "#dc2626" : "#999", border: "none",
                 borderBottom: activeTab === tab ? "2px solid #dc2626" : "2px solid transparent", cursor: "pointer",
                 fontSize: "16px", marginBottom: "-2px", textTransform: "capitalize",
-              }}>{tab === "settings" ? "⚙️ Settings" : tab}</button>
+              }}>{tab === "settings" ? "&#9881;&#65039; Settings" : tab}</button>
             ))}
           </div>
           <button onClick={() => setShowPdfModal(true)} style={{
-            padding: "8px 16px", background: "#dc2626", color: "white", border: "none", borderRadius: "4px",
-            cursor: "pointer", fontSize: "14px", fontWeight: "600", marginBottom: "8px",
-          }}>📄 Generate Report</button>
+            padding: "7px 16px", background: "rgba(220,38,38,0.08)", color: "#dc2626",
+            border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7,
+            cursor: "pointer", fontSize: 13, fontWeight: 600, marginBottom: 8,
+          }}>Generate Report</button>
         </div>
 
         {loading ? (
@@ -636,7 +639,7 @@ export default function CommissionsPage() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                       <div style={{ flex: 1 }}>
                         <h3 style={{ color: isPaymentDenied(commission.flagReason) ? "#dc2626" : "#f59e0b", marginBottom: "8px" }}>
-                          {isPaymentDenied(commission.flagReason) ? "🚫" : "⚠️"} {getCommissionDisplayName(commission)} - {commission.salesPersonName}
+                          {isPaymentDenied(commission.flagReason) ? "&#128683;" : "&#9888;&#65039;"} {getCommissionDisplayName(commission)} - {commission.salesPersonName}
                         </h3>
                         {isPaymentDenied(commission.flagReason) && (
                           <div>
@@ -651,7 +654,7 @@ export default function CommissionsPage() {
                           <>
                             <div style={{ color: "#999", marginBottom: "8px" }}>Flag Reason: <span style={{ color: "#f59e0b" }}>{commission.flagReason}</span></div>
                             {commission.flagReason === "AWAITING_PRICES" && <div style={{ color: "#999" }}>Missing prices for order items</div>}
-                            {commission.flagReason === "PRICE_CHANGED" && <div style={{ color: "#999" }}>Prices changed after commission calculation<div style={{ marginTop: "8px", fontSize: "14px" }}>Old total: {formatCurrency(commission.orderTotalAmount)} → New total: Check current prices</div></div>}
+                            {commission.flagReason === "PRICE_CHANGED" && <div style={{ color: "#999" }}>Prices changed after commission calculation<div style={{ marginTop: "8px", fontSize: "14px" }}>Old total: {formatCurrency(commission.orderTotalAmount)} &#8594; New total: Check current prices</div></div>}
                             {commission.flagReason === "ORDER_DELETED" && <div style={{ color: "#999" }}>Order was deleted - commission is orphaned</div>}
                           </>
                         )}
@@ -688,14 +691,14 @@ export default function CommissionsPage() {
                         </div>
                         <div>
                           <div style={{ fontWeight: "600", fontSize: "16px" }}>{group.salesPerson}</div>
-                          <div style={{ color: "#999", fontSize: "14px" }}>{group.payouts.length} orders • Rate: {group.payouts[0]?.itemCommission?.commission?.commissionRate || 0}%</div>
+                          <div style={{ color: "#999", fontSize: "14px" }}>{group.payouts.length} orders &bull; Rate: {group.payouts[0]?.itemCommission?.commission?.commissionRate || 0}%</div>
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ color: "#999", fontSize: "14px" }}>Total Commission</div>
                         <div style={{ fontSize: "24px", fontWeight: "bold", color: "#dc2626" }}>{formatCurrency(group.total)}</div>
                       </div>
-                      <span style={{ color: "#999", transition: "transform 0.3s", transform: expandedGroups.has(group.salesPerson) ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+                      <span style={{ color: "#999", transition: "transform 0.3s", transform: expandedGroups.has(group.salesPerson) ? "rotate(180deg)" : "rotate(0)" }}>&#9660;</span>
                     </div>
                     {expandedGroups.has(group.salesPerson) && (
                       <div style={{ padding: "0 20px 20px" }}>
@@ -710,7 +713,7 @@ export default function CommissionsPage() {
                           </colgroup>
                           <thead>
                             <tr style={{ borderBottom: "1px solid #333" }}>
-                              <th style={{ padding: "4px", textAlign: "left", fontSize: "11px" }}>✓</th>
+                              <th style={{ padding: "4px", textAlign: "left", fontSize: "11px" }}>&#10003;</th>
                               <th style={{ padding: "8px", textAlign: "left", fontSize: "12px" }}>Customer Name</th>
                               <th style={{ padding: "8px", textAlign: "left", fontSize: "12px" }}>Item Name</th>
                               {stageSettings.map((stageSetting, index) => (
@@ -729,7 +732,7 @@ export default function CommissionsPage() {
                                 </td>
                                 <td style={{ padding: "8px", color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{payout.itemCommission?.productCode || "N/A"}</td>
                                 {stageSettings.map((stageSetting) => (
-                                  <td key={stageSetting.stage} style={{ padding: "4px 2px", textAlign: "center", color: "#10b981", fontSize: "14px" }}>{payout.stage === stageSetting.stage ? "✓" : ""}</td>
+                                  <td key={stageSetting.stage} style={{ padding: "4px 2px", textAlign: "center", color: "#10b981", fontSize: "14px" }}>{payout.stage === stageSetting.stage ? "&#10003;" : ""}</td>
                                 ))}
                                 <td style={{ padding: "8px 4px", color: "#ccc", fontWeight: "bold", textAlign: "right", fontSize: "13px" }}>
                                   {formatCurrency(payout.amount)}
@@ -738,8 +741,8 @@ export default function CommissionsPage() {
                                   )}
                                 </td>
                                 <td style={{ padding: "4px 2px", textAlign: "center" }}>
-                                  <button onClick={() => handleApprovePayout(payout.id)} title="Approve Payment" style={{ padding: "4px 6px", background: "#10b981", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", marginRight: "2px", fontSize: "12px" }}>✓</button>
-                                  <button onClick={() => handleRejectPayout(payout.id)} title="Deny Payment" style={{ padding: "4px 6px", background: "#dc2626", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "12px" }}>✕</button>
+                                  <button onClick={() => handleApprovePayout(payout.id)} title="Approve Payment" style={{ padding: "4px 6px", background: "#10b981", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", marginRight: "2px", fontSize: "12px" }}>&#10003;</button>
+                                  <button onClick={() => handleRejectPayout(payout.id)} title="Deny Payment" style={{ padding: "4px 6px", background: "#dc2626", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "12px" }}>&#10005;</button>
                                 </td>
                               </tr>
                             ))}
@@ -804,7 +807,7 @@ export default function CommissionsPage() {
                             <td style={{ padding: "8px 4px", color: "#999", fontSize: "11px" }}>{new Date(payout.approvedAt).toLocaleDateString()}</td>
                             <td style={{ padding: "4px 2px", textAlign: "center" }}>
                               <button onClick={() => handleMarkAsPaid(payout.id)} title="Mark as Paid" style={{ padding: "4px 8px", background: "#10b981", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "11px", marginRight: "2px" }}>Pay</button>
-                              <button onClick={() => handleUnapprove(payout.id)} title="Undo Approval (Move back to Pending)" style={{ padding: "4px 8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>↶</button>
+                              <button onClick={() => handleUnapprove(payout.id)} title="Undo Approval (Move back to Pending)" style={{ padding: "4px 8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>&#8630;</button>
                             </td>
                           </tr>
                         );
@@ -878,7 +881,7 @@ export default function CommissionsPage() {
                             <td style={{ padding: "8px 4px", color: "#999", fontSize: "11px" }}>{new Date(payout.paidAt).toLocaleDateString()}</td>
                             <td style={{ padding: "8px", color: "#999", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px" }}>{payout.paidByName || "N/A"}</td>
                             <td style={{ padding: "4px 2px", textAlign: "center" }}>
-                              <button onClick={() => handleUnpay(payout.id)} title="Undo Payment (Move back to Approved)" style={{ padding: "4px 8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>↶</button>
+                              <button onClick={() => handleUnpay(payout.id)} title="Undo Payment (Move back to Approved)" style={{ padding: "4px 8px", background: "#f59e0b", color: "white", border: "none", borderRadius: "3px", cursor: "pointer", fontSize: "11px" }}>&#8630;</button>
                             </td>
                           </tr>
                         );
@@ -893,7 +896,7 @@ export default function CommissionsPage() {
             {/* Orphaned Commissions Tab */}
             {activeTab === "orphaned" && (
               <div>
-                <div style={{ marginBottom: "20px", color: "#f59e0b" }}>⚠️ These commissions are from deleted orders</div>
+                <div style={{ marginBottom: "20px", color: "#f59e0b" }}>&#9888;&#65039; These commissions are from deleted orders</div>
                 {orphanedCommissions.map((commission) => (
                   <div key={commission.id} style={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: "8px", padding: "20px", marginBottom: "16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
