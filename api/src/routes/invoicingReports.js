@@ -32,12 +32,12 @@ export function createInvoicingReportsRouter(prisma) {
       });
 
       const stages = {
-        DRAFT: { count: 0, value: 0 },
-        SENT:  { count: 0, value: 0 },
-        VIEWED: { count: 0, value: 0 },
-        ACCEPTED: { count: 0, value: 0 },
-        DECLINED: { count: 0, value: 0 },
-        EXPIRED: { count: 0, value: 0 },
+        DRAFT:     { count: 0, value: 0 },
+        SENT:      { count: 0, value: 0 },
+        VIEWED:    { count: 0, value: 0 },
+        ACCEPTED:  { count: 0, value: 0 },
+        DECLINED:  { count: 0, value: 0 },
+        EXPIRED:   { count: 0, value: 0 },
         CONVERTED: { count: 0, value: 0 }
       };
 
@@ -48,25 +48,17 @@ export function createInvoicingReportsRouter(prisma) {
         }
       });
 
-      const totalCount  = estimates.length;
-      const totalValue  = estimates.reduce((s, e) => s + (e.total || 0), 0);
-      const avgValue    = totalCount > 0 ? totalValue / totalCount : 0;
+      const totalCount = estimates.length;
+      const totalValue = estimates.reduce((s, e) => s + (e.total || 0), 0);
+      const avgValue   = totalCount > 0 ? totalValue / totalCount : 0;
 
-      // Shape for frontend: array of { status, count, totalValue }
       const pipeline = Object.entries(stages).map(([status, data]) => ({
         status,
         count:      data.count,
         totalValue: data.value
       }));
 
-      res.json({
-        pipeline,
-        summary: {
-          totalCount,
-          totalValue,
-          avgValue
-        }
-      });
+      res.json({ pipeline, summary: { totalCount, totalValue, avgValue } });
     } catch (error) {
       console.error('GET /reports/pipeline error:', error);
       res.status(500).json({ error: error.message });
@@ -79,7 +71,6 @@ export function createInvoicingReportsRouter(prisma) {
 
   router.get('/win-loss', invoicingAuth, async (req, res) => {
     try {
-      // Use status as proxy for won/lost since outcome fields don't exist in schema
       const { startDate, endDate } = req.query;
 
       const where = {
@@ -96,11 +87,7 @@ export function createInvoicingReportsRouter(prisma) {
       const estimates = await prisma.estimate.findMany({
         where,
         select: {
-          id: true,
-          estimateNumber: true,
-          status: true,
-          total: true,
-          updatedAt: true,
+          id: true, estimateNumber: true, status: true, total: true, updatedAt: true,
           customer: { select: { id: true, firstName: true, lastName: true, companyName: true } },
           createdBy: { select: { id: true, name: true } }
         },
@@ -122,10 +109,10 @@ export function createInvoicingReportsRouter(prisma) {
 
       res.json({
         summary: {
-          totalWon:       won.length,
-          totalLost:      lost.length,
-          totalWonValue:  won.reduce((s, e) => s + (e.total || 0), 0),
-          winRate:        estimates.length > 0 ? (won.length / estimates.length * 100) : 0
+          totalWon:      won.length,
+          totalLost:     lost.length,
+          totalWonValue: won.reduce((s, e) => s + (e.total || 0), 0),
+          winRate:       estimates.length > 0 ? (won.length / estimates.length * 100) : 0
         },
         lossReasons
       });
@@ -143,10 +130,7 @@ export function createInvoicingReportsRouter(prisma) {
     try {
       const { startDate, endDate } = req.query;
 
-      const where = {
-        isDeleted: false,
-        status: 'CONVERTED'
-      };
+      const where = { isDeleted: false, status: 'CONVERTED' };
 
       if (startDate || endDate) {
         where.updatedAt = {};
@@ -157,19 +141,14 @@ export function createInvoicingReportsRouter(prisma) {
       const estimates = await prisma.estimate.findMany({
         where,
         select: {
-          id: true,
-          estimateDate: true,
-          updatedAt: true,
-          total: true,
+          id: true, estimateDate: true, updatedAt: true, total: true,
           createdBy: { select: { id: true, name: true } }
         }
       });
 
       const closeTimes = estimates.map(e => {
-        const created   = new Date(e.estimateDate);
-        const converted = new Date(e.updatedAt);
-        const days = Math.round((converted - created) / (1000 * 60 * 60 * 24));
-        return { days: Math.max(0, days), total: e.total, salesRep: e.createdBy?.name };
+        const days = Math.max(0, Math.round((new Date(e.updatedAt) - new Date(e.estimateDate)) / (1000 * 60 * 60 * 24)));
+        return { days, total: e.total, salesRep: e.createdBy?.name };
       });
 
       const avgDays = closeTimes.length > 0
@@ -178,12 +157,11 @@ export function createInvoicingReportsRouter(prisma) {
 
       const byMonthMap = {};
       estimates.forEach(e => {
-        const d = new Date(e.updatedAt);
+        const d   = new Date(e.updatedAt);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         if (!byMonthMap[key]) byMonthMap[key] = { count: 0, totalDays: 0 };
-        const days = Math.max(0, Math.round((d - new Date(e.estimateDate)) / (1000 * 60 * 60 * 24)));
         byMonthMap[key].count++;
-        byMonthMap[key].totalDays += days;
+        byMonthMap[key].totalDays += Math.max(0, Math.round((d - new Date(e.estimateDate)) / (1000 * 60 * 60 * 24)));
       });
 
       const byMonth = Object.entries(byMonthMap)
@@ -228,7 +206,7 @@ export function createInvoicingReportsRouter(prisma) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const buckets = { current: 0, over30: 0, over60: 0, over90: 0 };
+      const buckets   = { current: 0, over30: 0, over60: 0, over90: 0 };
       const invoiceList = [];
 
       invoices.forEach(inv => {
@@ -243,20 +221,16 @@ export function createInvoicingReportsRouter(prisma) {
         else                        buckets.over90  += inv.balanceDue;
 
         invoiceList.push({
-          id:            inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          customerName:  inv.customer?.companyName || `${inv.customer?.firstName || ''} ${inv.customer?.lastName || ''}`.trim(),
-          dueDate:       inv.dueDate,
-          balanceDue:    inv.balanceDue,
-          daysOverdue:   Math.max(0, daysOverdue),
-          ageBucket:     daysOverdue <= 0 ? 'current' : daysOverdue <= 30 ? 'over30' : daysOverdue <= 60 ? 'over60' : 'over90'
+          id: inv.id, invoiceNumber: inv.invoiceNumber,
+          customerName: inv.customer?.companyName || `${inv.customer?.firstName || ''} ${inv.customer?.lastName || ''}`.trim(),
+          dueDate: inv.dueDate, balanceDue: inv.balanceDue,
+          daysOverdue: Math.max(0, daysOverdue),
+          ageBucket: daysOverdue <= 0 ? 'current' : daysOverdue <= 30 ? 'over30' : daysOverdue <= 60 ? 'over60' : 'over90'
         });
       });
 
-      const totalOutstanding = invoices.reduce((s, i) => s + i.balanceDue, 0);
-
       res.json({
-        summary: { totalOutstanding },
+        summary: { totalOutstanding: invoices.reduce((s, i) => s + i.balanceDue, 0) },
         buckets,
         invoices: invoiceList.sort((a, b) => b.daysOverdue - a.daysOverdue).slice(0, 30)
       });
@@ -272,48 +246,40 @@ export function createInvoicingReportsRouter(prisma) {
 
   router.get('/sales-summary', invoicingAuth, async (req, res) => {
     try {
-      const { startDate, endDate, groupBy = 'month' } = req.query;
+      const { startDate, endDate } = req.query;
 
       const endDateObj   = endDate   ? new Date(endDate)   : new Date();
       const startDateObj = startDate ? new Date(startDate) : new Date(endDateObj.getFullYear(), endDateObj.getMonth() - 11, 1);
 
       const invoices = await prisma.invoice.findMany({
-        where: {
-          isDeleted: false,
-          status: 'PAID',
-          invoiceDate: { gte: startDateObj, lte: endDateObj }
-        },
+        where: { isDeleted: false, status: 'PAID', invoiceDate: { gte: startDateObj, lte: endDateObj } },
         select: {
           id: true, invoiceDate: true, total: true, amountPaid: true,
           createdBy: { select: { id: true, name: true } }
         }
       });
 
-      const byPeriod = {};
-      const byRep    = {};
+      const byPeriod = {}, byRep = {};
 
       invoices.forEach(inv => {
-        const date = new Date(inv.invoiceDate);
+        const date      = new Date(inv.invoiceDate);
         const periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const revenue   = inv.amountPaid || inv.total || 0;
 
         if (!byPeriod[periodKey]) byPeriod[periodKey] = { count: 0, revenue: 0 };
         byPeriod[periodKey].count++;
-        byPeriod[periodKey].revenue += inv.amountPaid || inv.total || 0;
+        byPeriod[periodKey].revenue += revenue;
 
         const repName = inv.createdBy?.name || 'Unassigned';
         if (!byRep[repName]) byRep[repName] = { count: 0, revenue: 0 };
         byRep[repName].count++;
-        byRep[repName].revenue += inv.amountPaid || inv.total || 0;
+        byRep[repName].revenue += revenue;
       });
 
       const totalRevenue = invoices.reduce((s, i) => s + (i.amountPaid || i.total || 0), 0);
 
       res.json({
-        summary: {
-          totalRevenue,
-          paidCount:  invoices.length,
-          avgInvoice: invoices.length > 0 ? totalRevenue / invoices.length : 0
-        },
+        summary: { totalRevenue, paidCount: invoices.length, avgInvoice: invoices.length > 0 ? totalRevenue / invoices.length : 0 },
         byPeriod: Object.entries(byPeriod).map(([period, d]) => ({ period, ...d })).sort((a, b) => a.period.localeCompare(b.period)),
         byRep:    Object.entries(byRep).map(([name, d]) => ({ name, ...d })).sort((a, b) => b.revenue - a.revenue)
       });
@@ -324,59 +290,96 @@ export function createInvoicingReportsRouter(prisma) {
   });
 
   // ============================================
-  // REVENUE PROJECTIONS
+  // REVENUE PROJECTIONS  (self-calibrating)
   // ============================================
+  //
+  // Probability = base_win_rate × engagement_multiplier
+  //
+  // base_win_rate  = historical (ACCEPTED+CONVERTED) / (ACCEPTED+CONVERTED+DECLINED+EXPIRED)
+  //                  Falls back to 0.35 if < MIN_SAMPLES closed estimates exist.
+  //
+  // Engagement multipliers (fixed judgment call, same relative ordering always):
+  //   DRAFT  × 0.55  — proposal exists, not yet sent
+  //   SENT   × 1.00  — at the average rate
+  //   VIEWED × 1.60  — prospect actively engaged, 60% more likely than average
+  //
+  // Each probability is capped at 0.85 to stay realistic.
+  //
+  // The response includes a `calibration` object so the frontend can show
+  // users whether they're seeing live historical rates or bootstrap defaults.
+
+  const MIN_SAMPLES = 10;            // minimum closed estimates before we trust the data
+  const FALLBACK_WIN_RATE = 0.35;    // industry default used below the threshold
+  const MULTIPLIERS = { DRAFT: 0.55, SENT: 1.00, VIEWED: 1.60 };
+  const MAX_PROB = 0.85;
 
   router.get('/revenue-projections', invoicingAuth, async (req, res) => {
     try {
-      // Fetch open estimates (DRAFT, SENT, VIEWED — not yet closed)
+      // ── 1. Fetch all closed estimates to calibrate ─────────────────────
+      const closedEstimates = await prisma.estimate.findMany({
+        where: {
+          isDeleted: false,
+          status: { in: ['ACCEPTED', 'CONVERTED', 'DECLINED', 'EXPIRED'] }
+        },
+        select: { status: true }
+      });
+
+      const wonCount    = closedEstimates.filter(e => ['ACCEPTED', 'CONVERTED'].includes(e.status)).length;
+      const totalClosed = closedEstimates.length;
+
+      const usingHistorical = totalClosed >= MIN_SAMPLES;
+      const baseWinRate     = usingHistorical ? wonCount / totalClosed : FALLBACK_WIN_RATE;
+
+      // ── 2. Derive per-status probabilities ────────────────────────────
+      const probabilities = {};
+      for (const [status, multiplier] of Object.entries(MULTIPLIERS)) {
+        probabilities[status] = Math.min(baseWinRate * multiplier, MAX_PROB);
+      }
+
+      // ── 3. Fetch open estimates ───────────────────────────────────────
       const estimates = await prisma.estimate.findMany({
         where: {
           isDeleted: false,
           status: { in: ['DRAFT', 'SENT', 'VIEWED'] }
         },
         select: {
-          id: true,
-          estimateNumber: true,
-          status: true,
-          total: true,
-          estimateDate: true,
-          expiryDate: true,
+          id: true, estimateNumber: true, status: true, total: true,
+          estimateDate: true, expiryDate: true,
           customer: { select: { id: true, firstName: true, lastName: true, companyName: true } },
           createdBy: { select: { id: true, name: true } }
         },
         orderBy: { estimateDate: 'desc' }
       });
 
-      // Probability weights per status
-      const weights = { DRAFT: 0.2, SENT: 0.4, VIEWED: 0.65 };
+      // ── 4. Aggregate ──────────────────────────────────────────────────
+      let totalPipeline = 0;
+      let weightedTotal = 0;
 
-      let totalPipeline   = 0;
-      let weightedTotal   = 0;
-
-      // Build byStatus map
-      const statusMap = { DRAFT: { count: 0, totalValue: 0, weightedValue: 0 }, SENT: { count: 0, totalValue: 0, weightedValue: 0 }, VIEWED: { count: 0, totalValue: 0, weightedValue: 0 } };
+      const statusMap = {
+        DRAFT:  { count: 0, totalValue: 0, weightedValue: 0 },
+        SENT:   { count: 0, totalValue: 0, weightedValue: 0 },
+        VIEWED: { count: 0, totalValue: 0, weightedValue: 0 }
+      };
 
       estimates.forEach(est => {
-        const w          = weights[est.status] || 0.2;
-        const val        = est.total || 0;
-        const weighted   = val * w;
-        totalPipeline   += val;
-        weightedTotal   += weighted;
+        const prob     = probabilities[est.status] || probabilities.DRAFT;
+        const val      = est.total || 0;
+        const weighted = val * prob;
+        totalPipeline += val;
+        weightedTotal += weighted;
 
         if (statusMap[est.status]) {
           statusMap[est.status].count++;
-          statusMap[est.status].totalValue  += val;
+          statusMap[est.status].totalValue   += val;
           statusMap[est.status].weightedValue += weighted;
         }
       });
 
-      // Convert to array shape the frontend expects: [{status, count, totalValue, probability, weightedValue}]
       const byStatus = Object.entries(statusMap).map(([status, data]) => ({
         status,
-        count:        data.count,
-        totalValue:   data.totalValue,
-        probability:  weights[status] || 0.2,   // 0–1 float; frontend does fmtP(s.probability*100)
+        count:         data.count,
+        totalValue:    data.totalValue,
+        probability:   probabilities[status] || probabilities.DRAFT,
         weightedValue: data.weightedValue
       }));
 
@@ -386,7 +389,16 @@ export function createInvoicingReportsRouter(prisma) {
           weightedTotal,
           estimateCount: estimates.length
         },
-        byStatus
+        byStatus,
+        // Calibration metadata — used by the frontend to explain the numbers
+        calibration: {
+          usingHistorical,
+          totalClosed,
+          wonCount,
+          baseWinRate,
+          minSamplesNeeded: MIN_SAMPLES,
+          probabilities   // { DRAFT: 0.19, SENT: 0.35, VIEWED: 0.56, ... }
+        }
       });
     } catch (error) {
       console.error('GET /reports/revenue-projections error:', error);

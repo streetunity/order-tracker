@@ -103,6 +103,7 @@ export default function ReportsPage() {
     if (loading) return <div style={{ padding: "60px 0", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Loading report&#8230;</div>;
     if (error)   return <div style={{ padding: "16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#f87171", fontSize: 13 }}>{error}</div>;
     if (!reportData) return null;
+
     switch (activeReport) {
       case "pipeline": {
         const { pipeline = [], summary = {} } = reportData;
@@ -113,7 +114,7 @@ export default function ReportsPage() {
               <STAT label="Total Estimates" value={summary.totalCount || 0} />
               <STAT label="Avg Deal Size"   value={fmt(summary.avgValue)} />
             </div>
-            {pipeline.map(stage => (
+            {pipeline.filter(s => s.count > 0).map(stage => (
               <div key={stage.status} style={{ marginBottom: 14, background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "14px 18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{stage.status}</span>
@@ -147,8 +148,59 @@ export default function ReportsPage() {
         return (<><div style={{ display: "flex", gap: 14, marginBottom: 24 }}><STAT label="Total Revenue" value={fmt(summary.totalRevenue)} color="#22c55e" /><STAT label="Invoices Paid" value={summary.paidCount || 0} /><STAT label="Avg Invoice" value={fmt(summary.avgInvoice)} /></div>{byRep.length > 0 && <TABLE headers={["Sales Rep", "Invoices", "Revenue", "% of Total"]} rows={byRep.map(r => [r.name||"Unassigned", r.count, fmt(r.revenue), fmtP((r.revenue/(summary.totalRevenue||1))*100)])} />}{byPeriod.length > 0 && <TABLE headers={["Period", "Invoices", "Revenue"]} rows={byPeriod.map(p => [p.period, p.count, fmt(p.revenue)])} />}</>);
       }
       case "revenue-projections": {
-        const { summary = {}, byStatus = [] } = reportData;
-        return (<><div style={{ display: "flex", gap: 14, marginBottom: 24 }}><STAT label="Total Pipeline" value={fmt(summary.totalPipeline)} color="#dc2626" /><STAT label="Weighted Projection" value={fmt(summary.weightedTotal)} color="#22c55e" /><STAT label="Open Estimates" value={summary.estimateCount || 0} /></div>{byStatus.length > 0 && <TABLE headers={["Status", "Count", "Total Value", "Probability", "Weighted Value"]} rows={byStatus.map(s => [s.status, s.count, fmt(s.totalValue), fmtP(s.probability*100), fmt(s.weightedValue)])} />}</>);
+        const { summary = {}, byStatus = [], calibration = {} } = reportData;
+        const { usingHistorical, totalClosed, wonCount, baseWinRate, minSamplesNeeded, probabilities = {} } = calibration;
+        const samplesNeeded = Math.max(0, minSamplesNeeded - totalClosed);
+
+        return (
+          <>
+            {/* Calibration status banner */}
+            <div style={{ padding: "12px 16px", borderRadius: 9, marginBottom: 20, background: usingHistorical ? "rgba(16,185,129,0.07)" : "rgba(245,158,11,0.07)", border: `1px solid ${usingHistorical ? "rgba(16,185,129,0.2)" : "rgba(245,158,11,0.2)"}` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ fontSize: 16, marginTop: 1 }}>{usingHistorical ? "\u2705" : "\u26a0\ufe0f"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: usingHistorical ? "#34d399" : "#fbbf24", marginBottom: 4 }}>
+                    {usingHistorical
+                      ? `Calibrated from your data \u2014 based on ${totalClosed} closed estimates (${wonCount} won)`
+                      : `Using default rates \u2014 ${samplesNeeded} more closed estimate${samplesNeeded !== 1 ? 's' : ''} needed to self-calibrate`
+                    }
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    <span>Base win rate: <strong style={{ color: "rgba(255,255,255,0.7)" }}>{fmtP((baseWinRate || 0) * 100)}</strong></span>
+                    {Object.entries(probabilities).map(([status, prob]) => (
+                      <span key={status}>{status}: <strong style={{ color: "rgba(255,255,255,0.7)" }}>{fmtP(prob * 100)}</strong></span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 14, marginBottom: 24 }}>
+              <STAT label="Total Pipeline"      value={fmt(summary.totalPipeline)} color="#dc2626" />
+              <STAT label="Weighted Projection" value={fmt(summary.weightedTotal)} color="#22c55e" />
+              <STAT label="Open Estimates"      value={summary.estimateCount || 0} />
+            </div>
+
+            {byStatus.length > 0 && (
+              <TABLE
+                headers={["Status", "Count", "Total Value", "Probability", "Weighted Value"]}
+                rows={byStatus.map(s => [
+                  s.status,
+                  s.count,
+                  fmt(s.totalValue),
+                  <span style={{ color: s.probability > 0.5 ? '#22c55e' : s.probability > 0.3 ? '#f59e0b' : '#9ca3af', fontWeight: 600 }}>{fmtP(s.probability * 100)}</span>,
+                  fmt(s.weightedValue)
+                ])}
+              />
+            )}
+
+            {byStatus.length === 0 && (
+              <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
+                No open estimates in the pipeline
+              </div>
+            )}
+          </>
+        );
       }
       default: return null;
     }
