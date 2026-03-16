@@ -17,6 +17,7 @@ export default function TopNav() {
   const isManufacturer = user?.role === 'MANUFACTURER';
   const isBroker = user?.role === 'BROKER';
   const isLimitedAccess = isManufacturer || isBroker;
+  const canSeeBrokerPortal = ['SUPER_ADMIN', 'ACCOUNTANT'].includes(user?.role);
 
   useEffect(() => {
     if (user && !isLimitedAccess) {
@@ -159,7 +160,7 @@ export default function TopNav() {
                   </Link>
                 )} */}
 
-                {user?.role === 'SUPER_ADMIN' && (
+                {canSeeBrokerPortal && (
                   <>
                     <div className="dropdown-divider"></div>
                     <Link href="/broker/dashboard" className="dropdown-item">

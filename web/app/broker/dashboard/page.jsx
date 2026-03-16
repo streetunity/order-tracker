@@ -9,6 +9,8 @@ import NotificationBar from "@/components/NotificationBar";
 import { Package } from "lucide-react";
 import "./broker.css";
 
+const ALLOWED_ROLES = ['BROKER', 'SUPER_ADMIN', 'ACCOUNTANT'];
+
 export default function BrokerDashboard() {
   const { user } = useAuth();
   const router = useRouter();
@@ -20,7 +22,7 @@ export default function BrokerDashboard() {
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   useEffect(() => {
-    if (!user || (user.role !== 'BROKER' && user.role !== 'SUPER_ADMIN')) {
+    if (!user || !ALLOWED_ROLES.includes(user.role)) {
       router.push('/login');
       return;
     }
@@ -97,7 +99,6 @@ export default function BrokerDashboard() {
       }
     });
 
-    // Build shipment rows with aggregated data
     const shipmentRows = Object.values(shipmentGroups).map(group => {
       const priorityOrder = { 'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'NORMAL': 3 };
       const highestPriority = group.items.reduce((best, item) => {
@@ -108,13 +109,8 @@ export default function BrokerDashboard() {
         return (priorityOrder[item.priority] < priorityOrder[best.priority]) ? item : best;
       }, group.items[0]);
 
-      // Collect unique contact names
       const contactNames = [...new Set(group.items.map(i => i.order?.account?.contactName).filter(Boolean))];
-
-      // Collect all product codes
       const productCodes = group.items.map(i => i.productCode || 'N/A');
-
-      // Use shared status (all items should be the same)
       const customsStatus = group.items[0]?.customsDocumentStatus || 'PENDING';
 
       return {
@@ -128,7 +124,6 @@ export default function BrokerDashboard() {
         contactNames,
         productCodes,
         customsDocumentStatus: customsStatus,
-        // For search matching
         _searchText: [
           group.containerNumber,
           ...contactNames,
@@ -138,7 +133,6 @@ export default function BrokerDashboard() {
       };
     });
 
-    // Combine and sort
     const allRows = [...shipmentRows, ...standaloneItems.map(item => ({
       ...item,
       _searchText: [
@@ -161,21 +155,14 @@ export default function BrokerDashboard() {
     return allRows;
   }, [items]);
 
-  // Filter rows
   const filteredRows = displayRows.filter(row => {
-    // Status filter
     if (filter !== 'ALL') {
       if (filter === 'CRITICAL' && row.priority !== 'CRITICAL') return false;
       if (filter === 'HIGH' && row.priority !== 'HIGH') return false;
       if (filter === 'PENDING' && row.customsDocumentStatus !== 'PENDING') return false;
       if (filter === 'IN_PROGRESS' && row.customsDocumentStatus !== 'IN_PROGRESS') return false;
     }
-
-    // Search filter
-    if (searchTerm) {
-      return row._searchText.includes(searchTerm.toLowerCase());
-    }
-
+    if (searchTerm) return row._searchText.includes(searchTerm.toLowerCase());
     return true;
   });
 
@@ -185,19 +172,15 @@ export default function BrokerDashboard() {
     return found?._count || 0;
   };
 
-  // Render product codes with 4 + X more cutoff
   function renderProductCodes(codes) {
     if (!codes || codes.length === 0) return 'N/A';
     const MAX_SHOW = 4;
     const visible = codes.slice(0, MAX_SHOW);
     const remaining = codes.length - MAX_SHOW;
-
     return (
       <span className="product-codes-aggregated">
         {visible.join(', ')}
-        {remaining > 0 && (
-          <span className="product-codes-more"> + {remaining} more</span>
-        )}
+        {remaining > 0 && <span className="product-codes-more"> + {remaining} more</span>}
       </span>
     );
   }
@@ -222,7 +205,6 @@ export default function BrokerDashboard() {
       <NotificationBar />
 
       <div className="broker-content">
-        {/* Header */}
         <div className="broker-header">
           <div className="broker-header-top">
             <h1>Broker Portal</h1>
@@ -235,22 +217,11 @@ export default function BrokerDashboard() {
                 />
                 Auto-refresh (5 min)
               </label>
-              <button
-                onClick={loadData}
-                className="broker-btn broker-btn-primary"
-              >
-                Refresh Now
-              </button>
-              <button
-                onClick={() => router.push('/broker/history')}
-                className="broker-btn broker-btn-secondary"
-              >
-                View History
-              </button>
+              <button onClick={loadData} className="broker-btn broker-btn-primary">Refresh Now</button>
+              <button onClick={() => router.push('/broker/history')} className="broker-btn broker-btn-secondary">View History</button>
             </div>
           </div>
 
-          {/* Statistics Cards */}
           {stats && (
             <div className="stats-grid">
               <div className="stat-card">
@@ -258,7 +229,7 @@ export default function BrokerDashboard() {
                 <div className="stat-value">{stats.total}</div>
               </div>
               <div className="stat-card">
-                <div className="stat-label">Critical (≤3 days)</div>
+                <div className="stat-label">Critical (&le;3 days)</div>
                 <div className="stat-value critical">{stats.critical}</div>
               </div>
               <div className="stat-card">
@@ -272,7 +243,6 @@ export default function BrokerDashboard() {
             </div>
           )}
 
-          {/* Filters and Search */}
           <div className="filters-row">
             <input
               type="text"
@@ -281,11 +251,7 @@ export default function BrokerDashboard() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
             />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="filter-select"
-            >
+            <select value={filter} onChange={(e) => setFilter(e.target.value)} className="filter-select">
               <option value="ALL">All Items ({items.length})</option>
               <option value="CRITICAL">Critical Only</option>
               <option value="HIGH">High Priority</option>
@@ -295,7 +261,6 @@ export default function BrokerDashboard() {
           </div>
         </div>
 
-        {/* Items Table */}
         <div className="items-table-container">
           <table className="items-table">
             <thead>
@@ -312,23 +277,18 @@ export default function BrokerDashboard() {
               {filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan="6">
-                    <div className="empty-state">
-                      No items found
-                    </div>
+                    <div className="empty-state">No items found</div>
                   </td>
                 </tr>
               ) : (
                 filteredRows.map(row => {
                   if (row.type === 'shipment') {
-                    // Shipment group row
                     return (
                       <tr key={`shipment-${row.shipmentId}`} className="shipment-row">
                         <td>
                           <span className={`priority-badge ${row.priority.toLowerCase()}`}>
                             {row.priority}
-                            {row.daysUntilArrival !== null && (
-                              <span> ({row.daysUntilArrival}d)</span>
-                            )}
+                            {row.daysUntilArrival !== null && <span> ({row.daysUntilArrival}d)</span>}
                           </span>
                         </td>
                         <td>
@@ -346,9 +306,7 @@ export default function BrokerDashboard() {
                             <span className="shipment-item-count">({row.items.length} items)</span>
                           </span>
                         </td>
-                        <td>
-                          {renderProductCodes(row.productCodes)}
-                        </td>
+                        <td>{renderProductCodes(row.productCodes)}</td>
                         <td>
                           <span className={`status-text ${(row.customsDocumentStatus || 'pending').toLowerCase().replace('_', '-')}`}>
                             {row.customsDocumentStatus || 'PENDING'}
@@ -366,20 +324,15 @@ export default function BrokerDashboard() {
                       </tr>
                     );
                   } else {
-                    // Standalone item row
                     return (
                       <tr key={row.id}>
                         <td>
                           <span className={`priority-badge ${row.priority.toLowerCase()}`}>
                             {row.priority}
-                            {row.daysUntilArrival !== null && (
-                              <span> ({row.daysUntilArrival}d)</span>
-                            )}
+                            {row.daysUntilArrival !== null && <span> ({row.daysUntilArrival}d)</span>}
                           </span>
                         </td>
-                        <td>
-                          {row.order?.account?.contactName || '-'}
-                        </td>
+                        <td>{row.order?.account?.contactName || '-'}</td>
                         <td>{row.order?.account?.name}</td>
                         <td>{row.productCode || 'N/A'}</td>
                         <td>
