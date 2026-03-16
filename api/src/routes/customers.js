@@ -1,8 +1,8 @@
 import express from 'express';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
 import { requireInvoicingPermission, applyInvoicingDataFilter } from '../middleware/invoicingAuth.js';
 import { generateCustomerNumber } from '../utils/numberGenerators.js';
+import { sendEmail } from '../services/emailService.js';
 
 export function createCustomersRouter(prisma) {
   const router = express.Router();
@@ -310,21 +310,21 @@ export function createCustomersRouter(prisma) {
         select: { companyName: true, logoUrl: true, phone: true, email: true, website: true }
       });
 
-      const companyName = settings?.companyName || 'Stealth Machine Tools';
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://smt-orders.com';
-      const portalUrl = `${baseUrl}/portal/${customer.portalToken}`;
+      const companyName  = settings?.companyName || 'Stealth Machine Tools';
+      const baseUrl      = process.env.NEXT_PUBLIC_BASE_URL || 'https://smt-orders.com';
+      const portalUrl    = `${baseUrl}/portal/${customer.portalToken}`;
       const customerName = customer.companyName || `${customer.firstName} ${customer.lastName}`;
 
       const sender = req.user;
       const senderSettings = await prisma.userEmailSettings.findUnique({ where: { userId: sender.id } }).catch(() => null);
       const fromName  = senderSettings?.fromName || sender.name || companyName;
-      const fromEmail = `${fromName.replace(/[^a-zA-Z0-9 ]/g, '').replace(/ /g, '')}@stealthlaser.com`;
+      const fromEmail = sender.email || `sales@stealthlaser.com`;
 
       const logoHtml = settings?.logoUrl
         ? `<img src="${settings.logoUrl}" alt="${companyName}" style="height:52px;width:auto;display:block;" />`
         : `<span style="color:#ffffff;font-size:20px;font-weight:700;">${companyName}</span>`;
 
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/></head>
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
 <div style="max-width:600px;margin:24px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
   <div style="background:${settings?.logoUrl ? '#000' : '#dc2626'};padding:24px 28px;">${logoHtml}</div>
@@ -339,26 +339,22 @@ export function createCustomersRouter(prisma) {
     <p style="font-size:13px;color:#666;margin:0;">Questions? Contact us at ${settings?.email || 'Sales@StealthLaser.com'}${settings?.phone ? ` or ${settings.phone}` : ''}.</p>
   </div>
   <div style="background:#f0f0f0;padding:16px 28px;text-align:center;font-size:12px;color:#888;border-top:1px solid #ddd;">
-    <p style="margin:0;">${companyName}${settings?.phone ? ` &bull; ${settings.phone}` : ''}</p>
+    ${companyName}${settings?.phone ? ` &bull; ${settings.phone}` : ''}
   </div>
 </div>
 </body></html>`;
 
-      const transporter = nodemailer.createTransport({
-        host: 'email-smtp.us-east-1.amazonaws.com',
-        port: 587,
-        secure: false,
-        auth: { user: process.env.SES_SMTP_USERNAME, pass: process.env.SES_SMTP_PASSWORD },
-      });
-
-      await transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
+      const result = await sendEmail({
         to: customer.email,
-        replyTo: sender.email || fromEmail,
+        from: fromEmail,
+        fromName,
+        replyTo: fromEmail,
         subject: `Your ${companyName} Customer Portal`,
         html,
         text: `Hi ${customerName},\n\nAccess your portal: ${portalUrl}\n\n${companyName}`,
       });
+
+      if (!result.success) throw new Error(result.error || 'Failed to send email');
 
       try {
         await prisma.customerActivityLog.create({
