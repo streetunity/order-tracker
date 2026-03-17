@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
@@ -28,6 +28,12 @@ export default function ShipmentManagementPage() {
   const [editingShipment, setEditingShipment] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+
+  // Add Item state
+  const [addingItemToShipment, setAddingItemToShipment] = useState(null);
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemSearchResults, setItemSearchResults] = useState([]);
+  const [itemSearchLoading, setItemSearchLoading] = useState(false);
   
   // Create/Edit form
   const [formData, setFormData] = useState({
@@ -55,6 +61,15 @@ export default function ShipmentManagementPage() {
       loadStats();
     }
   }, [user, viewFilter, statusFilter, searchQuery]);
+
+  // Debounced item search
+  useEffect(() => {
+    if (addingItemToShipment === null) return;
+    const timer = setTimeout(() => {
+      searchUnlinkedItems(itemSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [itemSearch, addingItemToShipment]);
 
   async function loadShipments() {
     try {
@@ -104,6 +119,63 @@ export default function ShipmentManagementPage() {
     } catch (err) {
       console.error("Error loading stats:", err);
     }
+  }
+
+  async function searchUnlinkedItems(query) {
+    try {
+      setItemSearchLoading(true);
+      const params = new URLSearchParams();
+      if (query) params.append("search", query);
+      const res = await fetch(`/api/shipments/search-items?${params}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setItemSearchResults(data);
+      }
+    } catch (err) {
+      console.error("Error searching items:", err);
+    } finally {
+      setItemSearchLoading(false);
+    }
+  }
+
+  async function handleLinkItem(shipmentId, itemId) {
+    try {
+      setActionLoading(itemId);
+      const res = await fetch(`/api/shipments/${shipmentId}/link-item`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId })
+      });
+      if (res.ok) {
+        setAddingItemToShipment(null);
+        setItemSearch("");
+        setItemSearchResults([]);
+        loadShipments();
+        loadStats();
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to link item");
+      }
+    } catch (err) {
+      setError("Failed to link item");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  function openAddItem(shipmentId) {
+    setAddingItemToShipment(shipmentId);
+    setItemSearch("");
+    setItemSearchResults([]);
+    searchUnlinkedItems("");
+  }
+
+  function closeAddItem() {
+    setAddingItemToShipment(null);
+    setItemSearch("");
+    setItemSearchResults([]);
   }
 
   async function handleCreateShipment(e) {
@@ -348,7 +420,7 @@ export default function ShipmentManagementPage() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <div>
-            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#ef4444", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#dc2626", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: "32px" }}>🚢</span>
               Shipment Management
             </h1>
@@ -364,7 +436,7 @@ export default function ShipmentManagementPage() {
               alignItems: "center",
               gap: "8px",
               padding: "12px 20px",
-              background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+              background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
               color: "white",
               border: "none",
               borderRadius: "8px",
@@ -455,8 +527,8 @@ export default function ShipmentManagementPage() {
             {shipments.map((shipment) => {
               const statusStyle = getStatusStyle(shipment.customsDocumentStatus);
               const itemCount = shipment._count?.items || 0;
-              // Use totalDocCount (includes item docs) or fall back to just shipment docs
               const totalDocCount = shipment.totalDocCount || shipment._count?.documents || 0;
+              const isAddingItem = addingItemToShipment === shipment.id;
               
               return (
                 <div
@@ -677,16 +749,48 @@ export default function ShipmentManagementPage() {
                           </div>
 
                           {/* Linked Items */}
-                          {shipment.items && shipment.items.length > 0 && (
-                            <div style={{ marginBottom: 20 }}>
-                              <h4 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255, 255, 255, 0.6)", marginBottom: 12 }}>
-                                Linked Items ({shipment.items.length})
+                          <div style={{ marginBottom: 20 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                              <h4 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255, 255, 255, 0.6)", margin: 0 }}>
+                                Linked Items ({shipment.items?.length || 0})
                               </h4>
+                              {!shipment.archivedAt && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isAddingItem) {
+                                      closeAddItem();
+                                    } else {
+                                      openAddItem(shipment.id);
+                                    }
+                                  }}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    padding: "5px 12px",
+                                    background: isAddingItem ? "rgba(255, 255, 255, 0.05)" : "rgba(220, 38, 38, 0.15)",
+                                    border: isAddingItem ? "1px solid rgba(255, 255, 255, 0.15)" : "1px solid rgba(220, 38, 38, 0.4)",
+                                    color: isAddingItem ? "rgba(255, 255, 255, 0.6)" : "#dc2626",
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                    fontSize: 12,
+                                    fontWeight: 500
+                                  }}
+                                >
+                                  {isAddingItem ? "✕ Cancel" : "+ Add Item"}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Existing linked items */}
+                            {shipment.items && shipment.items.length > 0 && (
                               <div style={{
                                 background: "rgba(255, 255, 255, 0.02)",
                                 border: "1px solid rgba(255, 255, 255, 0.08)",
                                 borderRadius: 8,
-                                overflow: "hidden"
+                                overflow: "hidden",
+                                marginBottom: isAddingItem ? 12 : 0
                               }}>
                                 {shipment.items.map((item, idx) => (
                                   <div 
@@ -761,8 +865,114 @@ export default function ShipmentManagementPage() {
                                   </div>
                                 ))}
                               </div>
-                            </div>
-                          )}
+                            )}
+
+                            {/* Add Item Panel */}
+                            {isAddingItem && (
+                              <div style={{
+                                background: "rgba(220, 38, 38, 0.05)",
+                                border: "1px solid rgba(220, 38, 38, 0.2)",
+                                borderRadius: 8,
+                                padding: 16
+                              }}>
+                                <div style={{ marginBottom: 12 }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Search by product code, PO number, customer name..."
+                                    value={itemSearch}
+                                    onChange={(e) => setItemSearch(e.target.value)}
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      width: "100%",
+                                      padding: "9px 14px",
+                                      background: "rgba(255, 255, 255, 0.07)",
+                                      border: "1px solid rgba(220, 38, 38, 0.3)",
+                                      borderRadius: 6,
+                                      color: "rgba(255, 255, 255, 0.9)",
+                                      fontSize: 13,
+                                      boxSizing: "border-box"
+                                    }}
+                                  />
+                                </div>
+
+                                {itemSearchLoading ? (
+                                  <div style={{ textAlign: "center", padding: "12px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
+                                    Searching...
+                                  </div>
+                                ) : itemSearchResults.length === 0 ? (
+                                  <div style={{ textAlign: "center", padding: "12px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
+                                    {itemSearch ? "No unlinked items match your search" : "No unlinked items available"}
+                                  </div>
+                                ) : (
+                                  <div style={{
+                                    maxHeight: 280,
+                                    overflowY: "auto",
+                                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                                    borderRadius: 6,
+                                    background: "rgba(0,0,0,0.2)"
+                                  }}>
+                                    {itemSearchResults.map((item, idx) => (
+                                      <div
+                                        key={item.id}
+                                        style={{
+                                          padding: "10px 14px",
+                                          display: "flex",
+                                          justifyContent: "space-between",
+                                          alignItems: "center",
+                                          borderTop: idx > 0 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                                          transition: "background 0.15s"
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                                      >
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                          <span style={{ fontWeight: 600, color: "#fff", fontSize: 13 }}>{item.productCode}</span>
+                                          <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
+                                            {item.order?.account?.name}
+                                          </span>
+                                          {item.order?.poNumber && (
+                                            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
+                                              • {item.order.poNumber}
+                                            </span>
+                                          )}
+                                          <span style={{
+                                            fontSize: 11,
+                                            padding: "1px 7px",
+                                            borderRadius: 4,
+                                            background: "rgba(107, 114, 128, 0.3)",
+                                            color: "#9ca3af"
+                                          }}>
+                                            {item.currentStage}
+                                          </span>
+                                        </div>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleLinkItem(shipment.id, item.id);
+                                          }}
+                                          disabled={actionLoading === item.id}
+                                          style={{
+                                            padding: "4px 12px",
+                                            background: "rgba(220, 38, 38, 0.2)",
+                                            border: "1px solid rgba(220, 38, 38, 0.4)",
+                                            borderRadius: 4,
+                                            color: "#dc2626",
+                                            cursor: "pointer",
+                                            fontSize: 12,
+                                            fontWeight: 500,
+                                            whiteSpace: "nowrap"
+                                          }}
+                                        >
+                                          {actionLoading === item.id ? "Linking..." : "+ Add to Shipment"}
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
 
                           {/* Actions */}
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingTop: 16, borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>

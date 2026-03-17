@@ -219,6 +219,55 @@ router.get('/stats', authGuard, requireBrokerOrStaff, async (req, res) => {
 });
 
 /**
+ * GET /api/shipments/search-items
+ * MUST be before /:id to avoid Express catching it as an id param
+ */
+router.get('/search-items', authGuard, requireInternalStaff, async (req, res) => {
+  try {
+    const { search, stage } = req.query;
+
+    const where = {
+      shipmentId: null,
+      archivedAt: null
+    };
+
+    if (stage) {
+      where.currentStage = stage;
+    }
+
+    if (search) {
+      where.OR = [
+        { productCode: { contains: search } },
+        { serialNumber: { contains: search } },
+        { billOfLading: { contains: search } },
+        { order: { poNumber: { contains: search } } },
+        { order: { account: { name: { contains: search } } } }
+      ];
+    }
+
+    const items = await prisma.orderItem.findMany({
+      where,
+      include: {
+        order: {
+          select: {
+            id: true,
+            poNumber: true,
+            account: { select: { name: true } }
+          }
+        }
+      },
+      take: 50,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(items);
+  } catch (error) {
+    console.error('Error searching items:', error);
+    res.status(500).json({ error: 'Failed to search items' });
+  }
+});
+
+/**
  * GET /api/shipments/:id
  */
 router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
@@ -609,54 +658,6 @@ router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res
   } catch (error) {
     console.error('Error unlinking item:', error);
     res.status(500).json({ error: 'Failed to unlink item' });
-  }
-});
-
-/**
- * GET /api/shipments/search-items
- */
-router.get('/search-items', authGuard, requireInternalStaff, async (req, res) => {
-  try {
-    const { search, stage } = req.query;
-
-    const where = {
-      shipmentId: null,
-      archivedAt: null
-    };
-
-    if (stage) {
-      where.currentStage = stage;
-    }
-
-    if (search) {
-      where.OR = [
-        { productCode: { contains: search } },
-        { serialNumber: { contains: search } },
-        { billOfLading: { contains: search } },
-        { order: { poNumber: { contains: search } } },
-        { order: { account: { name: { contains: search } } } }
-      ];
-    }
-
-    const items = await prisma.orderItem.findMany({
-      where,
-      include: {
-        order: {
-          select: {
-            id: true,
-            poNumber: true,
-            account: { select: { name: true } }
-          }
-        }
-      },
-      take: 50,
-      orderBy: { createdAt: 'desc' }
-    });
-
-    res.json(items);
-  } catch (error) {
-    console.error('Error searching items:', error);
-    res.status(500).json({ error: 'Failed to search items' });
   }
 });
 
