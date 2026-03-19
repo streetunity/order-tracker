@@ -32,8 +32,6 @@ const MUTED  = '#666666';
 
 function buildHeader(companyName, logoUrl) {
   if (logoUrl) {
-    // bgcolor on BOTH <tr> and <td> — Outlook Word engine sometimes inherits
-    // the parent table bgcolor onto child cells; setting both prevents that.
     return `
     <tr bgcolor="#000000">
       <td class="logo-td" bgcolor="#000000" style="background-color:#000000;padding:20px 30px;text-align:center;border-bottom:4px solid ${RED};">
@@ -49,9 +47,6 @@ function buildHeader(companyName, logoUrl) {
     </tr>`;
 }
 
-// Table-cell button — works in Outlook, Gmail, Apple Mail, mobile.
-// Key: mso-padding-alt on <td> must match the <a> padding exactly.
-// NEVER use mso-padding-alt:0 — that zeroes out padding in Outlook.
 function button(href, label, bgColor = RED) {
   return `<table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
     <tr bgcolor="${bgColor}">
@@ -80,7 +75,6 @@ function wrapInBaseTemplate(content, preheaderText = '') {
   <![endif]-->
   <style type="text/css">
     :root { color-scheme: light; supported-color-schemes: light; }
-    /* Outlook dark mode overrides — named classes only, never wildcard td */
     [data-ogsc] body,  [data-ogsb] body  { background-color: ${LIGHT}  !important; }
     [data-ogsc] .email-outer-table       { background-color: ${LIGHT}  !important; }
     [data-ogsc] .email-inner-table       { background-color: #ffffff   !important; }
@@ -200,7 +194,6 @@ export function getInvoiceEmailTemplate(data) {
     payNowUrl         = '',
   } = data;
 
-  // Side-by-side buttons using a 2-cell table row (no flexbox — not supported in email)
   const buttonRow = (payNowUrl || viewInvoiceUrl) ? `
     <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
       <tr>
@@ -341,6 +334,81 @@ export function getCommissionNotificationTemplate() {
       <p style="margin:0;font-size:12px;color:${MUTED};">{{companyName}} \u2014 Internal Notification</p>
     </td></tr>
   `, 'Commission {{type}}: ${{amount}}');
+}
+
+/**
+ * Customer Files Notification Email
+ * Sent when admin triggers "Notify Customer" from the customer files page.
+ */
+export function getCustomerFilesEmailTemplate(data) {
+  const {
+    customerName  = 'Customer',
+    orderNumber   = '',
+    photoCount    = 0,
+    videoCount    = 0,
+    manualCount   = 0,
+    documentCount = 0,
+    totalCount    = 0,
+    trackingUrl   = '',
+    companyName   = 'Stealth Machine Tools',
+    companyPhone  = '',
+    companyEmail  = '',
+  } = data;
+
+  const fileSummaryRows = [
+    photoCount    > 0 ? `<tr><td style="padding:4px 0;font-size:14px;color:#333333;">&#128247; ${photoCount} photo${photoCount !== 1 ? 's' : ''}</td></tr>` : '',
+    videoCount    > 0 ? `<tr><td style="padding:4px 0;font-size:14px;color:#333333;">&#127916; ${videoCount} video${videoCount !== 1 ? 's' : ''}</td></tr>` : '',
+    manualCount   > 0 ? `<tr><td style="padding:4px 0;font-size:14px;color:#333333;">&#128213; ${manualCount} manual${manualCount !== 1 ? 's' : ''}</td></tr>` : '',
+    documentCount > 0 ? `<tr><td style="padding:4px 0;font-size:14px;color:#333333;">&#128196; ${documentCount} document${documentCount !== 1 ? 's' : ''}</td></tr>` : '',
+  ].filter(Boolean).join('');
+
+  return wrapInBaseTemplate(`
+    <tr bgcolor="${RED}">
+      <td class="header-td" bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
+        <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">New Files Available</h1>
+      </td>
+    </tr>
+    <tr>
+      <td class="email-body-td" bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
+        <p style="margin:0 0 16px 0;color:#333333;">Hello ${customerName},</p>
+        <p style="margin:0 0 16px 0;color:#333333;">New files have been added to your order. You can now view and download them from your tracking page.</p>
+
+        <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f9f9f9" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
+          <tr><td class="info-box-td" bgcolor="#f9f9f9" style="padding:20px;background-color:#f9f9f9;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding:0 0 8px 0;font-size:14px;color:#333333;"><strong style="color:#111111;">Order #${orderNumber}</strong></td>
+              </tr>
+              <tr>
+                <td style="padding:0 0 12px 0;font-size:14px;color:#333333;">${totalCount} file${totalCount !== 1 ? 's' : ''} added:</td>
+              </tr>
+              ${fileSummaryRows}
+            </table>
+          </td></tr>
+        </table>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
+          <tr><td align="center">
+            <table cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+              <tr bgcolor="${RED}">
+                <td align="center" bgcolor="${RED}" style="background-color:${RED};border-radius:5px;mso-padding-alt:12px 28px;">
+                  <a href="${trackingUrl}" style="display:inline-block;background-color:${RED};color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:5px;font-weight:700;font-size:14px;font-family:Arial,Helvetica,sans-serif;">View Your Files</a>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <p style="margin:0 0 16px 0;font-size:14px;color:#555555;">If you have any questions, please reply to this email.</p>
+      </td>
+    </tr>
+    <tr>
+      <td class="footer-td" bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
+        <p style="margin:0 0 4px 0;font-size:12px;color:${MUTED};">${companyName}</p>
+        <p style="margin:0;font-size:12px;color:${MUTED};">${[companyPhone, companyEmail].filter(Boolean).join(' | ')}</p>
+      </td>
+    </tr>
+  `, `${totalCount} new file${totalCount !== 1 ? 's' : ''} available for order #${orderNumber}`);
 }
 
 export { wrapInBaseTemplate };

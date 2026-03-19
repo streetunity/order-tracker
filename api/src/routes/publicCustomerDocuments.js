@@ -1,8 +1,8 @@
 /**
  * Public Customer Documents Routes
- * 
- * These routes are accessible WITHOUT authentication.
- * Used on the public tracking page for customers to view/download their documents.
+ *
+ * No authentication required — used by the public tracking page.
+ * Returns files grouped by category with signed inline URLs.
  */
 
 import express from 'express';
@@ -13,261 +13,123 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// S3 Configuration
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1'
-});
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const BUCKET = process.env.S3_CUSTOMER_DOCS_BUCKET || process.env.S3_DOCUMENTS_BUCKET || 'order-tracker-documents';
+const URL_EXPIRY = 3600;
 
-const DOWNLOAD_URL_EXPIRY = 3600; // 1 hour for download URLs
-
-// Helper: Format file size for display
 function formatFileSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  const n = Number(bytes);
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
 }
 
-// Helper: Get file icon based on MIME type
-function getFileIcon(mimeType) {
-  if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (mimeType === 'application/pdf') return 'pdf';
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'spreadsheet';
-  if (mimeType.includes('document') || mimeType.includes('word')) return 'document';
-  if (mimeType.includes('zip') || mimeType.includes('archive') || mimeType.includes('compressed')) return 'archive';
-  return 'file';
+async function getSignedFileUrl(s3Key) {
+  const command = new GetObjectCommand({ Bucket: BUCKET, Key: s3Key });
+  return getSignedUrl(s3Client, command, { expiresIn: URL_EXPIRY });
 }
 
-/**
- * GET /public/order/:poNumber/customer-documents
- * List customer documents for public tracking page
- * No authentication required - uses PO number for lookup
- */
-router.get('/order/:poNumber/customer-documents', async (req, res) => {
-  try {
-    const { poNumber } = req.params;
+async function buildPublicResponse(order) {
+  const now = new Date();
+  const docs = await prisma.customerDocument.findMany({
+    where: { orderId: order.id, isComplete: true, expiresAt: { gt: now } },
+    orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { uploadedAt: 'desc' }],
+  });
 
-    // Find order by PO number
-    const order = await prisma.order.findFirst({
-      where: { 
-        poNumber: poNumber,
-        isArchived: false
-      },
-      select: {
-        id: true,
-        poNumber: true,
-        customerDocsLink: true // Include legacy link during transition
-      }
-    });
+  const withUrls = await Promise.all(
+    docs.map(async (doc) => {
+      const url = await getSignedFileUrl(doc.s3Key);
+      return {
+        id: doc.id,
+        fileName: doc.displayName || doc.fileName,
+        fileSize: Number(doc.fileSize),
+        fileSizeFormatted: formatFileSize(doc.fileSize),
+        mimeType: doc.mimeType,
+        category: doc.category || 'documents',
+        description: doc.description,
+        url,
+      };
+    })
+  );
 
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    // Get completed, non-expired documents
-    const now = new Date();
-    const documents = await prisma.customerDocument.findMany({
-      where: {
-        orderId: order.id,
-        isComplete: true,
-        expiresAt: { gt: now }
-      },
-      orderBy: { uploadedAt: 'desc' }
-    });
-
-    // Format response for public consumption (no internal details)
-    const formattedDocs = documents.map(doc => ({
-      id: doc.id,
-      fileName: doc.fileName,
-      fileSize: Number(doc.fileSize),
-      fileSizeFormatted: formatFileSize(Number(doc.fileSize)),
-      mimeType: doc.mimeType,
-      fileType: getFileIcon(doc.mimeType),
-      description: doc.description,
-      uploadedAt: doc.uploadedAt
-    }));
-
-    res.json({
-      documents: formattedDocs,
-      count: formattedDocs.length,
-      // Include legacy Dropbox link if no new documents exist
-      legacyLink: formattedDocs.length === 0 ? order.customerDocsLink : null
-    });
-  } catch (error) {
-    console.error('Error listing public customer documents:', error);
-    res.status(500).json({ error: 'Failed to list documents' });
-  }
-});
-
-/**
- * GET /public/order/:poNumber/customer-documents/:documentId/download
- * Get a presigned download URL for public access
- * No authentication required - validates document belongs to PO number
- */
-router.get('/order/:poNumber/customer-documents/:documentId/download', async (req, res) => {
-  try {
-    const { poNumber, documentId } = req.params;
-
-    // Find order by PO number
-    const order = await prisma.order.findFirst({
-      where: { 
-        poNumber: poNumber,
-        isArchived: false
-      },
-      select: { id: true }
-    });
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    // Find document and verify it belongs to this order
-    const document = await prisma.customerDocument.findFirst({
-      where: {
-        id: documentId,
-        orderId: order.id,
-        isComplete: true,
-        expiresAt: { gt: new Date() }
-      }
-    });
-
-    if (!document) {
-      return res.status(404).json({ error: 'Document not found or expired' });
-    }
-
-    // Generate presigned download URL - filename already sanitized on upload
-    const command = new GetObjectCommand({
-      Bucket: document.s3Bucket,
-      Key: document.s3Key,
-      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
-    });
-
-    const downloadUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: DOWNLOAD_URL_EXPIRY
-    });
-
-    res.json({
-      downloadUrl,
-      fileName: document.fileName,
-      fileSize: Number(document.fileSize),
-      mimeType: document.mimeType
-    });
-  } catch (error) {
-    console.error('Error generating public download URL:', error);
-    res.status(500).json({ error: 'Failed to generate download URL' });
-  }
-});
+  return {
+    photos: withUrls.filter((f) => f.category === 'photos'),
+    videos: withUrls.filter((f) => f.category === 'videos'),
+    manuals: withUrls.filter((f) => f.category === 'manuals'),
+    documents: withUrls.filter((f) => f.category === 'documents'),
+    legacyDropboxLink: withUrls.length === 0 ? (order.customerDocsLink || null) : null,
+    totalCount: withUrls.length,
+  };
+}
 
 /**
  * GET /public/track/:trackingToken/customer-documents
- * Alternative: List documents using tracking token instead of PO number
+ * Primary endpoint — used by the tracking page
  */
 router.get('/track/:trackingToken/customer-documents', async (req, res) => {
   try {
-    const { trackingToken } = req.params;
-
-    // Find order by tracking token
     const order = await prisma.order.findUnique({
-      where: { trackingToken },
-      select: {
-        id: true,
-        poNumber: true,
-        customerDocsLink: true
-      }
+      where: { trackingToken: req.params.trackingToken },
+      select: { id: true, poNumber: true, customerDocsLink: true },
     });
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    // Get completed, non-expired documents
-    const now = new Date();
-    const documents = await prisma.customerDocument.findMany({
-      where: {
-        orderId: order.id,
-        isComplete: true,
-        expiresAt: { gt: now }
-      },
-      orderBy: { uploadedAt: 'desc' }
-    });
-
-    // Format response
-    const formattedDocs = documents.map(doc => ({
-      id: doc.id,
-      fileName: doc.fileName,
-      fileSize: Number(doc.fileSize),
-      fileSizeFormatted: formatFileSize(Number(doc.fileSize)),
-      mimeType: doc.mimeType,
-      fileType: getFileIcon(doc.mimeType),
-      description: doc.description,
-      uploadedAt: doc.uploadedAt
-    }));
-
-    res.json({
-      documents: formattedDocs,
-      count: formattedDocs.length,
-      legacyLink: formattedDocs.length === 0 ? order.customerDocsLink : null
-    });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    res.json(await buildPublicResponse(order));
   } catch (error) {
-    console.error('Error listing public customer documents:', error);
-    res.status(500).json({ error: 'Failed to list documents' });
+    console.error('Error fetching public customer documents:', error);
+    res.status(500).json({ error: 'Failed to fetch files' });
   }
 });
 
 /**
  * GET /public/track/:trackingToken/customer-documents/:documentId/download
- * Download using tracking token
+ * Presigned download URL for a specific file
  */
 router.get('/track/:trackingToken/customer-documents/:documentId/download', async (req, res) => {
   try {
     const { trackingToken, documentId } = req.params;
 
-    // Find order by tracking token
     const order = await prisma.order.findUnique({
       where: { trackingToken },
-      select: { id: true }
+      select: { id: true },
     });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    // Find document
-    const document = await prisma.customerDocument.findFirst({
-      where: {
-        id: documentId,
-        orderId: order.id,
-        isComplete: true,
-        expiresAt: { gt: new Date() }
-      }
+    const doc = await prisma.customerDocument.findFirst({
+      where: { id: documentId, orderId: order.id, isComplete: true, expiresAt: { gt: new Date() } },
     });
+    if (!doc) return res.status(404).json({ error: 'File not found or expired' });
 
-    if (!document) {
-      return res.status(404).json({ error: 'Document not found or expired' });
-    }
-
-    // Generate presigned download URL - filename already sanitized on upload
+    const name = doc.displayName || doc.fileName;
     const command = new GetObjectCommand({
-      Bucket: document.s3Bucket,
-      Key: document.s3Key,
-      ResponseContentDisposition: `attachment; filename="${document.fileName}"`
+      Bucket: BUCKET,
+      Key: doc.s3Key,
+      ResponseContentDisposition: `attachment; filename="${name}"`,
     });
+    const downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: URL_EXPIRY });
 
-    const downloadUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: DOWNLOAD_URL_EXPIRY
-    });
-
-    res.json({
-      downloadUrl,
-      fileName: document.fileName,
-      fileSize: Number(document.fileSize),
-      mimeType: document.mimeType
-    });
+    res.json({ downloadUrl, fileName: name, fileSize: Number(doc.fileSize), mimeType: doc.mimeType });
   } catch (error) {
     console.error('Error generating public download URL:', error);
     res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
+/**
+ * GET /public/order/:poNumber/customer-documents
+ * Legacy PO-number-based endpoint (backwards compat)
+ */
+router.get('/order/:poNumber/customer-documents', async (req, res) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { poNumber: req.params.poNumber, isArchived: false },
+      select: { id: true, poNumber: true, customerDocsLink: true },
+    });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    res.json(await buildPublicResponse(order));
+  } catch (error) {
+    console.error('Error fetching public customer documents:', error);
+    res.status(500).json({ error: 'Failed to fetch files' });
   }
 });
 

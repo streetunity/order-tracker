@@ -680,7 +680,7 @@ model CustomerDocument {
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   // File info
-  fileName String // Original filename
+  fileName String // Original filename (sanitized)
   fileSize BigInt // Size in bytes (BigInt for files > 2GB)
   mimeType String // MIME type (video/mp4, application/pdf, etc.)
 
@@ -690,6 +690,11 @@ model CustomerDocument {
 
   // Optional metadata
   description String? // Admin can add a note about the file
+
+  // Category and ordering for customer file management
+  category    String  @default("documents") // photos, videos, manuals, documents
+  sortOrder   Int     @default(0) // For manual reordering within category
+  displayName String? // Admin-set display name (null = use fileName)
 
   // Upload tracking
   uploadedById String
@@ -704,6 +709,7 @@ model CustomerDocument {
   expiresAt DateTime // Set to uploadedAt + 365 days
 
   @@index([orderId])
+  @@index([orderId, category])
   @@index([uploadedById])
   @@index([isComplete])
   @@index([expiresAt])
