@@ -2,14 +2,8 @@
 import { Router } from 'express';
 import { adminGuard } from '../middleware/auth.js';
 
-// Dollar sign helper for use in template literals
-// Using ${'$'} inside backticks safely produces a literal "$" character
 const DOLLAR = '$';
 
-/**
- * Helper: fetch company info from InvoicingSettings (single source of truth)
- * Falls back to defaults if no settings row exists
- */
 async function getCompanyInfo(prisma) {
   try {
     const settings = await prisma.invoicingSettings.findFirst();
@@ -19,14 +13,12 @@ async function getCompanyInfo(prisma) {
         companyPhone: settings.phone || '',
         companyEmail: settings.email || 'info@stealthlaser.com',
         companyWebsite: settings.website || 'https://smt-orders.com',
-        companyAddress: [settings.address, settings.city, settings.state, settings.zipCode]
-          .filter(Boolean).join(', ') || '',
+        companyAddress: [settings.address, settings.city, settings.state, settings.zipCode].filter(Boolean).join(', ') || '',
       };
     }
   } catch (e) {
     console.error('Error fetching company info for email templates:', e);
   }
-  // Fallback defaults
   return {
     companyName: 'Stealth Machine Tools',
     companyPhone: '',
@@ -36,10 +28,6 @@ async function getCompanyInfo(prisma) {
   };
 }
 
-/**
- * Default templates - used as fallback when no DB entry exists
- * These match the hardcoded templates in emailTemplates.js
- */
 const DEFAULT_TEMPLATES = {
   // ---- Invoice Email ----
   invoice: {
@@ -48,47 +36,22 @@ const DEFAULT_TEMPLATES = {
     description: 'Sent when an invoice is emailed to a customer. Includes PDF attachment.',
     category: 'invoicing',
     subject: 'Invoice {{invoiceNumber}} from {{companyName}}',
-    bodyContent: '<p>Dear {{customerFirstName}},</p>\n\n' +
+    bodyContent:
+      '<p>Dear {{customerFirstName}},</p>\n\n' +
       '<p>Please find attached your invoice <strong>{{invoiceNumber}}</strong>.</p>\n\n' +
       '<div class="info-box">\n' +
       '  <table width="100%" style="border-collapse: collapse;">\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Invoice Number:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">{{invoiceNumber}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Invoice Date:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">{{invoiceDate}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Due Date:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">{{dueDate}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Subtotal:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">${{subtotal}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Tax:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">${{tax}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td colspan="2"><hr style="border: none; border-top: 1px solid #ddd;"></td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Amount Due:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;" class="total">${{balanceDue}}</td>\n' +
-      '    </tr>\n' +
-      '  </table>\n' +
-      '</div>\n\n' +
-      '<p style="text-align: center; margin: 30px 0;">\n' +
-      '  <a href="{{payNowUrl}}" class="btn">Pay Now</a>\n' +
-      '  <a href="{{viewInvoiceUrl}}" class="btn btn-secondary">View Invoice</a>\n' +
-      '</p>\n\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Invoice Number:</strong></td><td style="padding: 8px 0; text-align: right;">{{invoiceNumber}}</td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Invoice Date:</strong></td><td style="padding: 8px 0; text-align: right;">{{invoiceDate}}</td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Due Date:</strong></td><td style="padding: 8px 0; text-align: right;">{{dueDate}}</td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Subtotal:</strong></td><td style="padding: 8px 0; text-align: right;">${{subtotal}}</td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Tax:</strong></td><td style="padding: 8px 0; text-align: right;">${{tax}}</td></tr>\n' +
+      '    <tr><td colspan="2"><hr style="border: none; border-top: 1px solid #ddd;"></td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Amount Due:</strong></td><td style="padding: 8px 0; text-align: right;" class="total">${{balanceDue}}</td></tr>\n' +
+      '  </table>\n</div>\n\n' +
+      '<p style="text-align: center; margin: 30px 0;">\n  <a href="{{payNowUrl}}" class="btn">Pay Now</a>\n  <a href="{{viewInvoiceUrl}}" class="btn btn-secondary">View Invoice</a>\n</p>\n\n' +
       '<p>If you have any questions about this invoice, please reply to this email and I\'ll be happy to help.</p>',
-    closingContent: '<p style="margin: 5px 0;">Best regards,</p>\n' +
-      '<p style="margin: 5px 0;"><strong>{{salesRepName}}</strong></p>\n' +
-      '{{signature}}',
+    closingContent: '<p style="margin: 5px 0;">Best regards,</p>\n<p style="margin: 5px 0;"><strong>{{salesRepName}}</strong></p>\n{{signature}}',
     footerContent: '<p>{{companyName}}</p>\n<p>If you have questions, simply reply to this email.</p>',
     variables: [
       { name: 'customerFirstName', description: 'Customer first name' },
@@ -113,38 +76,20 @@ const DEFAULT_TEMPLATES = {
     description: 'Sent when an estimate is emailed to a customer. Includes PDF attachment.',
     category: 'invoicing',
     subject: 'Estimate {{estimateNumber}} from {{companyName}}',
-    bodyContent: '<p>Dear {{customerFirstName}},</p>\n\n' +
+    bodyContent:
+      '<p>Dear {{customerFirstName}},</p>\n\n' +
       '<p>Thank you for your interest! Please find attached your estimate <strong>{{estimateNumber}}</strong>.</p>\n\n' +
       '<div class="info-box">\n' +
       '  <table width="100%" style="border-collapse: collapse;">\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Estimate Number:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">{{estimateNumber}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Date:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">{{estimateDate}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Valid Until:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;">{{expiryDate}}</td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td colspan="2"><hr style="border: none; border-top: 1px solid #ddd;"></td>\n' +
-      '    </tr>\n' +
-      '    <tr>\n' +
-      '      <td style="padding: 8px 0;"><strong>Estimated Total:</strong></td>\n' +
-      '      <td style="padding: 8px 0; text-align: right;" class="total">${{total}}</td>\n' +
-      '    </tr>\n' +
-      '  </table>\n' +
-      '</div>\n\n' +
-      '<p style="text-align: center; margin: 30px 0;">\n' +
-      '  <a href="{{viewEstimateUrl}}" class="btn">View Estimate</a>\n' +
-      '</p>\n\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Estimate Number:</strong></td><td style="padding: 8px 0; text-align: right;">{{estimateNumber}}</td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Date:</strong></td><td style="padding: 8px 0; text-align: right;">{{estimateDate}}</td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Valid Until:</strong></td><td style="padding: 8px 0; text-align: right;">{{expiryDate}}</td></tr>\n' +
+      '    <tr><td colspan="2"><hr style="border: none; border-top: 1px solid #ddd;"></td></tr>\n' +
+      '    <tr><td style="padding: 8px 0;"><strong>Estimated Total:</strong></td><td style="padding: 8px 0; text-align: right;" class="total">${{total}}</td></tr>\n' +
+      '  </table>\n</div>\n\n' +
+      '<p style="text-align: center; margin: 30px 0;">\n  <a href="{{viewEstimateUrl}}" class="btn">View Estimate</a>\n</p>\n\n' +
       '<p>This estimate is valid until <strong>{{expiryDate}}</strong>. If you have any questions or would like to proceed, please reply to this email.</p>',
-    closingContent: '<p style="margin: 5px 0;">Best regards,</p>\n' +
-      '<p style="margin: 5px 0;"><strong>{{salesRepName}}</strong></p>\n' +
-      '{{signature}}',
+    closingContent: '<p style="margin: 5px 0;">Best regards,</p>\n<p style="margin: 5px 0;"><strong>{{salesRepName}}</strong></p>\n{{signature}}',
     footerContent: '<p>{{companyName}}</p>\n<p>If you have questions, simply reply to this email.</p>',
     variables: [
       { name: 'customerFirstName', description: 'Customer first name' },
@@ -166,23 +111,18 @@ const DEFAULT_TEMPLATES = {
     description: 'Sent to customers when their order item moves to a new stage.',
     category: 'orders',
     subject: 'Order Update - {{stageDisplayName}}',
-    bodyContent: '<p>Hello {{customerName}},</p>\n\n' +
+    bodyContent:
+      '<p>Hello {{customerName}},</p>\n\n' +
       '<p>{{message}}</p>\n\n' +
       '<div class="info-box">\n' +
       '  <p style="margin: 0;"><strong>Order:</strong> #{{orderNumber}}</p>\n' +
       '  <p style="margin: 8px 0 0 0;"><strong>Item:</strong> {{productCode}}</p>\n' +
-      '  <p style="margin: 8px 0 0 0;"><strong>Status:</strong>\n' +
-      '    <span class="status-badge status-{{newStage}}">{{stageDisplayName}}</span>\n' +
-      '  </p>\n' +
+      '  <p style="margin: 8px 0 0 0;"><strong>Status:</strong> {{stageDisplayName}}</p>\n' +
       '</div>\n\n' +
-      '<p style="text-align: center; margin: 30px 0;">\n' +
-      '  <a href="{{trackingUrl}}" class="btn">Track Your Order</a>\n' +
-      '</p>\n\n' +
+      '<p style="text-align: center; margin: 30px 0;">\n  <a href="{{trackingUrl}}" class="btn">Track Your Order</a>\n</p>\n\n' +
       '<p>If you have any questions, please contact your sales representative by replying to this email.</p>',
     closingContent: '',
-    footerContent: '<p>{{companyName}}</p>\n' +
-      '<p>{{companyPhone}} | {{companyEmail}}</p>\n' +
-      '<p><a href="{{unsubscribeUrl}}">Unsubscribe from order updates</a></p>',
+    footerContent: '<p>{{companyName}}</p>\n<p>{{companyPhone}} | {{companyEmail}}</p>\n<p><a href="{{unsubscribeUrl}}">Unsubscribe from order updates</a></p>',
     variables: [
       { name: 'customerName', description: 'Customer name' },
       { name: 'message', description: 'Stage-specific message (configured per stage below)' },
@@ -205,7 +145,8 @@ const DEFAULT_TEMPLATES = {
     description: 'Internal email sent to sales agents when commission events occur.',
     category: 'internal',
     subject: 'Commission {{type}}: ${{amount}}',
-    bodyContent: '<p>Hello {{agentName}},</p>\n\n' +
+    bodyContent:
+      '<p>Hello {{agentName}},</p>\n\n' +
       '<div class="info-box" style="text-align: center;">\n' +
       '  <p style="margin: 0; font-size: 32px; font-weight: bold; color: #22c55e;">${{amount}}</p>\n' +
       '  <p style="margin: 8px 0 0 0; color: #666;">Commission Amount</p>\n' +
@@ -213,9 +154,7 @@ const DEFAULT_TEMPLATES = {
       '<p><strong>Order:</strong> #{{orderNumber}}</p>\n' +
       '<p><strong>Customer:</strong> {{customerName}}</p>\n' +
       '<p><strong>Stage:</strong> {{payoutStage}}</p>\n\n' +
-      '<p style="text-align: center; margin: 30px 0;">\n' +
-      '  <a href="{{commissionsUrl}}" class="btn">View My Commissions</a>\n' +
-      '</p>',
+      '<p style="text-align: center; margin: 30px 0;">\n  <a href="{{commissionsUrl}}" class="btn">View My Commissions</a>\n</p>',
     closingContent: '',
     footerContent: '<p>{{companyName}} - Internal Notification</p>',
     variables: [
@@ -229,11 +168,41 @@ const DEFAULT_TEMPLATES = {
       { name: 'companyName', description: 'Company name (from Invoicing Settings)' },
     ],
   },
+
+  // ---- Customer Files Notification ----
+  customer_files: {
+    key: 'customer_files',
+    name: 'Customer Files Notification',
+    description: 'Sent to customers when new files (photos, videos, documents) are uploaded to their order.',
+    category: 'documents',
+    subject: 'New files are available for your order',
+    bodyContent:
+      '<p>Hello {{customerName}},</p>\n\n' +
+      '<p>New files have been added to your order. You can now view and download them from your tracking page.</p>\n\n' +
+      '<div class="info-box">\n' +
+      '  <p style="margin: 0;"><strong>Order #{{orderNumber}}</strong></p>\n' +
+      '  <p style="margin: 8px 0 0 0;">{{totalCount}} file(s) added</p>\n' +
+      '</div>\n\n' +
+      '<p style="text-align: center; margin: 30px 0;">\n  <a href="{{trackingUrl}}" class="btn">View Your Files</a>\n</p>\n\n' +
+      '<p>If you have any questions, please reply to this email.</p>',
+    closingContent: '',
+    footerContent: '<p>{{companyName}}</p>\n<p>{{companyPhone}} | {{companyEmail}}</p>',
+    variables: [
+      { name: 'customerName', description: 'Customer contact name' },
+      { name: 'orderNumber', description: 'Order reference number' },
+      { name: 'totalCount', description: 'Total number of files uploaded' },
+      { name: 'photoCount', description: 'Number of photos' },
+      { name: 'videoCount', description: 'Number of videos' },
+      { name: 'manualCount', description: 'Number of manuals' },
+      { name: 'documentCount', description: 'Number of documents' },
+      { name: 'trackingUrl', description: 'Link to customer tracking page' },
+      { name: 'companyName', description: 'Company name (from Invoicing Settings)' },
+      { name: 'companyPhone', description: 'Company phone (from Invoicing Settings)' },
+      { name: 'companyEmail', description: 'Company email (from Invoicing Settings)' },
+    ],
+  },
 };
 
-/**
- * Default per-stage configuration for order stage emails
- */
 const DEFAULT_STAGE_CONFIGS = {
   MANUFACTURING: {
     notify: true,
@@ -275,20 +244,12 @@ const DEFAULT_STAGE_CONFIGS = {
 export function createEmailTemplateSettingsRouter(prisma) {
   const router = Router();
 
-  // ============================================
   // GET /email-templates
-  // List all templates (DB + defaults merged)
-  // ============================================
   router.get('/', adminGuard, async (req, res) => {
     try {
-      const dbTemplates = await prisma.emailTemplate.findMany({
-        orderBy: { updatedAt: 'desc' },
-      });
-
+      const dbTemplates = await prisma.emailTemplate.findMany({ orderBy: { updatedAt: 'desc' } });
       const dbMap = {};
-      for (const t of dbTemplates) {
-        dbMap[t.templateKey] = t;
-      }
+      for (const t of dbTemplates) dbMap[t.templateKey] = t;
 
       const templates = Object.entries(DEFAULT_TEMPLATES).map(([key, defaultTpl]) => {
         const dbTpl = dbMap[key];
@@ -315,32 +276,16 @@ export function createEmailTemplateSettingsRouter(prisma) {
     }
   });
 
-  // ============================================
   // GET /email-templates/stages/config
-  // Get per-stage email configuration
-  // ============================================
   router.get('/stages/config', adminGuard, async (req, res) => {
     try {
-      const dbConfigs = await prisma.emailStageConfig.findMany({
-        orderBy: { stage: 'asc' },
-      });
-
+      const dbConfigs = await prisma.emailStageConfig.findMany({ orderBy: { stage: 'asc' } });
       const dbMap = {};
-      for (const c of dbConfigs) {
-        dbMap[c.stage] = c;
-      }
+      for (const c of dbConfigs) dbMap[c.stage] = c;
 
       const stages = Object.entries(DEFAULT_STAGE_CONFIGS).map(([stage, defaults]) => {
         const dbConf = dbMap[stage];
-        if (dbConf) {
-          return {
-            stage,
-            notify: dbConf.notify,
-            subject: dbConf.subject,
-            message: dbConf.message,
-            isCustomized: true,
-          };
-        }
+        if (dbConf) return { stage, notify: dbConf.notify, subject: dbConf.subject, message: dbConf.message, isCustomized: true };
         return { stage, ...defaults, isCustomized: false };
       });
 
@@ -351,41 +296,20 @@ export function createEmailTemplateSettingsRouter(prisma) {
     }
   });
 
-  // ============================================
   // PUT /email-templates/stages/config
-  // Save per-stage email configuration (bulk)
-  // ============================================
   router.put('/stages/config', adminGuard, async (req, res) => {
     try {
       const { stages } = req.body;
-
-      if (!Array.isArray(stages)) {
-        return res.status(400).json({ error: 'stages must be an array' });
-      }
+      if (!Array.isArray(stages)) return res.status(400).json({ error: 'stages must be an array' });
 
       const results = [];
       for (const stageConf of stages) {
         const { stage, notify, subject, message } = stageConf;
-
-        if (!DEFAULT_STAGE_CONFIGS[stage]) {
-          continue;
-        }
-
+        if (!DEFAULT_STAGE_CONFIGS[stage]) continue;
         const saved = await prisma.emailStageConfig.upsert({
           where: { stage },
-          update: {
-            notify: notify !== undefined ? notify : true,
-            subject: subject || DEFAULT_STAGE_CONFIGS[stage].subject,
-            message: message || DEFAULT_STAGE_CONFIGS[stage].message,
-            updatedByName: req.user.name,
-          },
-          create: {
-            stage,
-            notify: notify !== undefined ? notify : true,
-            subject: subject || DEFAULT_STAGE_CONFIGS[stage].subject,
-            message: message || DEFAULT_STAGE_CONFIGS[stage].message,
-            updatedByName: req.user.name,
-          },
+          update: { notify: notify !== undefined ? notify : true, subject: subject || DEFAULT_STAGE_CONFIGS[stage].subject, message: message || DEFAULT_STAGE_CONFIGS[stage].message, updatedByName: req.user.name },
+          create: { stage, notify: notify !== undefined ? notify : true, subject: subject || DEFAULT_STAGE_CONFIGS[stage].subject, message: message || DEFAULT_STAGE_CONFIGS[stage].message, updatedByName: req.user.name },
         });
         results.push(saved);
       }
@@ -397,23 +321,14 @@ export function createEmailTemplateSettingsRouter(prisma) {
     }
   });
 
-  // ============================================
   // GET /email-templates/:key
-  // Get a single template (DB or default)
-  // ============================================
   router.get('/:key', adminGuard, async (req, res) => {
     try {
       const { key } = req.params;
       const defaultTpl = DEFAULT_TEMPLATES[key];
+      if (!defaultTpl) return res.status(404).json({ error: 'Template not found' });
 
-      if (!defaultTpl) {
-        return res.status(404).json({ error: 'Template not found' });
-      }
-
-      const dbTpl = await prisma.emailTemplate.findUnique({
-        where: { templateKey: key },
-      });
-
+      const dbTpl = await prisma.emailTemplate.findUnique({ where: { templateKey: key } });
       if (dbTpl) {
         return res.json({
           ...defaultTpl,
@@ -427,7 +342,6 @@ export function createEmailTemplateSettingsRouter(prisma) {
           lastUpdatedBy: dbTpl.updatedByName,
         });
       }
-
       res.json({ ...defaultTpl, isCustomized: false });
     } catch (error) {
       console.error('Error fetching email template:', error);
@@ -435,44 +349,19 @@ export function createEmailTemplateSettingsRouter(prisma) {
     }
   });
 
-  // ============================================
   // PUT /email-templates/:key
-  // Save/update a template
-  // ============================================
   router.put('/:key', adminGuard, async (req, res) => {
     try {
       const { key } = req.params;
       const { subject, bodyContent, closingContent, footerContent } = req.body;
 
-      if (!DEFAULT_TEMPLATES[key]) {
-        return res.status(404).json({ error: 'Invalid template key' });
-      }
-
-      if (!subject || !bodyContent) {
-        return res.status(400).json({ error: 'Subject and body content are required' });
-      }
+      if (!DEFAULT_TEMPLATES[key]) return res.status(404).json({ error: 'Invalid template key' });
+      if (!subject || !bodyContent) return res.status(400).json({ error: 'Subject and body content are required' });
 
       const template = await prisma.emailTemplate.upsert({
         where: { templateKey: key },
-        update: {
-          subject,
-          bodyContent,
-          closingContent: closingContent || '',
-          footerContent: footerContent || '',
-          updatedByUserId: req.user.userId,
-          updatedByName: req.user.name,
-        },
-        create: {
-          templateKey: key,
-          name: DEFAULT_TEMPLATES[key].name,
-          category: DEFAULT_TEMPLATES[key].category,
-          subject,
-          bodyContent,
-          closingContent: closingContent || '',
-          footerContent: footerContent || '',
-          updatedByUserId: req.user.userId,
-          updatedByName: req.user.name,
-        },
+        update: { subject, bodyContent, closingContent: closingContent || '', footerContent: footerContent || '', updatedByUserId: req.user.userId, updatedByName: req.user.name },
+        create: { templateKey: key, name: DEFAULT_TEMPLATES[key].name, category: DEFAULT_TEMPLATES[key].category, subject, bodyContent, closingContent: closingContent || '', footerContent: footerContent || '', updatedByUserId: req.user.userId, updatedByName: req.user.name },
       });
 
       res.json({
@@ -495,83 +384,44 @@ export function createEmailTemplateSettingsRouter(prisma) {
     }
   });
 
-  // ============================================
-  // DELETE /email-templates/:key
-  // Reset a template to defaults
-  // ============================================
+  // DELETE /email-templates/:key  — reset to defaults
   router.delete('/:key', adminGuard, async (req, res) => {
     try {
       const { key } = req.params;
-
-      if (!DEFAULT_TEMPLATES[key]) {
-        return res.status(404).json({ error: 'Invalid template key' });
-      }
-
-      await prisma.emailTemplate.deleteMany({
-        where: { templateKey: key },
-      });
-
-      res.json({
-        success: true,
-        message: 'Template "' + DEFAULT_TEMPLATES[key].name + '" reset to defaults',
-        template: { ...DEFAULT_TEMPLATES[key], isCustomized: false },
-      });
+      if (!DEFAULT_TEMPLATES[key]) return res.status(404).json({ error: 'Invalid template key' });
+      await prisma.emailTemplate.deleteMany({ where: { templateKey: key } });
+      res.json({ success: true, message: 'Template "' + DEFAULT_TEMPLATES[key].name + '" reset to defaults', template: { ...DEFAULT_TEMPLATES[key], isCustomized: false } });
     } catch (error) {
       console.error('Error resetting email template:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // ============================================
   // POST /email-templates/preview/:key
-  // Generate a preview with sample data
-  // Pulls company info from InvoicingSettings
-  // ============================================
   router.post('/preview/:key', adminGuard, async (req, res) => {
     try {
       const { key } = req.params;
       const { subject, bodyContent, closingContent, footerContent } = req.body;
+      if (!DEFAULT_TEMPLATES[key]) return res.status(404).json({ error: 'Invalid template key' });
 
-      if (!DEFAULT_TEMPLATES[key]) {
-        return res.status(404).json({ error: 'Invalid template key' });
-      }
-
-      // Pull company info from InvoicingSettings
       const company = await getCompanyInfo(prisma);
-
       const sampleData = {
-        customerFirstName: 'John',
-        customerName: 'John Smith',
-        invoiceNumber: 'INV-2026-00042',
-        invoiceDate: 'Feb 26, 2026',
-        dueDate: 'Mar 28, 2026',
-        subtotal: '12,500.00',
-        tax: '1,031.25',
-        balanceDue: '13,531.25',
-        payNowUrl: '#',
-        viewInvoiceUrl: '#',
-        estimateNumber: 'EST-2026-00015',
-        estimateDate: 'Feb 26, 2026',
-        expiryDate: 'Mar 28, 2026',
-        total: '12,500.00',
-        viewEstimateUrl: '#',
+        customerFirstName: 'John', customerName: 'John Smith',
+        invoiceNumber: 'INV-2026-00042', invoiceDate: 'Feb 26, 2026', dueDate: 'Mar 28, 2026',
+        subtotal: '12,500.00', tax: '1,031.25', balanceDue: '13,531.25',
+        payNowUrl: '#', viewInvoiceUrl: '#',
+        estimateNumber: 'EST-2026-00015', estimateDate: 'Feb 26, 2026', expiryDate: 'Mar 28, 2026',
+        total: '12,500.00', viewEstimateUrl: '#',
         salesRepName: 'Jane Doe',
-        signature: '<p style="color: #666; font-size: 13px;">Jane Doe | Sales Manager<br>' + company.companyName + '<br>' + company.companyPhone + '</p>',
-        companyName: company.companyName,
-        companyPhone: company.companyPhone,
-        companyEmail: company.companyEmail,
-        orderNumber: 'A1B2C3D4',
-        productCode: 'SL-3015',
-        newStage: 'at_sea',
-        stageDisplayName: 'AT SEA',
+        signature: '<p style="color: #666; font-size: 13px;">Jane Doe | Sales Manager<br>' + company.companyName + '</p>',
+        companyName: company.companyName, companyPhone: company.companyPhone, companyEmail: company.companyEmail,
+        orderNumber: 'A1B2C3D4', productCode: 'SL-3015',
+        newStage: 'at_sea', stageDisplayName: 'Container At Sea',
         message: 'Great news! Your item (SL-3015) is on its way. The shipping container is now in transit.',
-        trackingUrl: '#',
-        unsubscribeUrl: '#',
-        agentName: 'Bob Agent',
-        type: 'Earned',
-        amount: '625.00',
-        payoutStage: 'SHIPPING',
+        trackingUrl: '#', unsubscribeUrl: '#',
+        agentName: 'Bob Agent', type: 'Earned', amount: '625.00', payoutStage: 'SHIPPING',
         commissionsUrl: 'https://smt-orders.com/admin/commissions',
+        totalCount: '3', photoCount: '2', videoCount: '1', manualCount: '0', documentCount: '0',
       };
 
       let processedSubject = subject || '';
@@ -587,81 +437,47 @@ export function createEmailTemplateSettingsRouter(prisma) {
         processedFooter = processedFooter.replace(regex, value);
       }
 
-      res.json({
-        subject: processedSubject,
-        bodyContent: processedBody,
-        closingContent: processedClosing,
-        footerContent: processedFooter,
-      });
+      res.json({ subject: processedSubject, bodyContent: processedBody, closingContent: processedClosing, footerContent: processedFooter });
     } catch (error) {
       console.error('Error generating preview:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // ============================================
   // POST /email-templates/test-send
-  // Send a test email
-  // Pulls company info from InvoicingSettings
-  // ============================================
   router.post('/test-send', adminGuard, async (req, res) => {
     try {
       const { templateKey, toEmail } = req.body;
-
-      if (!templateKey || !toEmail) {
-        return res.status(400).json({ error: 'templateKey and toEmail are required' });
-      }
+      if (!templateKey || !toEmail) return res.status(400).json({ error: 'templateKey and toEmail are required' });
 
       const emailServiceModule = await import('../services/emailService.js');
       const emailService = emailServiceModule.default || emailServiceModule;
 
       const defaultTpl = DEFAULT_TEMPLATES[templateKey];
-      if (!defaultTpl) {
-        return res.status(404).json({ error: 'Template not found' });
-      }
+      if (!defaultTpl) return res.status(404).json({ error: 'Template not found' });
 
-      const dbTpl = await prisma.emailTemplate.findUnique({
-        where: { templateKey },
-      });
-
+      const dbTpl = await prisma.emailTemplate.findUnique({ where: { templateKey } });
       const tpl = dbTpl || defaultTpl;
-
-      // Pull company info from InvoicingSettings
       const company = await getCompanyInfo(prisma);
 
       const sampleData = {
-        customerFirstName: 'Test',
-        customerName: 'Test Customer',
-        invoiceNumber: 'INV-TEST-00001',
-        invoiceDate: new Date().toLocaleDateString(),
+        customerFirstName: 'Test', customerName: 'Test Customer',
+        invoiceNumber: 'INV-TEST-00001', invoiceDate: new Date().toLocaleDateString(),
         dueDate: new Date(Date.now() + 30 * 86400000).toLocaleDateString(),
-        subtotal: '10,000.00',
-        tax: '825.00',
-        balanceDue: '10,825.00',
-        payNowUrl: '#',
-        viewInvoiceUrl: '#',
-        estimateNumber: 'EST-TEST-00001',
-        estimateDate: new Date().toLocaleDateString(),
+        subtotal: '10,000.00', tax: '825.00', balanceDue: '10,825.00',
+        payNowUrl: '#', viewInvoiceUrl: '#',
+        estimateNumber: 'EST-TEST-00001', estimateDate: new Date().toLocaleDateString(),
         expiryDate: new Date(Date.now() + 30 * 86400000).toLocaleDateString(),
-        total: '10,000.00',
-        viewEstimateUrl: '#',
-        salesRepName: req.user.name,
-        signature: '',
-        companyName: company.companyName,
-        companyPhone: company.companyPhone,
-        companyEmail: company.companyEmail,
-        orderNumber: 'TEST1234',
-        productCode: 'SL-3015',
-        newStage: 'shipping',
-        stageDisplayName: 'SHIPPING',
+        total: '10,000.00', viewEstimateUrl: '#',
+        salesRepName: req.user.name, signature: '',
+        companyName: company.companyName, companyPhone: company.companyPhone, companyEmail: company.companyEmail,
+        orderNumber: 'TEST1234', productCode: 'SL-3015',
+        newStage: 'shipping', stageDisplayName: 'Preparing Shipment',
         message: 'This is a test email. Your item (SL-3015) is being prepared for shipment.',
-        trackingUrl: '#',
-        unsubscribeUrl: '#',
-        agentName: req.user.name,
-        type: 'Test',
-        amount: '500.00',
-        payoutStage: 'SHIPPING',
+        trackingUrl: '#', unsubscribeUrl: '#',
+        agentName: req.user.name, type: 'Test', amount: '500.00', payoutStage: 'SHIPPING',
         commissionsUrl: 'https://smt-orders.com/admin/commissions',
+        totalCount: '3', photoCount: '2', videoCount: '1', manualCount: '0', documentCount: '0',
       };
 
       let subject = tpl.subject || defaultTpl.subject;
@@ -674,39 +490,29 @@ export function createEmailTemplateSettingsRouter(prisma) {
       }
 
       const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' +
-        'body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }' +
-        '.container { max-width: 600px; margin: 0 auto; background: white; }' +
-        '.header { background: #dc2626; color: white; padding: 20px; text-align: center; }' +
-        '.header h1 { margin: 0; font-size: 24px; }' +
-        '.content { padding: 30px; }' +
-        '.info-box { background: #f9f9f9; border: 1px solid #ddd; padding: 20px; margin: 20px 0; border-radius: 4px; }' +
-        '.total { font-size: 24px; font-weight: bold; color: #dc2626; }' +
-        '.btn { display: inline-block; background: #dc2626; color: white !important; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 10px 5px; font-weight: bold; }' +
-        '.btn-secondary { background: #333; }' +
-        '.footer { text-align: center; padding: 20px; color: #666; font-size: 12px; background: #f5f5f5; }' +
+        'body{font-family:Arial,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background:#f5f5f5;}' +
+        '.container{max-width:600px;margin:0 auto;background:white;}' +
+        '.header{background:#dc2626;color:white;padding:20px;text-align:center;}' +
+        '.header h1{margin:0;font-size:24px;}' +
+        '.content{padding:30px;}' +
+        '.info-box{background:#f9f9f9;border:1px solid #ddd;padding:20px;margin:20px 0;border-radius:4px;}' +
+        '.total{font-size:24px;font-weight:bold;color:#dc2626;}' +
+        '.btn{display:inline-block;background:#dc2626;color:white!important;padding:12px 30px;text-decoration:none;border-radius:5px;margin:10px 5px;font-weight:bold;}' +
+        '.btn-secondary{background:#333;}' +
+        '.footer{text-align:center;padding:20px;color:#666;font-size:12px;background:#f5f5f5;}' +
         '</style></head><body>' +
         '<div class="container">' +
         '<div class="header"><h1>[TEST] ' + subject + '</h1></div>' +
         '<div class="content">' + body + '</div>' +
         '<div class="footer"><p>' + company.companyName + ' - Test Email</p></div>' +
-        '</div>' +
-        '</body></html>';
+        '</div></body></html>';
 
       const fromEmail = process.env.SES_FROM_EMAIL || 'orders@stealthlaser.com';
-
-      const result = await emailService.sendEmail({
-        to: toEmail,
-        from: fromEmail,
-        fromName: company.companyName,
-        subject: '[TEST] ' + subject,
-        html,
-      });
+      const result = await emailService.sendEmail({ to: toEmail, from: fromEmail, fromName: company.companyName, subject: '[TEST] ' + subject, html });
 
       res.json({
         success: result.success,
-        message: result.success
-          ? 'Test email sent to ' + toEmail
-          : 'Failed to send: ' + result.error,
+        message: result.success ? 'Test email sent to ' + toEmail : 'Failed to send: ' + result.error,
       });
     } catch (error) {
       console.error('Error sending test email:', error);

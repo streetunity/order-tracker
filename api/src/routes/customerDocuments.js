@@ -97,11 +97,7 @@ router.get('/:orderId', authGuard, async (req, res) => {
     const docs = await prisma.customerDocument.findMany({
       where: { orderId, isComplete: true },
       include: { uploadedBy: { select: { id: true, name: true } } },
-      orderBy: [
-        { category: 'asc' },
-        { sortOrder: 'asc' },
-        { uploadedAt: 'desc' },
-      ],
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { uploadedAt: 'desc' }],
     });
 
     const withUrls = await Promise.all(
@@ -175,7 +171,6 @@ router.post('/:orderId/initiate', authGuard, async (req, res) => {
       })
     );
 
-    // Get current max sortOrder for this category so new file appends last
     const maxSort = await prisma.customerDocument.aggregate({
       where: { orderId, category },
       _max: { sortOrder: true },
@@ -302,6 +297,8 @@ router.post('/:orderId/abort', authGuard, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /:orderId/notify  — email customer about new files
+// Checks for admin-customized template in DB before falling
+// back to the hardcoded getCustomerFilesEmailTemplate.
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/notify', authGuard, async (req, res) => {
   try {
@@ -333,37 +330,101 @@ router.post('/:orderId/notify', authGuard, async (req, res) => {
     const fromName = salesRep?.name || company?.companyName || 'Stealth Machine Tools';
 
     const docs = order.customerDocuments;
-    const photoCount = docs.filter((f) => (f.category || 'documents') === 'photos').length;
-    const videoCount = docs.filter((f) => (f.category || 'documents') === 'videos').length;
-    const manualCount = docs.filter((f) => (f.category || 'documents') === 'manuals').length;
+    const photoCount    = docs.filter((f) => (f.category || 'documents') === 'photos').length;
+    const videoCount    = docs.filter((f) => (f.category || 'documents') === 'videos').length;
+    const manualCount   = docs.filter((f) => (f.category || 'documents') === 'manuals').length;
     const documentCount = docs.filter((f) => (f.category || 'documents') === 'documents').length;
 
     const trackingUrl = `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/track/${order.trackingToken}`;
+    const orderNumber = order.id.slice(-8).toUpperCase();
+    const customerName = order.account.contactName || order.account.name || 'Customer';
+    const companyName = company?.companyName || 'Stealth Machine Tools';
+    const companyPhone = company?.phone || '';
+    const companyEmail = company?.email || '';
 
-    const { getCustomerFilesEmailTemplate } = await import('../services/emailTemplates.js');
     const emailServiceModule = await import('../services/emailService.js');
     const emailService = emailServiceModule.default || emailServiceModule;
 
-    const html = getCustomerFilesEmailTemplate({
-      customerName: order.account.contactName || order.account.name,
-      orderNumber: order.id.slice(-8).toUpperCase(),
-      photoCount,
-      videoCount,
-      manualCount,
-      documentCount,
-      totalCount: docs.length,
-      trackingUrl,
-      companyName: company?.companyName || 'Stealth Machine Tools',
-      companyPhone: company?.phone || '',
-      companyEmail: company?.email || '',
+    // Check for admin-customized template
+    const dbTemplate = await prisma.emailTemplate.findUnique({
+      where: { templateKey: 'customer_files' },
     });
+
+    let subjectLine;
+    let html;
+
+    if (dbTemplate) {
+      // Use customized template — substitute variables and wrap in base email shell
+      const { wrapInBaseTemplate } = await import('../services/emailTemplates.js');
+
+      const vars = {
+        customerName,
+        orderNumber,
+        totalCount: String(docs.length),
+        photoCount: String(photoCount),
+        videoCount: String(videoCount),
+        manualCount: String(manualCount),
+        documentCount: String(documentCount),
+        trackingUrl,
+        companyName,
+        companyPhone,
+        companyEmail,
+      };
+
+      const processTemplate = (str) => {
+        let out = str;
+        for (const [k, v] of Object.entries(vars)) {
+          out = out.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'), v);
+        }
+        return out;
+      };
+
+      subjectLine = processTemplate(dbTemplate.subject);
+      const processedBody    = processTemplate(dbTemplate.bodyContent || '');
+      const processedClosing = processTemplate(dbTemplate.closingContent || '');
+      const processedFooter  = processTemplate(dbTemplate.footerContent || `<p>${companyName}</p>`);
+
+      const RED   = '#dc2626';
+      const LIGHT = '#f5f5f5';
+
+      const content = `
+        <tr bgcolor="${RED}"><td bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
+          <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">New Files Available</h1>
+        </td></tr>
+        <tr><td bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
+          ${processedBody}
+          ${processedClosing ? `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #dddddd;">${processedClosing}</div>` : ''}
+        </td></tr>
+        <tr><td bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;font-size:12px;color:#666666;">
+          ${processedFooter}
+        </td></tr>`;
+
+      html = wrapInBaseTemplate(content, subjectLine);
+    } else {
+      // Fall back to hardcoded template
+      const { getCustomerFilesEmailTemplate } = await import('../services/emailTemplates.js');
+      subjectLine = 'New files available for your order';
+      html = getCustomerFilesEmailTemplate({
+        customerName,
+        orderNumber,
+        photoCount,
+        videoCount,
+        manualCount,
+        documentCount,
+        totalCount: docs.length,
+        trackingUrl,
+        companyName,
+        companyPhone,
+        companyEmail,
+      });
+    }
 
     const result = await emailService.sendEmail({
       to: order.account.email,
       from: fromEmail,
       fromName,
       replyTo: fromEmail,
-      subject: `New files available for your order`,
+      subject: subjectLine,
       html,
     });
 
@@ -381,23 +442,16 @@ router.post('/:orderId/notify', authGuard, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // PATCH /:orderId/reorder  — update sortOrder for a set of files
-// IMPORTANT: must be declared BEFORE /:orderId/:documentId
 // ─────────────────────────────────────────────────────────────
 router.patch('/:orderId/reorder', authGuard, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { fileIds } = req.body; // ordered array of document IDs
-
-    if (!Array.isArray(fileIds)) {
-      return res.status(400).json({ error: 'fileIds must be an array' });
-    }
+    const { fileIds } = req.body;
+    if (!Array.isArray(fileIds)) return res.status(400).json({ error: 'fileIds must be an array' });
 
     await prisma.$transaction(
       fileIds.map((id, index) =>
-        prisma.customerDocument.update({
-          where: { id, orderId },
-          data: { sortOrder: index },
-        })
+        prisma.customerDocument.update({ where: { id, orderId }, data: { sortOrder: index } })
       )
     );
 
@@ -409,7 +463,7 @@ router.patch('/:orderId/reorder', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// GET /:orderId/:documentId/download  — presigned download URL
+// GET /:orderId/:documentId/download
 // ─────────────────────────────────────────────────────────────
 router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
   try {
@@ -419,13 +473,7 @@ router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
 
     const name = doc.displayName || doc.fileName;
     const downloadUrl = await generateDownloadUrl(doc.s3Key, name);
-
-    res.json({
-      downloadUrl,
-      fileName: name,
-      fileSize: Number(doc.fileSize),
-      mimeType: doc.mimeType,
-    });
+    res.json({ downloadUrl, fileName: name, fileSize: Number(doc.fileSize), mimeType: doc.mimeType });
   } catch (error) {
     console.error('Error generating download URL:', error);
     res.status(500).json({ error: 'Failed to generate download URL' });
@@ -439,21 +487,11 @@ router.patch('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
     const { documentId } = req.params;
     const { displayName, description } = req.body;
-
     const data = {};
     if (displayName !== undefined) data.displayName = displayName || null;
     if (description !== undefined) data.description = description;
-
-    const doc = await prisma.customerDocument.update({
-      where: { id: documentId },
-      data,
-    });
-
-    res.json({
-      id: doc.id,
-      displayName: doc.displayName,
-      description: doc.description,
-    });
+    const doc = await prisma.customerDocument.update({ where: { id: documentId }, data });
+    res.json({ id: doc.id, displayName: doc.displayName, description: doc.description });
   } catch (error) {
     console.error('Error updating document:', error);
     res.status(500).json({ error: 'Failed to update document' });
@@ -467,7 +505,6 @@ router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
     const { documentId } = req.params;
     const user = req.user;
-
     const doc = await prisma.customerDocument.findUnique({ where: { id: documentId } });
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
