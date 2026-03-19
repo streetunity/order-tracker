@@ -43,26 +43,6 @@ export default function ManageOrdersPage() {
     } catch (e) { console.error("Failed to load counts:", e); }
   }
 
-  async function load() {
-    if (!user) return;
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (q) params.set('search', q);
-      params.set('includeArchived', activeTab === 'archived' ? 'true' : 'false');
-      const res = await fetch(`/api/orders?${params.toString()}`, { headers: getAuthHeaders(), cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setRows(Array.isArray(await res.json() ) ? await fetch(`/api/orders?${params.toString()}`, { headers: getAuthHeaders(), cache: "no-store" }).then(r => r.json()) : []);
-      setErr("");
-      await loadCounts();
-    } catch (e) {
-      setErr(String(e?.message || e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Simpler load — avoids double fetch
   async function loadOrders() {
     if (!user) return;
     try {
@@ -127,7 +107,6 @@ export default function ManageOrdersPage() {
 
   if (!user) return null;
 
-  // Shared outlined button style
   const tabBtn = (id, label, count) => {
     const active = activeTab === id;
     return (
@@ -176,7 +155,7 @@ export default function ManageOrdersPage() {
         </form>
 
         {loading ? (
-          <div style={{ color: "rgba(255,255,255,0.3)", padding: "40px 0", textAlign: "center" }}>Loading&#8230;</div>
+          <div style={{ color: "rgba(255,255,255,0.3)", padding: "40px 0", textAlign: "center" }}>Loading…</div>
         ) : err ? (
           <div style={{ color: "#dc2626", padding: 12 }}>{err}</div>
         ) : (
@@ -196,31 +175,38 @@ export default function ManageOrdersPage() {
             <tbody>
               {rows.map((o) => (
                 <tr key={o.id}>
-                  <td>{o.account?.name ?? "\u2014"}</td>
-                  <td>{o.orderDate ? new Date(o.orderDate).toLocaleDateString() : "\u2014"}</td>
-                  <td>{o.sku ?? "\u2014"}</td>
+                  <td>{o.account?.name ?? "—"}</td>
+                  <td>{o.orderDate ? new Date(o.orderDate).toLocaleDateString() : "—"}</td>
+                  <td>{o.sku ?? "—"}</td>
                   <td>{new Date(o.createdAt).toLocaleString()}</td>
-                  <td>{o.createdBy?.name ?? "\u2014"}</td>
+                  <td>{o.createdBy?.name ?? "—"}</td>
                   <td>{Array.isArray(o.items) ? o.items.length : 0}</td>
                   <td>
                     {o.isLocked ? (
-                      <span style={{ color: "#dc2626", fontWeight: "bold" }}>&#128274; Locked</span>
+                      <span style={{ color: "#dc2626", fontWeight: "bold" }}>🔒 Locked</span>
                     ) : (
                       <span style={{ color: "#10b981" }}>Active</span>
                     )}
                   </td>
                   <td style={{ textAlign: "right" }}>
-                    <Link href={`/admin/orders/${o.id}`} className="miniBtn" title="Edit order items" style={{ marginRight: 4, textDecoration: "none" }}>&#9999;&#65039;</Link>
-                    <button className="miniBtn" title={o.isArchived ? "Unarchive order" : "Archive order"} onClick={() => handleArchiveClick(o)} style={{ marginRight: 4, backgroundColor: o.isArchived ? "#10b981" : "#6b7280", color: "white", border: "none" }}>
-                      {o.isArchived ? "&#128194;" : "&#128230;"}
+                    <Link href={`/admin/orders/${o.id}`} className="miniBtn" title="Edit order items" style={{ marginRight: 4, textDecoration: "none" }}>✏️</Link>
+                    <button
+                      className="miniBtn"
+                      title={o.isArchived ? "Unarchive order" : "Archive order"}
+                      onClick={() => handleArchiveClick(o)}
+                      style={{ marginRight: 4, backgroundColor: o.isArchived ? "#10b981" : "#6b7280", color: "white", border: "none" }}
+                    >
+                      {o.isArchived ? "📂" : "📦"}
                     </button>
-                    <button className="miniBtn danger" title={o.isLocked ? "Cannot delete locked order" : "Delete order (permanent)"}
+                    <button
+                      className="miniBtn danger"
+                      title={o.isLocked ? "Cannot delete locked order" : "Delete order (permanent)"}
                       onClick={() => {
                         if (o.isLocked) { showNotif("Cannot delete a locked order. Please unlock it first."); return; }
-                        remove(o.id, `Order Date:${o.orderDate ? new Date(o.orderDate).toLocaleDateString() : "\u2014"} / Sales Person:${o.sku ?? "\u2014"}`);
+                        remove(o.id, `Order Date:${o.orderDate ? new Date(o.orderDate).toLocaleDateString() : "—"} / Sales Person:${o.sku ?? "—"}`);
                       }}
                       style={{ opacity: o.isLocked ? 0.5 : 1, cursor: o.isLocked ? "not-allowed" : "pointer" }}
-                    >&#10005;</button>
+                    >✕</button>
                   </td>
                 </tr>
               ))}
@@ -232,7 +218,7 @@ export default function ManageOrdersPage() {
         {showDeleteConfirm && pendingDelete && (
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={cancelDelete}>
             <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: 8, padding: "2rem", maxWidth: 500, width: "90%", boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ fontSize: 20, fontWeight: 600, color: "#fff", marginTop: 0, marginBottom: "1rem" }}>&#9888;&#65039; Delete Order Permanently?</h3>
+              <h3 style={{ fontSize: 20, fontWeight: 600, color: "#fff", marginTop: 0, marginBottom: "1rem" }}>⚠️ Delete Order Permanently?</h3>
               <p style={{ fontSize: 16, marginBottom: "1rem", color: "#d1d5db" }}>You are about to permanently delete order: <strong>{pendingDelete.label}</strong></p>
               <div style={{ padding: "1rem", backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, marginBottom: "1rem" }}>
                 <p style={{ margin: "0 0 0.5rem 0", fontSize: 14, color: "#ef4444" }}><strong>Warning:</strong></p>
@@ -255,7 +241,7 @@ export default function ManageOrdersPage() {
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }} onClick={() => !archiveLoading && cancelArchive()}>
             <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: 8, padding: "2rem", maxWidth: 500, width: "90%", boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
               <h3 style={{ fontSize: 20, fontWeight: 600, color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
-                {pendingArchive.isArchived ? "&#128194; Unarchive Order?" : "&#128230; Archive Order?"}
+                {pendingArchive.isArchived ? "📂 Unarchive Order?" : "📦 Archive Order?"}
               </h3>
               <p style={{ fontSize: 14, marginBottom: "1rem", color: "#d1d5db" }}>
                 {pendingArchive.isArchived ? "Are you sure you want to unarchive this order? It will appear on the board and in active orders." : "Are you sure you want to archive this order? It will be hidden from the board and active orders."}
