@@ -52,6 +52,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
               <th>Email</th>
               <th>Role</th>
               {!hideSalesRep && <th>Sales Rep</th>}
+              {hideSalesRep && <th>Has User Account</th>}
               <th>Status</th>
               <th>Last Login</th>
               <th>Created</th>
@@ -92,6 +93,15 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
                         />
                         {isTogglingThisUser && <span className="saving-indicator">Saving...</span>}
                       </div>
+                    </td>
+                  )}
+                  {hideSalesRep && (
+                    <td className="center-cell">
+                      {user.email ? (
+                        <span className="has-account-badge">✓ Yes</span>
+                      ) : (
+                        <span className="no-data">—</span>
+                      )}
                     </td>
                   )}
                   <td>
