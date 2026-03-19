@@ -5,119 +5,91 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
-import {
-  Upload,
-  Trash2,
-  Edit2,
-  Download,
-  Image,
-  Video,
-  FileText,
-  BookOpen,
-  X,
-  Check,
-  Bell,
-  ArrowLeft,
-  AlertCircle,
-  GripVertical,
-  Eye,
-} from "lucide-react";
 
 const CATEGORIES = [
-  { id: "photos",    label: "Photos",    icon: Image,    accept: "image/*" },
-  { id: "videos",    label: "Videos",    icon: Video,    accept: "video/*" },
-  { id: "manuals",   label: "Manuals",   icon: BookOpen, accept: ".pdf,.doc,.docx" },
-  { id: "documents", label: "Documents", icon: FileText, accept: ".pdf,.doc,.docx,.xls,.xlsx" },
+  { id: "photos",    label: "Photos",    accept: "image/*",                    icon: "🖼" },
+  { id: "videos",    label: "Videos",    accept: "video/*",                    icon: "🎬" },
+  { id: "manuals",   label: "Manuals",   accept: ".pdf,.doc,.docx",            icon: "📕" },
+  { id: "documents", label: "Documents", accept: ".pdf,.doc,.docx,.xls,.xlsx", icon: "📄" },
 ];
 
 const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB — must match backend
 
+// ─── Shared style tokens (match system) ───────────────────────
+const S = {
+  page:    { maxWidth: 1100, margin: "0 auto", padding: "24px 24px 60px" },
+  card:    { backgroundColor: "#1a1a1a", border: "1px solid #2d2d2d", borderRadius: 8, padding: "20px 24px" },
+  label:   { fontSize: 12, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" },
+  input:   { width: "100%", background: "#0f0f0f", border: "1px solid #2d2d2d", borderRadius: 6, padding: "8px 10px", color: "#e4e4e4", fontSize: 13, outline: "none", boxSizing: "border-box" },
+  btn:     { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer" },
+  btnGray: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#252525", color: "#e4e4e4", border: "1px solid #2d2d2d", borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: "pointer" },
+  iconBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, background: "transparent", border: "1px solid #2d2d2d", borderRadius: 5, cursor: "pointer", color: "#9ca3af", fontSize: 14 },
+  row:     { display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", backgroundColor: "#141414", border: "1px solid #2d2d2d", borderRadius: 8, marginBottom: 8 },
+};
+
 export default function CustomerFilesPage() {
-  const { id: orderId } = useParams(); // route is /admin/orders/[id]/customer-files
+  const { id: orderId } = useParams();
   const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
 
-  const [files, setFiles] = useState({ photos: [], videos: [], manuals: [], documents: [] });
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [files, setFiles]               = useState({ photos: [], videos: [], manuals: [], documents: [] });
+  const [loading, setLoading]           = useState(true);
+  const [uploading, setUploading]       = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("photos");
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ displayName: "", description: "" });
-  const [notifying, setNotifying] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [editingId, setEditingId]       = useState(null);
+  const [editForm, setEditForm]         = useState({ displayName: "", description: "" });
+  const [notifying, setNotifying]       = useState(false);
+  const [error, setError]               = useState("");
+  const [success, setSuccess]           = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { id, name }
   const fileInputRef = useRef(null);
 
-  // ─── Fetch files ────────────────────────────────────────────
+  // ─── Fetch ────────────────────────────────────────────────────
   const fetchFiles = useCallback(async () => {
     try {
-      const res = await fetch(`/api/customer-documents/${orderId}`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setFiles(data);
-      }
-    } catch (err) {
-      console.error("Error fetching files:", err);
+      const res = await fetch(`/api/customer-documents/${orderId}`, { headers: getAuthHeaders() });
+      if (res.ok) setFiles(await res.json());
+    } catch (e) {
+      console.error("Error fetching files:", e);
     } finally {
       setLoading(false);
     }
   }, [orderId, getAuthHeaders]);
 
-  useEffect(() => {
-    if (user) fetchFiles();
-  }, [user, fetchFiles]);
+  useEffect(() => { if (user) fetchFiles(); }, [user, fetchFiles]);
 
-  // ─── Upload (multipart) ─────────────────────────────────────
+  // ─── Upload ───────────────────────────────────────────────────
   const handleUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
     setUploadProgress(0);
-    setUploadStatus("Preparing upload...");
+    setUploadStatus("Preparing upload…");
     setError("");
 
-    let documentId = null;
-    let uploadId = null;
-    let s3Key = null;
+    let documentId = null, uploadId = null, s3Key = null;
 
     try {
-      // Step 1 — initiate multipart upload
       const initRes = await fetch(`/api/customer-documents/${orderId}/initiate`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
-          mimeType: file.type || "application/octet-stream",
-          category: selectedCategory,
-        }),
+        body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType: file.type || "application/octet-stream", category: selectedCategory }),
       });
+      if (!initRes.ok) { const e = await initRes.json(); throw new Error(e.error || "Failed to initiate upload"); }
 
-      if (!initRes.ok) {
-        const err = await initRes.json();
-        throw new Error(err.error || "Failed to initiate upload");
-      }
+      const init = await initRes.json();
+      documentId = init.documentId; uploadId = init.uploadId; s3Key = init.s3Key;
+      const totalParts = init.totalParts;
 
-      const initData = await initRes.json();
-      documentId = initData.documentId;
-      uploadId   = initData.uploadId;
-      s3Key      = initData.s3Key;
-      const totalParts = initData.totalParts;
-
-      // Step 2 — upload each chunk
       const parts = [];
       for (let part = 1; part <= totalParts; part++) {
-        setUploadStatus(`Uploading part ${part} of ${totalParts}...`);
+        setUploadStatus(`Uploading part ${part} of ${totalParts}…`);
         setUploadProgress(Math.round(((part - 1) / totalParts) * 90));
 
-        const start = (part - 1) * CHUNK_SIZE;
-        const chunk = file.slice(start, start + CHUNK_SIZE);
-
+        const chunk = file.slice((part - 1) * CHUNK_SIZE, part * CHUNK_SIZE);
         const signRes = await fetch(`/api/customer-documents/${orderId}/sign-part`, {
           method: "POST",
           headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -126,21 +98,12 @@ export default function CustomerFilesPage() {
         if (!signRes.ok) throw new Error("Failed to get signed URL");
         const { presignedUrl } = await signRes.json();
 
-        const uploadRes = await fetch(presignedUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type || "application/octet-stream" },
-          body: chunk,
-        });
-        if (!uploadRes.ok) throw new Error(`Part ${part} upload failed`);
-
-        const etag = uploadRes.headers.get("ETag");
-        parts.push({ PartNumber: part, ETag: etag });
+        const up = await fetch(presignedUrl, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: chunk });
+        if (!up.ok) throw new Error(`Part ${part} failed`);
+        parts.push({ PartNumber: part, ETag: up.headers.get("ETag") });
       }
 
-      // Step 3 — complete
-      setUploadStatus("Finalizing...");
-      setUploadProgress(95);
-
+      setUploadStatus("Finalizing…"); setUploadProgress(95);
       const completeRes = await fetch(`/api/customer-documents/${orderId}/complete`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -149,52 +112,33 @@ export default function CustomerFilesPage() {
       if (!completeRes.ok) throw new Error("Failed to complete upload");
 
       setUploadProgress(100);
-      setUploadStatus("Done!");
       setSuccess("File uploaded successfully.");
       setTimeout(() => setSuccess(""), 4000);
       await fetchFiles();
-    } catch (err) {
-      console.error("Upload error:", err);
-      setError(err.message || "Upload failed");
+    } catch (e) {
+      setError(e.message || "Upload failed");
       if (documentId && uploadId && s3Key) {
-        fetch(`/api/customer-documents/${orderId}/abort`, {
-          method: "POST",
-          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ documentId, uploadId, s3Key }),
-        }).catch(() => {});
+        fetch(`/api/customer-documents/${orderId}/abort`, { method: "POST", headers: { ...getAuthHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ documentId, uploadId, s3Key }) }).catch(() => {});
       }
     } finally {
-      setUploading(false);
-      setUploadProgress(0);
-      setUploadStatus("");
+      setUploading(false); setUploadProgress(0); setUploadStatus("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  // ─── Delete ─────────────────────────────────────────────────
-  const handleDelete = async (fileId, displayName) => {
-    if (!confirm(`Delete "${displayName}"? This cannot be undone.`)) return;
-    setError("");
+  // ─── Delete ────────────────────────────────────────────────────
+  const executeDelete = async () => {
+    if (!deleteConfirm) return;
     try {
-      const res = await fetch(`/api/customer-documents/${orderId}/${fileId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(`/api/customer-documents/${orderId}/${deleteConfirm.id}`, { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error("Delete failed");
+      setDeleteConfirm(null);
       await fetchFiles();
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (e) { setError(e.message); }
   };
 
-  // ─── Edit / rename ───────────────────────────────────────────
-  const startEdit = (file) => {
-    setEditingId(file.id);
-    setEditForm({ displayName: file.displayName || file.fileName, description: file.description || "" });
-  };
-
+  // ─── Edit ──────────────────────────────────────────────────────
   const saveEdit = async (fileId) => {
-    setError("");
     try {
       const res = await fetch(`/api/customer-documents/${orderId}/${fileId}`, {
         method: "PATCH",
@@ -204,301 +148,272 @@ export default function CustomerFilesPage() {
       if (!res.ok) throw new Error("Update failed");
       setEditingId(null);
       await fetchFiles();
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (e) { setError(e.message); }
   };
 
-  // ─── Notify customer ─────────────────────────────────────────
+  // ─── Notify ────────────────────────────────────────────────────
   const handleNotify = async () => {
-    if (!confirm("Send an email to the customer letting them know files are available?")) return;
-    setNotifying(true);
-    setError("");
+    setNotifying(true); setError("");
     try {
       const res = await fetch(`/api/customer-documents/${orderId}/notify`, {
-        method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        method: "POST", headers: { ...getAuthHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send");
       setSuccess("Customer notified by email.");
       setTimeout(() => setSuccess(""), 4000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setNotifying(false);
-    }
+    } catch (e) { setError(e.message); }
+    finally { setNotifying(false); }
   };
 
-  // ─── Helpers ─────────────────────────────────────────────────
-  const formatSize = (bytes) => {
-    if (bytes < 1024) return bytes + " B";
+  // ─── Helpers ───────────────────────────────────────────────────
+  const fmt = (bytes) => {
+    if (!bytes) return "";
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
     if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
     return (bytes / 1073741824).toFixed(2) + " GB";
   };
 
-  const totalCount = Object.values(files).reduce(
-    (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
-    0
-  );
+  const totalCount = Object.values(files).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
 
   if (!user) return null;
 
+  const currentCat  = CATEGORIES.find((c) => c.id === selectedCategory);
+  const currentFiles = files[selectedCategory] || [];
+
+  // ─── Loading ───────────────────────────────────────────────────
   if (loading) {
     return (
       <>
         <TopNav />
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300 }}>
+          <div style={{ color: "#6b7280", fontSize: 14 }}>Loading…</div>
         </div>
       </>
     );
   }
 
-  const currentCat = CATEGORIES.find((c) => c.id === selectedCategory);
-  const currentFiles = files[selectedCategory] || [];
-
   return (
     <>
       <TopNav />
-      <div className="p-6 bg-black min-h-screen text-white" style={{ maxWidth: 1200, margin: "0 auto" }}>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
+      <div style={S.page}>
+
+        {/* ── Page header ── */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button
               onClick={() => router.push(`/admin/orders/${orderId}`)}
-              className="text-gray-400 hover:text-white transition-colors"
+              style={{ ...S.btnGray, padding: "7px 12px" }}
+              title="Back to order"
             >
-              <ArrowLeft size={20} />
+              ← Back
             </button>
             <div>
-              <h1 className="text-2xl font-bold">Customer Files</h1>
-              <p className="text-sm text-gray-400">{totalCount} file{totalCount !== 1 ? "s" : ""} uploaded</p>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#fff" }}>Customer Files</h1>
+              <p style={{ margin: "3px 0 0", fontSize: 13, color: "#6b7280" }}>
+                {totalCount === 0 ? "No files uploaded yet" : `${totalCount} file${totalCount !== 1 ? "s" : ""} uploaded`}
+              </p>
             </div>
           </div>
 
           <button
             onClick={handleNotify}
             disabled={notifying || totalCount === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-gray-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+            style={{ ...S.btnGray, opacity: (notifying || totalCount === 0) ? 0.4 : 1, cursor: (notifying || totalCount === 0) ? "not-allowed" : "pointer" }}
           >
-            <Bell size={16} />
-            {notifying ? "Sending..." : "Notify Customer"}
+            🔔 {notifying ? "Sending…" : "Notify Customer"}
           </button>
         </div>
 
-        {/* Alerts */}
+        {/* ── Alerts ── */}
         {error && (
-          <div className="flex items-center gap-2 mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-sm text-red-400">
-            <AlertCircle size={16} />
-            {error}
-            <button onClick={() => setError("")} className="ml-auto"><X size={14} /></button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, padding: "10px 14px", background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 7, color: "#fca5a5", fontSize: 13 }}>
+            ⚠ {error}
+            <button onClick={() => setError("")} style={{ marginLeft: "auto", background: "none", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
           </div>
         )}
         {success && (
-          <div className="flex items-center gap-2 mb-4 p-3 bg-green-900/30 border border-green-700 rounded-lg text-sm text-green-400">
-            <Check size={16} />
-            {success}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, padding: "10px 14px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 7, color: "#6ee7b7", fontSize: 13 }}>
+            ✓ {success}
           </div>
         )}
 
-        {/* Category tabs */}
-        <div className="flex gap-1 mb-6 border-b border-gray-800">
-          {CATEGORIES.map((cat) => {
-            const Icon = cat.icon;
-            const count = files[cat.id]?.length || 0;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 border-b-2 text-sm font-medium transition-colors ${
-                  selectedCategory === cat.id
-                    ? "border-red-600 text-red-500"
-                    : "border-transparent text-gray-400 hover:text-white"
-                }`}
-              >
-                <Icon size={16} />
-                {cat.label}
-                {count > 0 && (
-                  <span className="bg-gray-700 text-xs px-1.5 py-0.5 rounded-full text-gray-300">
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* ── Main card ── */}
+        <div style={S.card}>
+
+          {/* Category tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid #2d2d2d", paddingBottom: 0 }}>
+            {CATEGORIES.map((cat) => {
+              const count = files[cat.id]?.length || 0;
+              const active = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "8px 16px",
+                    background: "none", border: "none",
+                    borderBottom: `2px solid ${active ? "#dc2626" : "transparent"}`,
+                    color: active ? "#dc2626" : "#6b7280",
+                    fontSize: 13, fontWeight: active ? 600 : 400,
+                    cursor: "pointer", marginBottom: -1,
+                    transition: "color 0.12s",
+                  }}
+                >
+                  <span>{cat.icon}</span>
+                  {cat.label}
+                  {count > 0 && (
+                    <span style={{ fontSize: 11, background: active ? "rgba(220,38,38,0.15)" : "#252525", color: active ? "#dc2626" : "#9ca3af", borderRadius: 99, padding: "1px 7px" }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Upload zone */}
+          <div style={{ marginBottom: 20 }}>
+            <input ref={fileInputRef} type="file" accept={currentCat.accept} onChange={handleUpload} disabled={uploading} style={{ display: "none" }} />
+            <div
+              onClick={() => !uploading && fileInputRef.current?.click()}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
+                padding: "28px 20px",
+                border: `2px dashed ${uploading ? "#2d2d2d" : "#374151"}`,
+                borderRadius: 8,
+                background: uploading ? "#111" : "#0f0f0f",
+                cursor: uploading ? "not-allowed" : "pointer",
+                transition: "border-color 0.15s",
+              }}
+              onMouseEnter={(e) => { if (!uploading) e.currentTarget.style.borderColor = "#dc2626"; }}
+              onMouseLeave={(e) => { if (!uploading) e.currentTarget.style.borderColor = "#374151"; }}
+            >
+              {uploading ? (
+                <>
+                  <div style={{ width: "100%", maxWidth: 300, background: "#1f1f1f", borderRadius: 99, height: 6, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${uploadProgress}%`, background: "#dc2626", borderRadius: 99, transition: "width 0.2s" }} />
+                  </div>
+                  <p style={{ margin: 0, fontSize: 13, color: "#9ca3af" }}>{uploadStatus} — {uploadProgress}%</p>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: 28 }}>⬆</span>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "#e4e4e4" }}>
+                    Click to upload {currentCat.label.toLowerCase()}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 12, color: "#4b5563" }}>{currentCat.accept}</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* File list */}
+          {currentFiles.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#374151" }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>{currentCat.icon}</div>
+              <p style={{ margin: 0, fontSize: 14 }}>No {currentCat.label.toLowerCase()} uploaded yet</p>
+            </div>
+          ) : (
+            <div>
+              {currentFiles.map((file) => (
+                <div key={file.id} style={S.row}>
+
+                  {/* Thumbnail / icon */}
+                  <div style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 6, overflow: "hidden", background: "#1f1f1f", border: "1px solid #2d2d2d", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {file.mimeType?.startsWith("image/") ? (
+                      <img src={file.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <span style={{ fontSize: 22 }}>{currentCat.icon}</span>
+                    )}
+                  </div>
+
+                  {/* Info / edit form */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {editingId === file.id ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <input
+                          type="text" value={editForm.displayName}
+                          onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+                          placeholder="Display name"
+                          style={S.input}
+                        />
+                        <input
+                          type="text" value={editForm.description}
+                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          placeholder="Description (optional)"
+                          style={S.input}
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "#e4e4e4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {file.displayName || file.fileName}
+                        </p>
+                        {file.description && (
+                          <p style={{ margin: "2px 0 0", fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.description}</p>
+                        )}
+                        <p style={{ margin: "2px 0 0", fontSize: 11, color: "#374151" }}>
+                          {fmt(file.fileSize)}{file.uploadedBy?.name ? ` · ${file.uploadedBy.name}` : ""}
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    {editingId === file.id ? (
+                      <>
+                        <button onClick={() => saveEdit(file.id)} title="Save" style={{ ...S.iconBtn, color: "#10b981", borderColor: "rgba(16,185,129,0.3)" }}>✓</button>
+                        <button onClick={() => setEditingId(null)} title="Cancel" style={S.iconBtn}>✕</button>
+                      </>
+                    ) : (
+                      <>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download"
+                          style={{ ...S.iconBtn, textDecoration: "none" }}>↗</a>
+                        <button onClick={() => { setEditingId(file.id); setEditForm({ displayName: file.displayName || file.fileName, description: file.description || "" }); }}
+                          title="Rename" style={S.iconBtn}>✎</button>
+                        <button onClick={() => setDeleteConfirm({ id: file.id, name: file.displayName || file.fileName })}
+                          title="Delete" style={{ ...S.iconBtn, color: "#dc2626", borderColor: "rgba(220,38,38,0.25)" }}>🗑</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Legacy Dropbox link */}
+          {files.legacyDropboxLink && (
+            <div style={{ marginTop: 20, padding: "12px 16px", background: "#0f0f0f", border: "1px solid #2d2d2d", borderRadius: 7 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.05em" }}>Legacy Dropbox Link</p>
+              <a href={files.legacyDropboxLink} target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 13, color: "#dc2626", wordBreak: "break-all" }}>
+                {files.legacyDropboxLink} ↗
+              </a>
+            </div>
+          )}
         </div>
 
-        {/* Upload area */}
-        <label className="block mb-6 cursor-pointer">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={currentCat.accept}
-            onChange={handleUpload}
-            disabled={uploading}
-            className="hidden"
-          />
-          <div
-            className={`flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-xl transition-colors ${
-              uploading
-                ? "border-gray-700 bg-gray-900/50 cursor-not-allowed"
-                : "border-gray-700 hover:border-red-600 hover:bg-gray-900/50"
-            }`}
-          >
-            {uploading ? (
-              <>
-                <div className="w-full max-w-xs bg-gray-800 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-red-600 h-full rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-                <p className="text-sm text-gray-400">{uploadStatus} {uploadProgress}%</p>
-              </>
-            ) : (
-              <>
-                <Upload size={24} className="text-gray-500" />
-                <p className="text-sm text-gray-400">
-                  Click to upload {currentCat.label.toLowerCase()}
-                </p>
-                <p className="text-xs text-gray-600">{currentCat.accept}</p>
-              </>
-            )}
-          </div>
-        </label>
-
-        {/* File list */}
-        {currentFiles.length === 0 ? (
-          <div className="text-center py-16 text-gray-600">
-            <currentCat.icon size={48} className="mx-auto mb-3 opacity-30" />
-            <p>No {currentCat.label.toLowerCase()} uploaded yet</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {currentFiles.map((file) => (
-              <div
-                key={file.id}
-                className="flex items-center gap-3 p-4 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors"
-              >
-                <GripVertical size={18} className="text-gray-700 flex-shrink-0" />
-
-                {/* Thumbnail or icon */}
-                <div className="w-14 h-14 flex-shrink-0 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
-                  {file.mimeType?.startsWith("image/") ? (
-                    <img
-                      src={file.url}
-                      alt={file.displayName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : file.mimeType?.startsWith("video/") ? (
-                    <Video size={22} className="text-gray-500" />
-                  ) : (
-                    <FileText size={22} className="text-gray-500" />
-                  )}
-                </div>
-
-                {/* File info / edit form */}
-                <div className="flex-1 min-w-0">
-                  {editingId === file.id ? (
-                    <div className="space-y-1.5">
-                      <input
-                        type="text"
-                        value={editForm.displayName}
-                        onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
-                        placeholder="Display name"
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm focus:outline-none focus:border-red-600"
-                      />
-                      <input
-                        type="text"
-                        value={editForm.description}
-                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                        placeholder="Description (optional)"
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm focus:outline-none focus:border-red-600"
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      <p className="font-medium truncate">{file.displayName}</p>
-                      {file.description && (
-                        <p className="text-xs text-gray-400 truncate mt-0.5">{file.description}</p>
-                      )}
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {formatSize(file.fileSize)}
-                        {file.uploadedBy?.name ? ` · ${file.uploadedBy.name}` : ""}
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {editingId === file.id ? (
-                    <>
-                      <button
-                        onClick={() => saveEdit(file.id)}
-                        className="p-1.5 hover:bg-green-900/40 rounded text-green-500 transition-colors"
-                        title="Save"
-                      >
-                        <Check size={16} />
-                      </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="p-1.5 hover:bg-gray-800 rounded text-gray-400 transition-colors"
-                        title="Cancel"
-                      >
-                        <X size={16} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <a
-                        href={file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 hover:bg-gray-800 rounded text-gray-400 transition-colors"
-                        title="View / Download"
-                      >
-                        <Eye size={16} />
-                      </a>
-                      <button
-                        onClick={() => startEdit(file)}
-                        className="p-1.5 hover:bg-gray-800 rounded text-gray-400 transition-colors"
-                        title="Rename"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(file.id, file.displayName)}
-                        className="p-1.5 hover:bg-red-900/40 rounded text-red-500 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </>
-                  )}
-                </div>
+        {/* ── Delete confirmation modal ── */}
+        {deleteConfirm && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+            onClick={() => setDeleteConfirm(null)}>
+            <div style={{ background: "#1a1a1a", border: "1px solid #2d2d2d", borderRadius: 10, padding: "28px 32px", maxWidth: 460, width: "90%" }}
+              onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 600, color: "#fff" }}>Delete file?</h3>
+              <p style={{ margin: "0 0 20px", fontSize: 14, color: "#9ca3af" }}>
+                <strong style={{ color: "#e4e4e4" }}>"{deleteConfirm.name}"</strong> will be permanently deleted and cannot be recovered.
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button onClick={() => setDeleteConfirm(null)} style={S.btnGray}>Cancel</button>
+                <button onClick={executeDelete} style={{ ...S.btn, background: "#dc2626" }}>Delete permanently</button>
               </div>
-            ))}
+            </div>
           </div>
         )}
 
-        {/* Legacy Dropbox fallback notice */}
-        {files.legacyDropboxLink && (
-          <div className="mt-6 p-4 bg-gray-900 rounded-xl border border-gray-800">
-            <p className="text-xs text-gray-500 mb-2">Legacy Dropbox link (still active):</p>
-            <a
-              href={files.legacyDropboxLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-red-500 hover:text-red-400 underline break-all"
-            >
-              {files.legacyDropboxLink}
-            </a>
-          </div>
-        )}
       </div>
     </>
   );
