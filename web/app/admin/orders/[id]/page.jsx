@@ -108,8 +108,6 @@ export default function EditOrderPage({ params }) {
           orderApi.getManufacturers(getAuthHeaders),
           orderApi.getSalesAgents(getAuthHeaders)
         ]);
-        console.log('[Edit Order] Loaded manufacturers:', mfgData);
-        console.log('[Edit Order] Loaded sales agents:', agentsData);
         setManufacturers(mfgData);
         setSalesAgents(agentsData);
       } catch (e) {
@@ -150,7 +148,6 @@ export default function EditOrderPage({ params }) {
         setOnsiteInstallationDate("");
       }
 
-      // Initialize all items as selected for manifest generation
       if (orderData.items) {
         setSelectedItemsForManifest(new Set(orderData.items.map(item => item.id)));
       }
@@ -502,17 +499,14 @@ export default function EditOrderPage({ params }) {
   async function generateShippingManifest() {
     if (!order) return;
 
-    // Check if any items are selected
     if (selectedItemsForManifest.size === 0) {
       showNotif("Please select at least one item to include in the manifest");
       return;
     }
 
     try {
-      // Fetch fresh order data to get latest container information
       const orderData = await orderApi.getOrder(id, getAuthHeaders);
 
-      // Load logo as base64
       const logoImg = new Image();
       logoImg.src = "/smt-logo.png";
 
@@ -521,21 +515,17 @@ export default function EditOrderPage({ params }) {
         logoImg.onerror = reject;
       });
 
-      // Generate PDF
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
 
-      // Add logo in top right corner
       const logoWidth = 30;
       const logoHeight = (logoImg.height / logoImg.width) * logoWidth;
       doc.addImage(logoImg, "PNG", pageWidth - logoWidth - 14, 10, logoWidth, logoHeight);
 
-      // Header
       doc.setFontSize(18);
       doc.setFont(undefined, "bold");
       doc.text("Shipping Manifest", 14, 20);
 
-      // Customer Information Section
       doc.setFontSize(12);
       doc.setFont(undefined, "bold");
       doc.text("Customer Information", 14, 35);
@@ -544,40 +534,22 @@ export default function EditOrderPage({ params }) {
       doc.setFontSize(10);
       let yPos = 42;
 
-      if (orderData.account?.name) {
-        doc.text(`Customer: ${orderData.account.name}`, 14, yPos);
-        yPos += 6;
-      }
+      if (orderData.account?.name) { doc.text(`Customer: ${orderData.account.name}`, 14, yPos); yPos += 6; }
+      if (orderData.account?.contactName) { doc.text(`Contact: ${orderData.account.contactName}`, 14, yPos); yPos += 6; }
+      if (orderData.account?.phone) { doc.text(`Phone: ${orderData.account.phone}`, 14, yPos); yPos += 6; }
+      if (orderData.account?.address) { doc.text(`Address: ${orderData.account.address}`, 14, yPos); yPos += 6; }
 
-      if (orderData.account?.contactName) {
-        doc.text(`Contact: ${orderData.account.contactName}`, 14, yPos);
-        yPos += 6;
-      }
+      yPos += 4;
 
-      if (orderData.account?.phone) {
-        doc.text(`Phone: ${orderData.account.phone}`, 14, yPos);
-        yPos += 6;
-      }
-
-      if (orderData.account?.address) {
-        doc.text(`Address: ${orderData.account.address}`, 14, yPos);
-        yPos += 6;
-      }
-
-      yPos += 4; // Add some space before items section
-
-      // Process each item and its containers (only selected items)
       let hasAnyContainers = false;
 
       orderData.items?.filter(item => selectedItemsForManifest.has(item.id)).forEach((item, itemIndex) => {
         try {
           const containers = item.containers ? JSON.parse(item.containers) : [];
-
-          if (containers.length === 0) return; // Skip items with no containers
+          if (containers.length === 0) return;
 
           hasAnyContainers = true;
 
-          // Add item name heading
           doc.setFontSize(12);
           doc.setFont(undefined, "bold");
           const itemName = item.productCode || `Item ${itemIndex + 1}`;
@@ -585,9 +557,7 @@ export default function EditOrderPage({ params }) {
           doc.text(`${itemName}${itemSerial}`, 14, yPos);
           yPos += 7;
 
-          // Build container table data for this item
           const tableData = containers.map((container, index) => {
-            // Build dimension string from individual fields
             let dimensionStr = "-";
             if (container.length || container.width || container.height) {
               const parts = [];
@@ -596,60 +566,32 @@ export default function EditOrderPage({ params }) {
               if (container.height) parts.push(`H: ${container.height}"`);
               dimensionStr = parts.join(", ");
             }
-
-            // Build weight string
-            let weightStr = container.weight ? `${container.weight}` : "-";
-
-            return [
-              index + 1,
-              container.label || "-",
-              dimensionStr,
-              weightStr,
-              container.tracking || "-"
-            ];
+            const weightStr = container.weight ? `${container.weight}` : "-";
+            return [index + 1, container.label || "-", dimensionStr, weightStr, container.tracking || "-"];
           });
 
-          // Add container table for this item
           autoTable(doc, {
             startY: yPos,
             head: [["#", "Package", "Dimensions", "Weight", "Notes"]],
             body: tableData,
             theme: "grid",
-            headStyles: {
-              fillColor: [220, 38, 38], // Red color matching your theme
-              textColor: [255, 255, 255],
-              fontStyle: "bold"
-            },
-            styles: {
-              fontSize: 9,
-              cellPadding: 3
-            },
-            columnStyles: {
-              0: { cellWidth: 10 },
-              1: { cellWidth: 40 },
-              2: { cellWidth: 50 },
-              3: { cellWidth: 30 },
-              4: { cellWidth: 55 }
-            }
+            headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255], fontStyle: "bold" },
+            styles: { fontSize: 9, cellPadding: 3 },
+            columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 40 }, 2: { cellWidth: 50 }, 3: { cellWidth: 30 }, 4: { cellWidth: 55 } }
           });
 
-          // Update yPos to after this table, plus spacing for next item
           yPos = doc.lastAutoTable.finalY + 10;
-
         } catch (e) {
           console.error("Error parsing containers for item:", e);
         }
       });
 
-      // If no containers found at all
       if (!hasAnyContainers) {
         doc.setFontSize(10);
         doc.setFont(undefined, "italic");
         doc.text("No container information available for this order.", 14, yPos);
       }
 
-      // Add footer with generation date
-      const finalY = doc.lastAutoTable?.finalY || yPos + 10;
       doc.setFontSize(8);
       doc.setFont(undefined, "normal");
       doc.text(
@@ -658,7 +600,6 @@ export default function EditOrderPage({ params }) {
         doc.internal.pageSize.getHeight() - 10
       );
 
-      // Save the PDF
       const fileName = `Shipping_Manifest_${orderData.account?.name || "Order"}_${new Date().toISOString().split("T")[0]}.pdf`;
       doc.save(fileName);
 
@@ -674,6 +615,21 @@ export default function EditOrderPage({ params }) {
   }
 
   const hasExtendedShipping = order?.items?.some(item => item.hasExtendedShipping === true) || false;
+
+  // Tab style helper
+  const tabStyle = (tab) => ({
+    padding: "10px 20px",
+    backgroundColor: activeTab === tab ? "#dc2626" : "#2d2d2d",
+    color: activeTab === tab ? "#fff" : "#9ca3af",
+    border: "1px solid #404040",
+    borderBottom: activeTab === tab ? "1px solid #dc2626" : "1px solid #404040",
+    borderRadius: "6px 6px 0 0",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: activeTab === tab ? "600" : "400",
+    marginBottom: "-1px",
+    whiteSpace: "nowrap",
+  });
 
   return (
     <>
@@ -728,18 +684,12 @@ export default function EditOrderPage({ params }) {
                     className="btn"
                     onClick={() => setShowUnlockDialog(true)}
                     disabled={lockLoading}
-                    style={{
-                      backgroundColor: "#dc2626",
-                      color: "#fff",
-                      border: "none"
-                    }}
+                    style={{ backgroundColor: "#dc2626", color: "#fff", border: "none" }}
                   >
                     Unlock Order
                   </button>
                 ) : (
-                  <div style={{ color: "#fca5a5", fontSize: "12px" }}>
-                    Only admins can unlock
-                  </div>
+                  <div style={{ color: "#fca5a5", fontSize: "12px" }}>Only admins can unlock</div>
                 )}
               </div>
             )}
@@ -750,58 +700,28 @@ export default function EditOrderPage({ params }) {
               gap: "4px",
               marginBottom: "16px",
               borderBottom: "1px solid #404040",
-              paddingBottom: "0"
+              paddingBottom: "0",
+              flexWrap: "wrap"
             }}>
+              <button onClick={() => setActiveTab("details")} style={tabStyle("details")}>Details</button>
+              <button onClick={() => setActiveTab("containers")} style={tabStyle("containers")}>Shipping Containers</button>
+              <button onClick={() => setActiveTab("documents")} style={tabStyle("documents")}>Documents</button>
+              {/* Customer Files — navigates to sub-page */}
               <button
-                onClick={() => setActiveTab("details")}
+                onClick={() => router.push(`/admin/orders/${id}/customer-files`)}
                 style={{
-                  padding: "10px 20px",
-                  backgroundColor: activeTab === "details" ? "#dc2626" : "#2d2d2d",
-                  color: activeTab === "details" ? "#fff" : "#9ca3af",
-                  border: "1px solid #404040",
-                  borderBottom: activeTab === "details" ? "1px solid #dc2626" : "1px solid #404040",
-                  borderRadius: "6px 6px 0 0",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: activeTab === "details" ? "600" : "400",
-                  marginBottom: "-1px"
+                  ...tabStyle("customer-files"),
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
                 }}
               >
-                Details
-              </button>
-              <button
-                onClick={() => setActiveTab("containers")}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: activeTab === "containers" ? "#dc2626" : "#2d2d2d",
-                  color: activeTab === "containers" ? "#fff" : "#9ca3af",
-                  border: "1px solid #404040",
-                  borderBottom: activeTab === "containers" ? "1px solid #dc2626" : "1px solid #404040",
-                  borderRadius: "6px 6px 0 0",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: activeTab === "containers" ? "600" : "400",
-                  marginBottom: "-1px"
-                }}
-              >
-                Shipping Containers
-              </button>
-              <button
-                onClick={() => setActiveTab("documents")}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: activeTab === "documents" ? "#dc2626" : "#2d2d2d",
-                  color: activeTab === "documents" ? "#fff" : "#9ca3af",
-                  border: "1px solid #404040",
-                  borderBottom: activeTab === "documents" ? "1px solid #dc2626" : "1px solid #404040",
-                  borderRadius: "6px 6px 0 0",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: activeTab === "documents" ? "600" : "400",
-                  marginBottom: "-1px"
-                }}
-              >
-                Documents
+                📁 Customer Files
+                {order._customerFileCount > 0 && (
+                  <span style={{ fontSize: "11px", background: "#404040", borderRadius: "999px", padding: "1px 6px", color: "#e4e4e4" }}>
+                    {order._customerFileCount}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -817,21 +737,13 @@ export default function EditOrderPage({ params }) {
                   borderRadius: "8px"
                 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-                <h3 style={{ margin: 0, fontSize: 14, color: "#e4e4e4" }}>
-                  Shipping & Customer Information
-                </h3>
+                <h3 style={{ margin: 0, fontSize: 14, color: "#e4e4e4" }}>Shipping & Customer Information</h3>
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button
                     className="btn"
                     onClick={handleArchiveToggle}
                     disabled={archiveLoading}
-                    style={{
-                      backgroundColor: order.isArchived ? "#10b981" : "#6b7280",
-                      color: "#fff",
-                      border: "none",
-                      fontSize: "13px",
-                      padding: "6px 12px"
-                    }}
+                    style={{ backgroundColor: order.isArchived ? "#10b981" : "#6b7280", color: "#fff", border: "none", fontSize: "13px", padding: "6px 12px" }}
                   >
                     {archiveLoading ? "..." : (order.isArchived ? "📂 Unarchive" : "📦 Archive")}
                   </button>
@@ -840,13 +752,7 @@ export default function EditOrderPage({ params }) {
                       className="btn"
                       onClick={handleLockClick}
                       disabled={lockLoading}
-                      style={{
-                        backgroundColor: "#ef4444",
-                        color: "#fff",
-                        border: "none",
-                        fontSize: "13px",
-                        padding: "6px 12px"
-                      }}
+                      style={{ backgroundColor: "#ef4444", color: "#fff", border: "none", fontSize: "13px", padding: "6px 12px" }}
                     >
                       🔒 Lock Order
                     </button>
@@ -854,79 +760,69 @@ export default function EditOrderPage({ params }) {
                 </div>
               </div>
 
-              {/* Customer Name and Contact */}
               <div style={{ marginBottom: "12px", paddingBottom: "12px", borderBottom: "1px solid #404040" }}>
                 <div style={{ fontSize: 18, color: "#ffffff", fontWeight: 600, marginBottom: 4 }}>
                   {order.account?.name ?? "—"}
                 </div>
                 {order.account?.contactName && (
-                  <div style={{ fontSize: 14, color: "#e4e4e4" }}>
-                    Contact: {order.account.contactName}
-                  </div>
+                  <div style={{ fontSize: 14, color: "#e4e4e4" }}>Contact: {order.account.contactName}</div>
                 )}
               </div>
 
-              {/* Shipping Address and Phone */}
               {(order.account?.address || order.account?.phone) && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #404040" }}>
                   {order.account?.address && (
                     <div>
                       <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "4px" }}>Shipping Address</div>
-                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>
-                        {order.account.address}
-                      </div>
+                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>{order.account.address}</div>
                     </div>
                   )}
                   {order.account?.phone && (
                     <div>
                       <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "4px" }}>Phone Number</div>
-                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>
-                        {order.account.phone}
-                      </div>
+                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>{order.account.phone}</div>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Carrier and Tracking */}
               {(order.shippingCarrier || order.trackingNumber) && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "12px" }}>
                   {order.shippingCarrier && (
                     <div>
                       <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "4px" }}>Carrier</div>
-                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>
-                        {order.shippingCarrier}
-                      </div>
+                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>{order.shippingCarrier}</div>
                     </div>
                   )}
                   {order.trackingNumber && (
                     <div>
                       <div style={{ fontSize: "12px", color: "#9ca3af", marginBottom: "4px" }}>Tracking Number</div>
-                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>
-                        {order.trackingNumber}
-                      </div>
+                      <div style={{ color: "#e4e4e4", fontSize: "14px" }}>{order.trackingNumber}</div>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Links */}
-              <div style={{ fontSize: "12px", color: "#6b7280", display: "flex", gap: "16px", flexWrap: "wrap" }}>
+              <div style={{ fontSize: "12px", color: "#6b7280", display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
                 <span>
                   <strong>Public link:</strong>{" "}
                   <a className="link" href={`/t/${order.trackingToken}`} target="_blank" rel="noreferrer">Open ↗</a>
                 </span>
                 {order.createdBy && (
-                  <span>
-                    <strong>Created by:</strong> {order.createdBy.name}
-                  </span>
+                  <span><strong>Created by:</strong> {order.createdBy.name}</span>
                 )}
                 {order.customerDocsLink && (
                   <span>
-                    <strong>Documents:</strong>{" "}
+                    <strong>Legacy docs:</strong>{" "}
                     <a className="link" href={order.customerDocsLink} target="_blank" rel="noreferrer">View Files ↗</a>
                   </span>
                 )}
+                <Link
+                  href={`/admin/orders/${id}/customer-files`}
+                  style={{ color: "#dc2626", fontWeight: "600", textDecoration: "none" }}
+                >
+                  📁 Manage Customer Files →
+                </Link>
               </div>
             </section>
 
@@ -951,10 +847,10 @@ export default function EditOrderPage({ params }) {
             <section style={{ marginTop: 16, marginBottom: 16 }}>
               <h3 style={{ margin: "0 0 12px", fontSize: 14 }}>Document Links</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                {/* Customer Documents */}
+                {/* Customer Documents (legacy Dropbox) */}
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#e4e4e4" }}>
-                    Customer Documents
+                    Legacy Dropbox Link
                   </div>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: "4px" }}>
                     <input
@@ -963,18 +859,12 @@ export default function EditOrderPage({ params }) {
                       value={customerDocsLink}
                       onChange={(e) => setCustomerDocsLink(e.target.value)}
                       onBlur={saveCustomerDocsLink}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.currentTarget.blur();
-                        }
-                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                       placeholder="https://www.dropbox.com/..."
                       style={{ flex: 1 }}
                       disabled={isSavingDocsLink}
                     />
-                    {isSavingDocsLink && (
-                      <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
-                    )}
+                    {isSavingDocsLink && (<span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>)}
                   </div>
                   {order.customerDocsLink && (
                     <a className="btn" href={order.customerDocsLink} target="_blank" rel="noreferrer" style={{ fontSize: "12px", padding: "4px 12px" }}>
@@ -982,7 +872,7 @@ export default function EditOrderPage({ params }) {
                     </a>
                   )}
                   <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px" }}>
-                    Dropbox link for customer files
+                    Old Dropbox link (use Customer Files tab for new uploads)
                   </div>
                 </div>
 
@@ -999,32 +889,23 @@ export default function EditOrderPage({ params }) {
                         value={brokerDocsLink}
                         onChange={(e) => setBrokerDocsLink(e.target.value)}
                         onBlur={saveBrokerDocsLink}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.currentTarget.blur();
-                          }
-                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                         placeholder="https://www.dropbox.com/..."
                         style={{ flex: 1 }}
                         disabled={isSavingBrokerDocsLink}
                       />
-                      {isSavingBrokerDocsLink && (
-                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
-                      )}
+                      {isSavingBrokerDocsLink && (<span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>)}
                     </div>
                     {order.brokerDocsLink && (
                       <a className="btn" href={order.brokerDocsLink} target="_blank" rel="noreferrer" style={{ fontSize: "12px", padding: "4px 12px" }}>
                         Open Link ↗
                       </a>
                     )}
-                    <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px" }}>
-                      Dropbox link for broker files (Super Admin only)
-                    </div>
+                    <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px" }}>Broker files (Super Admin only)</div>
                   </div>
                 )}
               </div>
             </section>
-
 
             <ItemsTable
               order={order}
@@ -1033,10 +914,7 @@ export default function EditOrderPage({ params }) {
               onFieldChange={updateItemEdit}
               onDelete={deleteItem}
               onMarkOrdered={markItemOrdered}
-              onUnmarkOrdered={(itemId) => {
-                setUnorderingItemId(itemId);
-                setShowUnorderDialog(true);
-              }}
+              onUnmarkOrdered={(itemId) => { setUnorderingItemId(itemId); setShowUnorderDialog(true); }}
               onSaveAllChanges={saveAllChanges}
               onAddItem={addItem}
               onRefresh={load}
@@ -1047,13 +925,11 @@ export default function EditOrderPage({ params }) {
               getAuthHeaders={getAuthHeaders}
             />
 
-            {/* Discount and Total - Right Justified */}
+            {/* Discount and Total */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, marginBottom: 16 }}>
               <div style={{ maxWidth: "400px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                  <label style={{ fontSize: "14px", fontWeight: "600", color: "#e4e4e4" }}>
-                    Discount:
-                  </label>
+                  <label style={{ fontSize: "14px", fontWeight: "600", color: "#e4e4e4" }}>Discount:</label>
                   <span style={{ fontSize: "18px", color: "#9ca3af" }}>$</span>
                   <input
                     className="input"
@@ -1061,23 +937,15 @@ export default function EditOrderPage({ params }) {
                     value={discount}
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
-                        setDiscount(value);
-                      }
+                      if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) setDiscount(value);
                     }}
                     onBlur={saveDiscount}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.currentTarget.blur();
-                      }
-                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                     placeholder="0.00"
                     style={{ width: "120px", textAlign: "right" }}
                     disabled={isSavingDiscount}
                   />
-                  {isSavingDiscount && (
-                    <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
-                  )}
+                  {isSavingDiscount && (<span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>)}
                 </div>
                 <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px", textAlign: "right" }}>
                   Press Enter or click outside to save
@@ -1085,35 +953,14 @@ export default function EditOrderPage({ params }) {
               </div>
             </div>
 
-            {/* Gross Total Display */}
-            <div style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              marginBottom: 16
-            }}>
-              <div style={{
-                padding: "8px 12px",
-                backgroundColor: "#2d2d2d",
-                border: "1px solid #404040",
-                borderRadius: "6px",
-                textAlign: "right"
-              }}>
-                <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "2px" }}>
-                  Gross Total
-                </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+              <div style={{ padding: "8px 12px", backgroundColor: "#2d2d2d", border: "1px solid #404040", borderRadius: "6px", textAlign: "right" }}>
+                <div style={{ fontSize: "11px", color: "#9ca3af", marginBottom: "2px" }}>Gross Total</div>
                 <div style={{ fontSize: "18px", fontWeight: "600", color: "#ffffff" }}>
                   ${(() => {
-                    // Calculate subtotal from all items
-                    const subtotal = (order.items || []).reduce((sum, item) => {
-                      const itemTotal = (item.itemPrice || 0) * (item.qty || 1);
-                      return sum + itemTotal;
-                    }, 0);
-
-                    // Subtract discount
+                    const subtotal = (order.items || []).reduce((sum, item) => sum + (item.itemPrice || 0) * (item.qty || 1), 0);
                     const discountAmount = parseFloat(discount) || 0;
-                    const total = subtotal - discountAmount;
-
-                    return total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return (subtotal - discountAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                   })()}
                 </div>
               </div>
@@ -1129,7 +976,6 @@ export default function EditOrderPage({ params }) {
               internalNotesSaving={internalNotesSaving}
             />
 
-            {/* Commission Status Card */}
             {order && user && (
               <CommissionStatusCard orderId={order.id} user={user} />
             )}
@@ -1137,47 +983,21 @@ export default function EditOrderPage({ params }) {
             {order.auditLogs && order.auditLogs.length > 0 && (
               <section style={{ marginTop: 32 }}>
                 <h2 style={{ margin: "0 0 8px", fontSize: 16 }}>Lock/Unlock History</h2>
-                <div style={{
-                  backgroundColor: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "6px",
-                  padding: "12px",
-                  maxHeight: "200px",
-                  overflowY: "auto"
-                }}>
+                <div style={{ backgroundColor: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "6px", padding: "12px", maxHeight: "200px", overflowY: "auto" }}>
                   {order.auditLogs
                     .filter(log => log.action === "LOCKED" || log.action === "UNLOCKED")
                     .map((log) => (
-                    <div key={log.id} style={{
-                      paddingBottom: "8px",
-                      marginBottom: "8px",
-                      borderBottom: "1px solid #e5e7eb"
-                    }}>
+                    <div key={log.id} style={{ paddingBottom: "8px", marginBottom: "8px", borderBottom: "1px solid #e5e7eb" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                         <div>
-                          <strong style={{ color: log.action === "LOCKED" ? "#059669" : "#dc2626" }}>
-                            {log.action}
-                          </strong>
+                          <strong style={{ color: log.action === "LOCKED" ? "#059669" : "#dc2626" }}>{log.action}</strong>
                           {log.metadata && (() => {
                             try {
                               const metadata = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
-                              return metadata.message ? (
-                                <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
-                                  Reason: {metadata.message}
-                                </div>
-                              ) : null;
-                            } catch {
-                              return null;
-                            }
+                              return metadata.message ? (<div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>Reason: {metadata.message}</div>) : null;
+                            } catch { return null; }
                           })()}
-                          {log.parsedReason?.message && (
-                            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
-                              Reason: {log.parsedReason.message}
-                            </div>
-                          )}
-                          <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px" }}>
-                            By: {log.performedByName || log.performedBy?.name || "System"}
-                          </div>
+                          <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px" }}>By: {log.performedByName || log.performedBy?.name || "System"}</div>
                         </div>
                         <div style={{ fontSize: "11px", color: "#9ca3af", whiteSpace: "nowrap" }}>
                           {log.timestamp ? new Date(log.timestamp).toLocaleString() : new Date(log.createdAt).toLocaleString()}
@@ -1202,42 +1022,22 @@ export default function EditOrderPage({ params }) {
                   selectedItemsForManifest={selectedItemsForManifest}
                   setSelectedItemsForManifest={setSelectedItemsForManifest}
                 />
-
-                {/* Generate Shipping Manifest Button */}
                 <div style={{ marginTop: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button
                     onClick={generateShippingManifest}
                     className="btn"
-                    style={{
-                      background: "#dc2626",
-                      color: "white",
-                      border: "none",
-                      padding: "10px 20px",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      fontWeight: "600"
-                    }}
+                    style={{ background: "#dc2626", color: "white", border: "none", padding: "10px 20px", borderRadius: "6px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}
                   >
                     📄 Generate Manifest
                   </button>
-                  <span style={{ fontSize: '13px', color: '#9ca3af' }}>
-                    ({selectedItemsForManifest.size} of {order.items.length} items selected)
-                  </span>
+                  <span style={{ fontSize: '13px', color: '#9ca3af' }}>({selectedItemsForManifest.size} of {order.items.length} items selected)</span>
                 </div>
               </>
             )}
 
             {/* Documents Tab */}
             {activeTab === "documents" && (
-              <div style={{
-                marginTop: 16,
-                marginBottom: 16,
-                padding: "16px",
-                backgroundColor: "#2d2d2d",
-                border: "1px solid #404040",
-                borderRadius: "8px"
-              }}>
+              <div style={{ marginTop: 16, marginBottom: 16, padding: "16px", backgroundColor: "#2d2d2d", border: "1px solid #404040", borderRadius: "8px" }}>
                 <DocumentUpload
                   items={order.items}
                   onDocumentChange={load}
@@ -1251,10 +1051,7 @@ export default function EditOrderPage({ params }) {
           show={showUnlockDialog && isAdmin}
           unlockReason={unlockReason}
           setUnlockReason={setUnlockReason}
-          onCancel={() => {
-            setShowUnlockDialog(false);
-            setUnlockReason("");
-          }}
+          onCancel={() => { setShowUnlockDialog(false); setUnlockReason(""); }}
           onUnlock={unlockOrder}
           loading={lockLoading}
         />
@@ -1263,94 +1060,26 @@ export default function EditOrderPage({ params }) {
           show={showUnorderDialog && isAdmin}
           unorderReason={unorderReason}
           setUnorderReason={setUnorderReason}
-          onCancel={() => {
-            setShowUnorderDialog(false);
-            setUnorderReason("");
-            setUnorderingItemId(null);
-          }}
+          onCancel={() => { setShowUnorderDialog(false); setUnorderReason(""); setUnorderingItemId(null); }}
           onUnorder={unmarkItemOrdered}
           saving={saving}
         />
 
         {/* Delete Confirmation Dialog */}
         {showDeleteConfirm && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
-          }} onClick={cancelDeleteItem}>
-            <div style={{
-              backgroundColor: "#1f1f1f",
-              border: "1px solid #404040",
-              borderRadius: "8px",
-              padding: "2rem",
-              maxWidth: "500px",
-              width: "90%",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
-            }} onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
-                ⚠️ Delete Item Permanently?
-              </h3>
-              <p style={{ fontSize: "16px", marginBottom: "1rem", color: "#d1d5db" }}>
-                You are about to permanently delete <strong>"{pendingDeleteItemName}"</strong>.
-              </p>
-              <div style={{
-                padding: "1rem",
-                backgroundColor: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
-                borderRadius: "6px",
-                marginBottom: "1rem"
-              }}>
-                <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#ef4444" }}>
-                  <strong>Warning:</strong>
-                </p>
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={cancelDeleteItem}>
+            <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "2rem", maxWidth: "500px", width: "90%" }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>⚠️ Delete Item Permanently?</h3>
+              <p style={{ fontSize: "16px", marginBottom: "1rem", color: "#d1d5db" }}>You are about to permanently delete <strong>"{pendingDeleteItemName}"</strong>.</p>
+              <div style={{ padding: "1rem", backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px", marginBottom: "1rem" }}>
                 <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "14px", color: "#d1d5db" }}>
                   <li>This action cannot be undone</li>
                   <li>The item will be completely removed from the system</li>
-                  <li>All item data (serial numbers, notes, measurements) will be lost</li>
                 </ul>
               </div>
-              <p style={{ marginTop: "1rem", color: "#9ca3af", fontSize: "14px" }}>
-                <strong>Alternative:</strong> Consider archiving the item instead. Archived items are hidden from the board but can be restored later by clicking "Show archived items".
-              </p>
               <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "2rem" }}>
-                <button
-                  onClick={cancelDeleteItem}
-                  disabled={saving}
-                  style={{
-                    background: "#2d2d2d",
-                    color: "#fff",
-                    border: "1px solid #404040",
-                    padding: "0.5rem 1.5rem",
-                    borderRadius: "6px",
-                    cursor: saving ? "not-allowed" : "pointer",
-                    fontSize: "14px",
-                    opacity: saving ? 0.5 : 1
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={executeDeleteItem}
-                  disabled={saving}
-                  style={{
-                    backgroundColor: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    padding: "0.5rem 1.5rem",
-                    borderRadius: "6px",
-                    cursor: saving ? "not-allowed" : "pointer",
-                    fontSize: "14px",
-                    opacity: saving ? 0.5 : 1
-                  }}
-                >
+                <button onClick={cancelDeleteItem} disabled={saving} style={{ background: "#2d2d2d", color: "#fff", border: "1px solid #404040", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer" }}>Cancel</button>
+                <button onClick={executeDeleteItem} disabled={saving} style={{ backgroundColor: "#ef4444", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer" }}>
                   {saving ? "Deleting..." : "Yes, Delete Permanently"}
                 </button>
               </div>
@@ -1360,86 +1089,13 @@ export default function EditOrderPage({ params }) {
 
         {/* Lock Confirmation Modal */}
         {showLockConfirm && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0, 0, 0, 0.7)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1100
-            }}
-            onClick={() => !lockLoading && setShowLockConfirm(false)}
-          >
-            <div
-              style={{
-                backgroundColor: "#1f1f1f",
-                border: "1px solid #404040",
-                borderRadius: "8px",
-                padding: "2rem",
-                maxWidth: "500px",
-                width: "90%",
-                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
-                🔒 Lock Order?
-              </h3>
-              <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
-                Are you sure you've finished editing <strong>ALL items</strong> on this order?
-              </p>
-              <div style={{
-                padding: "1rem",
-                backgroundColor: "rgba(245, 158, 11, 0.1)",
-                border: "1px solid rgba(245, 158, 11, 0.3)",
-                borderRadius: "6px",
-                marginBottom: "1rem"
-              }}>
-                <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#f59e0b" }}>
-                  <strong>What will happen:</strong>
-                </p>
-                <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "13px", color: "#f59e0b" }}>
-                  <li>Most item details will become read-only</li>
-                  <li>Only serial numbers will remain editable</li>
-                  <li>You can unlock the order later if needed</li>
-                </ul>
-              </div>
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }} onClick={() => !lockLoading && setShowLockConfirm(false)}>
+            <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "2rem", maxWidth: "500px", width: "90%" }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>🔒 Lock Order?</h3>
+              <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>Are you sure you've finished editing <strong>ALL items</strong> on this order?</p>
               <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
-                <button
-                  onClick={() => setShowLockConfirm(false)}
-                  disabled={lockLoading}
-                  style={{
-                    background: "#2d2d2d",
-                    color: "#fff",
-                    border: "1px solid #404040",
-                    padding: "0.5rem 1.5rem",
-                    borderRadius: "6px",
-                    cursor: lockLoading ? "not-allowed" : "pointer",
-                    fontSize: "14px",
-                    opacity: lockLoading ? 0.5 : 1
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmLockOrder}
-                  disabled={lockLoading}
-                  style={{
-                    backgroundColor: "#dc2626",
-                    color: "white",
-                    border: "none",
-                    padding: "0.5rem 1.5rem",
-                    borderRadius: "6px",
-                    cursor: lockLoading ? "not-allowed" : "pointer",
-                    fontSize: "14px",
-                    opacity: lockLoading ? 0.5 : 1
-                  }}
-                >
+                <button onClick={() => setShowLockConfirm(false)} disabled={lockLoading} style={{ background: "#2d2d2d", color: "#fff", border: "1px solid #404040", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer" }}>Cancel</button>
+                <button onClick={confirmLockOrder} disabled={lockLoading} style={{ backgroundColor: "#dc2626", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer" }}>
                   {lockLoading ? "Locking..." : "Lock Order"}
                 </button>
               </div>
@@ -1449,91 +1105,18 @@ export default function EditOrderPage({ params }) {
 
         {/* Archive Confirmation Modal */}
         {showArchiveConfirm && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0, 0, 0, 0.7)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1100
-            }}
-            onClick={() => !archiveLoading && setShowArchiveConfirm(false)}
-          >
-            <div
-              style={{
-                backgroundColor: "#1f1f1f",
-                border: "1px solid #404040",
-                borderRadius: "8px",
-                padding: "2rem",
-                maxWidth: "500px",
-                width: "90%",
-                boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
+          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }} onClick={() => !archiveLoading && setShowArchiveConfirm(false)}>
+            <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "2rem", maxWidth: "500px", width: "90%" }} onClick={(e) => e.stopPropagation()}>
               <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
                 {order.isArchived ? "📂 Unarchive Order?" : "📦 Archive Order?"}
               </h3>
               <p style={{ fontSize: "14px", marginBottom: "1rem", color: "#d1d5db" }}>
-                {order.isArchived
-                  ? "Are you sure you want to unarchive this order? It will appear on the board and in active orders."
-                  : "Are you sure you want to archive this order? It will be hidden from the board and active orders."}
+                {order.isArchived ? "This order will reappear on the board." : "This order will be hidden from the board."}
               </p>
-              {!order.isArchived && (
-                <div style={{
-                  padding: "1rem",
-                  backgroundColor: "rgba(107, 114, 128, 0.1)",
-                  border: "1px solid rgba(107, 114, 128, 0.3)",
-                  borderRadius: "6px",
-                  marginBottom: "1rem"
-                }}>
-                  <p style={{ margin: "0 0 0.5rem 0", fontSize: "14px", color: "#9ca3af" }}>
-                    <strong>What will happen:</strong>
-                  </p>
-                  <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "13px", color: "#9ca3af" }}>
-                    <li>Order will be removed from the board view</li>
-                    <li>Order will appear in the "Archived Orders" tab</li>
-                    <li>You can unarchive the order at any time</li>
-                  </ul>
-                </div>
-              )}
               <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
-                <button
-                  onClick={() => setShowArchiveConfirm(false)}
-                  disabled={archiveLoading}
-                  style={{
-                    background: "#2d2d2d",
-                    color: "#fff",
-                    border: "1px solid #404040",
-                    padding: "0.5rem 1.5rem",
-                    borderRadius: "6px",
-                    cursor: archiveLoading ? "not-allowed" : "pointer",
-                    fontSize: "14px",
-                    opacity: archiveLoading ? 0.5 : 1
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmArchiveToggle}
-                  disabled={archiveLoading}
-                  style={{
-                    backgroundColor: order.isArchived ? "#10b981" : "#6b7280",
-                    color: "white",
-                    border: "none",
-                    padding: "0.5rem 1.5rem",
-                    borderRadius: "6px",
-                    cursor: archiveLoading ? "not-allowed" : "pointer",
-                    fontSize: "14px",
-                    opacity: archiveLoading ? 0.5 : 1
-                  }}
-                >
-                  {archiveLoading ? (order.isArchived ? "Unarchiving..." : "Archiving...") : (order.isArchived ? "Unarchive Order" : "Archive Order")}
+                <button onClick={() => setShowArchiveConfirm(false)} disabled={archiveLoading} style={{ background: "#2d2d2d", color: "#fff", border: "1px solid #404040", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer" }}>Cancel</button>
+                <button onClick={confirmArchiveToggle} disabled={archiveLoading} style={{ backgroundColor: order.isArchived ? "#10b981" : "#6b7280", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer" }}>
+                  {archiveLoading ? "..." : (order.isArchived ? "Unarchive Order" : "Archive Order")}
                 </button>
               </div>
             </div>
@@ -1542,20 +1125,7 @@ export default function EditOrderPage({ params }) {
 
         {/* Notification Toast */}
         {showNotification && (
-          <div
-            style={{
-              position: "fixed",
-              top: "100px",
-              right: "24px",
-              backgroundColor: "#1f1f1f",
-              border: "1px solid #404040",
-              borderRadius: "8px",
-              padding: "1rem 1.5rem",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)",
-              zIndex: 1200,
-              maxWidth: "400px"
-            }}
-          >
+          <div style={{ position: "fixed", top: "100px", right: "24px", backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "1rem 1.5rem", zIndex: 1200, maxWidth: "400px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <span style={{ fontSize: "20px" }}>ℹ️</span>
               <span style={{ color: "#d1d5db", fontSize: "14px" }}>{notificationMessage}</span>
