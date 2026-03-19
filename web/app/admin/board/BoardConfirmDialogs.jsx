@@ -237,6 +237,110 @@ export function ArchiveOrderDialog({
   );
 }
 
+// Stage Change Confirmation Dialog
+export function StageChangeDialog({
+  show,
+  pendingStageChange,
+  loading,
+  onCancel,
+  onConfirm,
+  stageLabels
+}) {
+  if (!show || !pendingStageChange) return null;
+
+  const { itemName, nextStage } = pendingStageChange;
+  const stageLabel = stageLabels?.[nextStage] ?? nextStage;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1100
+      }}
+      onClick={() => !loading && onCancel()}
+    >
+      <div
+        style={{
+          backgroundColor: "#1f1f1f",
+          border: "1px solid #404040",
+          borderRadius: "8px",
+          padding: "2rem",
+          maxWidth: "480px",
+          width: "90%",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)"
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#fff", marginTop: 0, marginBottom: "1rem" }}>
+          Move Item?
+        </h3>
+        <p style={{ fontSize: "14px", marginBottom: "1.25rem", color: "#d1d5db", lineHeight: 1.6 }}>
+          Move <strong style={{ color: "#fff" }}>{itemName}</strong> to{" "}
+          <strong style={{ color: "#dc2626" }}>{stageLabel}</strong>?
+        </p>
+        <div style={{
+          padding: "12px 16px",
+          backgroundColor: "rgba(245, 158, 11, 0.1)",
+          border: "1px solid rgba(245, 158, 11, 0.3)",
+          borderRadius: "6px",
+          marginBottom: "1.5rem",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "10px"
+        }}>
+          <span style={{ fontSize: "16px", flexShrink: 0 }}>📧</span>
+          <p style={{ margin: 0, fontSize: "13px", color: "#f59e0b", lineHeight: 1.5 }}>
+            The customer will be notified via email of this change.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            style={{
+              background: "#2d2d2d",
+              color: "#fff",
+              border: "1px solid #404040",
+              padding: "0.5rem 1.5rem",
+              borderRadius: "6px",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "14px",
+              opacity: loading ? 0.5 : 1
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            style={{
+              backgroundColor: "#dc2626",
+              color: "white",
+              border: "none",
+              padding: "0.5rem 1.5rem",
+              borderRadius: "6px",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "14px",
+              fontWeight: 500,
+              opacity: loading ? 0.5 : 1
+            }}
+          >
+            {loading ? "Moving..." : "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Notification Toast
 export function NotificationToast({ show, message }) {
   if (!show) return null;

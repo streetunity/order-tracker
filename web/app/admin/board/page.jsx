@@ -12,78 +12,48 @@ import { OrderedIndicator } from './OrderedIndicator';
 import { ViewItemModal } from './ViewItemModal';
 import { CustomerOrdersModal } from './CustomerOrdersModal';
 import BoardFilters, { STAGES, STAGE_LABELS } from './BoardFilters';
-import { DeleteItemDialog, ArchiveItemDialog, ArchiveOrderDialog, NotificationToast } from './BoardConfirmDialogs';
-
-// STAGES and STAGE_LABELS imported from BoardFilters.jsx
+import { DeleteItemDialog, ArchiveItemDialog, ArchiveOrderDialog, StageChangeDialog, NotificationToast } from './BoardConfirmDialogs';
 
 // Helper to check if a container has complete measurement info
-// Returns true if container has EITHER:
-// 1. All 4 dimensions (height, width, length, weight) - for individual items
-// 2. Weight + notes - for whole container items
 const containerHasMeasurements = (container) => {
-  const hasAllDimensions = 
-    container.height != null && 
-    container.width != null && 
-    container.length != null && 
+  const hasAllDimensions =
+    container.height != null &&
+    container.width != null &&
+    container.length != null &&
     container.weight != null;
-  
-  const hasWeightAndNotes = 
-    container.weight != null && 
-    container.notes != null && 
+  const hasWeightAndNotes =
+    container.weight != null &&
+    container.notes != null &&
     container.notes.trim() !== '';
-  
   return hasAllDimensions || hasWeightAndNotes;
 };
 
-// Helper function to check if measurements are complete
-// Returns true if at least one container has complete measurement info
 const hasMeasurements = (item) => {
   try {
-    const containers = typeof item.containers === 'string' 
-      ? JSON.parse(item.containers) 
+    const containers = typeof item.containers === 'string'
+      ? JSON.parse(item.containers)
       : (item.containers || []);
-    
-    if (!Array.isArray(containers) || containers.length === 0) {
-      return false;
-    }
-    
-    // Check if at least one container has complete measurements
+    if (!Array.isArray(containers) || containers.length === 0) return false;
     return containers.some(containerHasMeasurements);
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 };
 
-// Helper to get measurement summary from containers
 const getMeasurementSummary = (item) => {
   try {
-    const containers = typeof item.containers === 'string' 
-      ? JSON.parse(item.containers) 
+    const containers = typeof item.containers === 'string'
+      ? JSON.parse(item.containers)
       : (item.containers || []);
-    
-    if (!Array.isArray(containers) || containers.length === 0) {
-      return null;
-    }
-    
+    if (!Array.isArray(containers) || containers.length === 0) return null;
     const measured = containers.filter(containerHasMeasurements);
-    
     if (measured.length === 0) return null;
-    
     const c = measured[0];
-    
-    // Check which type of measurement it has
     const hasAllDimensions = c.height != null && c.width != null && c.length != null && c.weight != null;
-    
     if (hasAllDimensions) {
       const unit = c.unit || 'in';
       return `${c.length}x${c.width}x${c.height} ${unit}, ${c.weight} lbs${measured.length > 1 ? ` (+${measured.length - 1} more)` : ''}`;
-    } else {
-      // Weight + notes case (whole container)
-      return `${c.weight} lbs (${c.notes})${measured.length > 1 ? ` (+${measured.length - 1} more)` : ''}`;
     }
-  } catch {
-    return null;
-  }
+    return `${c.weight} lbs (${c.notes})${measured.length > 1 ? ` (+${measured.length - 1} more)` : ''}`;
+  } catch { return null; }
 };
 
 export default function AdminBoardPage() {
@@ -98,55 +68,53 @@ export default function AdminBoardPage() {
   const [copiedLink, setCopiedLink] = useState(null);
   const [salesReps, setSalesReps] = useState([]);
 
-  // Confirmation dialog states
+  // Item action dialog states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [performingAction, setPerformingAction] = useState(false);
 
-  // Archive Order confirmation (separate from item archive)
+  // Archive Order confirmation
   const [showArchiveOrderConfirm, setShowArchiveOrderConfirm] = useState(false);
   const [pendingArchiveOrder, setPendingArchiveOrder] = useState(null);
   const [archiveOrderLoading, setArchiveOrderLoading] = useState(false);
 
-  // View item modal states
+  // Stage change confirmation
+  const [showStageConfirm, setShowStageConfirm] = useState(false);
+  const [pendingStageChange, setPendingStageChange] = useState(null);
+  const [stageChanging, setStageChanging] = useState(false);
+
+  // View item modal
   const [viewItemModal, setViewItemModal] = useState({ show: false, item: null, order: null });
 
-  // Customer orders modal state (for multi-order customers)
+  // Customer orders modal
   const [customerOrdersModal, setCustomerOrdersModal] = useState({ show: false, customerName: "", orders: [] });
 
-  // Notification state
+  // Notification
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
 
-  // Helper to show notification
   function showNotif(message) {
     setNotificationMessage(message);
     setShowNotification(true);
     setTimeout(() => setShowNotification(false), 3000);
   }
 
-  // Check if user is manufacturer or broker
   const isManufacturer = user?.role === "MANUFACTURER";
   const isBroker = user?.role === "BROKER";
-  const isLimitedAccess = isManufacturer || isBroker; // Users with read-only or restricted access
+  const isLimitedAccess = isManufacturer || isBroker;
 
-  // Redirect to login if not authenticated
   useEffect(() => {
-    if (!user) {
-      router.push("/login");
-    }
+    if (!user) router.push("/login");
   }, [user, router]);
 
   async function load() {
     if (!user) return;
-    
     try {
       setLoading(true);
       setErr("");
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-
       const res = await fetch(`/api/orders?${params.toString()}`, {
         headers: getAuthHeaders(),
         cache: "no-store",
@@ -157,8 +125,6 @@ export default function AdminBoardPage() {
       }
       const data = await res.json();
       setOrders(Array.isArray(data) ? data : []);
-      
-      // Extract unique sales reps
       const reps = [...new Set(data.filter(o => o.sku).map(o => o.sku))].sort();
       setSalesReps(reps);
     } catch (e) {
@@ -169,22 +135,13 @@ export default function AdminBoardPage() {
   }
 
   useEffect(() => {
-    if (user) {
-      load();
-    }
+    if (user) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Filter orders by sales rep and stage
   const filteredOrders = useMemo(() => {
     let filtered = orders;
-    
-    // Filter by sales rep
-    if (salesRepFilter) {
-      filtered = filtered.filter(order => order.sku === salesRepFilter);
-    }
-    
-    // Filter by stage and archived status
+    if (salesRepFilter) filtered = filtered.filter(order => order.sku === salesRepFilter);
     if (!stageFilter) {
       return filtered.map(order => {
         const activeItems = (order.items || []).filter(item => !item.archivedAt);
@@ -192,7 +149,6 @@ export default function AdminBoardPage() {
         return { ...order, items: activeItems };
       }).filter(Boolean);
     }
-    
     return filtered.map(order => {
       const filteredItems = (order.items || []).filter(item => {
         const itemStage = item.currentStage || order.currentStage || "MANUFACTURING";
@@ -250,76 +206,41 @@ export default function AdminBoardPage() {
     }
   }
 
-  // Handle view item button click
-  const handleViewItem = (item, order) => {
-    setViewItemModal({ show: true, item, order });
-  };
+  const handleViewItem = (item, order) => setViewItemModal({ show: true, item, order });
+  const closeViewItemModal = () => setViewItemModal({ show: false, item: null, order: null });
 
-  // Close view item modal
-  const closeViewItemModal = () => {
-    setViewItemModal({ show: false, item: null, order: null });
-  };
-
-  // Handle customer magnifying glass click - show modal if multiple orders, navigate if single
   const handleCustomerOrdersClick = (group) => {
     if (group.orders.length === 1) {
-      // Single order - navigate directly
       router.push(`/admin/orders/${group.orders[0].id}`);
     } else {
-      // Multiple orders - show modal
-      setCustomerOrdersModal({
-        show: true,
-        customerName: group.accountName,
-        orders: group.orders
-      });
+      setCustomerOrdersModal({ show: true, customerName: group.accountName, orders: group.orders });
     }
   };
+  const closeCustomerOrdersModal = () => setCustomerOrdersModal({ show: false, customerName: "", orders: [] });
 
-  // Close customer orders modal
-  const closeCustomerOrdersModal = () => {
-    setCustomerOrdersModal({ show: false, customerName: "", orders: [] });
-  };
-
-  // Handle archive button click
   const handleArchiveClick = (orderId, itemId, itemName, isArchived) => {
-    setPendingAction({
-      type: 'archive',
-      orderId,
-      itemId,
-      itemName,
-      isArchived
-    });
+    setPendingAction({ type: 'archive', orderId, itemId, itemName, isArchived });
     setShowArchiveConfirm(true);
   };
 
-  // Handle delete button click
   const handleDeleteClick = (orderId, itemId, itemName, isOrderLocked) => {
     if (isOrderLocked) {
       showNotif("Cannot delete items from a locked order. Please unlock it first in the Edit Order page.");
       return;
     }
-    setPendingAction({
-      type: 'delete',
-      orderId,
-      itemId,
-      itemName
-    });
+    setPendingAction({ type: 'delete', orderId, itemId, itemName });
     setShowDeleteConfirm(true);
   };
 
-  // Execute the pending action
   const executePendingAction = async () => {
     if (!pendingAction) return;
-
     try {
       setPerformingAction(true);
-
       if (pendingAction.type === 'delete') {
         await deleteItem(pendingAction.orderId, pendingAction.itemId);
       } else if (pendingAction.type === 'archive') {
         await archiveItem(pendingAction.orderId, pendingAction.itemId, !pendingAction.isArchived);
       }
-
       await load();
       setShowDeleteConfirm(false);
       setShowArchiveConfirm(false);
@@ -331,34 +252,31 @@ export default function AdminBoardPage() {
     }
   };
 
-  // Handle archive order button click
+  const cancelPendingAction = () => {
+    setShowDeleteConfirm(false);
+    setShowArchiveConfirm(false);
+    setPendingAction(null);
+  };
+
   const handleArchiveOrderClick = (order) => {
     setPendingArchiveOrder(order);
     setShowArchiveOrderConfirm(true);
   };
 
-  // Execute archive order
   const confirmArchiveOrderToggle = async () => {
     if (!pendingArchiveOrder) return;
-
     const action = pendingArchiveOrder.isArchived ? "unarchive" : "archive";
-
     try {
       setArchiveOrderLoading(true);
       const response = await fetch(`/api/orders/${pendingArchiveOrder.id}/archive`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ isArchived: !pendingArchiveOrder.isArchived })
       });
-
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || `Failed to ${action} order`);
       }
-
       setShowArchiveOrderConfirm(false);
       setPendingArchiveOrder(null);
       showNotif(`Order ${pendingArchiveOrder.isArchived ? 'unarchived' : 'archived'} successfully`);
@@ -370,18 +288,42 @@ export default function AdminBoardPage() {
     }
   };
 
-  // Cancel the pending action
-  const cancelPendingAction = () => {
-    setShowDeleteConfirm(false);
-    setShowArchiveConfirm(false);
-    setPendingAction(null);
+  // ── Stage change: request confirmation ──────────────────────
+  const requestStageChange = (orderId, itemId, itemName, nextStage, opts = {}) => {
+    setPendingStageChange({ orderId, itemId, itemName, nextStage, opts });
+    setShowStageConfirm(true);
+  };
+
+  // ── Stage change: execute after confirmation ─────────────────
+  const confirmStageChange = async () => {
+    if (!pendingStageChange) return;
+    try {
+      setStageChanging(true);
+      await changeItemStage(
+        pendingStageChange.orderId,
+        pendingStageChange.itemId,
+        pendingStageChange.nextStage,
+        pendingStageChange.opts
+      );
+      await load();
+      setShowStageConfirm(false);
+      setPendingStageChange(null);
+    } catch (e) {
+      showNotif(`Failed to move item: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setStageChanging(false);
+    }
+  };
+
+  const cancelStageChange = () => {
+    setShowStageConfirm(false);
+    setPendingStageChange(null);
   };
 
   function nextStageOf(s) {
     const i = STAGES.indexOf(s);
     return i >= 0 && i < STAGES.length - 1 ? STAGES[i + 1] : null;
   }
-  
   function prevStageOf(s) {
     const i = STAGES.indexOf(s);
     return i > 0 ? STAGES[i - 1] : null;
@@ -397,7 +339,6 @@ export default function AdminBoardPage() {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    
     try {
       document.execCommand('copy');
       setCopiedLink(orderId);
@@ -416,16 +357,10 @@ export default function AdminBoardPage() {
       if (!o.items || o.items.length === 0) continue;
       const key = o.account?.id || o.accountId || o.id;
       if (!by.has(key))
-        by.set(key, {
-          accountId: o.account?.id || o.accountId || null,
-          accountName: o.account?.name || "—",
-          orders: [],
-        });
+        by.set(key, { accountId: o.account?.id || o.accountId || null, accountName: o.account?.name || "—", orders: [] });
       by.get(key).orders.push(o);
     }
-    return Array.from(by.values()).sort((a, b) =>
-      a.accountName.localeCompare(b.accountName)
-    );
+    return Array.from(by.values()).sort((a, b) => a.accountName.localeCompare(b.accountName));
   }, [filteredOrders]);
 
   if (!user) return null;
@@ -434,12 +369,9 @@ export default function AdminBoardPage() {
     <div className={`boardContainer ${isLimitedAccess ? 'manufacturer-view' : ''}`}>
       <TopNav />
       <NotificationBar />
-      
-      {/* Unified sticky container for QuickActions + Toolbar */}
+
       <div className="stickyActionsToolbar">
-        {/* HIDE QUICKACTIONS FOR MANUFACTURERS AND BROKERS */}
         {!isLimitedAccess && <QuickActions />}
-        
         <BoardFilters
           search={search}
           setSearch={setSearch}
@@ -476,72 +408,28 @@ export default function AdminBoardPage() {
             <div className="customerRow" key={group.accountId || group.accountName}>
               <div className="stageCol stickyCol">
                 <div className="customerHeader">
-                  {/* Magnifying glass icon with order count badge - top right corner */}
                   {!isLimitedAccess && group.orders?.[0] && (
                     <button
                       onClick={() => handleCustomerOrdersClick(group)}
                       title={orderCount > 1 ? `View ${orderCount} orders` : (hasLockedOrder ? "Edit order (locked)" : "Edit order")}
-                      style={{
-                        position: 'absolute',
-                        top: '4px',
-                        right: '4px',
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        cursor: 'pointer',
-                        textDecoration: 'none',
-                        fontSize: '22px',
-                        lineHeight: 1,
-                        opacity: 0.7,
-                        transition: 'opacity 0.2s'
-                      }}
+                      style={{ position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '22px', lineHeight: 1, opacity: 0.7, transition: 'opacity 0.2s' }}
                       onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                       onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
                     >
                       🔍
-                      {/* Badge showing order count when > 1 */}
                       {orderCount > 1 && (
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: '-4px',
-                            right: '-6px',
-                            backgroundColor: '#dc2626',
-                            color: 'white',
-                            fontSize: '10px',
-                            fontWeight: 'bold',
-                            minWidth: '16px',
-                            height: '16px',
-                            lineHeight: '16px',
-                            textAlign: 'center',
-                            borderRadius: '50%',
-                            padding: '0 3px'
-                          }}
-                        >
+                        <span style={{ position: 'absolute', top: '-4px', right: '-6px', backgroundColor: '#dc2626', color: 'white', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', padding: '0 3px' }}>
                           {orderCount}
                         </span>
                       )}
                     </button>
                   )}
 
-                  {/* Trash icon - bottom right corner */}
                   {!isLimitedAccess && group.orders?.[0] && (
                     <button
                       onClick={() => handleArchiveOrderClick(group.orders[0])}
                       title={group.orders[0].isArchived ? "Unarchive order" : "Archive order"}
-                      style={{
-                        position: 'absolute',
-                        bottom: '4px',
-                        right: '4px',
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        cursor: 'pointer',
-                        fontSize: '18px',
-                        lineHeight: 1,
-                        opacity: 0.7,
-                        transition: 'opacity 0.2s'
-                      }}
+                      style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '18px', lineHeight: 1, opacity: 0.7, transition: 'opacity 0.2s' }}
                       onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                       onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
                     >
@@ -550,7 +438,7 @@ export default function AdminBoardPage() {
                   )}
 
                   <div className="customerName">
-                    {hasLockedOrder && <span style={{ color: "#dc2626", marginRight: "6px", fontSize: "16px", verticalAlign: "middle" }} title="Order is locked - item details cannot be edited">🔒</span>}
+                    {hasLockedOrder && <span style={{ color: "#dc2626", marginRight: "6px", fontSize: "16px", verticalAlign: "middle" }} title="Order is locked">🔒</span>}
                     {group.accountName}
                     {group.orders?.[0]?.account?.contactName && (
                       <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px", fontWeight: "normal" }}>
@@ -558,7 +446,7 @@ export default function AdminBoardPage() {
                       </div>
                     )}
                   </div>
-                  {/* HIDE PUBLIC LINKS FOR MANUFACTURERS */}
+
                   {!isManufacturer && (
                     <div className="publicLinks">
                       {(group.orders || []).map((o) => (
@@ -598,7 +486,7 @@ export default function AdminBoardPage() {
                           const isOrderLocked = order.isLocked;
                           const measurementsComplete = hasMeasurements(it);
                           const measurementSummary = getMeasurementSummary(it);
-                          
+
                           let tooltipText = `${it.productCode || "Item"} - ${s}`;
                           if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
                           if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
@@ -606,150 +494,60 @@ export default function AdminBoardPage() {
                           if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
                           if (measurementSummary) tooltipText += `\n📐 Measurements: ${measurementSummary}`;
                           if (isOrderLocked) tooltipText += "\n(Order Locked)";
-                          
+
+                          const itemName = it.productCode || "Item";
+
                           return (
                             <div key={it.id} className={`itemCard${isArchived ? " archived" : ""}${isOrderLocked ? " locked" : ""}`} title={tooltipText} style={{ borderColor: isOrderLocked ? "#dc2626" : undefined, borderWidth: isOrderLocked ? "2px" : undefined, position: 'relative' }}>
-                              {/* Ordered icon - top left */}
                               {it.isOrdered && (
-                                <span
-                                  title="Item ordered"
-                                  style={{
-                                    position: 'absolute',
-                                    top: '2px',
-                                    left: '2px',
-                                    display: 'inline-block',
-                                    backgroundColor: '#16a34a',
-                                    color: 'white',
-                                    fontWeight: 'bold',
-                                    fontSize: '10px',
-                                    width: '16px',
-                                    height: '16px',
-                                    lineHeight: '16px',
-                                    textAlign: 'center',
-                                    borderRadius: '50%',
-                                    cursor: 'help'
-                                  }}
-                                >
-                                  $
-                                </span>
+                                <span title="Item ordered" style={{ position: 'absolute', top: '2px', left: '2px', display: 'inline-block', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', fontSize: '10px', width: '16px', height: '16px', lineHeight: '16px', textAlign: 'center', borderRadius: '50%', cursor: 'help' }}>$</span>
                               )}
 
-                              <div className="itemTitle" style={{
-                                display: "flex",
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                paddingRight: '24px',
-                                paddingLeft: (it.isOrdered || !isLimitedAccess) ? '24px' : '0',
-                                textAlign: 'center',
-                                minHeight: '100%'
-                              }}>
-                                <span style={{ 
-                                  wordBreak: 'break-word',
-                                  color: measurementsComplete ? '#dc2626' : undefined
-                                }}>
-                                  {it.productCode || "Item"}
+                              <div className="itemTitle" style={{ display: "flex", alignItems: 'center', justifyContent: 'center', paddingRight: '24px', paddingLeft: (it.isOrdered || !isLimitedAccess) ? '24px' : '0', textAlign: 'center', minHeight: '100%' }}>
+                                <span style={{ wordBreak: 'break-word', color: measurementsComplete ? '#dc2626' : undefined }}>
+                                  {itemName}
                                 </span>
                               </div>
 
-                              {/* Magnifying glass - top right */}
                               <button
                                 aria-label="View item details"
                                 onClick={() => handleViewItem(it, order)}
                                 title="View item details"
-                                style={{
-                                  position: 'absolute',
-                                  top: '2px',
-                                  right: '2px',
-                                  fontSize: '16px',
-                                  padding: '0',
-                                  margin: '0',
-                                  lineHeight: 1,
-                                  opacity: 0.7,
-                                  transition: 'opacity 0.2s',
-                                  border: 'none',
-                                  outline: 'none',
-                                  background: 'transparent',
-                                  cursor: 'pointer',
-                                  color: 'inherit',
-                                  boxShadow: 'none'
-                                }}
+                                style={{ position: 'absolute', top: '2px', right: '2px', fontSize: '16px', padding: '0', margin: '0', lineHeight: 1, opacity: 0.7, transition: 'opacity 0.2s', border: 'none', outline: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', boxShadow: 'none' }}
                                 onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
                                 onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
                               >
                                 🔍
                               </button>
 
-                              {/* HIDE MOVE BUTTONS FOR MANUFACTURERS AND BROKERS */}
                               {!isLimitedAccess && (
                                 <>
-                                  {/* Move back - bottom left */}
+                                  {/* Move back */}
                                   <button
                                     aria-label="Move back"
                                     disabled={!prev}
-                                    onClick={async () => {
+                                    onClick={() => {
                                       if (!prev) return;
-                                      try {
-                                        await changeItemStage(order.id, it.id, prev, { allowBackward: true });
-                                        await load();
-                                      } catch (e) {
-                                        showNotif(`Failed to move back: ${e instanceof Error ? e.message : e}`);
-                                      }
+                                      requestStageChange(order.id, it.id, itemName, prev, { allowBackward: true });
                                     }}
                                     title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"}
-                                    style={{
-                                      position: 'absolute',
-                                      bottom: '2px',
-                                      left: '2px',
-                                      fontSize: '13px',
-                                      padding: '0',
-                                      margin: '0',
-                                      lineHeight: 1,
-                                      opacity: prev ? 0.7 : 0.3,
-                                      transition: 'opacity 0.2s',
-                                      border: 'none',
-                                      outline: 'none',
-                                      background: 'transparent',
-                                      cursor: prev ? 'pointer' : 'not-allowed',
-                                      color: 'inherit',
-                                      boxShadow: 'none'
-                                    }}
+                                    style={{ position: 'absolute', bottom: '2px', left: '2px', fontSize: '13px', padding: '0', margin: '0', lineHeight: 1, opacity: prev ? 0.7 : 0.3, transition: 'opacity 0.2s', border: 'none', outline: 'none', background: 'transparent', cursor: prev ? 'pointer' : 'not-allowed', color: 'inherit', boxShadow: 'none' }}
                                     onMouseEnter={(e) => prev && (e.currentTarget.style.opacity = '1')}
                                     onMouseLeave={(e) => prev && (e.currentTarget.style.opacity = '0.7')}
                                   >
                                     ◀
                                   </button>
 
-                                  {/* Move forward - bottom right */}
+                                  {/* Move forward */}
                                   <button
                                     aria-label="Move forward"
                                     disabled={!next}
-                                    onClick={async () => {
+                                    onClick={() => {
                                       if (!next) return;
-                                      try {
-                                        await changeItemStage(order.id, it.id, next, { allowFastForward: true });
-                                        await load();
-                                      } catch (e) {
-                                        showNotif(`Failed to move forward: ${e instanceof Error ? e.message : e}`);
-                                      }
+                                      requestStageChange(order.id, it.id, itemName, next, { allowFastForward: true });
                                     }}
                                     title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"}
-                                    style={{
-                                      position: 'absolute',
-                                      bottom: '2px',
-                                      right: '2px',
-                                      fontSize: '13px',
-                                      padding: '0',
-                                      margin: '0',
-                                      lineHeight: 1,
-                                      opacity: next ? 0.7 : 0.3,
-                                      transition: 'opacity 0.2s',
-                                      border: 'none',
-                                      outline: 'none',
-                                      background: 'transparent',
-                                      cursor: next ? 'pointer' : 'not-allowed',
-                                      color: 'inherit',
-                                      boxShadow: 'none'
-                                    }}
+                                    style={{ position: 'absolute', bottom: '2px', right: '2px', fontSize: '13px', padding: '0', margin: '0', lineHeight: 1, opacity: next ? 0.7 : 0.3, transition: 'opacity 0.2s', border: 'none', outline: 'none', background: 'transparent', cursor: next ? 'pointer' : 'not-allowed', color: 'inherit', boxShadow: 'none' }}
                                     onMouseEnter={(e) => next && (e.currentTarget.style.opacity = '1')}
                                     onMouseLeave={(e) => next && (e.currentTarget.style.opacity = '0.7')}
                                   >
@@ -780,7 +578,7 @@ export default function AdminBoardPage() {
         />
       )}
 
-      {/* Customer Orders Modal (for multi-order customers) */}
+      {/* Customer Orders Modal */}
       {customerOrdersModal.show && (
         <CustomerOrdersModal
           customerName={customerOrdersModal.customerName}
@@ -789,7 +587,7 @@ export default function AdminBoardPage() {
         />
       )}
 
-      {/* Confirmation Dialogs */}
+      {/* Item action dialogs */}
       <DeleteItemDialog
         show={showDeleteConfirm}
         pendingAction={pendingAction}
@@ -797,7 +595,6 @@ export default function AdminBoardPage() {
         onCancel={cancelPendingAction}
         onConfirm={executePendingAction}
       />
-
       <ArchiveItemDialog
         show={showArchiveConfirm}
         pendingAction={pendingAction}
@@ -805,14 +602,22 @@ export default function AdminBoardPage() {
         onCancel={cancelPendingAction}
         onConfirm={executePendingAction}
       />
-
-      {/* Archive Order Confirmation Modal */}
       <ArchiveOrderDialog
         show={showArchiveOrderConfirm}
         pendingOrder={pendingArchiveOrder}
         loading={archiveOrderLoading}
         onCancel={() => setShowArchiveOrderConfirm(false)}
         onConfirm={confirmArchiveOrderToggle}
+      />
+
+      {/* Stage change confirmation */}
+      <StageChangeDialog
+        show={showStageConfirm}
+        pendingStageChange={pendingStageChange}
+        loading={stageChanging}
+        onCancel={cancelStageChange}
+        onConfirm={confirmStageChange}
+        stageLabels={STAGE_LABELS}
       />
 
       <NotificationToast show={showNotification} message={notificationMessage} />
