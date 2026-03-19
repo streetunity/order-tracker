@@ -275,10 +275,6 @@ export function getOrderStageEmailTemplate() {
     <tr><td class="email-body-td" bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
       <p style="margin:0 0 16px 0;color:#333333;">Hello {{customerName}},</p>
       <p style="margin:0 0 16px 0;color:#333333;">{{message}}</p>
-      <p style="margin:0 0 20px 0;font-size:14px;color:#555555;">
-        Follow all your updates here:
-        <a href="{{trackingUrl}}" style="color:${RED};text-decoration:underline;font-weight:600;">{{trackingUrl}}</a>
-      </p>
       <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f9f9f9" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
         <tr><td class="info-box-td" style="padding:20px;font-size:14px;color:#333333;">
           <p style="margin:0 0 8px 0;color:#333333;"><strong>Order:</strong> #{{orderNumber}}</p>
