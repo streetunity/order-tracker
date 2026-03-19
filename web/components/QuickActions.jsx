@@ -6,7 +6,7 @@ import "./QuickActions.css";
 export default function QuickActions() {
   return (
     <div className="quick-actions">
-      <Link href="/admin/customers/new" className="action-btn primary">
+      <Link href="/admin/customers/new" className="action-btn">
         <svg className="icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
