@@ -50,18 +50,31 @@ export function createCommissionPayoutsRouter(prisma) {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Email helper — sends a commission notification email to a single agent.
-  // Falls back gracefully; never throws so a missing/broken email never
-  // fails the underlying API response.
+  // Email helper
+  //
+  // • agentUser  — the agent receiving the email (has .email, .name)
+  // • type       — 'Approved' | 'Paid' | 'Denied'
+  // • payouts    — array of payout objects WITH payoutInclude relations
+  //               already loaded. ONLY the agent's OWN payouts are passed;
+  //               grouping is handled at the call site.
+  //
+  // The helper builds:
+  //   • {{payoutDetails}}  — HTML table: Item | Customer | Stage | Amount
+  //   • {{itemName}}       — single-payout shortcut
+  //   • {{customerName}}   — single-payout shortcut
+  //   • {{orderNumber}}    — single-payout shortcut
+  //   • {{payoutStage}}    — single-payout shortcut
+  //   • {{payoutCount}}    — number of payouts
+  //   • {{amount}}         — sum of all payouts
   // ─────────────────────────────────────────────────────────────────────────
-  async function sendCommissionEmail(agentUser, { type, amount, orderNumber, customerName, payoutStage }) {
+  async function sendCommissionEmail(agentUser, { type, payouts }) {
     try {
-      if (!agentUser?.email) return;
+      if (!agentUser?.email || !payouts?.length) return;
 
       const emailServiceModule = await import('../services/emailService.js');
       const emailService = emailServiceModule.default || emailServiceModule;
 
-      // Pull company info
+      // Company info
       let companyName = 'Stealth Machine Tools';
       let companyPhone = '';
       let companyEmail = '';
@@ -75,19 +88,50 @@ export function createCommissionPayoutsRouter(prisma) {
       } catch (_) {}
 
       const commissionsUrl = `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/my-commissions`;
+      const totalAmount    = payouts.reduce((sum, p) => sum + (p.amount || 0), 0);
 
-      // Check for admin-customised template
-      const dbTemplate = await prisma.emailTemplate.findUnique({
-        where: { templateKey: 'commission_notification' },
-      });
+      // Single-payout shortcuts (for templates that use them directly)
+      const firstPayout    = payouts[0];
+      const firstItem      = firstPayout?.itemCommission?.item;
+      const firstOrder     = firstPayout?.itemCommission?.commission?.order;
+
+      // Build the line-item details table (one row per payout)
+      const tableRows = payouts.map(p => {
+        const item     = p.itemCommission?.item;
+        const order    = p.itemCommission?.commission?.order;
+        return `<tr>
+          <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${item?.productCode || '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${order?.account?.name || '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;text-align:center;">${p.stage || '—'}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;text-align:right;font-weight:600;">$${Number(p.amount || 0).toFixed(2)}</td>
+        </tr>`;
+      }).join('');
+
+      const payoutDetailsHtml =
+        `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dddddd;border-radius:4px;overflow:hidden;margin-top:12px;">` +
+        `<thead><tr style="background-color:#f5f5f5;">` +
+        `<th style="padding:8px 10px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Item</th>` +
+        `<th style="padding:8px 10px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Customer</th>` +
+        `<th style="padding:8px 10px;text-align:center;font-size:12px;color:#666666;font-weight:600;">Stage</th>` +
+        `<th style="padding:8px 10px;text-align:right;font-size:12px;color:#666666;font-weight:600;">Amount</th>` +
+        `</tr></thead><tbody>${tableRows}</tbody>` +
+        `<tfoot><tr style="background-color:#f9f9f9;">` +
+        `<td colspan="3" style="padding:10px;font-size:13px;font-weight:600;color:#333333;">Total</td>` +
+        `<td style="padding:10px;font-size:15px;font-weight:700;color:#22c55e;text-align:right;">$${totalAmount.toFixed(2)}</td>` +
+        `</tr></tfoot></table>`;
 
       const vars = {
-        agentName:     agentUser.name || 'Agent',
+        agentName:      agentUser.name || 'Agent',
         type,
-        amount:        Number(amount).toFixed(2),
-        orderNumber:   orderNumber || '—',
-        customerName:  customerName || '—',
-        payoutStage:   payoutStage || '—',
+        amount:         totalAmount.toFixed(2),
+        payoutCount:    String(payouts.length),
+        // single-payout shortcuts
+        itemName:       firstItem?.productCode || '—',
+        customerName:   firstOrder?.account?.name || '—',
+        orderNumber:    firstOrder?.poNumber || '—',
+        payoutStage:    firstPayout?.stage || '—',
+        // rich details table
+        payoutDetails:  payoutDetailsHtml,
         commissionsUrl,
         companyName,
         companyPhone,
@@ -102,10 +146,14 @@ export function createCommissionPayoutsRouter(prisma) {
         return out;
       };
 
+      // Check for admin-customised template
+      const dbTemplate = await prisma.emailTemplate.findUnique({
+        where: { templateKey: 'commission_notification' },
+      });
+
       let subject, html;
 
       if (dbTemplate) {
-        // Use customised template wrapped in the standard email shell
         const { wrapInBaseTemplate } = await import('../services/emailTemplates.js');
 
         subject = processTemplate(dbTemplate.subject);
@@ -130,44 +178,26 @@ export function createCommissionPayoutsRouter(prisma) {
 
         html = wrapInBaseTemplate(content, subject);
       } else {
-        // Fall back to hardcoded template
+        // Hardcoded fallback — inline the details table
         const { getCommissionNotificationTemplate } = await import('../services/emailTemplates.js');
-        const emailService2 = await import('../services/emailService.js');
-        const svc = emailService2.default || emailService2;
-
-        subject = `Commission ${type}: $${vars.amount}`;
+        subject = `Commission ${type}: $${totalAmount.toFixed(2)}`;
         const raw = getCommissionNotificationTemplate();
-        html = svc.processTemplate ? svc.processTemplate(raw, vars) : raw.replace(
-          /\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`
-        );
+        html = raw.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`);
       }
 
       const fromEmail = process.env.SES_FROM_EMAIL || 'orders@stealthlaser.com';
-
-      await emailService.sendEmail({
-        to:       agentUser.email,
-        from:     fromEmail,
-        fromName: companyName,
-        subject,
-        html,
-      });
-
-      console.log(`[EMAIL] Commission ${type} notification sent to ${agentUser.email}`);
+      await emailService.sendEmail({ to: agentUser.email, from: fromEmail, fromName: companyName, subject, html });
+      console.log(`[EMAIL] Commission ${type} notification sent to ${agentUser.email} (${payouts.length} payout(s))`);
     } catch (err) {
-      // Log but never bubble up — email failure must not fail the API
       console.error(`[EMAIL] Failed to send commission ${type} email:`, err.message);
     }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // DEBUG (remove after testing)
-  // ─────────────────────────────────────────────────────────────────────────
   router.get('/test', (req, res) => {
     res.json({ message: 'Commission payouts router is working', timestamp: new Date() });
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // GET /pending
   // ─────────────────────────────────────────────────────────────────────────
   router.get('/pending', adminGuard, async (req, res) => {
     try {
@@ -197,8 +227,6 @@ export function createCommissionPayoutsRouter(prisma) {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // POST /:id/approve
-  // ─────────────────────────────────────────────────────────────────────────
   router.post('/:id/approve', adminGuard, async (req, res) => {
     try {
       if (!canManageCommissions(req.user.role))
@@ -207,8 +235,7 @@ export function createCommissionPayoutsRouter(prisma) {
       const { approvalNotes } = req.body;
 
       const existingPayout = await prisma.commissionPayout.findUnique({
-        where: { id: req.params.id },
-        include: payoutInclude,
+        where: { id: req.params.id }, include: payoutInclude,
       });
       if (!existingPayout) return res.status(404).json({ error: 'Payout not found' });
 
@@ -230,25 +257,17 @@ export function createCommissionPayoutsRouter(prisma) {
       const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
 
       if (salesAgent) {
-        // In-app notification
         await prisma.notification.create({
           data: {
             userId: salesAgent.id, type: 'COMMISSION', category: 'SUCCESS',
             title: 'Commission Payment Approved',
-            message: `Your commission payment of $${payout.amount.toFixed(2)} for order ${payout.itemCommission.commission.order.poNumber} (${payout.itemCommission.commission.order.account.name}) has been approved and is ready for payment.`,
+            message: `Your commission of $${payout.amount.toFixed(2)} for ${payout.itemCommission.item?.productCode || 'item'} (${payout.itemCommission.commission.order.account.name}) has been approved.`,
             metadata: JSON.stringify({ payoutId: payout.id, amount: payout.amount, stage: payout.stage, orderId: payout.itemCommission.commission.orderId, approvedBy: req.user.name }),
             priority: 'NORMAL',
           },
         });
-
-        // Email notification
-        await sendCommissionEmail(salesAgent, {
-          type:         'Approved',
-          amount:       payout.amount,
-          orderNumber:  payout.itemCommission.commission.order.poNumber,
-          customerName: payout.itemCommission.commission.order.account.name,
-          payoutStage:  payout.stage,
-        });
+        // Pass only this agent's payout
+        await sendCommissionEmail(salesAgent, { type: 'Approved', payouts: [payout] });
       }
 
       res.json(payout);
@@ -258,8 +277,6 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // POST /:id/unapprove
   // ─────────────────────────────────────────────────────────────────────────
   router.post('/:id/unapprove', adminGuard, async (req, res) => {
     try {
@@ -290,8 +307,6 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // POST /:id/reject
   // ─────────────────────────────────────────────────────────────────────────
   router.post('/:id/reject', adminGuard, async (req, res) => {
     try {
@@ -329,25 +344,17 @@ export function createCommissionPayoutsRouter(prisma) {
       const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
 
       if (salesAgent) {
-        // In-app notification
         await prisma.notification.create({
           data: {
             userId: salesAgent.id, type: 'COMMISSION', category: 'WARNING',
             title: 'Commission Payment Denied',
-            message: `Your commission payment of $${existingPayout.amount.toFixed(2)} for order ${orderPO} (${existingPayout.itemCommission.commission.order?.account?.name || 'N/A'}) has been denied. Reason: ${rejectionReason}`,
+            message: `Your commission of $${existingPayout.amount.toFixed(2)} for ${itemName} (${existingPayout.itemCommission.commission.order?.account?.name || 'N/A'}) was denied. Reason: ${rejectionReason}`,
             metadata: JSON.stringify({ payoutId: payout.id, amount: existingPayout.amount, stage: existingPayout.stage, orderId: existingPayout.itemCommission.commission.orderId, rejectionReason, deniedBy: req.user.name }),
             priority: 'HIGH',
           },
         });
-
-        // Email notification
-        await sendCommissionEmail(salesAgent, {
-          type:         'Denied',
-          amount:       existingPayout.amount,
-          orderNumber:  orderPO,
-          customerName: existingPayout.itemCommission.commission.order?.account?.name,
-          payoutStage:  existingPayout.stage,
-        });
+        // Pass only this agent's payout (existingPayout still has full includes)
+        await sendCommissionEmail(salesAgent, { type: 'Denied', payouts: [existingPayout] });
       }
 
       res.json(payout);
@@ -357,8 +364,6 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // POST /:id/pay
   // ─────────────────────────────────────────────────────────────────────────
   router.post('/:id/pay', adminGuard, async (req, res) => {
     try {
@@ -389,25 +394,16 @@ export function createCommissionPayoutsRouter(prisma) {
       const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
 
       if (salesAgent) {
-        // In-app notification
         await prisma.notification.create({
           data: {
             userId: salesAgent.id, type: 'COMMISSION', category: 'SUCCESS',
             title: 'Commission Payment Received',
-            message: `Your commission payment of $${updatedPayout.amount.toFixed(2)} for order ${updatedPayout.itemCommission.commission.order.poNumber} (${updatedPayout.itemCommission.commission.order.account.name}) has been paid via ${paymentMethod}.`,
+            message: `Your commission of $${updatedPayout.amount.toFixed(2)} for ${updatedPayout.itemCommission.item?.productCode || 'item'} (${updatedPayout.itemCommission.commission.order.account.name}) has been paid via ${paymentMethod}.`,
             metadata: JSON.stringify({ payoutId: updatedPayout.id, amount: updatedPayout.amount, stage: updatedPayout.stage, orderId: updatedPayout.itemCommission.commission.orderId, paymentMethod, paidBy: req.user.name }),
             priority: 'HIGH',
           },
         });
-
-        // Email notification
-        await sendCommissionEmail(salesAgent, {
-          type:         'Paid',
-          amount:       updatedPayout.amount,
-          orderNumber:  updatedPayout.itemCommission.commission.order.poNumber,
-          customerName: updatedPayout.itemCommission.commission.order.account.name,
-          payoutStage:  updatedPayout.stage,
-        });
+        await sendCommissionEmail(salesAgent, { type: 'Paid', payouts: [updatedPayout] });
       }
 
       res.json(updatedPayout);
@@ -417,8 +413,6 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // POST /:id/unpay
   // ─────────────────────────────────────────────────────────────────────────
   router.post('/:id/unpay', adminGuard, async (req, res) => {
     try {
@@ -452,8 +446,6 @@ export function createCommissionPayoutsRouter(prisma) {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // POST /bulk-approve
-  // ─────────────────────────────────────────────────────────────────────────
   router.post('/bulk-approve', adminGuard, async (req, res) => {
     try {
       if (!canManageCommissions(req.user.role))
@@ -477,41 +469,37 @@ export function createCommissionPayoutsRouter(prisma) {
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout', entityId: 'BULK', action: 'BULK_APPROVED',
-          metadata: JSON.stringify({ payoutIds, count: result.count, totalAmount, salesPersons, approvalNotes, payoutDetails: payoutsToApprove.map(p => ({ payoutId: p.id, salesPerson: p.itemCommission.commission.salesPersonName, amount: p.amount, stage: p.stage, customerName: p.itemCommission.commission.order?.account?.name, itemName: p.itemCommission.item?.productCode })) }),
+          metadata: JSON.stringify({ payoutIds, count: result.count, totalAmount, salesPersons, approvalNotes }),
           performedByUserId: req.user.id, performedByName: req.user.name,
         },
       });
 
-      // Group by sales person → one in-app notification + one email per agent
+      // Group by sales person — each agent sees ONLY their own payouts
       const byAgent = {};
       payoutsToApprove.forEach(p => {
         const n = p.itemCommission.commission.salesPersonName;
-        if (!byAgent[n]) byAgent[n] = { payouts: [], totalAmount: 0 };
-        byAgent[n].payouts.push(p);
-        byAgent[n].totalAmount += p.amount || 0;
+        if (!byAgent[n]) byAgent[n] = [];
+        byAgent[n].push(p);
       });
 
-      for (const [salesPersonName, data] of Object.entries(byAgent)) {
+      for (const [salesPersonName, agentPayouts] of Object.entries(byAgent)) {
         const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
         if (!salesAgent) continue;
+
+        const agentTotal = agentPayouts.reduce((s, p) => s + (p.amount || 0), 0);
 
         await prisma.notification.create({
           data: {
             userId: salesAgent.id, type: 'COMMISSION', category: 'SUCCESS',
             title: 'Commission Payments Approved',
-            message: `${data.payouts.length} commission payment${data.payouts.length > 1 ? 's' : ''} totaling $${data.totalAmount.toFixed(2)} have been approved and are ready for payment.`,
-            metadata: JSON.stringify({ payoutCount: data.payouts.length, totalAmount: data.totalAmount, approvedBy: req.user.name }),
+            message: `${agentPayouts.length} commission payment${agentPayouts.length > 1 ? 's' : ''} totaling $${agentTotal.toFixed(2)} have been approved.`,
+            metadata: JSON.stringify({ payoutCount: agentPayouts.length, totalAmount: agentTotal, approvedBy: req.user.name }),
             priority: 'NORMAL',
           },
         });
 
-        await sendCommissionEmail(salesAgent, {
-          type:         'Approved',
-          amount:       data.totalAmount,
-          orderNumber:  data.payouts.length === 1 ? data.payouts[0].itemCommission.commission.order?.poNumber : `${data.payouts.length} orders`,
-          customerName: data.payouts.length === 1 ? data.payouts[0].itemCommission.commission.order?.account?.name : `${data.payouts.length} orders`,
-          payoutStage:  data.payouts.length === 1 ? data.payouts[0].stage : 'Multiple',
-        });
+        // Email contains ONLY this agent's payouts
+        await sendCommissionEmail(salesAgent, { type: 'Approved', payouts: agentPayouts });
       }
 
       res.json({ updated: result.count });
@@ -521,8 +509,6 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // POST /bulk-pay
   // ─────────────────────────────────────────────────────────────────────────
   router.post('/bulk-pay', adminGuard, async (req, res) => {
     try {
@@ -547,41 +533,37 @@ export function createCommissionPayoutsRouter(prisma) {
       await prisma.auditLog.create({
         data: {
           entityType: 'CommissionPayout', entityId: 'BULK', action: 'BULK_PAID',
-          metadata: JSON.stringify({ payoutIds, count: result.count, totalAmount, salesPersons, paymentMethod, paymentNotes, payoutDetails: payoutsToPay.map(p => ({ payoutId: p.id, salesPerson: p.itemCommission.commission.salesPersonName, amount: p.amount, stage: p.stage, customerName: p.itemCommission.commission.order?.account?.name, itemName: p.itemCommission.item?.productCode })) }),
+          metadata: JSON.stringify({ payoutIds, count: result.count, totalAmount, salesPersons, paymentMethod, paymentNotes }),
           performedByUserId: req.user.id, performedByName: req.user.name,
         },
       });
 
-      // Group by sales person → one in-app notification + one email per agent
+      // Group by sales person — each agent sees ONLY their own payouts
       const byAgent = {};
       payoutsToPay.forEach(p => {
         const n = p.itemCommission.commission.salesPersonName;
-        if (!byAgent[n]) byAgent[n] = { payouts: [], totalAmount: 0 };
-        byAgent[n].payouts.push(p);
-        byAgent[n].totalAmount += p.amount || 0;
+        if (!byAgent[n]) byAgent[n] = [];
+        byAgent[n].push(p);
       });
 
-      for (const [salesPersonName, data] of Object.entries(byAgent)) {
+      for (const [salesPersonName, agentPayouts] of Object.entries(byAgent)) {
         const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
         if (!salesAgent) continue;
+
+        const agentTotal = agentPayouts.reduce((s, p) => s + (p.amount || 0), 0);
 
         await prisma.notification.create({
           data: {
             userId: salesAgent.id, type: 'COMMISSION', category: 'SUCCESS',
             title: 'Commission Payments Received',
-            message: `${data.payouts.length} commission payment${data.payouts.length > 1 ? 's' : ''} totaling $${data.totalAmount.toFixed(2)} have been paid via ${paymentMethod}.`,
-            metadata: JSON.stringify({ payoutCount: data.payouts.length, totalAmount: data.totalAmount, paymentMethod, paidBy: req.user.name }),
+            message: `${agentPayouts.length} commission payment${agentPayouts.length > 1 ? 's' : ''} totaling $${agentTotal.toFixed(2)} have been paid via ${paymentMethod}.`,
+            metadata: JSON.stringify({ payoutCount: agentPayouts.length, totalAmount: agentTotal, paymentMethod, paidBy: req.user.name }),
             priority: 'HIGH',
           },
         });
 
-        await sendCommissionEmail(salesAgent, {
-          type:         'Paid',
-          amount:       data.totalAmount,
-          orderNumber:  data.payouts.length === 1 ? data.payouts[0].itemCommission.commission.order?.poNumber : `${data.payouts.length} orders`,
-          customerName: data.payouts.length === 1 ? data.payouts[0].itemCommission.commission.order?.account?.name : `${data.payouts.length} orders`,
-          payoutStage:  data.payouts.length === 1 ? data.payouts[0].stage : 'Multiple',
-        });
+        // Email contains ONLY this agent's payouts
+        await sendCommissionEmail(salesAgent, { type: 'Paid', payouts: agentPayouts });
       }
 
       res.json({ paid: result.count });
@@ -591,8 +573,6 @@ export function createCommissionPayoutsRouter(prisma) {
     }
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // GET /paid  (admin, filtered)
   // ─────────────────────────────────────────────────────────────────────────
   router.get('/paid', adminGuard, async (req, res) => {
     try {
