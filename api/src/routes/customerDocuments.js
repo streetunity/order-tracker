@@ -26,15 +26,11 @@ const prisma = new PrismaClient();
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 const BUCKET = process.env.S3_CUSTOMER_DOCS_BUCKET || process.env.S3_DOCUMENTS_BUCKET || 'order-tracker-documents';
-const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
-const URL_EXPIRY = 3600; // 1 hour
+const CHUNK_SIZE = 10 * 1024 * 1024;
+const URL_EXPIRY = 3600;
 const RETENTION_DAYS = 365;
 
 const VALID_CATEGORIES = ['photos', 'videos', 'manuals', 'documents'];
-
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
 
 function sanitizeFileName(originalName) {
   if (!originalName) return `file-${Date.now()}`;
@@ -82,12 +78,11 @@ async function generateDownloadUrl(s3Key, displayName) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// GET /:orderId  — list all files, grouped by category
+// GET /:orderId
 // ─────────────────────────────────────────────────────────────
 router.get('/:orderId', authGuard, async (req, res) => {
   try {
     const { orderId } = req.params;
-
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: { id: true, poNumber: true, customerDocsLink: true },
@@ -122,12 +117,12 @@ router.get('/:orderId', authGuard, async (req, res) => {
     );
 
     res.json({
-      photos: withUrls.filter((f) => f.category === 'photos'),
-      videos: withUrls.filter((f) => f.category === 'videos'),
-      manuals: withUrls.filter((f) => f.category === 'manuals'),
-      documents: withUrls.filter((f) => f.category === 'documents'),
+      photos:            withUrls.filter(f => f.category === 'photos'),
+      videos:            withUrls.filter(f => f.category === 'videos'),
+      manuals:           withUrls.filter(f => f.category === 'manuals'),
+      documents:         withUrls.filter(f => f.category === 'documents'),
       legacyDropboxLink: order.customerDocsLink || null,
-      totalCount: withUrls.length,
+      totalCount:        withUrls.length,
     });
   } catch (error) {
     console.error('Error listing customer documents:', error);
@@ -136,7 +131,7 @@ router.get('/:orderId', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /:orderId/initiate  — start multipart upload
+// POST /:orderId/initiate
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/initiate', authGuard, async (req, res) => {
   try {
@@ -144,12 +139,10 @@ router.post('/:orderId/initiate', authGuard, async (req, res) => {
     const { fileName, fileSize, mimeType, description, category = 'documents' } = req.body;
     const user = req.user;
 
-    if (!fileName || !fileSize || !mimeType) {
+    if (!fileName || !fileSize || !mimeType)
       return res.status(400).json({ error: 'fileName, fileSize, and mimeType are required' });
-    }
-    if (!VALID_CATEGORIES.includes(category)) {
+    if (!VALID_CATEGORIES.includes(category))
       return res.status(400).json({ error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}` });
-    }
 
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) return res.status(404).json({ error: 'Order not found' });
@@ -210,14 +203,13 @@ router.post('/:orderId/initiate', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /:orderId/sign-part  — presigned URL for one chunk
+// POST /:orderId/sign-part
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/sign-part', authGuard, async (req, res) => {
   try {
     const { documentId, uploadId, partNumber, s3Key } = req.body;
-    if (!uploadId || !partNumber || !s3Key) {
+    if (!uploadId || !partNumber || !s3Key)
       return res.status(400).json({ error: 'uploadId, partNumber, and s3Key are required' });
-    }
 
     const doc = await prisma.customerDocument.findUnique({ where: { id: documentId } });
     if (!doc || doc.isComplete) return res.status(400).json({ error: 'Invalid or completed upload' });
@@ -227,7 +219,6 @@ router.post('/:orderId/sign-part', authGuard, async (req, res) => {
       new UploadPartCommand({ Bucket: BUCKET, Key: s3Key, UploadId: uploadId, PartNumber: partNumber }),
       { expiresIn: URL_EXPIRY }
     );
-
     res.json({ presignedUrl, partNumber });
   } catch (error) {
     console.error('Error signing part:', error);
@@ -236,18 +227,16 @@ router.post('/:orderId/sign-part', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /:orderId/complete  — complete multipart upload
-// Writes an UPLOADED audit log entry once the file is confirmed.
+// POST /:orderId/complete
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/complete', authGuard, async (req, res) => {
   try {
     const { documentId, uploadId, s3Key, parts } = req.body;
-    if (!uploadId || !s3Key || !Array.isArray(parts)) {
+    if (!uploadId || !s3Key || !Array.isArray(parts))
       return res.status(400).json({ error: 'uploadId, s3Key, and parts array are required' });
-    }
 
     const doc = await prisma.customerDocument.findUnique({ where: { id: documentId } });
-    if (!doc) return res.status(404).json({ error: 'Document not found' });
+    if (!doc)          return res.status(404).json({ error: 'Document not found' });
     if (doc.isComplete) return res.status(400).json({ error: 'Upload already completed' });
 
     await s3Client.send(
@@ -264,19 +253,13 @@ router.post('/:orderId/complete', authGuard, async (req, res) => {
       data: { isComplete: true, uploadId: null },
     });
 
-    // Audit log — mirrors the DELETED entry shape so the history page renders it consistently
     await prisma.auditLog.create({
       data: {
         entityType: 'CustomerDocument',
         entityId: documentId,
         parentEntityId: doc.orderId,
         action: 'UPLOADED',
-        metadata: JSON.stringify({
-          fileName: doc.fileName,
-          category: doc.category,
-          fileSize: Number(doc.fileSize),
-          mimeType: doc.mimeType,
-        }),
+        metadata: JSON.stringify({ fileName: doc.fileName, category: doc.category, fileSize: Number(doc.fileSize), mimeType: doc.mimeType }),
         performedByUserId: req.user.id,
         performedByName: req.user.name,
       },
@@ -290,23 +273,16 @@ router.post('/:orderId/complete', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /:orderId/abort  — abort in-progress upload
+// POST /:orderId/abort
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/abort', authGuard, async (req, res) => {
   try {
     const { documentId, uploadId, s3Key } = req.body;
     if (!uploadId || !s3Key) return res.status(400).json({ error: 'uploadId and s3Key are required' });
-
     try {
       await s3Client.send(new AbortMultipartUploadCommand({ Bucket: BUCKET, Key: s3Key, UploadId: uploadId }));
-    } catch (e) {
-      console.warn('S3 abort (may already be gone):', e.message);
-    }
-
-    if (documentId) {
-      await prisma.customerDocument.delete({ where: { id: documentId } }).catch(() => {});
-    }
-
+    } catch (e) { console.warn('S3 abort (may already be gone):', e.message); }
+    if (documentId) await prisma.customerDocument.delete({ where: { id: documentId } }).catch(() => {});
     res.json({ success: true });
   } catch (error) {
     console.error('Error aborting upload:', error);
@@ -315,125 +291,66 @@ router.post('/:orderId/abort', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /:orderId/notify  — email customer about new files
+// POST /:orderId/notify
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/notify', authGuard, async (req, res) => {
   try {
     const { orderId } = req.params;
-
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
         account: true,
-        customerDocuments: {
-          where: { isComplete: true },
-          orderBy: { uploadedAt: 'desc' },
-          take: 50,
-        },
+        customerDocuments: { where: { isComplete: true }, orderBy: { uploadedAt: 'desc' }, take: 50 },
       },
     });
-
-    if (!order) return res.status(404).json({ error: 'Order not found' });
-    if (!order.account?.email) return res.status(400).json({ error: 'Customer has no email address' });
+    if (!order)                       return res.status(404).json({ error: 'Order not found' });
+    if (!order.account?.email)        return res.status(400).json({ error: 'Customer has no email address' });
     if (!order.customerDocuments?.length) return res.status(400).json({ error: 'No files to notify about' });
 
-    const company = await prisma.companySettings.findFirst();
+    const company  = await prisma.companySettings.findFirst();
     let salesRep = null;
-    if (order.sku) {
-      salesRep = await prisma.user.findFirst({ where: { name: order.sku, isActive: true } });
-    }
+    if (order.sku) salesRep = await prisma.user.findFirst({ where: { name: order.sku, isActive: true } });
 
     const fromEmail = salesRep?.email || company?.email || process.env.SES_FROM_EMAIL;
-    const fromName = salesRep?.name || company?.companyName || 'Stealth Machine Tools';
-
+    const fromName  = salesRep?.name  || company?.companyName || 'Stealth Machine Tools';
     const docs = order.customerDocuments;
-    const photoCount    = docs.filter((f) => (f.category || 'documents') === 'photos').length;
-    const videoCount    = docs.filter((f) => (f.category || 'documents') === 'videos').length;
-    const manualCount   = docs.filter((f) => (f.category || 'documents') === 'manuals').length;
-    const documentCount = docs.filter((f) => (f.category || 'documents') === 'documents').length;
-
-    const trackingUrl = `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/track/${order.trackingToken}`;
-    const orderNumber = order.id.slice(-8).toUpperCase();
-    const customerName = order.account.contactName || order.account.name || 'Customer';
-    const companyName = company?.companyName || 'Stealth Machine Tools';
-    const companyPhone = company?.phone || '';
-    const companyEmail = company?.email || '';
+    const photoCount    = docs.filter(f => (f.category || 'documents') === 'photos').length;
+    const videoCount    = docs.filter(f => (f.category || 'documents') === 'videos').length;
+    const manualCount   = docs.filter(f => (f.category || 'documents') === 'manuals').length;
+    const documentCount = docs.filter(f => (f.category || 'documents') === 'documents').length;
+    const trackingUrl   = `${process.env.FRONTEND_URL || 'https://smt-orders.com'}/track/${order.trackingToken}`;
+    const orderNumber   = order.id.slice(-8).toUpperCase();
+    const customerName  = order.account.contactName || order.account.name || 'Customer';
+    const companyName   = company?.companyName || 'Stealth Machine Tools';
+    const companyPhone  = company?.phone  || '';
+    const companyEmail  = company?.email  || '';
 
     const emailServiceModule = await import('../services/emailService.js');
     const emailService = emailServiceModule.default || emailServiceModule;
+    const dbTemplate = await prisma.emailTemplate.findUnique({ where: { templateKey: 'customer_files' } });
 
-    const dbTemplate = await prisma.emailTemplate.findUnique({
-      where: { templateKey: 'customer_files' },
-    });
-
-    let subjectLine;
-    let html;
-
+    let subjectLine, html;
     if (dbTemplate) {
       const { wrapInBaseTemplate } = await import('../services/emailTemplates.js');
-
-      const vars = {
-        customerName, orderNumber,
-        totalCount: String(docs.length),
-        photoCount: String(photoCount), videoCount: String(videoCount),
-        manualCount: String(manualCount), documentCount: String(documentCount),
-        trackingUrl, companyName, companyPhone, companyEmail,
-      };
-
-      const processTemplate = (str) => {
-        let out = str;
-        for (const [k, v] of Object.entries(vars)) {
-          out = out.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'), v);
-        }
-        return out;
-      };
-
-      subjectLine = processTemplate(dbTemplate.subject);
-      const processedBody    = processTemplate(dbTemplate.bodyContent || '');
-      const processedClosing = processTemplate(dbTemplate.closingContent || '');
-      const processedFooter  = processTemplate(dbTemplate.footerContent || `<p>${companyName}</p>`);
-
-      const RED   = '#dc2626';
-      const LIGHT = '#f5f5f5';
-
-      const content = `
-        <tr bgcolor="${RED}"><td bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;">
-          <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">New Files Available</h1>
-        </td></tr>
-        <tr><td bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">
-          ${processedBody}
-          ${processedClosing ? `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #dddddd;">${processedClosing}</div>` : ''}
-        </td></tr>
-        <tr><td bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;font-size:12px;color:#666666;">
-          ${processedFooter}
-        </td></tr>`;
-
-      html = wrapInBaseTemplate(content, subjectLine);
+      const vars = { customerName, orderNumber, totalCount: String(docs.length), photoCount: String(photoCount), videoCount: String(videoCount), manualCount: String(manualCount), documentCount: String(documentCount), trackingUrl, companyName, companyPhone, companyEmail };
+      const p = str => { let out = str; for (const [k,v] of Object.entries(vars)) out = out.replace(new RegExp('\\{\\{' + k + '\\}\\}', 'g'), v); return out; };
+      subjectLine = p(dbTemplate.subject);
+      const RED = '#dc2626', LIGHT = '#f5f5f5';
+      html = wrapInBaseTemplate(
+        `<tr bgcolor="${RED}"><td bgcolor="${RED}" style="background-color:${RED};padding:24px 30px;text-align:center;"><h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">New Files Available</h1></td></tr>` +
+        `<tr><td bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">${p(dbTemplate.bodyContent || '')}${dbTemplate.closingContent ? `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #dddddd;">${p(dbTemplate.closingContent)}</div>` : ''}</td></tr>` +
+        `<tr><td bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;font-size:12px;color:#666666;">${p(dbTemplate.footerContent || `<p>${companyName}</p>`)}</td></tr>`,
+        subjectLine
+      );
     } else {
       const { getCustomerFilesEmailTemplate } = await import('../services/emailTemplates.js');
       subjectLine = 'New files available for your order';
-      html = getCustomerFilesEmailTemplate({
-        customerName, orderNumber, photoCount, videoCount, manualCount,
-        documentCount, totalCount: docs.length, trackingUrl,
-        companyName, companyPhone, companyEmail,
-      });
+      html = getCustomerFilesEmailTemplate({ customerName, orderNumber, photoCount, videoCount, manualCount, documentCount, totalCount: docs.length, trackingUrl, companyName, companyPhone, companyEmail });
     }
 
-    const result = await emailService.sendEmail({
-      to: order.account.email,
-      from: fromEmail,
-      fromName,
-      replyTo: fromEmail,
-      subject: subjectLine,
-      html,
-    });
-
-    if (result?.success) {
-      console.log(`[EMAIL] Customer files notification sent for order ${orderId} to ${order.account.email}`);
-      res.json({ message: 'Notification sent successfully' });
-    } else {
-      res.status(500).json({ error: 'Failed to send notification' });
-    }
+    const result = await emailService.sendEmail({ to: order.account.email, from: fromEmail, fromName, replyTo: fromEmail, subject: subjectLine, html });
+    if (result?.success) res.json({ message: 'Notification sent successfully' });
+    else res.status(500).json({ error: 'Failed to send notification' });
   } catch (error) {
     console.error('Error sending notification:', error);
     res.status(500).json({ error: 'Failed to send notification: ' + error.message });
@@ -448,13 +365,11 @@ router.patch('/:orderId/reorder', authGuard, async (req, res) => {
     const { orderId } = req.params;
     const { fileIds } = req.body;
     if (!Array.isArray(fileIds)) return res.status(400).json({ error: 'fileIds must be an array' });
-
     await prisma.$transaction(
       fileIds.map((id, index) =>
         prisma.customerDocument.update({ where: { id, orderId }, data: { sortOrder: index } })
       )
     );
-
     res.json({ message: 'Reordered successfully' });
   } catch (error) {
     console.error('Error reordering files:', error);
@@ -470,7 +385,6 @@ router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
     const { documentId } = req.params;
     const doc = await prisma.customerDocument.findUnique({ where: { id: documentId } });
     if (!doc || !doc.isComplete) return res.status(404).json({ error: 'Document not found' });
-
     const name = doc.displayName || doc.fileName;
     const downloadUrl = await generateDownloadUrl(doc.s3Key, name);
     res.json({ downloadUrl, fileName: name, fileSize: Number(doc.fileSize), mimeType: doc.mimeType });
@@ -481,17 +395,25 @@ router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// PATCH /:orderId/:documentId  — rename / update description
+// PATCH /:orderId/:documentId  — rename, description, OR re-categorize
 // ─────────────────────────────────────────────────────────────
 router.patch('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
-    const { documentId } = req.params;
-    const { displayName, description } = req.body;
+    const { orderId, documentId } = req.params;
+    const { displayName, description, category } = req.body;
     const data = {};
-    if (displayName !== undefined) data.displayName = displayName || null;
-    if (description !== undefined) data.description = description;
+    if (displayName !== undefined)  data.displayName  = displayName  || null;
+    if (description !== undefined)  data.description  = description;
+    if (category    !== undefined) {
+      if (!VALID_CATEGORIES.includes(category))
+        return res.status(400).json({ error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}` });
+      data.category = category;
+      // Move to end of new category
+      const maxSort = await prisma.customerDocument.aggregate({ where: { orderId, category }, _max: { sortOrder: true } });
+      data.sortOrder = (maxSort._max.sortOrder ?? 0) + 1;
+    }
     const doc = await prisma.customerDocument.update({ where: { id: documentId }, data });
-    res.json({ id: doc.id, displayName: doc.displayName, description: doc.description });
+    res.json({ id: doc.id, displayName: doc.displayName, description: doc.description, category: doc.category });
   } catch (error) {
     console.error('Error updating document:', error);
     res.status(500).json({ error: 'Failed to update document' });
@@ -499,7 +421,7 @@ router.patch('/:orderId/:documentId', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// DELETE /:orderId/:documentId  — delete from S3 + DB
+// DELETE /:orderId/:documentId
 // ─────────────────────────────────────────────────────────────
 router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
@@ -507,15 +429,10 @@ router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
     const user = req.user;
     const doc = await prisma.customerDocument.findUnique({ where: { id: documentId } });
     if (!doc) return res.status(404).json({ error: 'Document not found' });
-
     try {
       await s3Client.send(new DeleteObjectCommand({ Bucket: doc.s3Bucket, Key: doc.s3Key }));
-    } catch (e) {
-      console.warn('S3 delete error:', e.message);
-    }
-
+    } catch (e) { console.warn('S3 delete error:', e.message); }
     await prisma.customerDocument.delete({ where: { id: documentId } });
-
     await prisma.auditLog.create({
       data: {
         entityType: 'CustomerDocument',
@@ -527,7 +444,6 @@ router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
         performedByName: user.name,
       },
     });
-
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting document:', error);
