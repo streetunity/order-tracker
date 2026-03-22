@@ -118,6 +118,17 @@ export default function PublicTrackingPage() {
     transition: "background 0.15s, color 0.15s",
   });
 
+  // Shared card style — used by ALL cards so they are visually identical
+  const cardStyle = {
+    background: "#2d2d2d",
+    border: "1px solid #404040",
+    borderRadius: "10px",
+    padding: "24px",
+    marginBottom: "20px",
+    width: "100%",
+    boxSizing: "border-box",
+  };
+
   const infoBlock = (label, value, color = "#e4e4e4") => (
     <div>
       <div style={{ fontSize:"11px", fontWeight:600, color:"#dc2626", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:"4px" }}>{label}</div>
@@ -130,15 +141,12 @@ export default function PublicTrackingPage() {
 
       {/* ── Header ── */}
       <div style={{ display:"flex", alignItems:"center", gap:"24px", marginBottom:"32px" }}>
-        {/* Logo */}
         <div style={{
           flexShrink: 0,
           width:"110px", height:"110px",
           backgroundImage:"url('/smt-logo.png')",
           backgroundSize:"contain", backgroundRepeat:"no-repeat", backgroundPosition:"center",
         }} />
-
-        {/* Title + meta */}
         <div style={{ flex:1 }}>
           <h1 style={{ fontSize:"28px", fontWeight:700, color:"#e4e4e4", margin:"0 0 12px" }}>Order Status</h1>
           <div style={{ display:"flex", flexWrap:"wrap", gap:"10px" }}>
@@ -176,7 +184,7 @@ export default function PublicTrackingPage() {
       {activeTab === "overview" && (
         <>
           {/* Customer info */}
-          <div style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"10px", padding:"24px", marginBottom:"20px" }}>
+          <div style={cardStyle}>
             <h2 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 20px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Customer Information</h2>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"20px 40px" }}>
               {infoBlock("Company",         order.accountName)}
@@ -190,7 +198,7 @@ export default function PublicTrackingPage() {
 
           {/* Shipping info */}
           {showShipping && (
-            <div style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"10px", padding:"24px", marginBottom:"20px" }}>
+            <div style={cardStyle}>
               <h2 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 20px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Shipping Information</h2>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"20px 40px" }}>
                 {order.etaDate          && infoBlock("ETA",                      formatDateOnly(order.etaDate))}
@@ -205,7 +213,7 @@ export default function PublicTrackingPage() {
           <div>
             <h2 style={{ fontSize:"20px", fontWeight:600, color:"#e4e4e4", margin:"0 0 16px" }}>Order Items & Progress</h2>
             {(!order.items || order.items.length === 0) ? (
-              <div style={{ padding:"40px", background:"#2d2d2d", border:"1px solid #404040", borderRadius:"10px", textAlign:"center" }}>
+              <div style={{ ...cardStyle, textAlign:"center" }}>
                 <p style={{ color:"#dc2626", marginBottom:"8px" }}>No items found in this order</p>
                 <p style={{ color:"#a0a0a0", fontSize:"14px" }}>Please contact support if you believe this is an error.</p>
               </div>
@@ -216,7 +224,7 @@ export default function PublicTrackingPage() {
                   const stageIdx = Math.max(0, STAGES.indexOf(stage));
                   const done = stage === "FOLLOW_UP";
                   return (
-                    <div key={item.id} style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"10px", padding:"20px" }}>
+                    <div key={item.id} style={cardStyle}>
                       {/* Item header */}
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px" }}>
                         <div>
@@ -375,7 +383,6 @@ export default function PublicTrackingPage() {
       ══════════════════════════════════════════════════ */}
       {activeTab === "timeline" && (
         <div>
-          {/* Per-item timelines */}
           {order.items?.filter(i => i.statusEvents?.length > 0).map((item) => (
             <div key={item.id} style={{ marginBottom:"24px" }}>
               <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px" }}>{item.productCode || "Item"}</h3>
@@ -393,7 +400,6 @@ export default function PublicTrackingPage() {
             </div>
           ))}
 
-          {/* Order-level timeline */}
           {order.statusEvents?.length > 0 && (
             <div>
               <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px" }}>Order Events</h3>
