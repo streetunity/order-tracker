@@ -64,7 +64,6 @@ export default function PublicTrackingPage() {
     loadFiles();
   }, [params.token]);
 
-  /* ── helpers ── */
   const formatDate = (s) => {
     try {
       const d = new Date(s);
@@ -79,14 +78,7 @@ export default function PublicTrackingPage() {
       return new Date(s).toLocaleDateString();
     } catch { return s; }
   };
-  const fmtSize = (b) => {
-    if (!b) return "";
-    if (b < 1048576)    return (b/1024).toFixed(1)    + " KB";
-    if (b < 1073741824) return (b/1048576).toFixed(1)  + " MB";
-    return (b/1073741824).toFixed(2) + " GB";
-  };
 
-  /* ── loading / error states ── */
   if (loading) return (
     <main style={{ padding:"60px 20px", maxWidth:"1100px", margin:"0 auto", textAlign:"center" }}>
       <div style={{ color:"#a0a0a0", fontSize:"18px" }}>Loading order status…</div>
@@ -139,7 +131,6 @@ export default function PublicTrackingPage() {
   return (
     <main style={{ maxWidth:"1100px", margin:"0 auto", padding:"24px 16px 60px" }}>
 
-      {/* ── Responsive styles ── */}
       <style>{`
         .tracking-header {
           display: flex;
@@ -176,16 +167,24 @@ export default function PublicTrackingPage() {
           margin-bottom: 18px;
           gap: 16px;
         }
-        .stage-pills-scroll {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
+        /* Pills wrap to fill available width — no scrolling, no overflow */
+        .stage-pills-wrap {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
           margin-bottom: 14px;
         }
-        .stage-pills-grid {
-          display: grid;
-          grid-template-columns: repeat(10, minmax(88px, 1fr));
-          gap: 4px;
-          min-width: 880px;
+        .stage-pill {
+          /* Each pill takes an equal share; on desktop 10 fit in a row,
+             on mobile they wrap into 2–3 rows naturally */
+          flex: 1 1 80px;
+          padding: 6px 4px;
+          border-radius: 5px;
+          text-align: center;
+          font-size: 9px;
+          font-weight: 500;
+          line-height: 1.3;
+          box-sizing: border-box;
         }
         @media (max-width: 640px) {
           .tracking-header {
@@ -210,15 +209,16 @@ export default function PublicTrackingPage() {
           }
           .item-header-row > div:last-child {
             text-align: left !important;
-            margin-left: 0 !important;
           }
-          .stage-pills-grid {
-            min-width: 800px;
+          /* 5 pills per row on small phones */
+          .stage-pill {
+            flex: 1 1 60px;
+            font-size: 8px;
           }
         }
       `}</style>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="tracking-header">
         <div className="tracking-logo" style={{
           backgroundImage:"url('/smt-logo.png')",
@@ -246,7 +246,7 @@ export default function PublicTrackingPage() {
         </div>
       </div>
 
-      {/* ── Tab bar ── */}
+      {/* Tab bar */}
       <div className="tracking-tabs">
         <button onClick={() => setActiveTab("overview")} style={tabStyle("overview")}>Overview</button>
         <button onClick={() => setActiveTab("files")}    style={tabStyle("files")}>Your Files</button>
@@ -255,12 +255,9 @@ export default function PublicTrackingPage() {
         )}
       </div>
 
-      {/* ══════════════════════════════════════════════════
-          OVERVIEW TAB
-      ══════════════════════════════════════════════════ */}
+      {/* ── OVERVIEW ── */}
       {activeTab === "overview" && (
         <>
-          {/* Customer info */}
           <div style={cardStyle}>
             <h2 style={{ fontSize:"14px", fontWeight:600, color:"#e4e4e4", margin:"0 0 18px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Customer Information</h2>
             <div className="info-grid-2">
@@ -273,12 +270,11 @@ export default function PublicTrackingPage() {
             </div>
           </div>
 
-          {/* Shipping info */}
           {showShipping && (
             <div style={cardStyle}>
               <h2 style={{ fontSize:"14px", fontWeight:600, color:"#e4e4e4", margin:"0 0 18px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Shipping Information</h2>
               <div className="info-grid-2">
-                {order.etaDate          && infoBlock("ETA",                      formatDateOnly(order.etaDate))}
+                {order.etaDate          && infoBlock("ETA", formatDateOnly(order.etaDate))}
                 {order.onsiteInstallationDate !== undefined && infoBlock("Onsite Installation Date", order.onsiteInstallationDate ? formatDateOnly(order.onsiteInstallationDate) : "TBD")}
                 {order.shippingCarrier  && infoBlock("Carrier",  order.shippingCarrier)}
                 {order.trackingNumber   && infoBlock("Tracking", order.trackingNumber)}
@@ -286,7 +282,6 @@ export default function PublicTrackingPage() {
             </div>
           )}
 
-          {/* Items */}
           <div>
             <h2 style={{ fontSize:"18px", fontWeight:600, color:"#e4e4e4", margin:"0 0 14px" }}>Order Items & Progress</h2>
             {(!order.items || order.items.length === 0) ? (
@@ -297,9 +292,9 @@ export default function PublicTrackingPage() {
             ) : (
               <div style={{ display:"grid", gap:"16px" }}>
                 {order.items.map((item) => {
-                  const stage = item.currentStage || order.currentStage || "MANUFACTURING";
+                  const stage    = item.currentStage || order.currentStage || "MANUFACTURING";
                   const stageIdx = Math.max(0, STAGES.indexOf(stage));
-                  const done = stage === "FOLLOW_UP";
+                  const done     = stage === "FOLLOW_UP";
                   return (
                     <div key={item.id} style={cardStyle}>
 
@@ -332,25 +327,23 @@ export default function PublicTrackingPage() {
                         </div>
                       </div>
 
-                      {/* Stage pills — horizontally scrollable, never breaks page layout */}
-                      <div className="stage-pills-scroll">
-                        <div className="stage-pills-grid">
-                          {STAGES.map((s, i) => {
-                            const isCur  = stage === s;
-                            const isPast = i < stageIdx;
-                            const bg     = isCur ? (s === "FOLLOW_UP" ? "#10b981" : "#dc2626") : isPast ? "#10b981" : "#1a1a1a";
-                            const fg     = (isCur || isPast) ? "#fff" : "#6b7280";
-                            const border = (isCur || isPast) ? bg : "#333";
-                            return (
-                              <div key={s} style={{ padding:"5px 4px", borderRadius:"5px", border:`1px solid ${border}`, background:bg, textAlign:"center", fontSize:"9px", fontWeight:500, color:fg, lineHeight:1.2 }}>
-                                {STAGE_LABELS[s]}
-                                {isPast && <div style={{ fontSize:"8px", opacity:0.9 }}>✓</div>}
-                                {isCur && s !== "FOLLOW_UP" && <div style={{ fontSize:"8px", opacity:0.9 }}>Current</div>}
-                                {isCur && s === "FOLLOW_UP" && <div style={{ fontSize:"8px", opacity:0.9 }}>✓</div>}
-                              </div>
-                            );
-                          })}
-                        </div>
+                      {/* Stage pills — wrap to fit any viewport, no horizontal scroll */}
+                      <div className="stage-pills-wrap">
+                        {STAGES.map((s, i) => {
+                          const isCur  = stage === s;
+                          const isPast = i < stageIdx;
+                          const bg     = isCur ? (s === "FOLLOW_UP" ? "#10b981" : "#dc2626") : isPast ? "#10b981" : "#1a1a1a";
+                          const fg     = (isCur || isPast) ? "#fff" : "#6b7280";
+                          const border = (isCur || isPast) ? bg : "#333";
+                          return (
+                            <div key={s} className="stage-pill" style={{ border:`1px solid ${border}`, background:bg, color:fg }}>
+                              {STAGE_LABELS[s]}
+                              {isPast && <div style={{ fontSize:"8px", opacity:0.85, marginTop:"2px" }}>✓</div>}
+                              {isCur && s !== "FOLLOW_UP" && <div style={{ fontSize:"8px", opacity:0.85, marginTop:"2px" }}>▶ Current</div>}
+                              {isCur && s === "FOLLOW_UP" && <div style={{ fontSize:"8px", opacity:0.85, marginTop:"2px" }}>✓</div>}
+                            </div>
+                          );
+                        })}
                       </div>
 
                       {/* Progress bar */}
@@ -367,9 +360,7 @@ export default function PublicTrackingPage() {
         </>
       )}
 
-      {/* ══════════════════════════════════════════════════
-          YOUR FILES TAB
-      ══════════════════════════════════════════════════ */}
+      {/* ── YOUR FILES ── */}
       {activeTab === "files" && (
         <div>
           {!customerFiles ? (
@@ -389,7 +380,6 @@ export default function PublicTrackingPage() {
             </div>
           ) : (
             <>
-              {/* Photos */}
               {customerFiles.photos?.length > 0 && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
@@ -406,7 +396,6 @@ export default function PublicTrackingPage() {
                 </div>
               )}
 
-              {/* Videos */}
               {customerFiles.videos?.length > 0 && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
@@ -428,7 +417,6 @@ export default function PublicTrackingPage() {
                 </div>
               )}
 
-              {/* Manuals + Documents */}
               {([...(customerFiles.manuals||[]), ...(customerFiles.documents||[])].length > 0) && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
@@ -456,9 +444,7 @@ export default function PublicTrackingPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════
-          TIMELINE TAB
-      ══════════════════════════════════════════════════ */}
+      {/* ── TIMELINE ── */}
       {activeTab === "timeline" && (
         <div>
           {order.items?.filter(i => i.statusEvents?.length > 0).map((item) => (
