@@ -4,6 +4,26 @@ Items to revisit when time permits.
 
 ---
 
+## Zapier / Lead Auto-Population
+
+**Status: Back-burnered — awaiting Zapier account details from client**
+
+The lead flow is: Facebook/Google Ads → Go High Level CRM → Zapier → Order Tracker.
+
+When a lead comes in or a deal is won in Go High Level, Zapier should automatically create a Lead record in the invoicing module — eliminating manual data entry entirely.
+
+**What needs to happen:**
+1. Confirm the Zapier account and which GHL triggers to use (new contact, deal stage change, form submission, etc.)
+2. Build a public webhook endpoint: `POST /api/webhooks/zapier/lead` — validates a shared secret, maps GHL field names to our Lead schema, creates/updates the record
+3. Map GHL custom fields to: `firstName`, `lastName`, `email`, `phone`, `company`, `source`, `notes`, `assignedTo`
+4. Add webhook secret to `.env`: `ZAPIER_WEBHOOK_SECRET`
+5. Register the webhook URL in Zapier as the action target
+6. Test end-to-end with a real GHL form submission
+
+**Estimated effort:** 2–4 hours once Zapier credentials and GHL field mapping are confirmed.
+
+---
+
 ## S3 Bucket Backup / Versioning
 
 **Bucket:** `stealth-customer-files`
