@@ -237,6 +237,7 @@ router.post('/:orderId/sign-part', authGuard, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /:orderId/complete  — complete multipart upload
+// Writes an UPLOADED audit log entry once the file is confirmed.
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/complete', authGuard, async (req, res) => {
   try {
@@ -261,6 +262,24 @@ router.post('/:orderId/complete', authGuard, async (req, res) => {
     await prisma.customerDocument.update({
       where: { id: documentId },
       data: { isComplete: true, uploadId: null },
+    });
+
+    // Audit log — mirrors the DELETED entry shape so the history page renders it consistently
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'CustomerDocument',
+        entityId: documentId,
+        parentEntityId: doc.orderId,
+        action: 'UPLOADED',
+        metadata: JSON.stringify({
+          fileName: doc.fileName,
+          category: doc.category,
+          fileSize: Number(doc.fileSize),
+          mimeType: doc.mimeType,
+        }),
+        performedByUserId: req.user.id,
+        performedByName: req.user.name,
+      },
     });
 
     res.json({ success: true, documentId });
@@ -297,8 +316,6 @@ router.post('/:orderId/abort', authGuard, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /:orderId/notify  — email customer about new files
-// Checks for admin-customized template in DB before falling
-// back to the hardcoded getCustomerFilesEmailTemplate.
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/notify', authGuard, async (req, res) => {
   try {
@@ -345,7 +362,6 @@ router.post('/:orderId/notify', authGuard, async (req, res) => {
     const emailServiceModule = await import('../services/emailService.js');
     const emailService = emailServiceModule.default || emailServiceModule;
 
-    // Check for admin-customized template
     const dbTemplate = await prisma.emailTemplate.findUnique({
       where: { templateKey: 'customer_files' },
     });
@@ -354,21 +370,14 @@ router.post('/:orderId/notify', authGuard, async (req, res) => {
     let html;
 
     if (dbTemplate) {
-      // Use customized template — substitute variables and wrap in base email shell
       const { wrapInBaseTemplate } = await import('../services/emailTemplates.js');
 
       const vars = {
-        customerName,
-        orderNumber,
+        customerName, orderNumber,
         totalCount: String(docs.length),
-        photoCount: String(photoCount),
-        videoCount: String(videoCount),
-        manualCount: String(manualCount),
-        documentCount: String(documentCount),
-        trackingUrl,
-        companyName,
-        companyPhone,
-        companyEmail,
+        photoCount: String(photoCount), videoCount: String(videoCount),
+        manualCount: String(manualCount), documentCount: String(documentCount),
+        trackingUrl, companyName, companyPhone, companyEmail,
       };
 
       const processTemplate = (str) => {
@@ -401,21 +410,12 @@ router.post('/:orderId/notify', authGuard, async (req, res) => {
 
       html = wrapInBaseTemplate(content, subjectLine);
     } else {
-      // Fall back to hardcoded template
       const { getCustomerFilesEmailTemplate } = await import('../services/emailTemplates.js');
       subjectLine = 'New files available for your order';
       html = getCustomerFilesEmailTemplate({
-        customerName,
-        orderNumber,
-        photoCount,
-        videoCount,
-        manualCount,
-        documentCount,
-        totalCount: docs.length,
-        trackingUrl,
-        companyName,
-        companyPhone,
-        companyEmail,
+        customerName, orderNumber, photoCount, videoCount, manualCount,
+        documentCount, totalCount: docs.length, trackingUrl,
+        companyName, companyPhone, companyEmail,
       });
     }
 
@@ -441,7 +441,7 @@ router.post('/:orderId/notify', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// PATCH /:orderId/reorder  — update sortOrder for a set of files
+// PATCH /:orderId/reorder
 // ─────────────────────────────────────────────────────────────
 router.patch('/:orderId/reorder', authGuard, async (req, res) => {
   try {
