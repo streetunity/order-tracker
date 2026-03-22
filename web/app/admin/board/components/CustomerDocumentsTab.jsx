@@ -22,8 +22,8 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
   const [files,         setFiles]         = useState({ photos: [], videos: [], manuals: [], documents: [] });
   const [loading,       setLoading]       = useState(false);
   const [category,      setCategory]      = useState("photos");
-  const [uploadQueue,   setUploadQueue]   = useState([]);    // [{ file, id }]
-  const [uploadingIdx,  setUploadingIdx]  = useState(null);  // index currently uploading
+  const [uploadQueue,   setUploadQueue]   = useState([]);
+  const [uploadingIdx,  setUploadingIdx]  = useState(null);
   const [progress,      setProgress]      = useState(0);
   const [status,        setStatus]        = useState("");
   const [uploadError,   setUploadError]   = useState("");
@@ -291,14 +291,6 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
               </div>
             );
           })}
-
-          {/* Legacy Dropbox link */}
-          {files.legacyDropboxLink && (
-            <div style={{ marginTop: "16px", padding: "12px 16px", background: "#1a1a1a", border: "1px solid #2d2d2d", borderRadius: "7px" }}>
-              <p style={{ margin: "0 0 6px", fontSize: "11px", color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.05em" }}>Legacy Dropbox Link</p>
-              <a href={files.legacyDropboxLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: "#dc2626", wordBreak: "break-all" }}>{files.legacyDropboxLink} ↗</a>
-            </div>
-          )}
         </>
       )}
     </div>
