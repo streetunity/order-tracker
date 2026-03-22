@@ -75,7 +75,7 @@ export default function AuditHistoryViewer() {
     }
   }, [user, isAdmin, router]);
 
-  // Load logs from search endpoint - use raw endpoint when searching for better JSON field matching
+  // Load logs from search endpoint
   const loadLogs = useCallback(async (page = 1, append = false) => {
     if (!user || !isAdmin) return;
 
@@ -97,7 +97,6 @@ export default function AuditHistoryViewer() {
       if (endDate) params.append('endDate', endDate);
       if (debouncedSearch) params.append('search', debouncedSearch);
 
-      // Use raw SQL search endpoint when searching for better JSON field matching
       const endpoint = debouncedSearch ? '/api/audit/search-raw' : '/api/audit/search';
       
       const res = await fetch(`${endpoint}?${params.toString()}`, {
@@ -112,7 +111,6 @@ export default function AuditHistoryViewer() {
         } else {
           setLogs(data.logs || []);
         }
-        // Guard: always fall back to defaults if pagination is missing
         setPagination(data.pagination || DEFAULT_PAGINATION);
       }
     } catch (e) {
@@ -245,12 +243,22 @@ export default function AuditHistoryViewer() {
     setPendingRestore(null);
   }
 
-  // Render helper functions (use imported helpers)
+  // Safely parse changes — the API may return a JSON string or a parsed array
+  function parseChanges(changes) {
+    if (!changes) return [];
+    if (Array.isArray(changes)) return changes;
+    if (typeof changes === 'string') {
+      try { return JSON.parse(changes); } catch { return []; }
+    }
+    return [];
+  }
+
   function renderChanges(changes) {
-    if (!changes || changes.length === 0) return null;
+    const parsed = parseChanges(changes);
+    if (parsed.length === 0) return null;
     return (
       <div className="log-changes">
-        {changes.map((change, idx) => (
+        {parsed.map((change, idx) => (
           <div key={idx} className="change-item">
             <span className="change-field">{getFieldLabel(change.field)}:</span>
             <span className="change-old">{formatValue(change.oldValue)}</span>
@@ -284,7 +292,6 @@ export default function AuditHistoryViewer() {
           </div>
         </div>
 
-        {/* Entity info section - title, subtitle, and details */}
         {(entityInfo.title || entityInfo.subtitle || entityInfo.details.length > 0) && (
           <div className="log-entity-info">
             {entityInfo.title && <div className="entity-info-title">{entityInfo.title}</div>}
@@ -331,10 +338,7 @@ export default function AuditHistoryViewer() {
     )
     .sort((a, b) => (a.account?.name || '').localeCompare(b.account?.name || '', undefined, { sensitivity: 'base' }));
 
-  // Don't render until authentication is checked
-  if (!user || !isAdmin) {
-    return null;
-  }
+  if (!user || !isAdmin) return null;
 
   if (loading && logs.length === 0) {
     return (
@@ -344,7 +348,6 @@ export default function AuditHistoryViewer() {
     );
   }
 
-  // Determine if we should show the sidebar view or unified search results view
   const isSearchActive = searchQuery && searchQuery.trim().length > 0;
   const showSidebarView = (activeTab === 'orders' || activeTab === 'customers') && !isSearchActive;
 
@@ -389,7 +392,6 @@ export default function AuditHistoryViewer() {
 
           {/* Main Content */}
           {showSidebarView ? (
-            // Legacy sidebar view for Orders/Customers (when no search active)
             <div className="history-grid">
               <div className="entity-list-sidebar">
                 <div className="entity-search">
@@ -474,7 +476,6 @@ export default function AuditHistoryViewer() {
               </div>
             </div>
           ) : (
-            // Unified log view - for search results or non-sidebar tabs
             <div className="logs-container">
               {loading ? (
                 <div className="logs-loading">Loading logs...</div>
@@ -487,7 +488,6 @@ export default function AuditHistoryViewer() {
                 <>
                   {logs.map(log => renderLogEntry(log))}
                   
-                  {/* Load More Button */}
                   {pagination.hasMore && (
                     <div className="load-more-container">
                       <button
