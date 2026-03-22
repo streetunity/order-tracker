@@ -107,7 +107,7 @@ export default function PublicTrackingPage() {
   const hasTimeline  = (order.statusEvents?.length > 0) || order.items?.some(i => i.statusEvents?.length > 0);
 
   const tabStyle = (id) => ({
-    padding: "10px 22px",
+    padding: "10px 18px",
     fontSize: "14px",
     fontWeight: 500,
     cursor: "pointer",
@@ -116,15 +116,15 @@ export default function PublicTrackingPage() {
     background: activeTab === id ? "#dc2626" : "transparent",
     color:      activeTab === id ? "#fff"     : "#a0a0a0",
     transition: "background 0.15s, color 0.15s",
+    whiteSpace: "nowrap",
   });
 
-  // Shared card style — used by ALL cards so they are visually identical
   const cardStyle = {
     background: "#2d2d2d",
     border: "1px solid #404040",
     borderRadius: "10px",
-    padding: "24px",
-    marginBottom: "20px",
+    padding: "20px",
+    marginBottom: "16px",
     width: "100%",
     boxSizing: "border-box",
   };
@@ -137,19 +137,96 @@ export default function PublicTrackingPage() {
   );
 
   return (
-    <main style={{ maxWidth:"1100px", margin:"0 auto", padding:"32px 20px 60px" }}>
+    <main style={{ maxWidth:"1100px", margin:"0 auto", padding:"24px 16px 60px" }}>
+
+      {/* ── Responsive styles ── */}
+      <style>{`
+        .tracking-header {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 28px;
+        }
+        .tracking-logo {
+          flex-shrink: 0;
+          width: 90px;
+          height: 90px;
+        }
+        .tracking-tabs {
+          display: flex;
+          gap: 4px;
+          padding: 6px;
+          background: #1a1a1a;
+          border-radius: 8px;
+          margin-bottom: 24px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .tracking-tabs::-webkit-scrollbar { display: none; }
+        .info-grid-2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 18px 32px;
+        }
+        .item-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 18px;
+          gap: 16px;
+        }
+        .stage-pills-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          margin-bottom: 14px;
+        }
+        .stage-pills-grid {
+          display: grid;
+          grid-template-columns: repeat(10, minmax(88px, 1fr));
+          gap: 4px;
+          min-width: 880px;
+        }
+        @media (max-width: 640px) {
+          .tracking-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 14px;
+          }
+          .tracking-logo {
+            width: 64px;
+            height: 64px;
+          }
+          .tracking-header h1 {
+            font-size: 22px !important;
+          }
+          .info-grid-2 {
+            grid-template-columns: 1fr;
+            gap: 14px;
+          }
+          .item-header-row {
+            flex-direction: column;
+            gap: 10px;
+          }
+          .item-header-row > div:last-child {
+            text-align: left !important;
+            margin-left: 0 !important;
+          }
+          .stage-pills-grid {
+            min-width: 800px;
+          }
+        }
+      `}</style>
 
       {/* ── Header ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:"24px", marginBottom:"32px" }}>
-        <div style={{
-          flexShrink: 0,
-          width:"110px", height:"110px",
+      <div className="tracking-header">
+        <div className="tracking-logo" style={{
           backgroundImage:"url('/smt-logo.png')",
           backgroundSize:"contain", backgroundRepeat:"no-repeat", backgroundPosition:"center",
         }} />
         <div style={{ flex:1 }}>
-          <h1 style={{ fontSize:"28px", fontWeight:700, color:"#e4e4e4", margin:"0 0 12px" }}>Order Status</h1>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:"10px" }}>
+          <h1 style={{ fontSize:"26px", fontWeight:700, color:"#e4e4e4", margin:"0 0 12px" }}>Order Status</h1>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"8px" }}>
             {order.orderDate && (
               <span style={{ display:"inline-flex", alignItems:"center", gap:"6px", padding:"5px 12px", background:"#1f1f1f", border:"1px solid #2d2d2d", borderRadius:"99px", fontSize:"13px", color:"#a0a0a0" }}>
                 <span style={{ color:"#dc2626", fontWeight:600 }}>Order Date</span> {formatDateOnly(order.orderDate)}
@@ -170,7 +247,7 @@ export default function PublicTrackingPage() {
       </div>
 
       {/* ── Tab bar ── */}
-      <div style={{ display:"flex", gap:"4px", padding:"6px", background:"#1a1a1a", borderRadius:"8px", marginBottom:"28px", width:"fit-content" }}>
+      <div className="tracking-tabs">
         <button onClick={() => setActiveTab("overview")} style={tabStyle("overview")}>Overview</button>
         <button onClick={() => setActiveTab("files")}    style={tabStyle("files")}>Your Files</button>
         {hasTimeline && (
@@ -185,8 +262,8 @@ export default function PublicTrackingPage() {
         <>
           {/* Customer info */}
           <div style={cardStyle}>
-            <h2 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 20px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Customer Information</h2>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"20px 40px" }}>
+            <h2 style={{ fontSize:"14px", fontWeight:600, color:"#e4e4e4", margin:"0 0 18px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Customer Information</h2>
+            <div className="info-grid-2">
               {infoBlock("Company",         order.accountName)}
               {infoBlock("Contact Name",    order.account?.contactName)}
               {infoBlock("Email",           order.account?.email)}
@@ -199,8 +276,8 @@ export default function PublicTrackingPage() {
           {/* Shipping info */}
           {showShipping && (
             <div style={cardStyle}>
-              <h2 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 20px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Shipping Information</h2>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"20px 40px" }}>
+              <h2 style={{ fontSize:"14px", fontWeight:600, color:"#e4e4e4", margin:"0 0 18px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Shipping Information</h2>
+              <div className="info-grid-2">
                 {order.etaDate          && infoBlock("ETA",                      formatDateOnly(order.etaDate))}
                 {order.onsiteInstallationDate !== undefined && infoBlock("Onsite Installation Date", order.onsiteInstallationDate ? formatDateOnly(order.onsiteInstallationDate) : "TBD")}
                 {order.shippingCarrier  && infoBlock("Carrier",  order.shippingCarrier)}
@@ -211,25 +288,26 @@ export default function PublicTrackingPage() {
 
           {/* Items */}
           <div>
-            <h2 style={{ fontSize:"20px", fontWeight:600, color:"#e4e4e4", margin:"0 0 16px" }}>Order Items & Progress</h2>
+            <h2 style={{ fontSize:"18px", fontWeight:600, color:"#e4e4e4", margin:"0 0 14px" }}>Order Items & Progress</h2>
             {(!order.items || order.items.length === 0) ? (
               <div style={{ ...cardStyle, textAlign:"center" }}>
                 <p style={{ color:"#dc2626", marginBottom:"8px" }}>No items found in this order</p>
                 <p style={{ color:"#a0a0a0", fontSize:"14px" }}>Please contact support if you believe this is an error.</p>
               </div>
             ) : (
-              <div style={{ display:"grid", gap:"20px" }}>
+              <div style={{ display:"grid", gap:"16px" }}>
                 {order.items.map((item) => {
                   const stage = item.currentStage || order.currentStage || "MANUFACTURING";
                   const stageIdx = Math.max(0, STAGES.indexOf(stage));
                   const done = stage === "FOLLOW_UP";
                   return (
                     <div key={item.id} style={cardStyle}>
+
                       {/* Item header */}
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px" }}>
+                      <div className="item-header-row">
                         <div>
-                          <div style={{ fontSize:"20px", fontWeight:600, color:"#e4e4e4", marginBottom:"8px" }}>{item.productCode || "Unknown Item"}</div>
-                          <div style={{ display:"flex", flexWrap:"wrap", gap:"8px" }}>
+                          <div style={{ fontSize:"19px", fontWeight:600, color:"#e4e4e4", marginBottom:"8px" }}>{item.productCode || "Unknown Item"}</div>
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
                             {[
                               ["Qty",     item.qty || 1],
                               ["Serial",  item.serialNumber],
@@ -248,15 +326,15 @@ export default function PublicTrackingPage() {
                             </div>
                           )}
                         </div>
-                        <div style={{ textAlign:"right", flexShrink:0, marginLeft:"16px" }}>
-                          <div style={{ fontSize:"15px", fontWeight:600, color: done ? "#10b981" : "#dc2626" }}>{STAGE_LABELS[stage] || stage}</div>
+                        <div style={{ textAlign:"right", flexShrink:0 }}>
+                          <div style={{ fontSize:"14px", fontWeight:600, color: done ? "#10b981" : "#dc2626" }}>{STAGE_LABELS[stage] || stage}</div>
                           <div style={{ fontSize:"12px", color:"#6b7280", marginTop:"4px" }}>Stage {stageIdx + 1} of {STAGES.length}</div>
                         </div>
                       </div>
 
-                      {/* Stage pills */}
-                      <div style={{ overflowX:"auto", marginBottom:"14px" }}>
-                        <div style={{ display:"grid", gridTemplateColumns:`repeat(${STAGES.length}, minmax(100px, 1fr))`, gap:"5px", minWidth:"100%" }}>
+                      {/* Stage pills — horizontally scrollable, never breaks page layout */}
+                      <div className="stage-pills-scroll">
+                        <div className="stage-pills-grid">
                           {STAGES.map((s, i) => {
                             const isCur  = stage === s;
                             const isPast = i < stageIdx;
@@ -313,11 +391,11 @@ export default function PublicTrackingPage() {
             <>
               {/* Photos */}
               {customerFiles.photos?.length > 0 && (
-                <div style={{ marginBottom:"32px" }}>
-                  <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 14px", display:"flex", alignItems:"center", gap:"8px" }}>
+                <div style={{ marginBottom:"28px" }}>
+                  <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
                     📷 Photos <span style={{ fontSize:"13px", color:"#6b7280", fontWeight:400 }}>({customerFiles.photos.length})</span>
                   </h3>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))", gap:"12px" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:"10px" }}>
                     {customerFiles.photos.map((f) => (
                       <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
                         style={{ display:"block", borderRadius:"8px", overflow:"hidden", border:"1px solid #404040", aspectRatio:"1", background:"#2d2d2d" }}>
@@ -330,11 +408,11 @@ export default function PublicTrackingPage() {
 
               {/* Videos */}
               {customerFiles.videos?.length > 0 && (
-                <div style={{ marginBottom:"32px" }}>
-                  <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 14px", display:"flex", alignItems:"center", gap:"8px" }}>
+                <div style={{ marginBottom:"28px" }}>
+                  <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
                     🎬 Videos <span style={{ fontSize:"13px", color:"#6b7280", fontWeight:400 }}>({customerFiles.videos.length})</span>
                   </h3>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:"16px" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:"14px" }}>
                     {customerFiles.videos.map((f) => (
                       <div key={f.id} style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"8px", overflow:"hidden" }}>
                         <video controls style={{ width:"100%", display:"block" }}>
@@ -352,16 +430,16 @@ export default function PublicTrackingPage() {
 
               {/* Manuals + Documents */}
               {([...(customerFiles.manuals||[]), ...(customerFiles.documents||[])].length > 0) && (
-                <div style={{ marginBottom:"32px" }}>
-                  <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 14px", display:"flex", alignItems:"center", gap:"8px" }}>
+                <div style={{ marginBottom:"28px" }}>
+                  <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
                     📄 Documents & Manuals
                     <span style={{ fontSize:"13px", color:"#6b7280", fontWeight:400 }}>({(customerFiles.manuals?.length||0)+(customerFiles.documents?.length||0)})</span>
                   </h3>
                   <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
                     {[...(customerFiles.manuals||[]), ...(customerFiles.documents||[])].map((f) => (
                       <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display:"flex", alignItems:"center", gap:"14px", padding:"14px 18px", background:"#2d2d2d", border:"1px solid #404040", borderRadius:"8px", textDecoration:"none", color:"inherit" }}>
-                        <span style={{ fontSize:"24px", flexShrink:0 }}>📄</span>
+                        style={{ display:"flex", alignItems:"center", gap:"12px", padding:"14px 16px", background:"#2d2d2d", border:"1px solid #404040", borderRadius:"8px", textDecoration:"none", color:"inherit" }}>
+                        <span style={{ fontSize:"22px", flexShrink:0 }}>📄</span>
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontWeight:500, color:"#e4e4e4", fontSize:"15px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.fileName}</div>
                           {f.description && <div style={{ fontSize:"13px", color:"#a0a0a0", marginTop:"2px" }}>{f.description}</div>}
@@ -388,12 +466,12 @@ export default function PublicTrackingPage() {
               <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px" }}>{item.productCode || "Item"}</h3>
               <div style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"10px", overflow:"hidden" }}>
                 {item.statusEvents.map((ev, i) => (
-                  <div key={ev.id || i} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"14px 18px", borderBottom: i < item.statusEvents.length-1 ? "1px solid #333" : "none" }}>
+                  <div key={ev.id || i} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"14px 16px", borderBottom: i < item.statusEvents.length-1 ? "1px solid #333" : "none", gap:"12px" }}>
                     <div>
                       <div style={{ fontWeight:600, color:"#dc2626", fontSize:"14px" }}>{STAGE_LABELS[ev.stage] || ev.stage}</div>
                       {ev.note && <div style={{ color:"#a0a0a0", fontSize:"13px", marginTop:"3px" }}>{ev.note}</div>}
                     </div>
-                    <div style={{ color:"#6b7280", fontSize:"12px", whiteSpace:"nowrap", marginLeft:"16px" }}>{formatDate(ev.createdAt)}</div>
+                    <div style={{ color:"#6b7280", fontSize:"12px", whiteSpace:"nowrap", flexShrink:0 }}>{formatDate(ev.createdAt)}</div>
                   </div>
                 ))}
               </div>
@@ -405,12 +483,12 @@ export default function PublicTrackingPage() {
               <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px" }}>Order Events</h3>
               <div style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"10px", overflow:"hidden" }}>
                 {order.statusEvents.map((ev, i) => (
-                  <div key={ev.id || i} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"14px 18px", borderBottom: i < order.statusEvents.length-1 ? "1px solid #333" : "none" }}>
+                  <div key={ev.id || i} style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", padding:"14px 16px", borderBottom: i < order.statusEvents.length-1 ? "1px solid #333" : "none", gap:"12px" }}>
                     <div>
                       <div style={{ fontWeight:600, color:"#dc2626", fontSize:"14px" }}>{STAGE_LABELS[ev.stage] || ev.stage}</div>
                       {ev.note && <div style={{ color:"#a0a0a0", fontSize:"13px", marginTop:"3px" }}>{ev.note}</div>}
                     </div>
-                    <div style={{ color:"#6b7280", fontSize:"12px", whiteSpace:"nowrap", marginLeft:"16px" }}>{formatDate(ev.createdAt)}</div>
+                    <div style={{ color:"#6b7280", fontSize:"12px", whiteSpace:"nowrap", flexShrink:0 }}>{formatDate(ev.createdAt)}</div>
                   </div>
                 ))}
               </div>
