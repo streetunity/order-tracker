@@ -172,6 +172,39 @@ export default function InvoiceDetailPage({ params }) {
     finally { setSaving(false); }
   }
 
+  /**
+   * Open the Record Payment modal.
+   *
+   * When called without an argument (from the header or summary panel),
+   * auto-selects the next PENDING schedule item and pre-fills the exact
+   * dollar amount so staff never need to calculate or look it up manually.
+   *
+   * When called with a specific schedule item (from the schedule table row),
+   * uses that item directly.
+   */
+  function openPaymentModal(scheduleItem = null) {
+    if (scheduleItem) {
+      // Specific schedule row clicked
+      setSelectedScheduleItem(scheduleItem);
+      setPaymentAmount(scheduleItem.amount.toFixed(2));
+    } else {
+      // Generic button — auto-select next pending schedule item
+      const nextPending = invoice?.paymentSchedule?.find(item => item.status === 'PENDING');
+      if (nextPending) {
+        setSelectedScheduleItem(nextPending);
+        setPaymentAmount(nextPending.amount.toFixed(2));
+      } else {
+        // No schedule or all items paid — fall back to full balance
+        setSelectedScheduleItem(null);
+        setPaymentAmount((invoice?.balanceDue || 0).toFixed(2));
+      }
+    }
+    setPaymentMethod("CHECK");
+    setPaymentReference("");
+    setPaymentNotes("");
+    setShowPaymentModal(true);
+  }
+
   function showConfirm(title, message, onConfirm) { setConfirmConfig({ title, message, onConfirm }); setShowConfirmModal(true); }
   function confirmVoidInvoice()   { showConfirm("Void Invoice",   "Are you sure you want to void this invoice? This cannot be undone.",           () => voidInvoice()); }
   function confirmDeleteInvoice() { showConfirm("Delete Invoice", "Are you sure you want to delete this invoice? This action cannot be undone.", () => deleteInvoice()); }
@@ -366,6 +399,9 @@ export default function InvoiceDetailPage({ params }) {
   const statusColor = STATUS_COLORS[invoice.status] || STATUS_COLORS.DRAFT;
   const canPay = invoice.balanceDue > 0 && invoice.status !== 'VOID';
 
+  // Derive which schedule item is next — shown in the modal hint
+  const nextPendingScheduleItem = invoice.paymentSchedule?.find(item => item.status === 'PENDING');
+
   return (
     <>
       <InvoicingNav />
@@ -393,7 +429,7 @@ export default function InvoiceDetailPage({ params }) {
                 </button>
                 <button onClick={() => { setEmailTo(invoice?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
                 {canPay && (
-                  <button onClick={() => { setPaymentAmount(invoice.balanceDue.toString()); setShowPaymentModal(true); }} style={{ padding: "8px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, color: "#f59e0b", cursor: "pointer", fontSize: 14, fontWeight: 500 }}>Record Payment</button>
+                  <button onClick={() => openPaymentModal()} style={{ padding: "8px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, color: "#f59e0b", cursor: "pointer", fontSize: 14, fontWeight: 500 }}>Record Payment</button>
                 )}
                 {invoice.status !== 'VOID' && invoice.amountPaid === 0 && (
                   <button onClick={confirmVoidInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(107,114,128,0.1)", border: "1px solid rgba(107,114,128,0.3)", borderRadius: 8, color: "#6b7280", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Void</button>
@@ -475,14 +511,14 @@ export default function InvoiceDetailPage({ params }) {
                             {item.description}
                             {item.dueDate && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Due: {formatDate(item.dueDate)}</div>}
                           </td>
-                          <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{formatCurrency(item.amount)}</td>
+                          <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: 600, color: "rgba(255,255,255,0.9)", fontSize: 15 }}>{formatCurrency(item.amount)}</td>
                           <td style={{ padding: "12px 8px", textAlign: "center" }}>
                             <span style={{ padding: "4px 10px", background: item.status === 'PAID' ? "rgba(34,197,94,0.1)" : "rgba(245,158,11,0.1)", border: `1px solid ${item.status === 'PAID' ? "rgba(34,197,94,0.3)" : "rgba(245,158,11,0.3)"}`, borderRadius: 6, color: item.status === 'PAID' ? "#22c55e" : "#f59e0b", fontSize: 12 }}>{item.status}</span>
                           </td>
                           <td style={{ padding: "12px 8px", textAlign: "center" }}>
                             {item.status !== 'PAID' && (
                               <button
-                                onClick={() => { setSelectedScheduleItem(item); setPaymentAmount(item.amount.toString()); setShowPaymentModal(true); }}
+                                onClick={() => openPaymentModal(item)}
                                 style={{ padding: "4px 10px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 6, color: "#f59e0b", cursor: "pointer", fontSize: 12 }}
                               >
                                 Record Payment
@@ -566,10 +602,12 @@ export default function InvoiceDetailPage({ params }) {
                 </div>
                 {canPay && (
                   <button
-                    onClick={() => { setPaymentAmount(invoice.balanceDue.toString()); setShowPaymentModal(true); }}
+                    onClick={() => openPaymentModal()}
                     style={{ marginTop: 16, width: "100%", padding: "11px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", cursor: "pointer", fontSize: 14, fontWeight: 700 }}
                   >
-                    Record Payment
+                    {nextPendingScheduleItem
+                      ? `Record ${nextPendingScheduleItem.description} \u2014 ${formatCurrency(nextPendingScheduleItem.amount)}`
+                      : "Record Payment"}
                   </button>
                 )}
               </div>
@@ -627,20 +665,30 @@ export default function InvoiceDetailPage({ params }) {
         </div>
       )}
 
-      {/* ── Record Manual Payment Modal ── */}
+      {/* ── Record Payment Modal ── */}
       {showPaymentModal && (
         <div className="modal-overlay" onClick={() => { setShowPaymentModal(false); setSelectedScheduleItem(null); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2>Record Payment</h2>
+
+            {/* Show which schedule item this is for */}
             {selectedScheduleItem && (
-              <div style={{ padding: "12px 16px", marginBottom: 16, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8 }}>
-                <div style={{ fontSize: 13, color: "#3b82f6" }}>Recording payment for: <strong>{selectedScheduleItem.description}</strong></div>
+              <div style={{ padding: "12px 16px", marginBottom: 16, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>Applying to schedule item</div>
+                <div style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{selectedScheduleItem.description}</div>
+                <div style={{ fontSize: 13, color: "#f59e0b", marginTop: 2 }}>Expected: {formatCurrency(selectedScheduleItem.amount)}</div>
               </div>
             )}
-            <div className="modal-form-group"><label>Amount *</label><input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" step="0.01" min="0.01" /><span className="modal-hint">Balance due: {formatCurrency(invoice.balanceDue)}</span></div>
+
+            <div className="modal-form-group">
+              <label>Amount *</label>
+              <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" step="0.01" min="0.01" />
+              <span className="modal-hint">Balance due: {formatCurrency(invoice.balanceDue)}</span>
+            </div>
             <div className="modal-form-group"><label>Payment Method *</label><select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="CHECK">Check</option><option value="WIRE">Wire Transfer</option><option value="CASH">Cash</option><option value="OTHER">Other</option></select></div>
             <div className="modal-form-group"><label>{paymentMethod === "CHECK" ? "Check Number" : paymentMethod === "WIRE" ? "Wire Reference" : "Reference Number"}</label><input type="text" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Optional" /></div>
             <div className="modal-form-group"><label>Notes</label><textarea value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Optional notes..." rows={3} /></div>
+
             {error && <div className="modal-error">{error}</div>}
             <div className="modal-actions">
               <button className="modal-btn cancel" onClick={() => { setShowPaymentModal(false); setSelectedScheduleItem(null); setError(""); }}>Cancel</button>

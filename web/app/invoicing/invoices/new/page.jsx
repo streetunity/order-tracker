@@ -37,7 +37,8 @@ function NewInvoiceContent() {
   const [customerSearch,       setCustomerSearch]       = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [paymentTerms,         setPaymentTerms]         = useState("NET30");
-  const [paymentScheduleType,  setPaymentScheduleType]  = useState("NONE");
+  // Default to 50/40/10 — the standard schedule for SMT's custom manufacturing sales
+  const [paymentScheduleType,  setPaymentScheduleType]  = useState("50_40_10");
   const [items,                setItems]                = useState([]);
   const [taxRate,              setTaxRate]              = useState(0);
   const [localTaxRate,         setLocalTaxRate]         = useState(6.7);
@@ -277,7 +278,7 @@ function NewInvoiceContent() {
                   <div>
                     <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Payment Schedule</label>
                     <select value={paymentScheduleType} onChange={(e) => setPaymentScheduleType(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-                      <option value="NONE">Full Payment</option>
+                      <option value="NONE">Full Payment (no schedule)</option>
                       <option value="DEPOSIT_BALANCE">50% Deposit / 50% Balance</option>
                       <option value="50_40_10">50% Deposit / 40% Progress / 10% Final</option>
                     </select>
@@ -368,23 +369,12 @@ function NewInvoiceContent() {
                             transition: "opacity 0.15s, background 0.1s",
                           }}
                         >
-                          {/* Drag grip */}
                           <td
                             onMouseDown={() => { dragFromHandleRef.current = true; }}
                             onMouseUp={()   => { dragFromHandleRef.current = false; }}
                             onMouseEnter={() => setHoveredGripIndex(index)}
                             onMouseLeave={() => setHoveredGripIndex(null)}
-                            style={{
-                              padding: "8px 4px",
-                              verticalAlign: "middle",
-                              cursor: "grab",
-                              userSelect: "none",
-                              textAlign: "center",
-                              width: 32,
-                              background: gripHovered ? "rgba(255,255,255,0.06)" : "transparent",
-                              borderRadius: 4,
-                              transition: "background 0.1s",
-                            }}
+                            style={{ padding: "8px 4px", verticalAlign: "middle", cursor: "grab", userSelect: "none", textAlign: "center", width: 32, background: gripHovered ? "rgba(255,255,255,0.06)" : "transparent", borderRadius: 4, transition: "background 0.1s" }}
                           >
                             <GripIcon color={gripHovered ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.55)"} />
                           </td>
@@ -398,7 +388,7 @@ function NewInvoiceContent() {
                             <input type="text" value={item.name} onChange={(e) => updateItem(index, "name", e.target.value)} placeholder="Item name" style={{ ...inp, padding: "6px 10px" }} required draggable={false} />
                             {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{item.sku}</div>}
                             {item.fromBundleName && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>From: {item.fromBundleName}</div>}
-                            {item.description && !expandedItems[index] && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 60 ? item.description.substring(0, 60) + "…" : item.description}</div>}
+                            {item.description && !expandedItems[index] && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2, fontStyle: "italic" }}>{item.description.length > 60 ? item.description.substring(0, 60) + "\u2026" : item.description}</div>}
                           </td>
 
                           <td style={{ padding: "12px 8px", textAlign: "center", verticalAlign: "top" }}>
@@ -415,7 +405,7 @@ function NewInvoiceContent() {
 
                           <td style={{ padding: "12px 4px", textAlign: "center", verticalAlign: "top" }}>
                             <button type="button" onClick={() => removeItem(index)} draggable={false}
-                              style={{ background: "transparent", border: "none", color: "rgba(220,38,38,0.7)", cursor: "pointer", fontSize: 18, padding: "2px", lineHeight: 1 }}>×</button>
+                              style={{ background: "transparent", border: "none", color: "rgba(220,38,38,0.7)", cursor: "pointer", fontSize: 18, padding: "2px", lineHeight: 1 }}>\u00d7</button>
                           </td>
                         </tr>
 
@@ -437,7 +427,7 @@ function NewInvoiceContent() {
                                 </div>
                                 <div>
                                   <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Description</label>
-                                  <textarea value={item.description || ""} onChange={(e) => updateItem(index, "description", e.target.value)} style={{ ...inp, padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical" }} placeholder="Item description…" />
+                                  <textarea value={item.description || ""} onChange={(e) => updateItem(index, "description", e.target.value)} style={{ ...inp, padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical" }} placeholder="Item description\u2026" />
                                 </div>
                                 <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
                                   <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>
@@ -470,8 +460,8 @@ function NewInvoiceContent() {
                 <div>
                   <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Tax</label>
                   <select value={String(taxRate)} onChange={(e) => setTaxRate(parseFloat(e.target.value))} style={{ ...inp, cursor: "pointer" }}>
-                    <option value="0">Out of State — 0%</option>
-                    <option value={String(localTaxRate)}>Pinal County Sales Tax (Local) — {localTaxRate}%</option>
+                    <option value="0">Out of State \u2014 0%</option>
+                    <option value={String(localTaxRate)}>Pinal County Sales Tax (Local) \u2014 {localTaxRate}%</option>
                   </select>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -506,17 +496,36 @@ function NewInvoiceContent() {
                   <span style={{ fontWeight: 700, color: "#dc2626", fontSize: 20 }}>{fmt(total)}</span>
                 </div>
               </div>
-              {paymentScheduleType !== "NONE" && (
-                <div style={{ marginTop: 20, padding: 12, background: "rgba(59,130,246,0.08)", borderRadius: 8, border: "1px solid rgba(59,130,246,0.15)" }}>
-                  <div style={{ fontSize: 12, color: "#60a5fa", fontWeight: 500, marginBottom: 8 }}>Payment Schedule Preview</div>
+
+              {/* Payment schedule preview — always show for the default 50/40/10 */}
+              {paymentScheduleType !== "NONE" && total > 0 && (
+                <div style={{ marginTop: 20, padding: 16, background: "rgba(220,38,38,0.06)", borderRadius: 10, border: "1px solid rgba(220,38,38,0.2)" }}>
+                  <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Payment Schedule</div>
                   {paymentScheduleType === "DEPOSIT_BALANCE" && (
-                    <><div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 4 }}><span>Deposit (50%)</span><span>{fmt(total * 0.5)}</span></div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.7)" }}><span>Balance (50%)</span><span>{fmt(total * 0.5)}</span></div></>
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
+                        <span>Deposit (50%)</span><span style={{ fontWeight: 600 }}>{fmt(total * 0.5)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.8)" }}>
+                        <span>Balance (50%)</span><span style={{ fontWeight: 600 }}>{fmt(total * 0.5)}</span>
+                      </div>
+                    </>
                   )}
                   {paymentScheduleType === "50_40_10" && (
-                    <><div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 4 }}><span>Deposit (50%)</span><span>{fmt(total * 0.5)}</span></div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 4 }}><span>Progress (40%)</span><span>{fmt(total * 0.4)}</span></div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "rgba(255,255,255,0.7)" }}><span>Final (10%)</span><span>{fmt(total * 0.1)}</span></div></>
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
+                        <span>Deposit (50%)</span><span style={{ fontWeight: 600, color: "#f59e0b" }}>{fmt(total * 0.5)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
+                        <span>Progress Payment (40%)</span><span style={{ fontWeight: 600 }}>{fmt(total * 0.4)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "rgba(255,255,255,0.8)" }}>
+                        <span>Final Payment (10%)</span><span style={{ fontWeight: 600 }}>{fmt(total * 0.1)}</span>
+                      </div>
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                        Deposit triggers order creation. Progress payment due at shipping. Final payment due at delivery.
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -527,12 +536,12 @@ function NewInvoiceContent() {
           <div style={sec}>
             <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Notes</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Customer Notes (visible to customer)</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Any notes for the customer…" /></div>
-              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Internal Notes (not visible to customer)</label><textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical", background: "rgba(234,179,8,0.05)" }} placeholder="Internal notes…" /></div>
+              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Customer Notes (visible to customer)</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Any notes for the customer\u2026" /></div>
+              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Internal Notes (not visible to customer)</label><textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical", background: "rgba(234,179,8,0.05)" }} placeholder="Internal notes\u2026" /></div>
             </div>
             <div style={{ marginTop: 16 }}>
               <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Terms & Conditions</label>
-              <textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Payment terms, warranty info, etc…" />
+              <textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Payment terms, warranty info, etc\u2026" />
             </div>
           </div>
 
@@ -540,7 +549,7 @@ function NewInvoiceContent() {
             <Link href="/invoicing/invoices" style={{ padding: "12px 24px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", textDecoration: "none", fontSize: 14 }}>Cancel</Link>
             <button type="submit" disabled={saving}
               style={{ padding: "12px 24px", background: saving ? "rgba(220,38,38,0.5)" : "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>
-              {saving ? "Creating…" : "Create Invoice"}
+              {saving ? "Creating\u2026" : "Create Invoice"}
             </button>
           </div>
         </form>
