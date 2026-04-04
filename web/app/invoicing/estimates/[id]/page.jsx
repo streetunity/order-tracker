@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -178,7 +178,8 @@ export default function EstimateDetailPage({ params }) {
     try {
       const res = await fetch(`/api/estimates/${id}/bundles`, { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ bundleId: bundle.id, quantity: 1 }) });
       if (!res.ok) throw new Error("Failed to add bundle");
-      setEstimate((await res.json()).estimate);
+      const data = await res.json();
+      setEstimate(data.estimate);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); setProductSearch(""); setShowProductDropdown(false); }
   }
@@ -623,8 +624,9 @@ export default function EstimateDetailPage({ params }) {
                     const isDropTarget = dragOverIndex === itemIndex && dragIndex !== itemIndex;
                     const gripHovered  = hoveredGripIndex === itemIndex;
                     return (
-                      <>
-                        <tr key={item.id} draggable={editMode}
+                      <Fragment key={item.id}>
+                        <tr
+                          draggable={editMode}
                           onDragStart={editMode ? (e) => handleDragStart(e, itemIndex) : undefined}
                           onDragOver={editMode  ? (e) => handleDragOver(e, itemIndex)  : undefined}
                           onDrop={editMode      ? (e) => handleDrop(e, itemIndex)      : undefined}
@@ -655,7 +657,7 @@ export default function EstimateDetailPage({ params }) {
                           {editMode && <td style={{ padding: "14px 8px", textAlign: "center", verticalAlign: "top" }}><button onClick={() => confirmDeleteItem(item.id)} disabled={saving} style={{ background: "transparent", border: "none", color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 18, padding: 4 }}>&times;</button></td>}
                         </tr>
                         {expandedItems[item.id] && (
-                          <tr key={`${item.id}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                             {editMode && <td></td>}
                             <td></td>
                             <td colSpan={editMode ? 5 : 4} style={{ padding: "0 8px 16px 8px" }}>
@@ -687,7 +689,7 @@ export default function EstimateDetailPage({ params }) {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>

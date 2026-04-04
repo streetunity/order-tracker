@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef, Fragment } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnsavedChanges } from "@/contexts/UnsavedChangesContext";
@@ -234,22 +234,35 @@ function NewEstimateContent() {
   function selectCustomer(c) { setCustomerId(c.id); setSelectedCustomer(c); setCustomerSearch(""); setShowCustomerDropdown(false); }
 
   function addProduct(product) {
-    setItems([...items, { tempId: Date.now(), productId: product.id, name: product.name, description: product.description, sku: product.sku, quantity: 1, unitPrice: product.price, unitCost: product.cost, taxable: product.taxable }]);
+    setItems([...items, { tempId: Date.now() + Math.random(), productId: product.id, name: product.name, description: product.description, sku: product.sku, quantity: 1, unitPrice: product.price, unitCost: product.cost, taxable: product.taxable }]);
     setProductSearch(""); setShowProductDropdown(false);
   }
 
   function addBundle(bundle) {
     if (bundle.items?.length > 0) {
       const bTotal = bundle.items.reduce((s, bi) => s + bi.product.price * bi.quantity, 0);
-      setItems([...items, ...bundle.items.map(bi => {
+      const newBundleItems = bundle.items.map((bi, i) => {
         const ratio = bTotal > 0 ? (bi.product.price * bi.quantity) / bTotal : 0;
-        return { tempId: Date.now() + Math.random(), productId: bi.productId, name: bi.product.name, description: bi.product.description, sku: bi.product.sku, quantity: bi.quantity, unitPrice: (bundle.price * ratio) / bi.quantity, unitCost: bi.product.cost, taxable: bi.product.taxable, fromBundleId: bundle.id, fromBundleName: bundle.name };
-      })]);
+        return {
+          tempId: `bundle-${bundle.id}-${i}-${Date.now()}`,
+          productId: bi.productId,
+          name: bi.product.name,
+          description: bi.product.description,
+          sku: bi.product.sku,
+          quantity: bi.quantity,
+          unitPrice: (bundle.price * ratio) / bi.quantity,
+          unitCost: bi.product.cost,
+          taxable: bi.product.taxable,
+          fromBundleId: bundle.id,
+          fromBundleName: bundle.name
+        };
+      });
+      setItems(prev => [...prev, ...newBundleItems]);
     }
     setProductSearch(""); setShowProductDropdown(false);
   }
 
-  function addCustomItem() { setItems([...items, { tempId: Date.now(), name: "Custom Item", description: "", quantity: 1, unitPrice: 0, taxable: true }]); }
+  function addCustomItem() { setItems([...items, { tempId: `custom-${Date.now()}`, name: "Custom Item", description: "", quantity: 1, unitPrice: 0, taxable: true }]); }
   function updateItem(index, field, value) { const n = [...items]; n[index] = { ...n[index], [field]: value }; setItems(n); }
   function removeItem(index) { setItems(items.filter((_, i) => i !== index)); }
 
@@ -419,9 +432,8 @@ function NewEstimateContent() {
                     const isDropTarget = dragOverIndex === index && dragIndex !== index;
                     const gripHovered  = hoveredGripIndex === index;
                     return (
-                      <>
+                      <Fragment key={item.tempId ?? index}>
                         <tr
-                          key={item.tempId || index}
                           draggable={true}
                           onDragStart={(e) => handleDragStart(e, index)}
                           onDragOver={(e)  => handleDragOver(e, index)}
@@ -488,7 +500,7 @@ function NewEstimateContent() {
                         </tr>
 
                         {expandedItems[index] && (
-                          <tr key={`${item.tempId || index}-details`} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                             <td></td>
                             <td></td>
                             <td colSpan={5} style={{ padding: "0 8px 16px 8px" }}>
@@ -520,7 +532,7 @@ function NewEstimateContent() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
