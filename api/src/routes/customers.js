@@ -7,6 +7,50 @@ import { sendEmail } from '../services/emailService.js';
 export function createCustomersRouter(prisma) {
   const router = express.Router();
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Account sync helper
+  //
+  // Whenever a Customer is updated in the invoicing system, push the relevant
+  // contact fields to the linked Account in the order tracker so both sides
+  // stay current.
+  //
+  // Rules:
+  //   - Only runs if customer.accountId is set (i.e. an order already exists).
+  //     Leads and pre-sale customers have no Account and are never touched here.
+  //   - Fire-and-forget: syncs after the response is sent; failures are logged
+  //     but never bubble up to the caller.
+  //   - Shipping address is preferred; billing address used as fallback.
+  // ─────────────────────────────────────────────────────────────────────────────
+  async function syncCustomerToAccount(customer) {
+    if (!customer.accountId) return;
+    try {
+      const streetLine = customer.shippingAddress || customer.billingAddress || null;
+      const city       = customer.shippingCity    || customer.billingCity    || null;
+      const state      = customer.shippingState   || customer.billingState   || null;
+      const zip        = customer.shippingZipCode || customer.billingZipCode || null;
+
+      const cityStateZip = [city, state, zip].filter(Boolean).join(', ');
+      const fullAddress  = streetLine
+        ? (cityStateZip ? `${streetLine}, ${cityStateZip}` : streetLine)
+        : null;
+
+      await prisma.account.update({
+        where: { id: customer.accountId },
+        data: {
+          name:        customer.companyName || customer.company || `${customer.firstName} ${customer.lastName}`,
+          contactName: `${customer.firstName} ${customer.lastName}`.trim(),
+          email:       customer.email   ?? undefined,
+          phone:       customer.phone   ?? undefined,
+          address:     fullAddress      ?? undefined,
+        },
+      });
+      console.log(`[CUSTOMER_SYNC] Customer ${customer.customerNumber} → Account ${customer.accountId} synced`);
+    } catch (err) {
+      // Never block the response — just log so we can investigate if needed
+      console.error('[CUSTOMER_SYNC] Failed to sync to Account:', err.message);
+    }
+  }
+
   // GET /customers/search/autocomplete
   router.get('/search/autocomplete', async (req, res) => {
     try {
@@ -78,7 +122,7 @@ export function createCustomersRouter(prisma) {
           account: true, lead: true,
           contacts: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] },
           estimates: { where: { isDeleted: false }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, estimateNumber: true, status: true, total: true, createdAt: true } },
-          invoices: { where: { isDeleted: false }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, invoiceNumber: true, status: true, total: true, balanceDue: true, createdAt: true } },
+          invoices:  { where: { isDeleted: false }, orderBy: { createdAt: 'desc' }, take: 10, select: { id: true, invoiceNumber: true, status: true, total: true, balanceDue: true, createdAt: true } },
           activities: { orderBy: { createdAt: 'desc' }, take: 20 },
           _count: { select: { estimates: true, invoices: true, payments: true, contacts: true } }
         }
@@ -106,8 +150,8 @@ export function createCustomersRouter(prisma) {
           company: company || companyName, companyName: companyName || company,
           billingAddress, billingCity, billingState, billingZipCode, billingCountry: billingCountry || 'USA',
           shippingAddress: sameAsBilling ? billingAddress : shippingAddress,
-          shippingCity: sameAsBilling ? billingCity : shippingCity,
-          shippingState: sameAsBilling ? billingState : shippingState,
+          shippingCity:    sameAsBilling ? billingCity    : shippingCity,
+          shippingState:   sameAsBilling ? billingState   : shippingState,
           shippingZipCode: sameAsBilling ? billingZipCode : shippingZipCode,
           shippingCountry: sameAsBilling ? (billingCountry || 'USA') : shippingCountry,
           sameAsBilling: sameAsBilling ?? true, shippingSameAsBilling: sameAsBilling ?? true,
@@ -123,6 +167,9 @@ export function createCustomersRouter(prisma) {
       if (leadId) {
         await prisma.lead.update({ where: { id: leadId }, data: { status: 'CONVERTED', convertedToCustomerId: customer.id, convertedAt: new Date() } });
       }
+      // No Account sync on creation — the Account is only created later when
+      // a deposit triggers order auto-creation. New customers don't flood the
+      // order tracker until they actually place an order.
       res.status(201).json(customer);
     } catch (error) {
       console.error('POST /customers error:', error);
@@ -130,13 +177,21 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // PUT /customers/:id
+  // PUT /customers/:id — full update
   router.put('/:id', requireInvoicingPermission('EDIT_CUSTOMER'), async (req, res) => {
     try {
       const existing = await prisma.customer.findUnique({ where: { id: req.params.id } });
       if (!existing) return res.status(404).json({ error: 'Customer not found' });
       if (req.user.role === 'AGENT' && existing.assignedToId !== req.user.id) return res.status(403).json({ error: 'Access denied' });
-      const { firstName, lastName, email, phone, company, companyName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, sameAsBilling, taxExempt, taxExemptId, creditLimit, paymentTerms, assignedToId, status, notes, internalNotes, tags } = req.body;
+
+      const {
+        firstName, lastName, email, phone, company, companyName,
+        billingAddress, billingCity, billingState, billingZipCode, billingCountry,
+        shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry,
+        sameAsBilling, taxExempt, taxExemptId, creditLimit, paymentTerms,
+        assignedToId, status, notes, internalNotes, tags
+      } = req.body;
+
       const updated = await prisma.customer.update({
         where: { id: req.params.id },
         data: {
@@ -144,8 +199,8 @@ export function createCustomersRouter(prisma) {
           company: company || companyName, companyName: companyName || company,
           billingAddress, billingCity, billingState, billingZipCode, billingCountry,
           shippingAddress: sameAsBilling ? billingAddress : shippingAddress,
-          shippingCity: sameAsBilling ? billingCity : shippingCity,
-          shippingState: sameAsBilling ? billingState : shippingState,
+          shippingCity:    sameAsBilling ? billingCity    : shippingCity,
+          shippingState:   sameAsBilling ? billingState   : shippingState,
           shippingZipCode: sameAsBilling ? billingZipCode : shippingZipCode,
           shippingCountry: sameAsBilling ? billingCountry : shippingCountry,
           sameAsBilling, shippingSameAsBilling: sameAsBilling,
@@ -157,6 +212,10 @@ export function createCustomersRouter(prisma) {
         },
         include: { assignedTo: { select: { id: true, name: true, email: true } }, account: true, contacts: true }
       });
+
+      // Sync to the order tracker Account silently in the background
+      setImmediate(() => syncCustomerToAccount(updated));
+
       res.json(updated);
     } catch (error) {
       console.error('PUT /customers/:id error:', error);
@@ -164,24 +223,41 @@ export function createCustomersRouter(prisma) {
     }
   });
 
-  // PATCH /customers/:id
+  // PATCH /customers/:id — partial update
   router.patch('/:id', requireInvoicingPermission('EDIT_CUSTOMER'), async (req, res) => {
     try {
       const existing = await prisma.customer.findUnique({ where: { id: req.params.id } });
       if (!existing) return res.status(404).json({ error: 'Customer not found' });
       if (req.user.role === 'AGENT' && existing.assignedToId !== req.user.id) return res.status(403).json({ error: 'Access denied' });
-      const allowedFields = ['firstName','lastName','email','phone','company','companyName','billingAddress','billingCity','billingState','billingZipCode','billingCountry','shippingAddress','shippingCity','shippingState','shippingZipCode','shippingCountry','sameAsBilling','shippingSameAsBilling','taxExempt','taxExemptId','creditLimit','paymentTerms','defaultPaymentTerms','status','notes','internalNotes','tags','assignedToId','portalEnabled'];
+
+      const allowedFields = [
+        'firstName','lastName','email','phone','company','companyName',
+        'billingAddress','billingCity','billingState','billingZipCode','billingCountry',
+        'shippingAddress','shippingCity','shippingState','shippingZipCode','shippingCountry',
+        'sameAsBilling','shippingSameAsBilling','taxExempt','taxExemptId','creditLimit',
+        'paymentTerms','defaultPaymentTerms','status','notes','internalNotes','tags',
+        'assignedToId','portalEnabled'
+      ];
       const updateData = {};
-      for (const field of allowedFields) { if (req.body[field] !== undefined) updateData[field] = req.body[field]; }
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) updateData[field] = req.body[field];
+      }
       if (updateData.creditLimit !== undefined) updateData.creditLimit = updateData.creditLimit ? parseFloat(updateData.creditLimit) : null;
       if (updateData.tags !== undefined) updateData.tags = updateData.tags ? JSON.stringify(updateData.tags) : null;
       if (updateData.paymentTerms !== undefined) updateData.defaultPaymentTerms = updateData.paymentTerms;
       if (updateData.sameAsBilling !== undefined) updateData.shippingSameAsBilling = updateData.sameAsBilling;
       if (updateData.company !== undefined && !updateData.companyName) updateData.companyName = updateData.company;
+
       const updated = await prisma.customer.update({
         where: { id: req.params.id }, data: updateData,
         include: { assignedTo: { select: { id: true, name: true, email: true } }, contacts: true }
       });
+
+      // Sync to the order tracker Account silently in the background.
+      // PATCH doesn't include the full address/name in the response object,
+      // so we merge the update onto the existing record for the sync.
+      setImmediate(() => syncCustomerToAccount({ ...existing, ...updated }));
+
       res.json(updated);
     } catch (error) {
       console.error('PATCH /customers/:id error:', error);
@@ -388,10 +464,10 @@ export function createCustomersRouter(prisma) {
       const activities = await prisma.customerActivityLog.findMany({
         where: { customerId: id },
         include: {
-          lead: { select: { id: true, firstName: true, lastName: true, company: true } },
+          lead:     { select: { id: true, firstName: true, lastName: true, company: true } },
           estimate: { select: { id: true, estimateNumber: true } },
-          invoice: { select: { id: true, invoiceNumber: true } },
-          payment: { select: { id: true, paymentNumber: true, amount: true } }
+          invoice:  { select: { id: true, invoiceNumber: true } },
+          payment:  { select: { id: true, paymentNumber: true, amount: true } }
         },
         orderBy: { createdAt: 'desc' },
         take: parseInt(limit), skip: parseInt(offset)
