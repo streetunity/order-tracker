@@ -77,12 +77,10 @@ const HOST = '0.0.0.0'; // Listen on all interfaces for AWS
 // =============================
 const allowedOrigins = [];
 
-// Add CORS_ORIGIN if specified
 if (process.env.CORS_ORIGIN) {
   allowedOrigins.push(...process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()));
 }
 
-// Add domain-based origins for smt-orders.com
 allowedOrigins.push(
   'https://smt-orders.com',
   'http://smt-orders.com',
@@ -90,7 +88,6 @@ allowedOrigins.push(
   'http://www.smt-orders.com'
 );
 
-// Add SERVER_IP origins if specified
 if (process.env.SERVER_IP && process.env.SERVER_IP !== 'undefined') {
   allowedOrigins.push(
     `http://${process.env.SERVER_IP}:3000`,
@@ -99,22 +96,16 @@ if (process.env.SERVER_IP && process.env.SERVER_IP !== 'undefined') {
   );
 }
 
-// Always add localhost for development
 allowedOrigins.push('http://localhost:3000', 'http://localhost:4000');
-
-// Add the known AWS IP as a fallback
 allowedOrigins.push('http://50.19.66.100:3000', 'http://50.19.66.100:4000');
 
-// Remove duplicates
 const uniqueOrigins = [...new Set(allowedOrigins)];
 
 console.log('CORS Allowed Origins:', uniqueOrigins);
 
 app.use(cors({ 
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
-    
     if (uniqueOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -129,33 +120,11 @@ app.use(cors({
 }));
 
 // =============================
-// Stripe Webhook (needs raw body - BEFORE express.json())
-// =============================
-import { verifyWebhookSignature, handleWebhookEvent } from './services/stripeService.js';
-
-app.post('/payments/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const signature = req.headers['stripe-signature'];
-
-  try {
-    const event = verifyWebhookSignature(req.body, signature);
-    const result = await handleWebhookEvent(event, prisma);
-
-    console.log('Stripe webhook processed:', result);
-    res.json({ received: true, ...result });
-  } catch (error) {
-    console.error('Stripe webhook error:', error.message);
-    res.status(400).json({ error: error.message });
-  }
-});
-console.log('✅ Stripe webhook endpoint loaded');
-
-// =============================
 // Global Middleware
 // =============================
 app.use(express.json());
 app.use(cookieParser());
 
-// Request logging for debugging
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`, {
     hasAuth: !!req.headers.authorization || !!req.headers['x-auth-token'],
@@ -167,7 +136,6 @@ app.use((req, res, next) => {
 // =============================
 // Make commission functions available globally
 // =============================
-// These are used by orders and items routes
 global.calculateCommissionForOrder = calculateCommissionForOrder;
 global.recalculateCommissionIfPriceChanged = recalculateCommissionIfPriceChanged;
 global.checkCommissionPayoutTrigger = checkCommissionPayoutTrigger;
@@ -223,7 +191,6 @@ const invoicingSettingsRouter = createInvoicingSettingsRouter(prisma);
 // Mount Routes
 // =============================
 
-// Health check (no auth)
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -232,17 +199,17 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Public routes (no auth, rate limited)
+// Public routes (no auth)
 app.use('/public', publicRouter);
 app.use('/public', publicCustomerDocumentsRouter);
 app.use('/public', publicInvoicingRouter);
-app.use('/signatures', signaturesRouter); // Public - for e-signature capture
-app.use('/portal', customerPortalRouter); // Public - token-based customer portal
+app.use('/signatures', signaturesRouter);
+app.use('/portal', customerPortalRouter);
 console.log('✅ Public customer documents routes loaded');
-console.log('✅ Public invoicing routes loaded (estimate viewing, email tracking)');
+console.log('✅ Public invoicing routes loaded (estimate viewing, email tracking, NexNP payments)');
 console.log('✅ Signatures and customer portal routes loaded');
 
-// Local PDF serving for development (when S3 is not configured)
+// Local PDF serving for development
 app.get('/pdfs/:filename', (req, res) => {
   const pdfDir = new URL('../uploads/pdfs', import.meta.url).pathname;
   const pdfPath = `${pdfDir}/${req.params.filename}`;
@@ -257,15 +224,11 @@ app.get('/pdfs/:filename', (req, res) => {
 });
 console.log('✅ Local PDF serving route loaded (development)');
 
-// Authentication routes - mixed auth requirements
+// Authentication routes
 app.use('/auth', (req, res, next) => {
-  // Apply authGuard only to specific routes
   if (req.path === '/me' || req.path === '/logout' || req.path === '/change-password') {
-    return authGuard(req, res, () => {
-      authRouter(req, res, next);
-    });
+    return authGuard(req, res, () => { authRouter(req, res, next); });
   }
-  // Other auth routes don't need authentication (login, check)
   authRouter(req, res, next);
 });
 
@@ -279,20 +242,12 @@ console.log('✅ Reports modules loaded');
 app.use('/settings', adminGuard, settingsRouter);
 console.log('✅ Settings API loaded');
 
-// Sales reps endpoint (auth required - needed for order creation dropdowns by ALL users including agents)
-// IMPORTANT: This must be registered BEFORE the adminGuard-protected /users routes
+// Sales reps endpoint — BEFORE adminGuard /users routes
 app.get('/users/sales-reps', authGuard, async (req, res) => {
   try {
     const salesReps = await prisma.user.findMany({
-      where: {
-        isActive: true,
-        showInSalesRepDropdown: true
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true
-      },
+      where: { isActive: true, showInSalesRepDropdown: true },
+      select: { id: true, name: true, email: true },
       orderBy: { name: 'asc' }
     });
     res.json(salesReps);
@@ -301,31 +256,16 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
-console.log('✅ Sales reps endpoint loaded (accessible by all authenticated users)');
+console.log('✅ Sales reps endpoint loaded');
 
-// User search endpoint (auth required - for @mention autocomplete)
-// IMPORTANT: Must be registered BEFORE the adminGuard-protected /users routes
+// User search endpoint — BEFORE adminGuard /users routes
 app.get('/users/search', authGuard, async (req, res) => {
   try {
     const { q } = req.query;
-
-    if (!q || q.length < 1) {
-      return res.json([]);
-    }
-
+    if (!q || q.length < 1) return res.json([]);
     const users = await prisma.user.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { name: { contains: q } },
-          { email: { contains: q } }
-        ]
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true
-      },
+      where: { isActive: true, OR: [{ name: { contains: q } }, { email: { contains: q } }] },
+      select: { id: true, name: true, email: true },
       orderBy: { name: 'asc' },
       take: 10
     });
@@ -335,26 +275,18 @@ app.get('/users/search', authGuard, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
-console.log('✅ User search endpoint loaded (for @mention autocomplete)');
+console.log('✅ User search endpoint loaded');
 
-// User management (admin only) - all other user routes
+// User management (admin only)
 app.use('/users', adminGuard, usersRouter);
 
-// Manufacturer active list (auth required - needed for order creation dropdowns)
-// Register this BEFORE the main manufacturers route so it matches first
+// Manufacturer active list — BEFORE adminGuard /manufacturers
 app.get('/manufacturers/active', authGuard, async (req, res, next) => {
   try {
     const manufacturers = await prisma.manufacturer.findMany({
-      where: {
-        isActive: true
-      },
-      select: {
-        id: true,
-        name: true
-      },
-      orderBy: {
-        name: 'asc'
-      }
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }
     });
     res.json(manufacturers);
   } catch (error) {
@@ -363,31 +295,17 @@ app.get('/manufacturers/active', authGuard, async (req, res, next) => {
   }
 });
 
-// Manufacturer management (admin only) - adminGuard includes auth checking
 app.use('/manufacturers', adminGuard, manufacturersRouter);
 console.log('✅ Manufacturers API loaded');
 
-// Account management (auth required, manufacturers blocked)
 app.use('/accounts', authGuard, nonManufacturerGuard, accountsRouter);
-
-// Order management (auth required - manufacturers get filtered access)
 app.use('/orders', authGuard, ordersRouter);
-
-// Item management - routes are nested under orders (manufacturers get filtered access)
 app.use('/orders', authGuard, itemsRouter);
-
-// Measurement endpoints (manufacturers can update measurements)
 app.use('/orders', authGuard, measurementsRouter);
-
-// Stage management (manufacturers get filtered access)
 app.use('/orders', authGuard, stagesRouter);
-
-// Lock/unlock functionality (manufacturers blocked)
 app.use('/orders', authGuard, locksRouter);
 
-// Audit logs (manufacturers blocked)
-// CRITICAL: auditSearchRouter and auditBackfillRouter MUST be mounted BEFORE auditRouter
-// because auditRouter has a /:entityId catch-all that would swallow /search and /search-raw
+// Audit logs — specific routes BEFORE catch-all
 app.use('/audit', authGuard, nonManufacturerGuard, auditSearchRouter);
 app.use('/audit', authGuard, nonManufacturerGuard, auditBackfillRouter);
 app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
@@ -395,39 +313,27 @@ app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditSearchRout
 app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditBackfillRouter);
 app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
-// Notifications API (auth required, role-filtered)
 app.use('/notifications', authGuard, notificationsRouter);
 console.log('✅ Notifications API loaded');
 
-// Commission management (auth required, role-based access)
-// CRITICAL: Mount more specific routes BEFORE general routes!
+// Commission — specific routes BEFORE general
 app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
 app.use('/commissions', authGuard, commissionsRouter);
 console.log('✅ Commission module loaded');
 
-// Broker portal (auth required, broker role only)
-// Note: Using /customs instead of /broker to avoid ad blocker interference
 app.use('/customs', brokerRouter);
-
-// Shipments (shared shipping documents across orders)
-// Auth is handled inside the router
 app.use('/shipments', shipmentsRouter);
 console.log('✅ Shipments API loaded');
 
-// Document uploads (S3)
-// NOTE: Nginx strips /api/ prefix before forwarding to backend
-// So mount at root - routes in these files start with /items/ and /orders/
 app.use(documentsRouter);
 app.use(itemDocumentsRouter);
 console.log('✅ Document upload routes loaded');
 
-// Customer documents (large file multipart uploads)
-// Auth is handled inside the router
 app.use('/customer-documents', customerDocumentsRouter);
 console.log('✅ Customer documents routes loaded');
 
-// Invoicing system routes (isolated namespace)
+// Invoicing system
 app.use('/leads', authGuard, leadsRouter);
 app.use('/customers', authGuard, customersRouter);
 app.use('/estimates', authGuard, estimatesRouter);
@@ -439,17 +345,15 @@ app.use('/bundles', authGuard, bundlesRouter);
 app.use('/estimate-templates', authGuard, estimateTemplatesRouter);
 app.use('/payments', authGuard, paymentsRouter);
 app.use('/invoicing-reports', authGuard, invoicingReportsRouter);
-app.use('/invoicing-settings', invoicingSettingsRouter); // adminGuard is inside the router
+app.use('/invoicing-settings', invoicingSettingsRouter);
 app.use('/comments', commentsRouter);
 app.use('/reminders', remindersRouter);
-console.log('✅ Invoicing system routes loaded (includes payments, reports, settings, comments, reminders)');
+console.log('✅ Invoicing system routes loaded');
 
-// Email template settings (admin only)
 app.use('/email-templates', authGuard, emailTemplateSettingsRouter);
 console.log('✅ Email template settings routes loaded');
 
-// Zapier webhook routes (public endpoints for incoming webhooks, admin endpoints for management)
-app.use('/zapier', zapierWebhookRouter); // lead/:key endpoints are public, webhooks management uses authGuard inline
+app.use('/zapier', zapierWebhookRouter);
 console.log('✅ Zapier webhook routes loaded');
 
 // =============================
@@ -477,14 +381,10 @@ app.use((req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`API server running at http://${HOST}:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`\nDefault credentials (change in production!):`);
-  console.log(`Admin: admin@stealthmachinetools.com / admin123`);
-  console.log(`Agent: john@stealthmachinetools.com / agent123`);
   console.log('\n✅ All modules loaded successfully');
   console.log('📊 Database:', process.env.DATABASE_URL ? 'Connected' : 'Using default');
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
   app.close(() => {
