@@ -91,8 +91,12 @@ export async function sendInvoice(prisma, { invoiceId, userId, toEmail, ccEmails
 }
 
 // ── Send Estimate ─────────────────────────────────────────────────────────────
+//
+// extraAttachments: array of { filename, content: Buffer, contentType } objects
+// collected by estimatePdf.js from ProductAttachment records where
+// includeInEstimate = true. These are appended after the PDF.
 
-export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmails, customMessage, pdfBuffer }) {
+export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmails, customMessage, pdfBuffer, extraAttachments = [] }) {
   const estimate = await prisma.estimate.findUnique({
     where: { id: estimateId },
     include: {
@@ -113,7 +117,7 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
   const viewEstimateUrl = `${FRONTEND_URL}/estimates/view/${estimate.id}`;
 
   console.log(`[ESTIMATE EMAIL] ${estimate.estimateNumber} → ${recipientEmail}`);
-  console.log(`[ESTIMATE EMAIL] url=${viewEstimateUrl} | logo=${company.logoUrl || 'none'} | msg="${customMessage || '(none)'}" | PDF=${pdfBuffer ? `${pdfBuffer.length}b` : 'none'}`);
+  console.log(`[ESTIMATE EMAIL] url=${viewEstimateUrl} | logo=${company.logoUrl || 'none'} | msg="${customMessage || '(none)'}" | PDF=${pdfBuffer ? `${pdfBuffer.length}b` : 'none'} | extra=${extraAttachments.length}`);
 
   const html = getEstimateEmailTemplate({
     customerFirstName: estimate.customer.firstName || estimate.customer.contactName || 'Customer',
@@ -135,10 +139,22 @@ export async function sendEstimate(prisma, { estimateId, userId, toEmail, ccEmai
   const fromName  = salesRep?.fromName || salesRep?.name || company.companyName;
   const replyTo   = salesRep?.email || VERIFIED_SENDER;
 
+  // Build attachments: estimate PDF first, then product files in order
   const attachments = [];
   if (pdfBuffer && Buffer.isBuffer(pdfBuffer) && pdfBuffer.length > 0) {
-    attachments.push({ filename: `Estimate-${estimate.estimateNumber}.pdf`, content: Buffer.from(pdfBuffer), contentType: 'application/pdf' });
+    attachments.push({
+      filename:    `Estimate-${estimate.estimateNumber}.pdf`,
+      content:     Buffer.from(pdfBuffer),
+      contentType: 'application/pdf'
+    });
   }
+  for (const att of extraAttachments) {
+    if (att?.content && Buffer.isBuffer(att.content) && att.content.length > 0) {
+      attachments.push(att);
+    }
+  }
+
+  console.log(`[ESTIMATE EMAIL] Sending with ${attachments.length} total attachment(s)`);
 
   const result = attachments.length > 0
     ? await emailService.sendEmailWithAttachment({ to: recipientEmail, from: fromEmail, fromName, replyTo, subject, html, attachments })

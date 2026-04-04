@@ -1,7 +1,27 @@
 import express from 'express';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { requireInvoicingPermission } from '../middleware/invoicingAuth.js';
 import { generateEstimatePDF, uploadPDFToS3, getPDFSignedUrl } from '../services/pdfService.js';
 import { sendEstimate } from '../services/invoiceEmailService.js';
+
+const s3 = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const BUCKET = process.env.S3_DOCUMENTS_BUCKET;
+
+/**
+ * Download a single S3 object into a Buffer.
+ * Returns null on any error so we never block the email send.
+ */
+async function downloadFromS3(key) {
+  try {
+    const resp = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+    const chunks = [];
+    for await (const chunk of resp.Body) chunks.push(chunk);
+    return Buffer.concat(chunks);
+  } catch (err) {
+    console.error(`[ESTIMATE SEND] S3 download failed for ${key}:`, err.message);
+    return null;
+  }
+}
 
 export function createEstimatePdfRouter(prisma) {
   const router = express.Router();
@@ -80,7 +100,7 @@ export function createEstimatePdfRouter(prisma) {
       if (!recipientEmail)
         return res.status(400).json({ error: 'Recipient email is required. The customer may not have an email address on file.' });
 
-      // ── Always generate a fresh PDF and capture the buffer so it can be attached ──
+      // ── 1. Generate a fresh PDF ───────────────────────────────────────────────
       let pdfBuffer = null;
       try {
         const companySettings = await prisma.invoicingSettings.findFirst();
@@ -99,20 +119,72 @@ export function createEstimatePdfRouter(prisma) {
           where: { id: estimate.id },
           data: { pdfS3Key: s3Key, pdfGeneratedAt: new Date() }
         });
-        console.log(`[ESTIMATE SEND] PDF generated and uploaded for ${estimate.estimateNumber}`);
+        console.log(`[ESTIMATE SEND] PDF generated for ${estimate.estimateNumber}`);
       } catch (pdfError) {
-        console.error('[ESTIMATE SEND] PDF generation error (email will still be sent without attachment):', pdfError.message);
+        console.error('[ESTIMATE SEND] PDF generation failed (email will send without it):', pdfError.message);
         pdfBuffer = null;
       }
 
-      // Send email — pass pdfBuffer so it's included as an attachment
+      // ── 2. Collect product attachments flagged for estimates ──────────────────
+      //
+      // Walk every item on the estimate, collect its productId, then fetch all
+      // ProductAttachment rows with includeInEstimate = true for those products.
+      // Download each file from S3 and bundle them alongside the PDF.
+      //
+      // Failures are logged but never block the send — the customer always gets
+      // the email even if an individual attachment can't be retrieved.
+      const extraAttachments = [];
+
+      try {
+        const estimateWithItems = await prisma.estimate.findUnique({
+          where: { id: estimate.id },
+          select: { items: { select: { productId: true, name: true } } }
+        });
+
+        const productIds = [
+          ...new Set(
+            (estimateWithItems?.items || [])
+              .map(i => i.productId)
+              .filter(Boolean)
+          )
+        ];
+
+        if (productIds.length > 0) {
+          const attachmentRecords = await prisma.productAttachment.findMany({
+            where: {
+              productId: { in: productIds },
+              includeInEstimate: true
+            },
+            orderBy: { sortOrder: 'asc' }
+          });
+
+          console.log(`[ESTIMATE SEND] ${attachmentRecords.length} product attachment(s) flagged for inclusion`);
+
+          for (const att of attachmentRecords) {
+            const buffer = await downloadFromS3(att.s3Key);
+            if (buffer) {
+              extraAttachments.push({
+                filename:    att.filename,
+                content:     buffer,
+                contentType: att.mimeType
+              });
+              console.log(`[ESTIMATE SEND]   + ${att.filename} (${(buffer.length / 1024).toFixed(1)} KB)`);
+            }
+          }
+        }
+      } catch (attachErr) {
+        console.error('[ESTIMATE SEND] Product attachment collection failed (email will send without them):', attachErr.message);
+      }
+
+      // ── 3. Send the email ─────────────────────────────────────────────────────
       const result = await sendEstimate(prisma, {
-        estimateId:    estimate.id,
-        userId:        req.user.id,
-        toEmail:       recipientEmail,
+        estimateId:       estimate.id,
+        userId:           req.user.id,
+        toEmail:          recipientEmail,
         ccEmails,
         customMessage,
-        pdfBuffer,       // ← key fix: buffer is now forwarded
+        pdfBuffer,
+        extraAttachments,   // product files
       });
 
       if (!result.success) {
@@ -127,10 +199,11 @@ export function createEstimatePdfRouter(prisma) {
         include: { customer: true, items: { orderBy: { sortOrder: 'asc' } } }
       });
 
+      const totalAttachments = (pdfBuffer ? 1 : 0) + extraAttachments.length;
       res.json({
         estimate:    updatedEstimate,
         emailResult: result,
-        message:     `Estimate sent to ${recipientEmail}${pdfBuffer ? ' with PDF attachment' : ''}`
+        message:     `Estimate sent to ${recipientEmail} with ${totalAttachments} attachment(s)`
       });
     } catch (error) {
       console.error('POST /estimates/:id/send error:', error);
