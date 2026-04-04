@@ -42,12 +42,29 @@ export default function InvoiceDetailPage({ params }) {
   const [emailHistory,   setEmailHistory]   = useState([]);
   const [showEmailHistory, setShowEmailHistory] = useState(false);
 
+  // Manual payment state
   const [showPaymentModal,    setShowPaymentModal]    = useState(false);
   const [paymentAmount,       setPaymentAmount]       = useState("");
   const [paymentMethod,       setPaymentMethod]       = useState("CHECK");
   const [paymentReference,    setPaymentReference]    = useState("");
   const [paymentNotes,        setPaymentNotes]        = useState("");
   const [selectedScheduleItem,setSelectedScheduleItem]= useState(null);
+
+  // Pay Now (NexNP gateway) state
+  const [showPayNowModal,   setShowPayNowModal]   = useState(false);
+  const [payNowTab,         setPayNowTab]         = useState("card"); // "card" | "ach"
+  const [payNowAmount,      setPayNowAmount]      = useState("");
+  const [payNowScheduleItem,setPayNowScheduleItem]= useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  // Card fields
+  const [cardNumber,      setCardNumber]      = useState("");
+  const [cardExpiry,      setCardExpiry]      = useState("");
+  const [cardCVC,         setCardCVC]         = useState("");
+  const [cardZip,         setCardZip]         = useState("");
+  // ACH fields
+  const [achRouting,      setAchRouting]      = useState("");
+  const [achAccount,      setAchAccount]      = useState("");
+  const [achAccountType,  setAchAccountType]  = useState("checking");
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmConfig,    setConfirmConfig]    = useState({ title: "", message: "", onConfirm: null });
@@ -153,6 +170,92 @@ export default function InvoiceDetailPage({ params }) {
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   }
+
+  // ── NexNP Gateway ──────────────────────────────────────────────
+  function openPayNow(scheduleItem = null) {
+    setPayNowScheduleItem(scheduleItem);
+    setPayNowAmount(scheduleItem ? scheduleItem.amount.toString() : (invoice?.balanceDue?.toString() || ""));
+    setPayNowTab("card");
+    setCardNumber(""); setCardExpiry(""); setCardCVC(""); setCardZip("");
+    setAchRouting(""); setAchAccount(""); setAchAccountType("checking");
+    setError("");
+    setShowPayNowModal(true);
+  }
+
+  function formatCardNumber(val) {
+    return val.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
+  }
+
+  function formatExpiry(val) {
+    const digits = val.replace(/\D/g, "").slice(0, 4);
+    if (digits.length >= 3) return digits.slice(0, 2) + "/" + digits.slice(2);
+    return digits;
+  }
+
+  async function submitCardPayment() {
+    const amount = parseFloat(payNowAmount);
+    if (!amount || amount <= 0) { setError("Valid amount required"); return; }
+    const rawCard = cardNumber.replace(/\s/g, "");
+    if (rawCard.length < 15) { setError("Enter a valid card number"); return; }
+    if (!cardExpiry.match(/^\d{2}\/\d{2}$/)) { setError("Enter expiry as MM/YY"); return; }
+    if (cardCVC.length < 3) { setError("Enter a valid CVC"); return; }
+
+    setProcessingPayment(true); setError("");
+    try {
+      const res = await fetch("/api/payments/nextnp/charge-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          invoiceId: id,
+          scheduleItemId: payNowScheduleItem?.id || null,
+          amount,
+          cardNumber: rawCard,
+          expirationDate: cardExpiry,
+          cvc: cardCVC,
+          billingAddress: cardZip ? { zip: cardZip } : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Payment failed");
+      setInvoice(data.invoice);
+      setShowPayNowModal(false);
+      setSuccessMessage(`Card payment of ${formatCurrency(amount)} processed successfully! Transaction ID: ${data.transactionId}`);
+      setShowSuccessModal(true);
+    } catch (e) { setError(e.message); }
+    finally { setProcessingPayment(false); }
+  }
+
+  async function submitACHPayment() {
+    const amount = parseFloat(payNowAmount);
+    if (!amount || amount <= 0) { setError("Valid amount required"); return; }
+    if (!achRouting.match(/^\d{9}$/)) { setError("Enter a valid 9-digit routing number"); return; }
+    if (!achAccount || achAccount.length < 4) { setError("Enter a valid account number"); return; }
+
+    setProcessingPayment(true); setError("");
+    try {
+      const res = await fetch("/api/payments/nextnp/charge-ach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          invoiceId: id,
+          scheduleItemId: payNowScheduleItem?.id || null,
+          amount,
+          routingNumber: achRouting,
+          accountNumber: achAccount,
+          accountType: achAccountType,
+          secCode: "web",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "ACH payment failed");
+      setInvoice(data.invoice);
+      setShowPayNowModal(false);
+      setSuccessMessage(`ACH payment of ${formatCurrency(amount)} submitted successfully! Transaction ID: ${data.transactionId}`);
+      setShowSuccessModal(true);
+    } catch (e) { setError(e.message); }
+    finally { setProcessingPayment(false); }
+  }
+  // ───────────────────────────────────────────────────────────────
 
   function showConfirm(title, message, onConfirm) { setConfirmConfig({ title, message, onConfirm }); setShowConfirmModal(true); }
   function confirmVoidInvoice()   { showConfirm("Void Invoice",   "Are you sure you want to void this invoice? This cannot be undone.",              () => voidInvoice()); }
@@ -342,6 +445,12 @@ export default function InvoiceDetailPage({ params }) {
   );
 
   const statusColor = STATUS_COLORS[invoice.status] || STATUS_COLORS.DRAFT;
+  const canPay = invoice.balanceDue > 0 && invoice.status !== 'VOID';
+
+  // ── Pay Now modal styles ──────────────────────────────────────
+  const payNowInput = { padding: "10px 14px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "rgba(255,255,255,0.9)", fontSize: 14, width: "100%", boxSizing: "border-box", outline: "none" };
+  const payNowLabel = { display: "block", fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6, fontWeight: 500 };
+  const payNowField = { marginBottom: 14 };
 
   return (
     <>
@@ -365,7 +474,14 @@ export default function InvoiceDetailPage({ params }) {
                 {invoice.status === 'DRAFT' && <button onClick={() => updateStatus('SENT')} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#3b82f6,#2563eb)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Mark as Sent</button>}
                 <button onClick={generatingPDF ? null : (invoice?.pdfS3Key ? downloadPDF : generatePDF)} disabled={generatingPDF} style={{ padding: "8px 16px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 8, color: "#3b82f6", cursor: generatingPDF ? "not-allowed" : "pointer", fontSize: 14 }}>{generatingPDF ? "Generating..." : (invoice?.pdfS3Key ? "View PDF" : "Generate PDF")}</button>
                 <button onClick={() => { setEmailTo(invoice?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
-                {invoice.balanceDue > 0 && invoice.status !== 'VOID' && <button onClick={() => { setPaymentAmount(invoice.balanceDue.toString()); setShowPaymentModal(true); }} style={{ padding: "8px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, color: "#f59e0b", cursor: "pointer", fontSize: 14, fontWeight: 500 }}>Record Payment</button>}
+                {canPay && (
+                  <button onClick={() => openPayNow()} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+                    Pay Now
+                  </button>
+                )}
+                {canPay && (
+                  <button onClick={() => { setPaymentAmount(invoice.balanceDue.toString()); setShowPaymentModal(true); }} style={{ padding: "8px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, color: "#f59e0b", cursor: "pointer", fontSize: 14, fontWeight: 500 }}>Record Payment</button>
+                )}
                 {invoice.status !== 'VOID' && invoice.amountPaid === 0 && <button onClick={confirmVoidInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(107,114,128,0.1)", border: "1px solid rgba(107,114,128,0.3)", borderRadius: 8, color: "#6b7280", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Void</button>}
                 <button onClick={confirmDeleteInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Delete</button>
               </div>
@@ -449,7 +565,12 @@ export default function InvoiceDetailPage({ params }) {
                             <span style={{ padding: "4px 10px", background: item.status === 'PAID' ? "rgba(34,197,94,0.1)" : "rgba(245,158,11,0.1)", border: `1px solid ${item.status === 'PAID' ? "rgba(34,197,94,0.3)" : "rgba(245,158,11,0.3)"}`, borderRadius: 6, color: item.status === 'PAID' ? "#22c55e" : "#f59e0b", fontSize: 12 }}>{item.status}</span>
                           </td>
                           <td style={{ padding: "12px 8px", textAlign: "center" }}>
-                            {item.status !== 'PAID' && <button onClick={() => { setSelectedScheduleItem(item); setPaymentAmount(item.amount.toString()); setShowPaymentModal(true); }} style={{ padding: "4px 10px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 6, color: "#f59e0b", cursor: "pointer", fontSize: 12 }}>Pay</button>}
+                            {item.status !== 'PAID' && (
+                              <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                                <button onClick={() => openPayNow(item)} style={{ padding: "4px 10px", background: "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.4)", borderRadius: 6, color: "#dc2626", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Pay Now</button>
+                                <button onClick={() => { setSelectedScheduleItem(item); setPaymentAmount(item.amount.toString()); setShowPaymentModal(true); }} style={{ padding: "4px 10px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 6, color: "#f59e0b", cursor: "pointer", fontSize: 12 }}>Manual</button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -476,7 +597,7 @@ export default function InvoiceDetailPage({ params }) {
                         <tr key={payment.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                           <td style={{ padding: "12px 8px", color: "rgba(255,255,255,0.7)" }}>{formatDate(payment.paymentDate)}</td>
                           <td style={{ padding: "12px 8px", color: "rgba(255,255,255,0.9)" }}>{payment.paymentMethod}</td>
-                          <td style={{ padding: "12px 8px", color: "rgba(255,255,255,0.5)" }}>{payment.paymentNumber}{(payment.checkNumber || payment.wireReference || payment.referenceNumber) && <span style={{ marginLeft: 8 }}>({payment.checkNumber || payment.wireReference || payment.referenceNumber})</span>}</td>
+                          <td style={{ padding: "12px 8px", color: "rgba(255,255,255,0.5)" }}>{payment.paymentNumber}{(payment.checkNumber || payment.wireReference || payment.referenceNumber || payment.nextnpTransactionId) && <span style={{ marginLeft: 8, fontSize: 11, fontFamily: "monospace" }}>({payment.nextnpTransactionId || payment.checkNumber || payment.wireReference || payment.referenceNumber})</span>}</td>
                           <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: 600, color: "#22c55e" }}>{formatCurrency(payment.amount)}</td>
                         </tr>
                       ))}
@@ -521,6 +642,11 @@ export default function InvoiceDetailPage({ params }) {
                   {invoice.amountPaid > 0 && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#22c55e" }}>Paid:</span><span style={{ color: "#22c55e" }}>-{formatCurrency(invoice.amountPaid)}</span></div>}
                   <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.1)" }}><span style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)", fontSize: 16 }}>Balance Due:</span><span style={{ fontWeight: 700, color: invoice.balanceDue > 0 ? "#dc2626" : "#22c55e", fontSize: 18 }}>{formatCurrency(invoice.balanceDue)}</span></div>
                 </div>
+                {canPay && (
+                  <button onClick={() => openPayNow()} style={{ marginTop: 16, width: "100%", padding: "11px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>
+                    Pay Now
+                  </button>
+                )}
               </div>
 
               {invoice.estimate && (
@@ -557,6 +683,7 @@ export default function InvoiceDetailPage({ params }) {
         </div>
       </div>
 
+      {/* ── Send Modal ── */}
       {showSendModal && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -572,13 +699,15 @@ export default function InvoiceDetailPage({ params }) {
           </div>
         </div>
       )}
+
+      {/* ── Record Manual Payment Modal ── */}
       {showPaymentModal && (
         <div className="modal-overlay" onClick={() => { setShowPaymentModal(false); setSelectedScheduleItem(null); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2>Record Payment</h2>
             {selectedScheduleItem && <div style={{ padding: "12px 16px", marginBottom: 16, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8 }}><div style={{ fontSize: 13, color: "#3b82f6" }}>Recording payment for: <strong>{selectedScheduleItem.description}</strong></div></div>}
             <div className="modal-form-group"><label>Amount *</label><input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" step="0.01" min="0.01" /><span className="modal-hint">Balance due: {formatCurrency(invoice.balanceDue)}</span></div>
-            <div className="modal-form-group"><label>Payment Method *</label><select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="CHECK">Check</option><option value="WIRE">Wire Transfer</option><option value="CREDIT_CARD">Credit Card</option><option value="ACH">ACH</option><option value="CASH">Cash</option></select></div>
+            <div className="modal-form-group"><label>Payment Method *</label><select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}><option value="CHECK">Check</option><option value="WIRE">Wire Transfer</option><option value="CASH">Cash</option><option value="OTHER">Other</option></select></div>
             <div className="modal-form-group"><label>{paymentMethod === "CHECK" ? "Check Number" : paymentMethod === "WIRE" ? "Wire Reference" : "Reference Number"}</label><input type="text" value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Optional" /></div>
             <div className="modal-form-group"><label>Notes</label><textarea value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Optional notes..." rows={3} /></div>
             {error && <div className="modal-error">{error}</div>}
@@ -589,6 +718,165 @@ export default function InvoiceDetailPage({ params }) {
           </div>
         </div>
       )}
+
+      {/* ── Pay Now Modal (NexNP Gateway) ── */}
+      {showPayNowModal && (
+        <div className="modal-overlay" onClick={() => !processingPayment && setShowPayNowModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, width: "100%" }}>
+            <h2 style={{ marginBottom: 4 }}>Pay Now</h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", marginBottom: 20 }}>Processed securely via NexNP Gateway</p>
+
+            {payNowScheduleItem && (
+              <div style={{ padding: "10px 14px", marginBottom: 16, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 8, fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+                Payment for: <strong style={{ color: "#fff" }}>{payNowScheduleItem.description}</strong>
+              </div>
+            )}
+
+            {/* Amount */}
+            <div style={payNowField}>
+              <label style={payNowLabel}>Amount *</label>
+              <input
+                style={payNowInput}
+                type="number"
+                value={payNowAmount}
+                onChange={e => setPayNowAmount(e.target.value)}
+                step="0.01" min="0.01"
+                max={invoice.balanceDue}
+                disabled={processingPayment}
+              />
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 4 }}>Balance due: {formatCurrency(invoice.balanceDue)}</div>
+            </div>
+
+            {/* Tab switcher */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 20, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden" }}>
+              {[["card","Credit Card"],["ach","ACH / Bank"]].map(([tab, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => { setPayNowTab(tab); setError(""); }}
+                  disabled={processingPayment}
+                  style={{ flex: 1, padding: "10px", border: "none", background: payNowTab === tab ? "rgba(220,38,38,0.2)" : "transparent", color: payNowTab === tab ? "#fff" : "rgba(255,255,255,0.4)", fontWeight: payNowTab === tab ? 600 : 400, fontSize: 13, cursor: "pointer", borderBottom: payNowTab === tab ? "2px solid #dc2626" : "2px solid transparent", transition: "all 0.15s" }}
+                >{label}</button>
+              ))}
+            </div>
+
+            {/* Card fields */}
+            {payNowTab === "card" && (
+              <div>
+                <div style={payNowField}>
+                  <label style={payNowLabel}>Card Number *</label>
+                  <input
+                    style={{ ...payNowInput, letterSpacing: 2, fontFamily: "monospace" }}
+                    type="text" inputMode="numeric"
+                    value={cardNumber}
+                    onChange={e => setCardNumber(formatCardNumber(e.target.value))}
+                    placeholder="1234 5678 9012 3456"
+                    maxLength={19}
+                    disabled={processingPayment}
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <label style={payNowLabel}>Expiry *</label>
+                    <input
+                      style={{ ...payNowInput, fontFamily: "monospace" }}
+                      type="text" inputMode="numeric"
+                      value={cardExpiry}
+                      onChange={e => setCardExpiry(formatExpiry(e.target.value))}
+                      placeholder="MM/YY"
+                      maxLength={5}
+                      disabled={processingPayment}
+                    />
+                  </div>
+                  <div>
+                    <label style={payNowLabel}>CVC *</label>
+                    <input
+                      style={{ ...payNowInput, fontFamily: "monospace" }}
+                      type="text" inputMode="numeric"
+                      value={cardCVC}
+                      onChange={e => setCardCVC(e.target.value.replace(/\D/g,"").slice(0,4))}
+                      placeholder="123"
+                      maxLength={4}
+                      disabled={processingPayment}
+                    />
+                  </div>
+                  <div>
+                    <label style={payNowLabel}>ZIP</label>
+                    <input
+                      style={payNowInput}
+                      type="text" inputMode="numeric"
+                      value={cardZip}
+                      onChange={e => setCardZip(e.target.value.replace(/\D/g,"").slice(0,5))}
+                      placeholder="60601"
+                      maxLength={5}
+                      disabled={processingPayment}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ACH fields */}
+            {payNowTab === "ach" && (
+              <div>
+                <div style={payNowField}>
+                  <label style={payNowLabel}>Routing Number *</label>
+                  <input
+                    style={{ ...payNowInput, fontFamily: "monospace" }}
+                    type="text" inputMode="numeric"
+                    value={achRouting}
+                    onChange={e => setAchRouting(e.target.value.replace(/\D/g,"").slice(0,9))}
+                    placeholder="9-digit routing number"
+                    maxLength={9}
+                    disabled={processingPayment}
+                  />
+                </div>
+                <div style={payNowField}>
+                  <label style={payNowLabel}>Account Number *</label>
+                  <input
+                    style={{ ...payNowInput, fontFamily: "monospace" }}
+                    type="text" inputMode="numeric"
+                    value={achAccount}
+                    onChange={e => setAchAccount(e.target.value.replace(/\D/g,"").slice(0,17))}
+                    placeholder="Account number"
+                    disabled={processingPayment}
+                  />
+                </div>
+                <div style={payNowField}>
+                  <label style={payNowLabel}>Account Type *</label>
+                  <select
+                    style={{ ...payNowInput, cursor: "pointer" }}
+                    value={achAccountType}
+                    onChange={e => setAchAccountType(e.target.value)}
+                    disabled={processingPayment}
+                  >
+                    <option value="checking">Checking</option>
+                    <option value="savings">Savings</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div style={{ padding: "10px 14px", marginBottom: 14, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 13 }}>
+                {error}
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button className="modal-btn cancel" onClick={() => setShowPayNowModal(false)} disabled={processingPayment}>Cancel</button>
+              <button
+                onClick={payNowTab === "card" ? submitCardPayment : submitACHPayment}
+                disabled={processingPayment || !payNowAmount}
+                style={{ padding: "10px 24px", background: processingPayment ? "rgba(220,38,38,0.4)" : "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", cursor: processingPayment ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 700, minWidth: 140 }}
+              >
+                {processingPayment ? "Processing..." : `Pay ${payNowAmount ? formatCurrency(parseFloat(payNowAmount) || 0) : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Modal ── */}
       {showConfirmModal && (
         <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -601,6 +889,8 @@ export default function InvoiceDetailPage({ params }) {
           </div>
         </div>
       )}
+
+      {/* ── Success Modal ── */}
       {showSuccessModal && (
         <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
