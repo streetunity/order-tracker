@@ -1,21 +1,13 @@
-// api/src/index.js - MODULARIZED & CLEANED VERSION
+// api/src/index.js
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 
-// Import middleware
-import { authGuard, adminGuard, unlockGuard, optionalAuth, nonManufacturerGuard } from './middleware/auth.js';
+import { authGuard, adminGuard, nonManufacturerGuard } from './middleware/auth.js';
+import { calculateCommissionForOrder, recalculateCommissionIfPriceChanged, checkCommissionPayoutTrigger } from './helpers/commission.js';
 
-// Import commission helpers
-import { 
-  calculateCommissionForOrder, 
-  recalculateCommissionIfPriceChanged, 
-  checkCommissionPayoutTrigger 
-} from './helpers/commission.js';
-
-// Import route creators
 import { createReportsRouter } from './routes/reports.js';
 import createOperationalReportsRouter from './routes/reportsOperational.js';
 import createCycleTimeReportsRouter from './routes/reportsCycleTime.js';
@@ -43,9 +35,6 @@ import itemDocumentsRouter from './routes/itemDocuments.js';
 import customerDocumentsRouter from './routes/customerDocuments.js';
 import publicCustomerDocumentsRouter from './routes/publicCustomerDocuments.js';
 import shipmentsRouter from './routes/shipments.js';
-import { STAGE_THRESHOLDS } from './config/stageThresholds.js';
-
-// Invoicing system routes
 import { createLeadsRouter } from './routes/leads.js';
 import { createCustomersRouter } from './routes/customers.js';
 import { createEstimatesRouter } from './routes/estimates.js';
@@ -65,239 +54,185 @@ import { createCommentsRouter } from './routes/comments.js';
 import { createRemindersRouter } from './routes/reminders.js';
 import { createEmailTemplateSettingsRouter } from './routes/emailTemplateSettings.js';
 import createInvoicingSettingsRouter from './routes/invoicingSettings.js';
+import { createNextnpWebhookHandler } from './routes/nextnpWebhook.js';
 
 const prisma = new PrismaClient();
 const app = express();
 
 const PORT = process.env.PORT || 4000;
-const HOST = '0.0.0.0'; // Listen on all interfaces for AWS
+const HOST = '0.0.0.0';
 
-// =============================
-// CORS Configuration
-// =============================
-const allowedOrigins = [];
-
+// ── CORS ──────────────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  'https://smt-orders.com', 'http://smt-orders.com',
+  'https://www.smt-orders.com', 'http://www.smt-orders.com',
+  'http://localhost:3000', 'http://localhost:4000',
+  'http://50.19.66.100:3000', 'http://50.19.66.100:4000',
+];
 if (process.env.CORS_ORIGIN) {
-  allowedOrigins.push(...process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()));
+  allowedOrigins.push(...process.env.CORS_ORIGIN.split(',').map(o => o.trim()));
 }
-
-allowedOrigins.push(
-  'https://smt-orders.com',
-  'http://smt-orders.com',
-  'https://www.smt-orders.com',
-  'http://www.smt-orders.com'
-);
-
 if (process.env.SERVER_IP && process.env.SERVER_IP !== 'undefined') {
   allowedOrigins.push(
     `http://${process.env.SERVER_IP}:3000`,
     `http://${process.env.SERVER_IP}:4000`,
-    `http://${process.env.SERVER_IP}`
+    `http://${process.env.SERVER_IP}`,
   );
 }
-
-allowedOrigins.push('http://localhost:3000', 'http://localhost:4000');
-allowedOrigins.push('http://50.19.66.100:3000', 'http://50.19.66.100:4000');
-
 const uniqueOrigins = [...new Set(allowedOrigins)];
-
 console.log('CORS Allowed Origins:', uniqueOrigins);
 
-app.use(cors({ 
-  origin: function(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (uniqueOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+app.use(cors({
+  origin: (origin, cb) => (!origin || uniqueOrigins.includes(origin)) ? cb(null, true) : cb(new Error('Not allowed by CORS')),
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key', 'x-auth-token'],
   exposedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 }));
 
-// =============================
-// Global Middleware
-// =============================
+// ── NexNP WEBHOOK — must be BEFORE express.json() ────────────────────────────
+// express.raw() captures the raw Buffer needed for HMAC-SHA256 signature verification.
+// If express.json() ran first, req.body would already be a parsed object and
+// we couldn't reconstruct the exact bytes NexNP signed.
+app.post(
+  '/public/nextnp-webhook',
+  express.raw({ type: '*/*' }),
+  createNextnpWebhookHandler(prisma),
+);
+console.log('✅ NexNP webhook endpoint loaded (raw body, pre-json)');
+
+// ── Global middleware ─────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(cookieParser());
-
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`, {
     hasAuth: !!req.headers.authorization || !!req.headers['x-auth-token'],
-    origin: req.headers.origin
+    origin: req.headers.origin,
   });
   next();
 });
 
-// =============================
-// Make commission functions available globally
-// =============================
+// ── Commission helpers (global) ───────────────────────────────────────────────
 global.calculateCommissionForOrder = calculateCommissionForOrder;
 global.recalculateCommissionIfPriceChanged = recalculateCommissionIfPriceChanged;
 global.checkCommissionPayoutTrigger = checkCommissionPayoutTrigger;
 
-// =============================
-// Initialize Route Modules
-// =============================
-const reportsRouter = createReportsRouter(prisma);
+// ── Initialise routers ────────────────────────────────────────────────────────
+const reportsRouter            = createReportsRouter(prisma);
 const operationalReportsRouter = createOperationalReportsRouter(prisma);
-const cycleTimeReportsRouter = createCycleTimeReportsRouter(prisma);
-const settingsRouter = createSettingsRouter(prisma);
-const authRouter = createAuthRouter();
-const usersRouter = createUsersRouter();
-const accountsRouter = createAccountsRouter(prisma);
-const ordersRouter = createOrdersRouter(prisma);
-const itemsRouter = createItemsRouter();
-const measurementsRouter = createMeasurementsRouter();
-const stagesRouter = createStagesRouter();
-const locksRouter = createLocksRouter();
-const auditRouter = createAuditRouter();
-const auditSearchRouter = createAuditSearchRouter();
-const auditBackfillRouter = createAuditBackfillRouter();
-const publicRouter = createPublicRouter();
-const notificationsRouter = createNotificationsRouter(prisma);
-const manufacturersRouter = createManufacturersRouter(prisma);
-const commissionsRouter = createCommissionsRouter(prisma);
+const cycleTimeReportsRouter   = createCycleTimeReportsRouter(prisma);
+const settingsRouter           = createSettingsRouter(prisma);
+const authRouter               = createAuthRouter();
+const usersRouter              = createUsersRouter();
+const accountsRouter           = createAccountsRouter(prisma);
+const ordersRouter             = createOrdersRouter(prisma);
+const itemsRouter              = createItemsRouter();
+const measurementsRouter       = createMeasurementsRouter();
+const stagesRouter             = createStagesRouter();
+const locksRouter              = createLocksRouter();
+const auditRouter              = createAuditRouter();
+const auditSearchRouter        = createAuditSearchRouter();
+const auditBackfillRouter      = createAuditBackfillRouter();
+const publicRouter             = createPublicRouter();
+const notificationsRouter      = createNotificationsRouter(prisma);
+const manufacturersRouter      = createManufacturersRouter(prisma);
+const commissionsRouter        = createCommissionsRouter(prisma);
 const commissionSettingsRouter = createCommissionSettingsRouter(prisma);
-const commissionPayoutsRouter = createCommissionPayoutsRouter(prisma);
-const brokerRouter = createBrokerRouter();
-
-// Invoicing system routers
-const leadsRouter = createLeadsRouter(prisma);
-const customersRouter = createCustomersRouter(prisma);
-const estimatesRouter = createEstimatesRouter(prisma);
-const estimatePdfRouter = createEstimatePdfRouter(prisma);
-const invoicesRouter = createInvoicesRouter(prisma);
-const invoicePdfRouter = createInvoicePdfRouter(prisma);
-const zapierWebhookRouter = createZapierWebhookRouter(prisma);
-const productsRouter = createProductsRouter(prisma);
-const bundlesRouter = createBundlesRouter(prisma);
-const estimateTemplatesRouter = createEstimateTemplatesRouter(prisma);
-const publicInvoicingRouter = createPublicInvoicingRouter(prisma);
-const paymentsRouter = createPaymentsRouter(prisma);
-const signaturesRouter = createSignaturesRouter(prisma);
-const customerPortalRouter = createCustomerPortalRouter(prisma);
-const invoicingReportsRouter = createInvoicingReportsRouter(prisma);
-const commentsRouter = createCommentsRouter();
-const remindersRouter = createRemindersRouter();
+const commissionPayoutsRouter  = createCommissionPayoutsRouter(prisma);
+const brokerRouter             = createBrokerRouter();
+const leadsRouter              = createLeadsRouter(prisma);
+const customersRouter          = createCustomersRouter(prisma);
+const estimatesRouter          = createEstimatesRouter(prisma);
+const estimatePdfRouter        = createEstimatePdfRouter(prisma);
+const invoicesRouter           = createInvoicesRouter(prisma);
+const invoicePdfRouter         = createInvoicePdfRouter(prisma);
+const zapierWebhookRouter      = createZapierWebhookRouter(prisma);
+const productsRouter           = createProductsRouter(prisma);
+const bundlesRouter            = createBundlesRouter(prisma);
+const estimateTemplatesRouter  = createEstimateTemplatesRouter(prisma);
+const publicInvoicingRouter    = createPublicInvoicingRouter(prisma);
+const paymentsRouter           = createPaymentsRouter(prisma);
+const signaturesRouter         = createSignaturesRouter(prisma);
+const customerPortalRouter     = createCustomerPortalRouter(prisma);
+const invoicingReportsRouter   = createInvoicingReportsRouter(prisma);
+const commentsRouter           = createCommentsRouter();
+const remindersRouter          = createRemindersRouter();
 const emailTemplateSettingsRouter = createEmailTemplateSettingsRouter(prisma);
-const invoicingSettingsRouter = createInvoicingSettingsRouter(prisma);
+const invoicingSettingsRouter  = createInvoicingSettingsRouter(prisma);
 
-// =============================
-// Mount Routes
-// =============================
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
-// Public routes (no auth)
+// ── Public routes (no auth) ───────────────────────────────────────────────────
 app.use('/public', publicRouter);
 app.use('/public', publicCustomerDocumentsRouter);
 app.use('/public', publicInvoicingRouter);
 app.use('/signatures', signaturesRouter);
 app.use('/portal', customerPortalRouter);
-console.log('✅ Public customer documents routes loaded');
-console.log('✅ Public invoicing routes loaded (estimate viewing, email tracking, NexNP payments)');
-console.log('✅ Signatures and customer portal routes loaded');
+console.log('✅ Public routes loaded');
 
-// Local PDF serving for development
+// Local PDF serving (dev)
 app.get('/pdfs/:filename', (req, res) => {
-  const pdfDir = new URL('../uploads/pdfs', import.meta.url).pathname;
+  const pdfDir  = new URL('../uploads/pdfs', import.meta.url).pathname;
   const pdfPath = `${pdfDir}/${req.params.filename}`;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="${req.params.filename}"`);
-  res.sendFile(pdfPath, (err) => {
-    if (err) {
-      console.error('PDF serve error:', err);
-      res.status(404).json({ error: 'PDF not found' });
-    }
-  });
+  res.sendFile(pdfPath, err => err && res.status(404).json({ error: 'PDF not found' }));
 });
-console.log('✅ Local PDF serving route loaded (development)');
 
-// Authentication routes
+// ── Auth routes ───────────────────────────────────────────────────────────────
 app.use('/auth', (req, res, next) => {
-  if (req.path === '/me' || req.path === '/logout' || req.path === '/change-password') {
-    return authGuard(req, res, () => { authRouter(req, res, next); });
+  if (['/me', '/logout', '/change-password'].includes(req.path)) {
+    return authGuard(req, res, () => authRouter(req, res, next));
   }
   authRouter(req, res, next);
 });
 
-// Reports modules (auth required, manufacturers blocked)
+// ── Reports ───────────────────────────────────────────────────────────────────
 app.use('/reports', authGuard, nonManufacturerGuard, reportsRouter);
 app.use('/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
 app.use('/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
-console.log('✅ Reports modules loaded');
 
-// Settings API (admin only)
+// ── Settings ──────────────────────────────────────────────────────────────────
 app.use('/settings', adminGuard, settingsRouter);
-console.log('✅ Settings API loaded');
 
-// Sales reps endpoint — BEFORE adminGuard /users routes
+// ── Users (specific routes BEFORE adminGuard catch-all) ───────────────────────
 app.get('/users/sales-reps', authGuard, async (req, res) => {
   try {
-    const salesReps = await prisma.user.findMany({
+    res.json(await prisma.user.findMany({
       where: { isActive: true, showInSalesRepDropdown: true },
       select: { id: true, name: true, email: true },
-      orderBy: { name: 'asc' }
-    });
-    res.json(salesReps);
-  } catch (e) {
-    console.error('Error fetching sales reps:', e);
-    res.status(500).json({ error: e.message });
-  }
+      orderBy: { name: 'asc' },
+    }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
-console.log('✅ Sales reps endpoint loaded');
-
-// User search endpoint — BEFORE adminGuard /users routes
 app.get('/users/search', authGuard, async (req, res) => {
   try {
     const { q } = req.query;
     if (!q || q.length < 1) return res.json([]);
-    const users = await prisma.user.findMany({
+    res.json(await prisma.user.findMany({
       where: { isActive: true, OR: [{ name: { contains: q } }, { email: { contains: q } }] },
       select: { id: true, name: true, email: true },
       orderBy: { name: 'asc' },
-      take: 10
-    });
-    res.json(users);
-  } catch (e) {
-    console.error('Error searching users:', e);
-    res.status(500).json({ error: e.message });
-  }
+      take: 10,
+    }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
-console.log('✅ User search endpoint loaded');
-
-// User management (admin only)
 app.use('/users', adminGuard, usersRouter);
 
-// Manufacturer active list — BEFORE adminGuard /manufacturers
-app.get('/manufacturers/active', authGuard, async (req, res, next) => {
+// ── Manufacturers (specific BEFORE catch-all) ─────────────────────────────────
+app.get('/manufacturers/active', authGuard, async (req, res) => {
   try {
-    const manufacturers = await prisma.manufacturer.findMany({
+    res.json(await prisma.manufacturer.findMany({
       where: { isActive: true },
       select: { id: true, name: true },
-      orderBy: { name: 'asc' }
-    });
-    res.json(manufacturers);
-  } catch (error) {
-    console.error('Error fetching active manufacturers:', error);
-    res.status(500).json({ error: 'Failed to fetch active manufacturers', details: error.message });
-  }
+      orderBy: { name: 'asc' },
+    }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
 app.use('/manufacturers', adminGuard, manufacturersRouter);
-console.log('✅ Manufacturers API loaded');
 
+// ── Core order management ─────────────────────────────────────────────────────
 app.use('/accounts', authGuard, nonManufacturerGuard, accountsRouter);
 app.use('/orders', authGuard, ordersRouter);
 app.use('/orders', authGuard, itemsRouter);
@@ -305,7 +240,7 @@ app.use('/orders', authGuard, measurementsRouter);
 app.use('/orders', authGuard, stagesRouter);
 app.use('/orders', authGuard, locksRouter);
 
-// Audit logs — specific routes BEFORE catch-all
+// ── Audit (specific BEFORE catch-all) ────────────────────────────────────────
 app.use('/audit', authGuard, nonManufacturerGuard, auditSearchRouter);
 app.use('/audit', authGuard, nonManufacturerGuard, auditBackfillRouter);
 app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
@@ -314,26 +249,20 @@ app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditBackfillRo
 app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
 app.use('/notifications', authGuard, notificationsRouter);
-console.log('✅ Notifications API loaded');
 
-// Commission — specific routes BEFORE general
+// ── Commissions (specific BEFORE general) ────────────────────────────────────
 app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
 app.use('/commissions', authGuard, commissionsRouter);
-console.log('✅ Commission module loaded');
 
+// ── Other modules ─────────────────────────────────────────────────────────────
 app.use('/customs', brokerRouter);
 app.use('/shipments', shipmentsRouter);
-console.log('✅ Shipments API loaded');
-
 app.use(documentsRouter);
 app.use(itemDocumentsRouter);
-console.log('✅ Document upload routes loaded');
-
 app.use('/customer-documents', customerDocumentsRouter);
-console.log('✅ Customer documents routes loaded');
 
-// Invoicing system
+// ── Invoicing system ──────────────────────────────────────────────────────────
 app.use('/leads', authGuard, leadsRouter);
 app.use('/customers', authGuard, customersRouter);
 app.use('/estimates', authGuard, estimatesRouter);
@@ -348,49 +277,29 @@ app.use('/invoicing-reports', authGuard, invoicingReportsRouter);
 app.use('/invoicing-settings', invoicingSettingsRouter);
 app.use('/comments', commentsRouter);
 app.use('/reminders', remindersRouter);
-console.log('✅ Invoicing system routes loaded');
-
 app.use('/email-templates', authGuard, emailTemplateSettingsRouter);
-console.log('✅ Email template settings routes loaded');
-
 app.use('/zapier', zapierWebhookRouter);
-console.log('✅ Zapier webhook routes loaded');
+console.log('✅ All routes loaded');
 
-// =============================
-// Error Handler
-// =============================
+// ── Error handlers ────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
+  res.status(500).json({ error: 'Internal server error', message: process.env.NODE_ENV === 'development' ? err.message : undefined });
 });
-
-// =============================
-// 404 Handler
-// =============================
 app.use((req, res) => {
-  console.log('404 Not Found:', req.method, req.path);
+  console.log('404:', req.method, req.path);
   res.status(404).json({ error: 'Route not found' });
 });
 
-// =============================
-// Server Startup
-// =============================
+// ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {
   console.log(`API server running at http://${HOST}:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('\n✅ All modules loaded successfully');
-  console.log('📊 Database:', process.env.DATABASE_URL ? 'Connected' : 'Using default');
+  console.log('✅ All modules loaded successfully');
 });
 
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
-  app.close(() => {
-    console.log('HTTP server closed');
-    prisma.$disconnect();
-  });
+  app.close(() => { prisma.$disconnect(); });
 });
 
 export default app;
