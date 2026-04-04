@@ -3,20 +3,15 @@
  *
  * Security model:
  *   - /pay/invoice/:id/nextnp  → accepts a Tokenizer token (never raw card data)
- *   - /nextnp-webhook          → HMAC-SHA256 verified, handles settlement & ACH returns
+ *   - /nextnp-webhook          → MOUNTED IN index.js BEFORE express.json()
+ *                                (see api/src/routes/nextnpWebhook.js)
  *   - All other routes are read-only or notification-only
  */
 
 import express from 'express';
 import { trackEmailOpen, trackInvoiceEmailOpen } from '../services/emailService.js';
 import { getPDFSignedUrl } from '../services/pdfService.js';
-import {
-  chargeWithToken,
-  voidTransaction,
-  refundTransaction,
-  generateIdempotencyKey,
-  verifyWebhookSignature,
-} from '../services/nextnpService.js';
+import { chargeWithToken, generateIdempotencyKey } from '../services/nextnpService.js';
 import { generatePaymentNumber } from '../utils/numberGenerators.js';
 
 export function createPublicInvoicingRouter(prisma) {
@@ -62,26 +57,16 @@ export function createPublicInvoicingRouter(prisma) {
         select: { companyName: true, logoUrl: true, address: true, city: true, state: true, zipCode: true, phone: true, email: true, website: true, defaultEstimateTerms: true }
       });
       res.json({
-        id: estimate.id,
-        estimateNumber: estimate.estimateNumber,
-        version: estimate.version,
+        id: estimate.id, estimateNumber: estimate.estimateNumber, version: estimate.version,
         status: estimate.status === 'SENT' ? 'VIEWED' : estimate.status,
-        estimateDate: estimate.estimateDate,
-        expiryDate: estimate.expiryDate,
-        customer: estimate.customer,
-        items: estimate.items,
-        subtotal: estimate.subtotal,
-        discountType: estimate.discountType,
-        discountValue: estimate.discountValue,
-        discountAmount: estimate.discountAmount,
-        taxRate: estimate.taxRate,
-        taxAmount: estimate.taxAmount,
-        shippingAmount: estimate.shippingAmount,
-        total: estimate.total,
-        notes: estimate.notes,
+        estimateDate: estimate.estimateDate, expiryDate: estimate.expiryDate,
+        customer: estimate.customer, items: estimate.items,
+        subtotal: estimate.subtotal, discountType: estimate.discountType,
+        discountValue: estimate.discountValue, discountAmount: estimate.discountAmount,
+        taxRate: estimate.taxRate, taxAmount: estimate.taxAmount, shippingAmount: estimate.shippingAmount,
+        total: estimate.total, notes: estimate.notes,
         termsConditions: estimate.termsConditions || companySettings?.defaultEstimateTerms || null,
-        createdBy: { name: estimate.createdBy?.name },
-        company: companySettings,
+        createdBy: { name: estimate.createdBy?.name }, company: companySettings,
         isSigned: !!estimate.signatureId,
       });
     } catch (error) {
@@ -105,9 +90,7 @@ export function createPublicInvoicingRouter(prisma) {
       try {
         await prisma.customerActivityLog.create({
           data: {
-            customerId: estimate.customerId,
-            estimateId: estimate.id,
-            type: 'accepted',
+            customerId: estimate.customerId, estimateId: estimate.id, type: 'accepted',
             description: `Estimate ${estimate.estimateNumber} accepted online${signerName ? ` by ${signerName}` : ''}`,
             actorName: signerName || 'Customer (online)',
           }
@@ -166,29 +149,17 @@ export function createPublicInvoicingRouter(prisma) {
         [c?.billingCity, c?.billingState, c?.billingZipCode].filter(Boolean).join(', ')
       ].filter(Boolean).join('\n');
       res.json({
-        id: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
+        id: invoice.id, invoiceNumber: invoice.invoiceNumber,
         status: invoice.status === 'SENT' ? 'VIEWED' : invoice.status,
-        invoiceDate: invoice.invoiceDate,
-        dueDate: invoice.dueDate,
-        paymentTerms: invoice.paymentTerms,
+        invoiceDate: invoice.invoiceDate, dueDate: invoice.dueDate, paymentTerms: invoice.paymentTerms,
         customer: { ...invoice.customer, billingAddressFull: billingLines || null },
-        items: invoice.items,
-        paymentSchedule: invoice.paymentSchedule,
-        subtotal: invoice.subtotal,
-        discountType: invoice.discountType,
-        discountValue: invoice.discountValue,
-        discountAmount: invoice.discountAmount,
-        taxRate: invoice.taxRate,
-        taxAmount: invoice.taxAmount,
-        shippingAmount: invoice.shippingAmount,
-        total: invoice.total,
-        amountPaid: invoice.amountPaid,
-        balanceDue: invoice.balanceDue,
-        notes: invoice.notes,
-        termsConditions: invoice.termsConditions,
-        createdBy: { name: invoice.createdBy?.name },
-        company: companySettings,
+        items: invoice.items, paymentSchedule: invoice.paymentSchedule,
+        subtotal: invoice.subtotal, discountType: invoice.discountType,
+        discountValue: invoice.discountValue, discountAmount: invoice.discountAmount,
+        taxRate: invoice.taxRate, taxAmount: invoice.taxAmount, shippingAmount: invoice.shippingAmount,
+        total: invoice.total, amountPaid: invoice.amountPaid, balanceDue: invoice.balanceDue,
+        notes: invoice.notes, termsConditions: invoice.termsConditions,
+        createdBy: { name: invoice.createdBy?.name }, company: companySettings,
       });
     } catch (error) {
       console.error('GET /view-invoice/:id error:', error);
@@ -214,9 +185,7 @@ export function createPublicInvoicingRouter(prisma) {
   router.post('/notify-payment/:id', async (req, res) => {
     try {
       const { amount, paymentMethod, referenceNumber, notes, scheduleItemId } = req.body;
-      if (!amount || isNaN(parseFloat(amount))) {
-        return res.status(400).json({ error: 'Valid amount is required' });
-      }
+      if (!amount || isNaN(parseFloat(amount))) return res.status(400).json({ error: 'Valid amount is required' });
       const invoice = await prisma.invoice.findUnique({
         where: { id: req.params.id },
         select: { id: true, invoiceNumber: true, status: true, balanceDue: true, customerId: true, isDeleted: true }
@@ -229,24 +198,15 @@ export function createPublicInvoicingRouter(prisma) {
         return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
       }
       const settings = await prisma.invoicingSettings.findFirst();
-      const nextNum = settings?.nextPaymentNumber || 1;
-      const year = new Date().getFullYear();
-      const prefix = settings?.paymentPrefix || 'PAY';
-      const paymentNumber = `${prefix}-${year}-${String(nextNum).padStart(5, '0')}`;
+      const paymentNumber = `${settings?.paymentPrefix || 'PAY'}-${new Date().getFullYear()}-${String(settings?.nextPaymentNumber || 1).padStart(5, '0')}`;
       const payment = await prisma.payment.create({
         data: {
-          paymentNumber,
-          customerId:      invoice.customerId,
-          invoiceId:       invoice.id,
-          scheduleItemId:  scheduleItemId || null,
-          amount:          parsedAmount,
-          paymentDate:     new Date(),
-          paymentMethod:   paymentMethod || 'OTHER',
-          referenceNumber: referenceNumber || null,
-          checkNumber:     paymentMethod === 'CHECK' ? referenceNumber || null : null,
-          wireReference:   paymentMethod === 'WIRE'  ? referenceNumber || null : null,
-          status:          'PENDING',
-          notes:           notes || 'Payment submitted online by customer — awaiting confirmation',
+          paymentNumber, customerId: invoice.customerId, invoiceId: invoice.id,
+          scheduleItemId: scheduleItemId || null, amount: parsedAmount, paymentDate: new Date(),
+          paymentMethod: paymentMethod || 'OTHER', referenceNumber: referenceNumber || null,
+          checkNumber: paymentMethod === 'CHECK' ? referenceNumber || null : null,
+          wireReference: paymentMethod === 'WIRE'  ? referenceNumber || null : null,
+          status: 'PENDING', notes: notes || 'Payment submitted online by customer — awaiting confirmation',
         }
       });
       if (settings) {
@@ -255,12 +215,10 @@ export function createPublicInvoicingRouter(prisma) {
       try {
         await prisma.customerActivityLog.create({
           data: {
-            customerId: invoice.customerId,
-            invoiceId:  invoice.id,
-            paymentId:  payment.id,
-            type:       'payment_notification',
+            customerId: invoice.customerId, invoiceId: invoice.id, paymentId: payment.id,
+            type: 'payment_notification',
             description: `Customer submitted payment notification for $${parsedAmount.toFixed(2)} via ${paymentMethod || 'OTHER'} on invoice ${invoice.invoiceNumber}`,
-            actorName:  'Customer (online)',
+            actorName: 'Customer (online)',
           }
         });
       } catch (_) {}
@@ -319,28 +277,21 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── NexNP customer-facing payment (Tokenizer-based, PCI SAQ-A) ─────────────
+  // ── NexNP customer-facing payment (Tokenizer, PCI SAQ-A) ───────────────────
   //
-  // This endpoint receives a short-lived Tokenizer token — NOT raw card data.
-  // The Tokenizer iframe runs on NexNP's servers; raw card data never touches us.
+  // Accepts a short-lived Tokenizer token — NOT raw card data.
+  // The Tokenizer iframe runs on NexNP's PCI-compliant servers.
+  // Raw card/ACH data never passes through this server.
 
   router.post('/pay/invoice/:id/nextnp', async (req, res) => {
     try {
-      const {
-        token,           // Required: Tokenizer token from frontend iframe
-        amount,          // Required: dollars
-        scheduleItemId,  // Optional: specific payment schedule item
-        idempotencyKey,  // Recommended: UUID generated client-side
-        billingAddress,  // Optional: { firstName, lastName, address, city, state, zip }
-      } = req.body;
+      const { token, amount, scheduleItemId, idempotencyKey, billingAddress } = req.body;
 
       if (!token)  return res.status(400).json({ error: 'token is required' });
       if (!amount) return res.status(400).json({ error: 'amount is required' });
 
       const parsedAmount = parseFloat(amount);
-      if (isNaN(parsedAmount) || parsedAmount <= 0) {
-        return res.status(400).json({ error: 'Invalid amount' });
-      }
+      if (isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
       const invoice = await prisma.invoice.findUnique({
         where: { id: req.params.id },
@@ -354,10 +305,9 @@ export function createPublicInvoicingRouter(prisma) {
         return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
       }
 
-      // Charge via token — raw card data never touched this server
       const chargeResult = await chargeWithToken({
         token,
-        amount: parsedAmount,
+        amount:         parsedAmount,
         invoiceNumber:  invoice.invoiceNumber,
         description:    `Payment for Invoice ${invoice.invoiceNumber}`,
         email:          invoice.customer?.email,
@@ -365,11 +315,10 @@ export function createPublicInvoicingRouter(prisma) {
         billingAddress,
       });
 
-      // Determine payment method and status from gateway response
       const isACH    = chargeResult.paymentMethod === 'ach';
       const dbStatus = isACH ? 'PROCESSING' : 'COMPLETED';
-      // ACH: mark PROCESSING — settlement confirmed via webhook
-      // Card: mark COMPLETED — authorization is immediate confirmation
+      // Card: mark COMPLETED immediately — authorization is real-time confirmation
+      // ACH:  mark PROCESSING — settlement confirmed later via webhook
 
       const paymentNumber = await generatePaymentNumber(prisma);
       const payment = await prisma.payment.create({
@@ -390,25 +339,23 @@ export function createPublicInvoicingRouter(prisma) {
         }
       });
 
-      // Update invoice balances
-      // For ACH: only update balance once webhook confirms settlement
-      // For card: update immediately on authorization
       let newAmountPaid = invoice.amountPaid;
       let newBalanceDue = invoice.balanceDue;
       let newStatus     = invoice.status;
       let depositPaid   = invoice.depositPaid;
 
       if (!isACH) {
+        // Update invoice balance immediately for card payments
         newAmountPaid = invoice.amountPaid + parsedAmount;
         newBalanceDue = Math.max(0, invoice.total - newAmountPaid);
-        newStatus = newBalanceDue <= 0 ? 'PAID' : (newAmountPaid > 0 ? 'PARTIAL' : invoice.status);
+        newStatus     = newBalanceDue <= 0 ? 'PAID' : (newAmountPaid > 0 ? 'PARTIAL' : invoice.status);
         if (invoice.depositRequired && newAmountPaid >= invoice.depositRequired) depositPaid = true;
         await prisma.invoice.update({
           where: { id: invoice.id },
           data: { amountPaid: newAmountPaid, balanceDue: newBalanceDue, status: newStatus, depositPaid }
         });
       }
-      // For ACH: invoice balance unchanged until webhook confirms — customer sees 'Processing'
+      // For ACH: invoice balance is updated when webhook confirms settlement
 
       if (scheduleItemId && !isACH) {
         await prisma.invoicePaymentSchedule.update({
@@ -417,15 +364,13 @@ export function createPublicInvoicingRouter(prisma) {
         });
       }
 
-      // Auto-create order if deposit paid
-      let orderCreated = null;
+      // Auto-create order if deposit now paid (card only)
       if (!isACH && depositPaid && !invoice.convertedToOrder) {
         try {
           const { createOrderFromInvoice, shouldCreateOrder } = await import('../services/orderCreationService.js');
           const updatedInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } });
           if (shouldCreateOrder(updatedInvoice)) {
-            const result = await createOrderFromInvoice(prisma, { invoiceId: invoice.id, paymentId: payment.id });
-            orderCreated = result.order?.id || result.orderId;
+            await createOrderFromInvoice(prisma, { invoiceId: invoice.id, paymentId: payment.id });
           }
         } catch (orderError) {
           console.error('[PUBLIC PAY] Order creation error:', orderError);
@@ -439,12 +384,10 @@ export function createPublicInvoicingRouter(prisma) {
           : 'Customer (online)';
         await prisma.customerActivityLog.create({
           data: {
-            customerId: invoice.customerId,
-            invoiceId:  invoice.id,
-            paymentId:  payment.id,
-            type:       isACH ? 'payment_notification' : 'paid',
+            customerId: invoice.customerId, invoiceId: invoice.id, paymentId: payment.id,
+            type: isACH ? 'payment_notification' : 'paid',
             description: `${custName} paid $${parsedAmount.toFixed(2)} via ${isACH ? 'ACH (pending settlement)' : 'credit card'} online. TxID: ${chargeResult.transactionId}`,
-            actorName:  custName,
+            actorName: custName,
           }
         });
       } catch (_) {}
@@ -456,12 +399,10 @@ export function createPublicInvoicingRouter(prisma) {
         paymentMethod: chargeResult.paymentMethod,
         amountPaid:    parsedAmount,
         isACH,
-        // For card: return updated balances
-        // For ACH: balances unchanged — settlement pending
         newStatus:     isACH ? invoice.status : newStatus,
         newBalanceDue: isACH ? invoice.balanceDue : newBalanceDue,
         message:       isACH
-          ? 'ACH payment submitted. Funds will be confirmed within 1–3 business days.'
+          ? 'ACH payment submitted. Funds will be confirmed within 1\u20133 business days.'
           : 'Payment successful.',
       });
     } catch (error) {
@@ -470,154 +411,9 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── NexNP Webhook Handler ──────────────────────────────────────────────────
-  //
-  // IMPORTANT: This route must receive the raw body for HMAC verification.
-  // Mount this BEFORE express.json() in index.js, or use express.raw() here.
-  //
-  // Events handled:
-  //   transaction_create     — log, no action
-  //   transaction_update     — update payment status if changed
-  //   transaction_settlement — confirm ACH, update invoice balance
-  //   transaction_void       — mark payment voided
-  //   settlement_batch       — log batch settlement
-
-  router.post(
-    '/nextnp-webhook',
-    express.raw({ type: 'application/json' }),
-    async (req, res) => {
-      const signature = req.headers['signature'];
-      const rawBody   = req.body; // Buffer because of express.raw()
-
-      // 1. Verify signature
-      if (!verifyWebhookSignature(rawBody, signature)) {
-        console.warn('[Webhook] Invalid signature — rejecting');
-        return res.status(401).json({ error: 'Invalid signature' });
-      }
-
-      let event;
-      try {
-        event = JSON.parse(rawBody.toString());
-      } catch {
-        return res.status(400).json({ error: 'Invalid JSON' });
-      }
-
-      // Always respond 200 immediately — NexNP will disable endpoint after repeated failures
-      res.json({ received: true });
-
-      // 2. Process event asynchronously so we don't block the response
-      setImmediate(async () => {
-        try {
-          const { type, data } = event;
-          console.log(`[Webhook] event=${type} txnId=${data?.id} status=${data?.status}`);
-
-          if (type === 'test') return; // Ignore test webhooks
-
-          if (!data?.id) return;
-
-          // Find our payment record by NexNP transaction ID
-          const payment = await prisma.payment.findFirst({
-            where: { nextnpTransactionId: data.id },
-            include: { invoice: true }
-          });
-
-          if (!payment) {
-            console.log(`[Webhook] No payment found for txnId=${data.id} — may be from another system`);
-            return;
-          }
-
-          // ── transaction_settlement: ACH confirmed ──────────────────────────
-          if (type === 'transaction_settlement' || data?.status === 'settled') {
-            if (payment.status !== 'COMPLETED') {
-              await prisma.payment.update({
-                where: { id: payment.id },
-                data: { status: 'COMPLETED', notes: `${payment.notes || ''} [Settled via webhook ${new Date().toISOString()}]` }
-              });
-
-              // Now update invoice balances (ACH delayed confirmation)
-              if (payment.invoice) {
-                const inv = payment.invoice;
-                const newAmountPaid = inv.amountPaid + payment.amount;
-                const newBalanceDue = Math.max(0, inv.total - newAmountPaid);
-                const newStatus = newBalanceDue <= 0 ? 'PAID' : (newAmountPaid > 0 ? 'PARTIAL' : inv.status);
-                let depositPaid = inv.depositPaid;
-                if (inv.depositRequired && newAmountPaid >= inv.depositRequired) depositPaid = true;
-
-                await prisma.invoice.update({
-                  where: { id: inv.id },
-                  data: { amountPaid: newAmountPaid, balanceDue: newBalanceDue, status: newStatus, depositPaid }
-                });
-
-                if (payment.scheduleItemId) {
-                  await prisma.invoicePaymentSchedule.update({
-                    where: { id: payment.scheduleItemId },
-                    data: { status: 'PAID', paidAt: new Date(), paymentId: payment.id }
-                  }).catch(() => {});
-                }
-
-                // Auto-create order if applicable
-                if (depositPaid && !inv.convertedToOrder) {
-                  try {
-                    const { createOrderFromInvoice, shouldCreateOrder } = await import('../services/orderCreationService.js');
-                    const updatedInvoice = await prisma.invoice.findUnique({ where: { id: inv.id } });
-                    if (shouldCreateOrder(updatedInvoice)) {
-                      await createOrderFromInvoice(prisma, { invoiceId: inv.id, paymentId: payment.id });
-                    }
-                  } catch (e) {
-                    console.error('[Webhook] Order creation error:', e);
-                  }
-                }
-
-                console.log(`[Webhook] ACH settled: invoice ${inv.id} updated to ${newStatus}`);
-              }
-            }
-          }
-
-          // ── ACH Return: transaction came back (fraud, NSF, closed account) ──
-          if (data?.status === 'returned' || data?.status === 'late_return') {
-            await prisma.payment.update({
-              where: { id: payment.id },
-              data: {
-                status: 'REFUNDED',
-                refundedAmount: payment.amount,
-                refundedAt: new Date(),
-                refundReason: `ACH ${data.status} — funds returned`,
-                notes: `${payment.notes || ''} [ACH ${data.status.toUpperCase()} ${new Date().toISOString()}]`
-              }
-            });
-
-            // Reverse the invoice balance if we already applied it
-            if (payment.invoice && payment.invoice.amountPaid >= payment.amount) {
-              const inv = payment.invoice;
-              const newAmountPaid = Math.max(0, inv.amountPaid - payment.amount);
-              const newBalanceDue = inv.total - newAmountPaid;
-              let newStatus = newBalanceDue > 0 && newAmountPaid > 0 ? 'PARTIAL' : 'SENT';
-              if (newBalanceDue > 0 && newAmountPaid <= 0) newStatus = 'SENT';
-
-              await prisma.invoice.update({
-                where: { id: inv.id },
-                data: { amountPaid: newAmountPaid, balanceDue: newBalanceDue, status: newStatus }
-              });
-              console.log(`[Webhook] ACH ${data.status}: invoice ${inv.id} balance reversed`);
-            }
-          }
-
-          // ── transaction_void ───────────────────────────────────────────────
-          if (type === 'transaction_void' || data?.status === 'voided') {
-            if (payment.status !== 'REFUNDED') {
-              await prisma.payment.update({
-                where: { id: payment.id },
-                data: { status: 'REFUNDED', refundedAt: new Date(), refundReason: 'Voided via NexNP' }
-              });
-            }
-          }
-
-        } catch (webhookError) {
-          console.error('[Webhook] Processing error:', webhookError);
-        }
-      });
-    }
-  );
+  // NOTE: The NexNP webhook handler is mounted directly in index.js BEFORE
+  // express.json() so it receives the raw body needed for HMAC verification.
+  // See: api/src/routes/nextnpWebhook.js
 
   return router;
 }

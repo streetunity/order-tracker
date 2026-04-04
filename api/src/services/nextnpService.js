@@ -13,13 +13,12 @@
  *   - The frontend uses the NexNP Tokenizer iframe (PCI SAQ-A compliant)
  *   - This service only receives short-lived tokens and charges against them
  *   - chargeCard() and chargeACH() are retained for internal/employee use only
- *     and should eventually also be migrated to token-based flow
  *
  * Response envelope (all endpoints):
  *   { status: 'success'|'failed', msg: string, data: { ...transaction } }
  *
  * Approval codes:
- *   100-199 = Approved/Partial
+ *   100-199 = Approved / Partial approval
  *   200-299 = Processor decline
  *   300-399 = Gateway decline
  *   400-499 = Processor error
@@ -38,9 +37,13 @@ function getHeaders() {
   return { 'Authorization': NEXTNP_API_KEY, 'Content-Type': 'application/json' };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Generate a UUID v4 idempotency key.
- * Always pass this with every charge to prevent double-billing on retries.
+ * Pass one with every charge to prevent double-billing on network retries.
  */
 export function generateIdempotencyKey() {
   return crypto.randomUUID();
@@ -48,7 +51,10 @@ export function generateIdempotencyKey() {
 
 /**
  * Verify a NexNP webhook signature.
- * The Signature header is HMAC-SHA256 of the raw request body, Base64 URL encoded.
+ * Signature header = HMAC-SHA256(rawBody, webhookSecret), Base64 URL encoded.
+ *
+ * IMPORTANT: crypto.timingSafeEqual() throws if buffers differ in length.
+ * We catch that case and return false rather than let it propagate.
  *
  * @param {Buffer|string} rawBody   - Raw request body (Buffer preferred)
  * @param {string}        signature - Value of the Signature header
@@ -57,27 +63,34 @@ export function generateIdempotencyKey() {
 export function verifyWebhookSignature(rawBody, signature) {
   if (!NEXTNP_WEBHOOK_SECRET) {
     console.warn('[NexNP] NEXTNP_WEBHOOK_SECRET not set — skipping signature verification');
-    return true; // fail open during initial setup; set secret before going live
+    return true; // fail open during initial setup; must be set before going live
   }
   if (!signature) return false;
 
-  const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody);
-  const computed = crypto
-    .createHmac('sha256', NEXTNP_WEBHOOK_SECRET)
-    .update(body)
-    .digest();
+  try {
+    const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody);
+    const computed = crypto
+      .createHmac('sha256', NEXTNP_WEBHOOK_SECRET)
+      .update(body)
+      .digest();
 
-  // NexNP uses Base64 URL encoding (no padding)
-  const computedB64 = computed.toString('base64url');
-  return crypto.timingSafeEqual(
-    Buffer.from(computedB64),
-    Buffer.from(signature)
-  );
+    // NexNP uses Base64 URL encoding (no padding)
+    const computedB64  = Buffer.from(computed.toString('base64url'));
+    const providedB64  = Buffer.from(signature);
+
+    // timingSafeEqual requires equal-length buffers — length mismatch = invalid sig
+    if (computedB64.length !== providedB64.length) return false;
+
+    return crypto.timingSafeEqual(computedB64, providedB64);
+  } catch (err) {
+    console.error('[NexNP] Webhook signature verification error:', err.message);
+    return false;
+  }
 }
 
 /**
  * Validate the NexNP response envelope and return the inner data object.
- * Throws a descriptive error on any failure so callers get a clean message.
+ * Throws a descriptive error on any failure.
  */
 function assertSuccess(envelope, label) {
   if (envelope.status !== 'success') {
@@ -87,16 +100,15 @@ function assertSuccess(envelope, label) {
   const txn = envelope.data;
   if (!txn) throw new Error(`${label}: empty response data`);
 
-  // response_code 100-199 = approved/partial
-  // Anything >= 200 is a decline or error
+  // response_code 100-199 = approved/partial; >= 200 = decline or error
   if (txn.response_code !== undefined && txn.response_code >= 200) {
     const rb = txn.response_body;
     const detail =
       rb?.card?.processor_response_text ||
-      rb?.ach?.processor_response_text ||
-      rb?.card?.response ||
-      rb?.ach?.response ||
-      txn.status ||
+      rb?.ach?.processor_response_text  ||
+      rb?.card?.response                ||
+      rb?.ach?.response                 ||
+      txn.status                        ||
       'declined';
     throw new Error(`${label} declined: ${detail} (code ${txn.response_code})`);
   }
@@ -105,21 +117,21 @@ function assertSuccess(envelope, label) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TOKEN-BASED CHARGE (preferred — PCI SAQ-A compliant)
+// TOKEN-BASED CHARGE  (PCI SAQ-A compliant — preferred for all customer flows)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Charge using a Tokenizer token.
- * The token is obtained client-side from the NexNP Tokenizer iframe.
+ * Token is obtained client-side from the NexNP Tokenizer iframe.
  * Raw card/ACH data never passes through our server.
  *
  * @param {object} opts
- * @param {string}  opts.token            - Short-lived token from Tokenizer (2 min TTL)
+ * @param {string}  opts.token            - Short-lived token from Tokenizer (2-min TTL)
  * @param {number}  opts.amount           - Dollars (e.g. 1250.00)
  * @param {string}  opts.invoiceNumber
  * @param {string}  [opts.description]
- * @param {string}  [opts.email]          - Send receipt to customer
- * @param {string}  [opts.idempotencyKey] - UUID; generate with generateIdempotencyKey()
+ * @param {string}  [opts.email]          - For NexNP receipt email
+ * @param {string}  [opts.idempotencyKey] - UUID; prevents double-billing on retry
  * @param {object}  [opts.billingAddress] - { firstName, lastName, address, city, state, zip }
  * @returns {{ transactionId, status, amountCents, paymentMethod, authCode, last4, cardType, raw }}
  */
@@ -136,13 +148,8 @@ export async function chargeWithToken(opts) {
     payment_method: { token },
   };
 
-  if (idempotencyKey) {
-    body.idempotency_key = idempotencyKey;
-    body.idempotency_time = 300; // 5 minutes
-  }
-
+  if (idempotencyKey) { body.idempotency_key = idempotencyKey; body.idempotency_time = 300; }
   if (email) { body.email_receipt = true; body.email_address = email; }
-
   if (billingAddress) {
     body.billing_address = {
       first_name:     billingAddress.firstName  || '',
@@ -164,16 +171,15 @@ export async function chargeWithToken(opts) {
   });
 
   const envelope = await response.json();
-  console.log('[NexNP chargeWithToken] response:', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id, code: envelope.data?.response_code }));
+  console.log('[NexNP chargeWithToken]', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id, code: envelope.data?.response_code }));
 
   const txn = assertSuccess(envelope, 'Token charge');
-
-  const rb = txn.response_body;
+  const rb  = txn.response_body;
   return {
     transactionId: txn.id,
-    status:        txn.status,       // 'pending_settlement' for card, 'pending' for ACH
+    status:        txn.status,          // 'pending_settlement' (card) or 'pending' (ACH)
     amountCents:   txn.amount,
-    paymentMethod: txn.payment_method, // 'card' or 'ach'
+    paymentMethod: txn.payment_method,  // 'card' or 'ach'
     authCode:      rb?.card?.auth_code,
     last4:         rb?.card?.last_four || rb?.ach?.last_four,
     cardType:      rb?.card?.card_type,
@@ -182,24 +188,14 @@ export async function chargeWithToken(opts) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIRECT CHARGE (internal/employee use — still PCI-scoped but acceptable for
-// internal tools where staff enter card info on behalf of customer)
+// DIRECT CHARGE  (internal/employee use only)
+// Raw card data passes through our server here — acceptable for internal tools
+// but should eventually be migrated to token-based flow.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Charge a credit card directly.
- * NOTE: For customer-facing flows, always use chargeWithToken() instead.
- *
- * @param {object} opts
- * @param {number}  opts.amount
- * @param {string}  opts.cardNumber
- * @param {string}  opts.expirationDate  - MM/YY
- * @param {string}  opts.cvc
- * @param {string}  opts.invoiceNumber
- * @param {string}  [opts.description]
- * @param {string}  [opts.email]
- * @param {string}  [opts.idempotencyKey]
- * @param {object}  [opts.billingAddress]
+ * For customer-facing flows, always use chargeWithToken() instead.
  */
 export async function chargeCard(opts) {
   const { amount, cardNumber, expirationDate, cvc, invoiceNumber, description, email, idempotencyKey, billingAddress } = opts;
@@ -210,13 +206,7 @@ export async function chargeCard(opts) {
     processor_id: NEXTNP_CARD_PROCESSOR_ID,
     order_id: invoiceNumber,
     description: description || `Payment for Invoice ${invoiceNumber}`,
-    payment_method: {
-      card: {
-        number: cardNumber.replace(/\s/g, ''),
-        expiration_date: expirationDate,
-        cvc,
-      }
-    },
+    payment_method: { card: { number: cardNumber.replace(/\s/g, ''), expiration_date: expirationDate, cvc } },
   };
 
   if (idempotencyKey) { body.idempotency_key = idempotencyKey; body.idempotency_time = 300; }
@@ -235,17 +225,15 @@ export async function chargeCard(opts) {
   }
 
   const response = await fetch(`${NEXTNP_BASE_URL}/api/transaction`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(body),
+    method: 'POST', headers: getHeaders(), body: JSON.stringify(body),
     signal: AbortSignal.timeout(180000),
   });
 
   const envelope = await response.json();
-  console.log('[NexNP chargeCard] response:', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id, code: envelope.data?.response_code }));
+  console.log('[NexNP chargeCard]', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id, code: envelope.data?.response_code }));
 
   const txn = assertSuccess(envelope, 'Card charge');
-  const rb = txn.response_body;
+  const rb  = txn.response_body;
   return {
     transactionId: txn.id,
     status:        txn.status,
@@ -260,7 +248,7 @@ export async function chargeCard(opts) {
 
 /**
  * Charge via ACH directly.
- * NOTE: For customer-facing flows, use chargeWithToken() with ACH enabled in Tokenizer.
+ * For customer-facing flows, use chargeWithToken() with ACH enabled in Tokenizer.
  */
 export async function chargeACH(opts) {
   const { amount, routingNumber, accountNumber, accountType, secCode, invoiceNumber, description, email, idempotencyKey } = opts;
@@ -271,37 +259,22 @@ export async function chargeACH(opts) {
     processor_id: NEXTNP_ACH_PROCESSOR_ID,
     order_id: invoiceNumber,
     description: description || `ACH Payment for Invoice ${invoiceNumber}`,
-    payment_method: {
-      ach: {
-        routing_number: routingNumber,
-        account_number: accountNumber,
-        sec_code:       secCode || 'web',
-        account_type:   accountType || 'checking',
-      }
-    },
+    payment_method: { ach: { routing_number: routingNumber, account_number: accountNumber, sec_code: secCode || 'web', account_type: accountType || 'checking' } },
   };
 
   if (idempotencyKey) { body.idempotency_key = idempotencyKey; body.idempotency_time = 300; }
   if (email) { body.email_receipt = true; body.email_address = email; }
 
   const response = await fetch(`${NEXTNP_BASE_URL}/api/transaction`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(body),
+    method: 'POST', headers: getHeaders(), body: JSON.stringify(body),
     signal: AbortSignal.timeout(180000),
   });
 
   const envelope = await response.json();
-  console.log('[NexNP chargeACH] response:', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id, code: envelope.data?.response_code }));
+  console.log('[NexNP chargeACH]', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id, code: envelope.data?.response_code }));
 
   const txn = assertSuccess(envelope, 'ACH charge');
-  return {
-    transactionId: txn.id,
-    status:        txn.status,
-    amountCents:   txn.amount,
-    paymentMethod: 'ach',
-    raw:           txn,
-  };
+  return { transactionId: txn.id, status: txn.status, amountCents: txn.amount, paymentMethod: 'ach', raw: txn };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -309,89 +282,57 @@ export async function chargeACH(opts) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Void a transaction that is pending settlement.
- * Prefer this over refund — no settlement fee and immediate reversal.
- * Only works on transactions with status 'pending_settlement' or 'authorized'.
- *
- * @param {string} transactionId
+ * Void a pending_settlement transaction.
+ * Always try void before refund — no settlement fee, immediate reversal.
  */
 export async function voidTransaction(transactionId) {
   const response = await fetch(`${NEXTNP_BASE_URL}/api/transaction/${transactionId}/void`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify({}),
+    method: 'POST', headers: getHeaders(), body: JSON.stringify({}),
     signal: AbortSignal.timeout(60000),
   });
-
   const envelope = await response.json();
-  console.log('[NexNP void] response:', JSON.stringify(envelope));
-
-  if (envelope.status !== 'success') {
-    throw new Error(envelope.msg || 'Void failed');
-  }
+  console.log('[NexNP void]', JSON.stringify(envelope));
+  if (envelope.status !== 'success') throw new Error(envelope.msg || 'Void failed');
   return { success: true, raw: envelope };
 }
 
 /**
  * Refund a settled transaction (full or partial).
- * Only use after a transaction has settled — for pending transactions, use voidTransaction().
- *
+ * Only use after settlement — for pending transactions, use voidTransaction().
  * @param {string} transactionId
  * @param {number} [amount]  - Dollars; omit for full refund
  */
 export async function refundTransaction(transactionId, amount) {
   const body = amount !== undefined ? { amount: Math.round(amount * 100) } : {};
-
   const response = await fetch(`${NEXTNP_BASE_URL}/api/transaction/${transactionId}/refund`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify(body),
+    method: 'POST', headers: getHeaders(), body: JSON.stringify(body),
     signal: AbortSignal.timeout(60000),
   });
-
   const envelope = await response.json();
-  console.log('[NexNP refund] response:', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id }));
-
+  console.log('[NexNP refund]', JSON.stringify({ status: envelope.status, msg: envelope.msg, txnId: envelope.data?.id }));
   const txn = assertSuccess(envelope, 'Refund');
-  return {
-    transactionId: txn.id,
-    status:        txn.status,
-    amountCents:   txn.amount,
-    raw:           txn,
-  };
+  return { transactionId: txn.id, status: txn.status, amountCents: txn.amount, raw: txn };
 }
 
 /**
- * Smart cancel: tries void first (cheaper/faster), falls back to refund.
- *
- * @param {string} transactionId
- * @param {string} currentStatus   - Transaction status from NexNP
- * @param {number} [amount]        - Dollars for partial refund
+ * Smart cancel: void first (free/fast), fall back to refund.
  */
 export async function cancelTransaction(transactionId, currentStatus, amount) {
-  const voidableStatuses = ['authorized', 'pending_settlement'];
-  if (voidableStatuses.includes(currentStatus)) {
-    try {
-      return await voidTransaction(transactionId);
-    } catch (e) {
-      console.warn('[NexNP] Void failed, falling back to refund:', e.message);
-    }
+  if (['authorized', 'pending_settlement'].includes(currentStatus)) {
+    try { return await voidTransaction(transactionId); }
+    catch (e) { console.warn('[NexNP] Void failed, falling back to refund:', e.message); }
   }
   return refundTransaction(transactionId, amount);
 }
 
 /**
- * Fetch a single transaction by ID.
+ * Fetch a transaction by ID.
  */
 export async function getTransaction(transactionId) {
   const response = await fetch(`${NEXTNP_BASE_URL}/api/transaction/${transactionId}`, {
-    method: 'GET',
-    headers: getHeaders(),
+    method: 'GET', headers: getHeaders(),
   });
-
   const envelope = await response.json();
-  if (envelope.status !== 'success') {
-    throw new Error(envelope.msg || `Failed to get transaction: ${response.status}`);
-  }
+  if (envelope.status !== 'success') throw new Error(envelope.msg || `Failed to get transaction: ${response.status}`);
   return envelope.data;
 }
