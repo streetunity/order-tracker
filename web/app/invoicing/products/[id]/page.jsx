@@ -82,9 +82,12 @@ export default function ProductDetailPage() {
   }
 
   function showConfirm(title, message, onConfirm) { setConfirmConfig({ title, message, onConfirm }); setShowConfirmModal(true); }
-  function confirmDeactivateProduct() { showConfirm("Deactivate Product", "Deactivate this product? It will no longer appear in product selection.", () => handleDelete()); }
 
-  async function handleDelete() {
+  function confirmDeactivateProduct() {
+    showConfirm("Deactivate Product", "Deactivate this product? It will no longer appear in product selection.", handleDeactivate);
+  }
+
+  async function handleDeactivate() {
     setShowConfirmModal(false);
     try {
       const res  = await fetch(`/api/products/${params.id}`, { method: "DELETE", headers: getAuthHeaders() });
@@ -92,6 +95,24 @@ export default function ProductDetailPage() {
       if (!res.ok) throw new Error(data.error || "Failed to deactivate product");
       if (data.warning) { setSuccess(data.warning); setProduct({ ...product, isActive: false }); setFormData({ ...formData, isActive: false }); }
       else router.push("/invoicing/products");
+    } catch (err) { setError(err.message); }
+  }
+
+  function confirmHardDeleteProduct() {
+    showConfirm(
+      "Permanently Delete Product",
+      "This permanently removes the product and all its attachments. This cannot be undone. Products used in estimates or invoices cannot be deleted.",
+      handleHardDelete
+    );
+  }
+
+  async function handleHardDelete() {
+    setShowConfirmModal(false);
+    try {
+      const res  = await fetch(`/api/products/${params.id}?force=true`, { method: "DELETE", headers: getAuthHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete product");
+      router.push("/invoicing/products");
     } catch (err) { setError(err.message); }
   }
 
@@ -222,7 +243,8 @@ export default function ProductDetailPage() {
               {!isEditing ? (
                 <>
                   <button onClick={() => setIsEditing(true)} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 14 }}>Edit</button>
-                  {product.isActive && <button onClick={confirmDeactivateProduct} style={{ padding: "8px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", cursor: "pointer", fontSize: 14 }}>Deactivate</button>}
+                  {product.isActive && <button onClick={confirmDeactivateProduct} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 14 }}>Deactivate</button>}
+                  <button onClick={confirmHardDeleteProduct} style={{ padding: "8px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", cursor: "pointer", fontSize: 14 }}>Delete</button>
                 </>
               ) : (
                 <>
@@ -309,7 +331,7 @@ export default function ProductDetailPage() {
               <div style={{ marginBottom: 16 }}>
                 <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: "0 0 4px" }}>Attachments</h2>
                 <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", margin: 0 }}>
-                  PDF, JPG, PNG, WEBP · Max 10MB each · Files marked “Include in estimates” are auto-attached when the estimate is emailed
+                  PDF, JPG, PNG, WEBP · Max 10MB each · Files marked "Include in estimates" are auto-attached when the estimate is emailed
                 </p>
               </div>
 

@@ -351,23 +351,48 @@ export function createProductsRouter(prisma) {
     }
   });
 
-  // DELETE /products/:id - Soft delete (set inactive)
+  // DELETE /products/:id - Deactivate (soft) or permanently delete (?force=true)
   router.delete('/:id', requireInvoicingPermission('DELETE_PRODUCT'), async (req, res) => {
     try {
+      const force = req.query.force === 'true';
+
       const product = await prisma.product.findUnique({
         where: { id: req.params.id },
-        include: {
-          bundleItems: true
-        }
+        include: { bundleItems: true, attachments: true }
       });
 
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
       }
 
-      // Check if product is used in any bundles
+      if (force) {
+        // Check if referenced in estimate or invoice line items
+        let usageCount = 0;
+        try { usageCount += await prisma.estimateItem.count({ where: { productId: req.params.id } }); } catch {}
+        try { usageCount += await prisma.invoiceItem.count({ where: { productId: req.params.id } }); } catch {}
+
+        if (usageCount > 0) {
+          return res.status(400).json({
+            error: `Cannot permanently delete: this product appears in ${usageCount} estimate or invoice line item(s). Deactivate it instead.`
+          });
+        }
+
+        // Delete S3 attachments
+        for (const att of product.attachments) {
+          try {
+            await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: att.s3Key }));
+          } catch (s3Err) {
+            console.error('S3 delete error (continuing):', s3Err);
+          }
+        }
+
+        // Hard delete — cascade removes attachments and bundleItems
+        await prisma.product.delete({ where: { id: req.params.id } });
+        return res.json({ message: 'Product permanently deleted' });
+      }
+
+      // Soft delete (deactivate)
       if (product.bundleItems.length > 0) {
-        // Soft delete - set inactive
         const updated = await prisma.product.update({
           where: { id: req.params.id },
           data: { isActive: false }
@@ -379,7 +404,6 @@ export function createProductsRouter(prisma) {
         });
       }
 
-      // If not used in bundles, we can deactivate
       const updated = await prisma.product.update({
         where: { id: req.params.id },
         data: { isActive: false }
