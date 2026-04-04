@@ -6,11 +6,8 @@
 import express from 'express';
 import { trackEmailOpen, trackInvoiceEmailOpen } from '../services/emailService.js';
 import { getPDFSignedUrl } from '../services/pdfService.js';
-import {
-  createPaymentIntent,
-  createACHPaymentIntent,
-  getOrCreateStripeCustomer
-} from '../services/stripeService.js';
+import { chargeCard, chargeACH } from '../services/nextnpService.js';
+import { generatePaymentNumber } from '../utils/numberGenerators.js';
 
 export function createPublicInvoicingRouter(prisma) {
   const router = express.Router();
@@ -139,17 +136,9 @@ export function createPublicInvoicingRouter(prisma) {
         include: {
           customer: {
             select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              company: true,
-              companyName: true,
-              email: true,
-              phone: true,
-              billingAddress: true,
-              billingCity: true,
-              billingState: true,
-              billingZipCode: true,
+              id: true, firstName: true, lastName: true, company: true, companyName: true,
+              email: true, phone: true, billingAddress: true, billingCity: true,
+              billingState: true, billingZipCode: true,
             }
           },
           items: { orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, description: true, sku: true, quantity: true, unitPrice: true, amount: true, taxable: true } },
@@ -169,7 +158,6 @@ export function createPublicInvoicingRouter(prisma) {
         select: { companyName: true, logoUrl: true, address: true, city: true, state: true, zipCode: true, phone: true, email: true, website: true }
       });
 
-      // Build a clean billing address string for the portal
       const c = invoice.customer;
       const billingLines = [
         c?.billingAddress,
@@ -220,7 +208,7 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── Public payment notification (offline/manual payment submitted by customer) ─
+  // ── Public payment notification (offline/manual) ─────────────────────────
 
   router.post('/notify-payment/:id', async (req, res) => {
     try {
@@ -244,14 +232,12 @@ export function createPublicInvoicingRouter(prisma) {
         return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
       }
 
-      // Get next payment number
       const settings = await prisma.invoicingSettings.findFirst();
       const nextNum  = settings?.nextPaymentNumber || 1;
       const year     = new Date().getFullYear();
       const prefix   = settings?.paymentPrefix || 'PAY';
       const paymentNumber = `${prefix}-${year}-${String(nextNum).padStart(5, '0')}`;
 
-      // Create a PENDING payment record — staff must confirm before it applies to balance
       const payment = await prisma.payment.create({
         data: {
           paymentNumber,
@@ -269,7 +255,6 @@ export function createPublicInvoicingRouter(prisma) {
         }
       });
 
-      // Increment payment number sequence
       if (settings) {
         await prisma.invoicingSettings.update({
           where: { id: settings.id },
@@ -277,7 +262,6 @@ export function createPublicInvoicingRouter(prisma) {
         });
       }
 
-      // Activity log
       try {
         await prisma.customerActivityLog.create({
           data: {
@@ -335,52 +319,159 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── Public Stripe payments ────────────────────────────────────────────────
+  // ── NexNP public payment (customer-facing) ────────────────────────────────
+  // Called from /pay/invoice/[id] — no auth required, invoice ID is the access key
 
-  router.post('/pay/invoice/:id/create-intent', async (req, res) => {
+  router.post('/pay/invoice/:id/nextnp', async (req, res) => {
     try {
-      const { amount, scheduleItemId } = req.body;
-      if (!amount) return res.status(400).json({ error: 'amount is required' });
-      const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: { customer: true } });
-      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
-      if (invoice.status === 'VOID') return res.status(400).json({ error: 'Cannot pay voided invoice' });
-      if (invoice.status === 'PAID') return res.status(400).json({ error: 'Invoice is already paid' });
-      if (amount > invoice.balanceDue) return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
-      let stripeCustomerId = invoice.customer?.stripeCustomerId;
-      if (!stripeCustomerId && invoice.customer) {
-        const sc = await getOrCreateStripeCustomer(invoice.customer);
-        stripeCustomerId = sc.id;
-        await prisma.customer.update({ where: { id: invoice.customer.id }, data: { stripeCustomerId } });
-      }
-      const paymentIntent = await createPaymentIntent({ amount: parseFloat(amount), customerId: invoice.customerId, customerEmail: invoice.customer?.email, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, scheduleItemId, description: `Payment for Invoice ${invoice.invoiceNumber}`, metadata: { stripeCustomerId, customerId: invoice.customerId, publicPayment: 'true' } });
-      res.json(paymentIntent);
-    } catch (error) {
-      console.error('POST /pay/invoice/:id/create-intent error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+      const {
+        paymentType,      // 'card' | 'ach'
+        amount,
+        scheduleItemId,
+        // card fields
+        cardNumber,
+        expirationDate,
+        cvc,
+        billingZip,
+        // ach fields
+        routingNumber,
+        accountNumber,
+        accountType,
+      } = req.body;
 
-  router.post('/pay/invoice/:id/create-ach', async (req, res) => {
-    try {
-      const { amount, scheduleItemId } = req.body;
-      if (!amount) return res.status(400).json({ error: 'amount is required' });
-      const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: { customer: true } });
-      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
-      if (invoice.status === 'VOID') return res.status(400).json({ error: 'Cannot pay voided invoice' });
-      if (invoice.status === 'PAID') return res.status(400).json({ error: 'Invoice is already paid' });
-      if (amount > invoice.balanceDue) return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
-      let stripeCustomerId = invoice.customer?.stripeCustomerId;
-      if (!stripeCustomerId && invoice.customer) {
-        const sc = await getOrCreateStripeCustomer(invoice.customer);
-        stripeCustomerId = sc.id;
-        await prisma.customer.update({ where: { id: invoice.customer.id }, data: { stripeCustomerId } });
+      if (!paymentType || !amount) {
+        return res.status(400).json({ error: 'paymentType and amount are required' });
       }
-      const customerName = invoice.customer ? `${invoice.customer.firstName} ${invoice.customer.lastName}`.trim() : 'Customer';
-      const paymentIntent = await createACHPaymentIntent({ amount: parseFloat(amount), customerId: invoice.customerId, customerEmail: invoice.customer?.email, customerName, invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, scheduleItemId, metadata: { stripeCustomerId, customerId: invoice.customerId, publicPayment: 'true' } });
-      res.json(paymentIntent);
+
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ error: 'Invalid amount' });
+      }
+
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: req.params.id },
+        include: { customer: true }
+      });
+
+      if (!invoice || invoice.isDeleted) return res.status(404).json({ error: 'Invoice not found' });
+      if (invoice.status === 'VOID') return res.status(400).json({ error: 'Cannot pay a voided invoice' });
+      if (invoice.status === 'PAID') return res.status(400).json({ error: 'Invoice is already paid in full' });
+      if (parsedAmount > invoice.balanceDue + 0.01) {
+        return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
+      }
+
+      let chargeResult;
+
+      if (paymentType === 'card') {
+        if (!cardNumber || !expirationDate || !cvc) {
+          return res.status(400).json({ error: 'cardNumber, expirationDate, and cvc are required' });
+        }
+        chargeResult = await chargeCard({
+          amount: parsedAmount,
+          cardNumber: cardNumber.replace(/\s/g, ''),
+          expirationDate,
+          cvc,
+          invoiceNumber: invoice.invoiceNumber,
+          invoiceId: invoice.id,
+          description: `Payment for Invoice ${invoice.invoiceNumber}`,
+          email: invoice.customer?.email,
+          billingAddress: billingZip ? { zip: billingZip } : undefined,
+        });
+      } else if (paymentType === 'ach') {
+        if (!routingNumber || !accountNumber || !accountType) {
+          return res.status(400).json({ error: 'routingNumber, accountNumber, and accountType are required' });
+        }
+        chargeResult = await chargeACH({
+          amount: parsedAmount,
+          routingNumber,
+          accountNumber,
+          accountType,
+          secCode: 'web',
+          invoiceNumber: invoice.invoiceNumber,
+          invoiceId: invoice.id,
+          description: `ACH Payment for Invoice ${invoice.invoiceNumber}`,
+          email: invoice.customer?.email,
+        });
+      } else {
+        return res.status(400).json({ error: 'Invalid paymentType — must be card or ach' });
+      }
+
+      // Record payment in DB
+      const paymentNumber = await generatePaymentNumber(prisma);
+      const payment = await prisma.payment.create({
+        data: {
+          paymentNumber,
+          customerId:           invoice.customerId,
+          invoiceId:            invoice.id,
+          scheduleItemId:       scheduleItemId || null,
+          amount:               parsedAmount,
+          paymentMethod:        paymentType === 'card' ? 'CREDIT_CARD' : 'ACH',
+          nextnpTransactionId:  chargeResult.transactionId,
+          referenceNumber:      chargeResult.transactionId,
+          notes:                `Customer online payment via NexNP. Transaction: ${chargeResult.transactionId}`,
+          status:               'COMPLETED',
+          paymentDate:          new Date(),
+        }
+      });
+
+      // Update invoice balance
+      const newAmountPaid = invoice.amountPaid + parsedAmount;
+      const newBalanceDue = invoice.total - newAmountPaid;
+      let newStatus = newBalanceDue <= 0 ? 'PAID' : (newAmountPaid > 0 ? 'PARTIAL' : invoice.status);
+
+      let depositPaid = invoice.depositPaid;
+      if (invoice.depositRequired && newAmountPaid >= invoice.depositRequired) depositPaid = true;
+
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { amountPaid: newAmountPaid, balanceDue: Math.max(0, newBalanceDue), status: newStatus, depositPaid }
+      });
+
+      if (scheduleItemId) {
+        await prisma.invoicePaymentSchedule.update({
+          where: { id: scheduleItemId },
+          data: { status: 'PAID', paidAt: new Date(), paymentId: payment.id }
+        });
+      }
+
+      // Auto-create order if deposit condition met
+      if (depositPaid && !invoice.convertedToOrder) {
+        try {
+          const { createOrderFromInvoice, shouldCreateOrder } = await import('../services/orderCreationService.js');
+          const updatedInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } });
+          if (shouldCreateOrder(updatedInvoice)) {
+            await createOrderFromInvoice(prisma, { invoiceId: invoice.id, paymentId: payment.id });
+          }
+        } catch (orderError) {
+          console.error('[PUBLIC PAY] Auto order creation error:', orderError);
+        }
+      }
+
+      // Activity log
+      try {
+        await prisma.customerActivityLog.create({
+          data: {
+            customerId: invoice.customerId,
+            invoiceId:  invoice.id,
+            paymentId:  payment.id,
+            type:       'paid',
+            description: `Customer paid $${parsedAmount.toFixed(2)} via ${paymentType === 'card' ? 'credit card' : 'ACH'} online. Transaction: ${chargeResult.transactionId}`,
+            actorName:  invoice.customer ? `${invoice.customer.firstName} ${invoice.customer.lastName}`.trim() : 'Customer (online)',
+          }
+        });
+      } catch (_) {}
+
+      res.json({
+        success: true,
+        transactionId: chargeResult.transactionId,
+        paymentNumber,
+        amountPaid: parsedAmount,
+        newStatus,
+        newBalanceDue: Math.max(0, newBalanceDue),
+      });
     } catch (error) {
-      console.error('POST /pay/invoice/:id/create-ach error:', error);
-      res.status(500).json({ error: error.message });
+      console.error('POST /pay/invoice/:id/nextnp error:', error);
+      res.status(400).json({ error: error.message });
     }
   });
 

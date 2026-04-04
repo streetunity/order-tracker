@@ -1,580 +1,340 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements
-} from "@stripe/react-stripe-js";
-
-// Initialize Stripe
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
-
-// Payment Form Component
-function PaymentForm({ clientSecret, amount, invoiceNumber, onSuccess, onError }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState(null);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!stripe || !elements) {
-      return;
-    }
-
-    setProcessing(true);
-    setError(null);
-
-    const { error: submitError, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/pay/success`
-      },
-      redirect: "if_required"
-    });
-
-    if (submitError) {
-      setError(submitError.message);
-      setProcessing(false);
-      onError?.(submitError.message);
-    } else if (paymentIntent && paymentIntent.status === "succeeded") {
-      onSuccess?.();
-    } else if (paymentIntent && paymentIntent.status === "processing") {
-      // ACH payments may take time to process
-      onSuccess?.("Payment is being processed. You'll receive confirmation once complete.");
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <PaymentElement
-        options={{
-          layout: "tabs"
-        }}
-      />
-
-      {error && (
-        <div style={{
-          marginTop: "16px",
-          padding: "12px 16px",
-          background: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.3)",
-          borderRadius: "8px",
-          color: "#ef4444",
-          fontSize: "14px"
-        }}>
-          {error}
-        </div>
-      )}
-
-      <button
-        type="submit"
-        disabled={!stripe || processing}
-        style={{
-          marginTop: "24px",
-          width: "100%",
-          padding: "14px 24px",
-          background: processing
-            ? "rgba(156, 163, 175, 0.5)"
-            : "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
-          border: "none",
-          borderRadius: "8px",
-          color: "white",
-          fontSize: "16px",
-          fontWeight: "600",
-          cursor: processing ? "not-allowed" : "pointer"
-        }}
-      >
-        {processing ? "Processing..." : `Pay $${amount.toFixed(2)}`}
-      </button>
-    </form>
-  );
-}
+import { useParams } from "next/navigation";
 
 export default function PublicPaymentPage() {
   const params = useParams();
-  const router = useRouter();
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [paymentAmount, setPaymentAmount] = useState(null);
-  const [selectedScheduleItem, setSelectedScheduleItem] = useState(null);
-  const [clientSecret, setClientSecret] = useState(null);
-  const [creatingIntent, setCreatingIntent] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [paymentMessage, setPaymentMessage] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("card"); // card or ach
 
-  useEffect(() => {
-    loadInvoice();
-  }, [params.id]);
+  const [paymentAmount, setPaymentAmount]       = useState("");
+  const [selectedScheduleItem, setSelectedScheduleItem] = useState(null);
+  const [paymentType, setPaymentType]           = useState("card");
+  const [processing, setProcessing]             = useState(false);
+  const [success, setSuccess]                   = useState(false);
+  const [successData, setSuccessData]           = useState(null);
+
+  // Card fields
+  const [cardNumber,  setCardNumber]  = useState("");
+  const [cardExpiry,  setCardExpiry]  = useState("");
+  const [cardCVC,     setCardCVC]     = useState("");
+  const [cardZip,     setCardZip]     = useState("");
+  // ACH fields
+  const [achRouting,  setAchRouting]  = useState("");
+  const [achAccount,  setAchAccount]  = useState("");
+  const [achType,     setAchType]     = useState("checking");
+
+  useEffect(() => { loadInvoice(); }, [params.id]);
 
   async function loadInvoice() {
     try {
       const res = await fetch(`/api/view-invoice/${params.id}`);
       if (!res.ok) {
-        if (res.status === 404) {
-          setError("Invoice not found");
-        } else {
-          throw new Error("Failed to load invoice");
-        }
+        setError(res.status === 404 ? "Invoice not found" : "Unable to load invoice");
         return;
       }
-
       const data = await res.json();
       setInvoice(data);
-
-      // Default to full balance
-      if (data.balanceDue > 0) {
-        setPaymentAmount(data.balanceDue);
-      }
-    } catch (e) {
-      console.error("Error loading invoice:", e);
+      setPaymentAmount(data.balanceDue > 0 ? data.balanceDue.toString() : "");
+    } catch {
       setError("Unable to load invoice");
     } finally {
       setLoading(false);
     }
   }
 
-  async function createPaymentIntent() {
-    if (!paymentAmount || paymentAmount <= 0) {
-      return;
+  function formatCardNumber(val) {
+    return val.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
+  }
+
+  function formatExpiry(val) {
+    const d = val.replace(/\D/g, "").slice(0, 4);
+    return d.length >= 3 ? d.slice(0, 2) + "/" + d.slice(2) : d;
+  }
+
+  function selectScheduleItem(item) {
+    if (item.status === "PAID") return;
+    setSelectedScheduleItem(item.id);
+    setPaymentAmount(item.amount.toString());
+  }
+
+  function selectFullBalance() {
+    setSelectedScheduleItem(null);
+    setPaymentAmount(invoice.balanceDue.toString());
+  }
+
+  async function handleSubmit() {
+    const amount = parseFloat(paymentAmount);
+    if (!amount || amount <= 0) { setError("Enter a valid amount"); return; }
+
+    if (paymentType === "card") {
+      const raw = cardNumber.replace(/\s/g, "");
+      if (raw.length < 15) { setError("Enter a valid card number"); return; }
+      if (!cardExpiry.match(/^\d{2}\/\d{2}$/)) { setError("Enter expiry as MM/YY"); return; }
+      if (cardCVC.length < 3) { setError("Enter a valid CVC"); return; }
+    } else {
+      if (!achRouting.match(/^\d{9}$/)) { setError("Enter a valid 9-digit routing number"); return; }
+      if (!achAccount || achAccount.length < 4) { setError("Enter a valid account number"); return; }
     }
 
-    setCreatingIntent(true);
+    setProcessing(true);
     setError(null);
 
     try {
-      const endpoint = paymentMethod === "ach"
-        ? `/api/public/pay/invoice/${params.id}/create-ach`
-        : `/api/public/pay/invoice/${params.id}/create-intent`;
+      const body = {
+        paymentType,
+        amount,
+        scheduleItemId: selectedScheduleItem || null,
+        ...(paymentType === "card"
+          ? { cardNumber: cardNumber.replace(/\s/g, ""), expirationDate: cardExpiry, cvc: cardCVC, billingZip: cardZip }
+          : { routingNumber: achRouting, accountNumber: achAccount, accountType: achType }
+        )
+      };
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(`/api/public/pay/invoice/${params.id}/nextnp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: paymentAmount,
-          scheduleItemId: selectedScheduleItem
-        })
+        body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to create payment");
-      }
-
       const data = await res.json();
-      setClientSecret(data.clientSecret);
+      if (!res.ok) throw new Error(data.error || "Payment failed");
+
+      setSuccessData(data);
+      setSuccess(true);
     } catch (e) {
-      console.error("Error creating payment intent:", e);
       setError(e.message);
     } finally {
-      setCreatingIntent(false);
+      setProcessing(false);
     }
   }
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD"
-    }).format(amount || 0);
-  };
+  const fmt  = (n) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
+  const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "—";
 
-  const formatDate = (date) => {
-    if (!date) return "—";
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric"
-    });
-  };
+  const container = { minHeight: "100vh", background: "linear-gradient(135deg,#0f0f0f,#1a1a1a)", padding: "40px 20px", fontFamily: "system-ui,sans-serif" };
+  const card = { maxWidth: 560, margin: "0 auto", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 32 };
+  const inp  = { padding: "10px 14px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "rgba(255,255,255,0.9)", fontSize: 14, width: "100%", boxSizing: "border-box", outline: "none", fontFamily: "monospace" };
+  const lbl  = { display: "block", fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6, fontWeight: 500 };
+  const fld  = { marginBottom: 14 };
 
-  const handleScheduleSelect = (item) => {
-    if (item.status === "PAID") return;
-    setSelectedScheduleItem(item.id);
-    setPaymentAmount(item.amount);
-    setClientSecret(null); // Reset payment form
-  };
-
-  const handlePayFullBalance = () => {
-    setSelectedScheduleItem(null);
-    setPaymentAmount(invoice.balanceDue);
-    setClientSecret(null); // Reset payment form
-  };
-
-  const containerStyle = {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)",
-    padding: "40px 20px"
-  };
-
-  const cardStyle = {
-    maxWidth: "600px",
-    margin: "0 auto",
-    background: "rgba(255, 255, 255, 0.02)",
-    border: "1px solid rgba(255, 255, 255, 0.1)",
-    borderRadius: "16px",
-    padding: "32px"
-  };
-
-  if (loading) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: "24px", marginBottom: "16px" }}>Loading...</div>
-          <p style={{ color: "rgba(255,255,255,0.5)" }}>Retrieving invoice details</p>
-        </div>
+  if (loading) return (
+    <div style={container}>
+      <div style={{ ...card, textAlign: "center" }}>
+        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 16 }}>Loading invoice...</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (error && !invoice) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>404</div>
-          <h2 style={{ color: "#ef4444", marginBottom: "8px" }}>{error}</h2>
-          <p style={{ color: "rgba(255,255,255,0.5)" }}>
-            This invoice may have been deleted or the link is invalid.
-          </p>
-        </div>
+  if (error && !invoice) return (
+    <div style={container}>
+      <div style={{ ...card, textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>404</div>
+        <h2 style={{ color: "#ef4444", marginBottom: 8 }}>{error}</h2>
+        <p style={{ color: "rgba(255,255,255,0.5)" }}>This invoice may have been removed or the link is invalid.</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (paymentSuccess) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: "64px", marginBottom: "24px" }}>
-            {paymentMethod === "ach" ? "🏦" : "✓"}
-          </div>
-          <h2 style={{ color: "#22c55e", marginBottom: "16px", fontSize: "28px" }}>
-            {paymentMethod === "ach" ? "Payment Processing" : "Payment Successful!"}
-          </h2>
-          {paymentMessage ? (
-            <p style={{ color: "rgba(255,255,255,0.7)", marginBottom: "24px" }}>
-              {paymentMessage}
-            </p>
-          ) : (
-            <p style={{ color: "rgba(255,255,255,0.7)", marginBottom: "24px" }}>
-              Thank you for your payment of {formatCurrency(paymentAmount)} for invoice {invoice.invoiceNumber}.
-            </p>
-          )}
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>
-            A receipt will be emailed to you shortly.
-          </p>
-        </div>
+  if (invoice?.status === "PAID" && !success) return (
+    <div style={container}>
+      <div style={{ ...card, textAlign: "center" }}>
+        <div style={{ fontSize: 64, marginBottom: 24 }}>✓</div>
+        <h2 style={{ color: "#22c55e", marginBottom: 16, fontSize: 28 }}>Invoice Paid</h2>
+        <p style={{ color: "rgba(255,255,255,0.7)" }}>Invoice {invoice.invoiceNumber} has already been paid in full.</p>
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 8 }}>Total paid: {fmt(invoice.amountPaid)}</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (invoice.status === "PAID") {
-    return (
-      <div style={containerStyle}>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: "64px", marginBottom: "24px" }}>✓</div>
-          <h2 style={{ color: "#22c55e", marginBottom: "16px", fontSize: "28px" }}>
-            Invoice Paid
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.7)", marginBottom: "24px" }}>
-            This invoice ({invoice.invoiceNumber}) has already been paid in full.
-          </p>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>
-            Total paid: {formatCurrency(invoice.amountPaid)}
-          </p>
-        </div>
+  if (invoice?.status === "VOID") return (
+    <div style={container}>
+      <div style={{ ...card, textAlign: "center" }}>
+        <div style={{ fontSize: 64, marginBottom: 24 }}>⊘</div>
+        <h2 style={{ color: "#6b7280", marginBottom: 16, fontSize: 28 }}>Invoice Voided</h2>
+        <p style={{ color: "rgba(255,255,255,0.7)" }}>This invoice has been voided and is no longer payable.</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (invoice.status === "VOID") {
-    return (
-      <div style={containerStyle}>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: "64px", marginBottom: "24px" }}>⊘</div>
-          <h2 style={{ color: "#6b7280", marginBottom: "16px", fontSize: "28px" }}>
-            Invoice Voided
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.7)" }}>
-            This invoice has been voided and is no longer payable.
+  if (success) return (
+    <div style={container}>
+      <div style={{ ...card, textAlign: "center" }}>
+        <div style={{ fontSize: 64, marginBottom: 24 }}>{paymentType === "ach" ? "🏦" : "✓"}</div>
+        <h2 style={{ color: "#22c55e", marginBottom: 16, fontSize: 28 }}>
+          {paymentType === "ach" ? "Payment Submitted" : "Payment Successful!"}
+        </h2>
+        <p style={{ color: "rgba(255,255,255,0.7)", marginBottom: 8 }}>
+          Thank you! Your payment of <strong>{fmt(parseFloat(paymentAmount))}</strong> for invoice <strong>{invoice.invoiceNumber}</strong> has been {paymentType === "ach" ? "submitted" : "processed"}.
+        </p>
+        {successData?.transactionId && (
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "monospace", marginTop: 8 }}>
+            Transaction ID: {successData.transactionId}
           </p>
-        </div>
+        )}
+        {successData?.newBalanceDue > 0 && (
+          <p style={{ color: "#f59e0b", fontSize: 14, marginTop: 12 }}>
+            Remaining balance: {fmt(successData.newBalanceDue)}
+          </p>
+        )}
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 16 }}>A receipt will be emailed to you.</p>
       </div>
-    );
-  }
+    </div>
+  );
+
+  const canPay = invoice?.balanceDue > 0 && !['PAID','VOID'].includes(invoice?.status);
 
   return (
-    <div style={containerStyle}>
-      <div style={cardStyle}>
+    <div style={container}>
+      <div style={card}>
+
         {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
           {invoice.company?.companyName && (
-            <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#dc2626", marginBottom: "8px" }}>
-              {invoice.company.companyName}
-            </h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#dc2626", marginBottom: 6 }}>{invoice.company.companyName}</h1>
           )}
-          <h2 style={{ fontSize: "18px", color: "rgba(255,255,255,0.9)", marginBottom: "4px" }}>
-            Invoice {invoice.invoiceNumber}
-          </h2>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>
-            Due: {formatDate(invoice.dueDate)}
-          </p>
+          <h2 style={{ fontSize: 17, color: "rgba(255,255,255,0.9)", marginBottom: 4 }}>Invoice {invoice.invoiceNumber}</h2>
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Due: {fmtD(invoice.dueDate)}</p>
         </div>
 
-        {/* Invoice Summary */}
-        <div style={{
-          background: "rgba(255, 255, 255, 0.03)",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          borderRadius: "12px",
-          padding: "20px",
-          marginBottom: "24px"
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+        {/* Summary */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 20, marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
             <span style={{ color: "rgba(255,255,255,0.6)" }}>Invoice Total</span>
-            <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: "500" }}>
-              {formatCurrency(invoice.total)}
-            </span>
+            <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: 500 }}>{fmt(invoice.total)}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-            <span style={{ color: "rgba(255,255,255,0.6)" }}>Amount Paid</span>
-            <span style={{ color: "#22c55e", fontWeight: "500" }}>
-              {formatCurrency(invoice.amountPaid)}
-            </span>
-          </div>
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            paddingTop: "12px",
-            borderTop: "1px solid rgba(255, 255, 255, 0.1)"
-          }}>
-            <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: "600" }}>Balance Due</span>
-            <span style={{ color: "#f59e0b", fontWeight: "700", fontSize: "18px" }}>
-              {formatCurrency(invoice.balanceDue)}
-            </span>
+          {invoice.amountPaid > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ color: "rgba(255,255,255,0.6)" }}>Amount Paid</span>
+              <span style={{ color: "#22c55e", fontWeight: 500 }}>{fmt(invoice.amountPaid)}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+            <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>Balance Due</span>
+            <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: 18 }}>{fmt(invoice.balanceDue)}</span>
           </div>
         </div>
 
         {/* Payment Schedule */}
         {invoice.paymentSchedule && invoice.paymentSchedule.length > 0 && (
-          <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)", marginBottom: "12px", textTransform: "uppercase" }}>
-              Payment Schedule
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {invoice.paymentSchedule.map((item) => (
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>Payment Schedule</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {invoice.paymentSchedule.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => handleScheduleSelect(item)}
+                  onClick={() => selectScheduleItem(item)}
                   disabled={item.status === "PAID"}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "12px 16px",
-                    background: selectedScheduleItem === item.id
-                      ? "rgba(220, 38, 38, 0.1)"
-                      : "rgba(255, 255, 255, 0.03)",
-                    border: selectedScheduleItem === item.id
-                      ? "1px solid rgba(220, 38, 38, 0.5)"
-                      : "1px solid rgba(255, 255, 255, 0.08)",
-                    borderRadius: "8px",
-                    cursor: item.status === "PAID" ? "default" : "pointer",
-                    opacity: item.status === "PAID" ? 0.5 : 1,
-                    textAlign: "left"
-                  }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: selectedScheduleItem === item.id ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.03)", border: selectedScheduleItem === item.id ? "1px solid rgba(220,38,38,0.5)" : "1px solid rgba(255,255,255,0.08)", borderRadius: 8, cursor: item.status === "PAID" ? "default" : "pointer", opacity: item.status === "PAID" ? 0.5 : 1, textAlign: "left" }}
                 >
                   <div>
-                    <div style={{ color: "rgba(255,255,255,0.9)", fontWeight: "500" }}>
-                      {item.description}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
-                      Due: {formatDate(item.dueDate)}
-                    </div>
+                    <div style={{ color: "rgba(255,255,255,0.9)", fontWeight: 500, fontSize: 14 }}>{item.description}</div>
+                    {item.dueDate && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Due: {fmtD(item.dueDate)}</div>}
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ color: item.status === "PAID" ? "#22c55e" : "rgba(255,255,255,0.9)", fontWeight: "600" }}>
-                      {formatCurrency(item.amount)}
-                    </div>
-                    {item.status === "PAID" && (
-                      <div style={{ fontSize: "12px", color: "#22c55e" }}>PAID</div>
-                    )}
+                    <div style={{ color: item.status === "PAID" ? "#22c55e" : "rgba(255,255,255,0.9)", fontWeight: 600 }}>{fmt(item.amount)}</div>
+                    {item.status === "PAID" && <div style={{ fontSize: 11, color: "#22c55e" }}>PAID</div>}
                   </div>
                 </button>
               ))}
+              <button
+                onClick={selectFullBalance}
+                style={{ padding: "12px 16px", background: !selectedScheduleItem ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.03)", border: !selectedScheduleItem ? "1px solid rgba(220,38,38,0.5)" : "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 500, cursor: "pointer", textAlign: "center" }}
+              >
+                Pay Full Balance ({fmt(invoice.balanceDue)})
+              </button>
+            </div>
+          </div>
+        )}
+
+        {canPay && (
+          <>
+            {/* Amount display */}
+            <div style={{ padding: 16, background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8, marginBottom: 24, textAlign: "center" }}>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Payment Amount</div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: "#22c55e" }}>{fmt(parseFloat(paymentAmount) || 0)}</div>
             </div>
 
-            {/* Pay Full Balance Option */}
+            {/* Tab switcher */}
+            <div style={{ display: "flex", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+              {[["card","Credit Card"],["ach","ACH / Bank Transfer"]].map(([t,l]) => (
+                <button key={t} onClick={() => { setPaymentType(t); setError(null); }} disabled={processing}
+                  style={{ flex: 1, padding: "10px", border: "none", borderBottom: paymentType === t ? "2px solid #dc2626" : "2px solid transparent", background: paymentType === t ? "rgba(220,38,38,0.15)" : "transparent", color: paymentType === t ? "#fff" : "rgba(255,255,255,0.45)", fontWeight: paymentType === t ? 600 : 400, fontSize: 13, cursor: "pointer" }}
+                >{l}</button>
+              ))}
+            </div>
+
+            {/* Card form */}
+            {paymentType === "card" && (
+              <>
+                <div style={fld}>
+                  <label style={lbl}>Card Number *</label>
+                  <input style={inp} type="text" inputMode="numeric" value={cardNumber} onChange={e => setCardNumber(formatCardNumber(e.target.value))} placeholder="1234 5678 9012 3456" maxLength={19} disabled={processing} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <label style={lbl}>Expiry *</label>
+                    <input style={inp} type="text" inputMode="numeric" value={cardExpiry} onChange={e => setCardExpiry(formatExpiry(e.target.value))} placeholder="MM/YY" maxLength={5} disabled={processing} />
+                  </div>
+                  <div>
+                    <label style={lbl}>CVC *</label>
+                    <input style={inp} type="text" inputMode="numeric" value={cardCVC} onChange={e => setCardCVC(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="123" maxLength={4} disabled={processing} />
+                  </div>
+                  <div>
+                    <label style={lbl}>ZIP</label>
+                    <input style={inp} type="text" inputMode="numeric" value={cardZip} onChange={e => setCardZip(e.target.value.replace(/\D/g,"").slice(0,5))} placeholder="60601" maxLength={5} disabled={processing} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ACH form */}
+            {paymentType === "ach" && (
+              <>
+                <div style={fld}>
+                  <label style={lbl}>Routing Number *</label>
+                  <input style={inp} type="text" inputMode="numeric" value={achRouting} onChange={e => setAchRouting(e.target.value.replace(/\D/g,"").slice(0,9))} placeholder="9-digit routing number" maxLength={9} disabled={processing} />
+                </div>
+                <div style={fld}>
+                  <label style={lbl}>Account Number *</label>
+                  <input style={inp} type="text" inputMode="numeric" value={achAccount} onChange={e => setAchAccount(e.target.value.replace(/\D/g,"").slice(0,17))} placeholder="Account number" disabled={processing} />
+                </div>
+                <div style={fld}>
+                  <label style={lbl}>Account Type *</label>
+                  <select style={{ ...inp, cursor: "pointer", fontFamily: "system-ui" }} value={achType} onChange={e => setAchType(e.target.value)} disabled={processing}>
+                    <option value="checking">Checking</option>
+                    <option value="savings">Savings</option>
+                  </select>
+                </div>
+                <div style={{ padding: "10px 14px", marginBottom: 14, background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+                  ACH payments typically settle within 1–3 business days.
+                </div>
+              </>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div style={{ padding: "10px 14px", marginBottom: 14, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 13 }}>
+                {error}
+              </div>
+            )}
+
+            {/* Submit */}
             <button
-              onClick={handlePayFullBalance}
-              style={{
-                marginTop: "12px",
-                width: "100%",
-                padding: "12px 16px",
-                background: !selectedScheduleItem
-                  ? "rgba(220, 38, 38, 0.1)"
-                  : "rgba(255, 255, 255, 0.03)",
-                border: !selectedScheduleItem
-                  ? "1px solid rgba(220, 38, 38, 0.5)"
-                  : "1px solid rgba(255, 255, 255, 0.08)",
-                borderRadius: "8px",
-                color: "rgba(255,255,255,0.9)",
-                fontSize: "14px",
-                fontWeight: "500",
-                cursor: "pointer",
-                textAlign: "center"
-              }}
+              onClick={handleSubmit}
+              disabled={processing || !paymentAmount}
+              style={{ width: "100%", padding: "14px 24px", background: processing ? "rgba(156,163,175,0.4)" : "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "white", fontSize: 16, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer" }}
             >
-              Pay Full Balance ({formatCurrency(invoice.balanceDue)})
+              {processing ? "Processing..." : `Pay ${fmt(parseFloat(paymentAmount) || 0)}`}
             </button>
-          </div>
+          </>
         )}
 
-        {/* Payment Amount Display */}
-        <div style={{
-          padding: "16px",
-          background: "rgba(34, 197, 94, 0.1)",
-          border: "1px solid rgba(34, 197, 94, 0.3)",
-          borderRadius: "8px",
-          marginBottom: "24px",
-          textAlign: "center"
-        }}>
-          <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.6)", marginBottom: "4px" }}>
-            Payment Amount
-          </div>
-          <div style={{ fontSize: "32px", fontWeight: "700", color: "#22c55e" }}>
-            {formatCurrency(paymentAmount)}
-          </div>
-        </div>
-
-        {/* Payment Method Selection */}
-        {!clientSecret && (
-          <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "14px", color: "rgba(255,255,255,0.5)", marginBottom: "12px", textTransform: "uppercase" }}>
-              Payment Method
-            </h3>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={() => setPaymentMethod("card")}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  background: paymentMethod === "card"
-                    ? "rgba(220, 38, 38, 0.1)"
-                    : "rgba(255, 255, 255, 0.03)",
-                  border: paymentMethod === "card"
-                    ? "1px solid rgba(220, 38, 38, 0.5)"
-                    : "1px solid rgba(255, 255, 255, 0.08)",
-                  borderRadius: "8px",
-                  color: "rgba(255,255,255,0.9)",
-                  cursor: "pointer"
-                }}
-              >
-                Credit Card
-              </button>
-              <button
-                onClick={() => setPaymentMethod("ach")}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  background: paymentMethod === "ach"
-                    ? "rgba(220, 38, 38, 0.1)"
-                    : "rgba(255, 255, 255, 0.03)",
-                  border: paymentMethod === "ach"
-                    ? "1px solid rgba(220, 38, 38, 0.5)"
-                    : "1px solid rgba(255, 255, 255, 0.08)",
-                  borderRadius: "8px",
-                  color: "rgba(255,255,255,0.9)",
-                  cursor: "pointer"
-                }}
-              >
-                Bank Account (ACH)
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Error Display */}
-        {error && (
-          <div style={{
-            marginBottom: "16px",
-            padding: "12px 16px",
-            background: "rgba(239, 68, 68, 0.1)",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-            borderRadius: "8px",
-            color: "#ef4444",
-            fontSize: "14px"
-          }}>
-            {error}
-          </div>
-        )}
-
-        {/* Payment Form or Continue Button */}
-        {clientSecret ? (
-          <Elements
-            stripe={stripePromise}
-            options={{
-              clientSecret,
-              appearance: {
-                theme: "night",
-                variables: {
-                  colorPrimary: "#dc2626",
-                  colorBackground: "#1a1a1a",
-                  colorText: "#ffffff",
-                  colorTextSecondary: "#a1a1aa",
-                  borderRadius: "8px"
-                }
-              }
-            }}
-          >
-            <PaymentForm
-              clientSecret={clientSecret}
-              amount={paymentAmount}
-              invoiceNumber={invoice.invoiceNumber}
-              onSuccess={(message) => {
-                setPaymentSuccess(true);
-                if (message) setPaymentMessage(message);
-              }}
-              onError={(err) => setError(err)}
-            />
-          </Elements>
-        ) : (
-          <button
-            onClick={createPaymentIntent}
-            disabled={!paymentAmount || paymentAmount <= 0 || creatingIntent}
-            style={{
-              width: "100%",
-              padding: "14px 24px",
-              background: creatingIntent
-                ? "rgba(156, 163, 175, 0.5)"
-                : "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
-              border: "none",
-              borderRadius: "8px",
-              color: "white",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: creatingIntent ? "not-allowed" : "pointer"
-            }}
-          >
-            {creatingIntent ? "Preparing Payment..." : "Continue to Payment"}
-          </button>
-        )}
-
-        {/* Security Note */}
-        <div style={{
-          marginTop: "24px",
-          paddingTop: "16px",
-          borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-          textAlign: "center"
-        }}>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
-            Secure payment powered by Stripe
-          </p>
+        {/* Footer */}
+        <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)", textAlign: "center" }}>
+          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Secure payment • Powered by NexNP Gateway</p>
         </div>
       </div>
     </div>
