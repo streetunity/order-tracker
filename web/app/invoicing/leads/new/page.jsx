@@ -32,54 +32,32 @@ export default function NewLeadPage() {
     phone: "",
     company: "",
     source: "manual",
-    sourceDetails: "",
     address: "",
     city: "",
     state: "",
     zipCode: "",
     country: "USA",
-    interestedIn: "",
     notes: "",
-    budget: "",
-    timeline: "",
-    followUpDate: "",
-    followUpNotes: "",
     status: "NEW"
   });
 
   useEffect(() => {
     if (authLoading) return;
-
-    if (!user) {
-      router.push("/login");
-    }
+    if (!user) router.push("/login");
   }, [user, router]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
     setError("");
-
     try {
       const res = await fetch("/api/leads", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({
-          ...formData,
-          budget: formData.budget ? parseFloat(formData.budget) : null,
-          followUpDate: formData.followUpDate || null
-        }),
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(formData),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       router.push(`/invoicing/leads/${data.id}`);
     } catch (err) {
       setError(err.message);
@@ -111,275 +89,88 @@ export default function NewLeadPage() {
     <>
       <InvoicingNav />
       <div style={{ width: "80%", maxWidth: "1800px", margin: "0 auto", paddingTop: 80 }}>
-        {/* Header */}
         <div style={{ marginBottom: 24 }}>
-          <Link
-            href="/invoicing/leads"
-            style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px", display: "block", marginBottom: 8 }}
-          >
+          <Link href="/invoicing/leads" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "13px", display: "block", marginBottom: 8 }}>
             ← Back to Leads
           </Link>
-          <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#dc2626" }}>
-            New Lead
-          </h1>
+          <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#dc2626" }}>New Lead</h1>
         </div>
 
         {error && (
-          <div style={{
-            padding: "12px 16px",
-            marginBottom: "20px",
-            background: "rgba(239, 68, 68, 0.1)",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-            borderRadius: "8px",
-            color: "#ef4444"
-          }}>
+          <div style={{ padding: "12px 16px", marginBottom: "20px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "8px", color: "#ef4444" }}>
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{
-            background: "rgba(255, 255, 255, 0.02)",
-            border: "1px solid rgba(255, 255, 255, 0.05)",
-            borderRadius: "12px",
-            padding: 24
-          }}>
+          <div style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)", borderRadius: "12px", padding: 24 }}>
+
             {/* Contact Information */}
-            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
-              Contact Information
-            </h2>
+            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>Contact Information</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
               <div>
                 <label style={labelStyle}>First Name *</label>
-                <input
-                  type="text"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  style={inputStyle}
-                  required
-                  placeholder="John"
-                />
+                <input type="text" value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} style={inputStyle} required placeholder="John" />
               </div>
               <div>
                 <label style={labelStyle}>Last Name *</label>
-                <input
-                  type="text"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  style={inputStyle}
-                  required
-                  placeholder="Doe"
-                />
+                <input type="text" value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: e.target.value })} style={inputStyle} required placeholder="Doe" />
               </div>
               <div>
                 <label style={labelStyle}>Email *</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  style={inputStyle}
-                  required
-                  placeholder="john@example.com"
-                />
+                <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} style={inputStyle} required placeholder="john@example.com" />
               </div>
               <div>
                 <label style={labelStyle}>Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  style={inputStyle}
-                  placeholder="+1 (555) 123-4567"
-                />
+                <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} style={inputStyle} placeholder="+1 (555) 123-4567" />
               </div>
               <div>
                 <label style={labelStyle}>Company</label>
-                <input
-                  type="text"
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  style={inputStyle}
-                  placeholder="Acme Inc."
-                />
+                <input type="text" value={formData.company} onChange={e => setFormData({ ...formData, company: e.target.value })} style={inputStyle} placeholder="Acme Inc." />
               </div>
               <div>
                 <label style={labelStyle}>Source</label>
-                <select
-                  value={formData.source}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                  style={inputStyle}
-                >
-                  {SOURCE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
+                <select value={formData.source} onChange={e => setFormData({ ...formData, source: e.target.value })} style={inputStyle}>
+                  {SOURCE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </div>
             </div>
 
             {/* Address */}
-            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
-              Address
-            </h2>
+            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>Address</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={labelStyle}>Street Address</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  style={inputStyle}
-                  placeholder="123 Main St"
-                />
+                <input type="text" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} style={inputStyle} placeholder="123 Main St" />
               </div>
               <div>
                 <label style={labelStyle}>City</label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  style={inputStyle}
-                  placeholder="New York"
-                />
+                <input type="text" value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} style={inputStyle} placeholder="New York" />
               </div>
               <div>
                 <label style={labelStyle}>State</label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  style={inputStyle}
-                  placeholder="NY"
-                />
+                <input type="text" value={formData.state} onChange={e => setFormData({ ...formData, state: e.target.value })} style={inputStyle} placeholder="NY" />
               </div>
               <div>
                 <label style={labelStyle}>ZIP Code</label>
-                <input
-                  type="text"
-                  value={formData.zipCode}
-                  onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                  style={inputStyle}
-                  placeholder="10001"
-                />
+                <input type="text" value={formData.zipCode} onChange={e => setFormData({ ...formData, zipCode: e.target.value })} style={inputStyle} placeholder="10001" />
               </div>
               <div>
                 <label style={labelStyle}>Country</label>
-                <input
-                  type="text"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  style={inputStyle}
-                  placeholder="USA"
-                />
-              </div>
-            </div>
-
-            {/* Sales Information */}
-            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
-              Sales Information
-            </h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
-              <div>
-                <label style={labelStyle}>Budget</label>
-                <input
-                  type="number"
-                  value={formData.budget}
-                  onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-                  style={inputStyle}
-                  placeholder="50000"
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Timeline</label>
-                <input
-                  type="text"
-                  value={formData.timeline}
-                  onChange={(e) => setFormData({ ...formData, timeline: e.target.value })}
-                  style={inputStyle}
-                  placeholder="Q2 2026, Immediate, etc."
-                />
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>Interested In</label>
-                <input
-                  type="text"
-                  value={formData.interestedIn}
-                  onChange={(e) => setFormData({ ...formData, interestedIn: e.target.value })}
-                  style={inputStyle}
-                  placeholder="Products or services they're interested in"
-                />
-              </div>
-            </div>
-
-            {/* Follow-up */}
-            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
-              Follow-up
-            </h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
-              <div>
-                <label style={labelStyle}>Follow-up Date</label>
-                <input
-                  type="date"
-                  value={formData.followUpDate}
-                  onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>Follow-up Notes</label>
-                <textarea
-                  value={formData.followUpNotes}
-                  onChange={(e) => setFormData({ ...formData, followUpNotes: e.target.value })}
-                  style={{ ...inputStyle, minHeight: "80px", resize: "vertical" }}
-                  placeholder="Notes for the follow-up call..."
-                />
+                <input type="text" value={formData.country} onChange={e => setFormData({ ...formData, country: e.target.value })} style={inputStyle} placeholder="USA" />
               </div>
             </div>
 
             {/* Notes */}
-            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
-              Notes
-            </h2>
+            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>Notes</h2>
             <div>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                style={{ ...inputStyle, minHeight: "120px", resize: "vertical" }}
-                placeholder="Additional notes about this lead..."
-              />
+              <textarea value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} style={{ ...inputStyle, minHeight: "120px", resize: "vertical" }} placeholder="Additional notes about this lead..." />
             </div>
           </div>
 
-          {/* Actions */}
           <div style={{ display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" }}>
-            <Link
-              href="/invoicing/leads"
-              style={{
-                padding: "10px 20px",
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                borderRadius: "8px",
-                color: "rgba(255, 255, 255, 0.9)",
-                textDecoration: "none",
-                fontSize: "14px"
-              }}
-            >
-              Cancel
-            </Link>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: "10px 24px",
-                background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-                border: "none",
-                borderRadius: "8px",
-                color: "white",
-                cursor: loading ? "not-allowed" : "pointer",
-                fontSize: "14px",
-                fontWeight: "600",
-                opacity: loading ? 0.7 : 1
-              }}
-            >
+            <Link href="/invoicing/leads" style={{ padding: "10px 20px", background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: "8px", color: "rgba(255, 255, 255, 0.9)", textDecoration: "none", fontSize: "14px" }}>Cancel</Link>
+            <button type="submit" disabled={loading} style={{ padding: "10px 24px", background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)", border: "none", borderRadius: "8px", color: "white", cursor: loading ? "not-allowed" : "pointer", fontSize: "14px", fontWeight: "600", opacity: loading ? 0.7 : 1 }}>
               {loading ? "Creating..." : "Create Lead"}
             </button>
           </div>
