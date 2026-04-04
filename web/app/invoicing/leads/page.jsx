@@ -17,6 +17,17 @@ const STATUS_COLORS = {
   LOST:      { bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.35)',   text: '#f87171' },
 };
 
+function sourceIcon(source) {
+  switch (source) {
+    case 'zapier':   return '⚡';
+    case 'website':  return '🌐';
+    case 'referral': return '🤝';
+    case 'email':    return '📧';
+    case 'phone':    return '📞';
+    default:         return '✎';
+  }
+}
+
 export default function LeadsPage() {
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
@@ -154,10 +165,10 @@ export default function LeadsPage() {
         {error && <div style={{ padding: "12px 16px", marginBottom: 16, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 13 }}>{error}</div>}
 
         {loading ? (
-          <div style={{ color: "rgba(255,255,255,0.3)", padding: "60px 0", textAlign: "center", fontSize: 14 }}>Loading leads&#8230;</div>
+          <div style={{ color: "rgba(255,255,255,0.3)", padding: "60px 0", textAlign: "center", fontSize: 14 }}>Loading leads&hellip;</div>
         ) : leads.length === 0 ? (
           <div style={{ textAlign: "center", padding: "80px 0", background: "#141414", borderRadius: 12, border: "1px solid rgba(255,255,255,0.07)" }}>
-            <div style={{ fontSize: 44, marginBottom: 14 }}>&#128203;</div>
+            <div style={{ fontSize: 44, marginBottom: 14 }}>📋</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>No leads found</div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginBottom: 20 }}>Add your first lead to start tracking your pipeline</div>
             <Link href="/invoicing/leads/new" style={{ padding: "8px 18px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ Create First Lead</Link>
@@ -176,14 +187,14 @@ export default function LeadsPage() {
                 {leads.map(lead => (
                   <tr key={lead.id} className="leads-row-tr" onClick={() => router.push(`/invoicing/leads/${lead.id}`)}>
                     <td style={{ padding: "13px 14px", fontSize: 16 }} title={lead.source}>
-                      {lead.source === 'zapier' ? '&#9889;' : lead.source === 'website' ? '&#127760;' : lead.source === 'referral' ? '&#129309;' : lead.source === 'email' ? '&#128231;' : lead.source === 'phone' ? '&#128222;' : '&#9998;'}
+                      {sourceIcon(lead.source)}
                     </td>
                     <td style={{ padding: "13px 14px" }}><div style={{ fontWeight: 600, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{lead.firstName} {lead.lastName}</div></td>
                     <td style={{ padding: "13px 14px" }}>
                       <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>{lead.email}</div>
                       {lead.phone && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{lead.phone}</div>}
                     </td>
-                    <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{lead.company || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&#8212;</span>}</td>
+                    <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{lead.company || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&mdash;</span>}</td>
                     <td style={{ padding: "13px 14px" }} onClick={e => e.stopPropagation()}>
                       <select value={lead.status} onChange={e => handleStatusChange(lead, e.target.value)} disabled={lead.status === "CONVERTED"}
                         style={{ padding: "4px 8px", background: STATUS_COLORS[lead.status]?.bg || "rgba(255,255,255,0.07)", border: `1px solid ${STATUS_COLORS[lead.status]?.border || "rgba(255,255,255,0.15)"}`, borderRadius: 5, color: STATUS_COLORS[lead.status]?.text || "#fff", fontSize: 11, fontWeight: 600, cursor: lead.status === "CONVERTED" ? "not-allowed" : "pointer", letterSpacing: '0.3px' }}>
@@ -194,7 +205,7 @@ export default function LeadsPage() {
                         <option value="LOST">LOST</option>
                       </select>
                     </td>
-                    <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{lead.assignedTo?.name || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&#8212;</span>}</td>
+                    <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{lead.assignedTo?.name || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&mdash;</span>}</td>
                     <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.35)", fontSize: 12 }}>{new Date(lead.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                     <td style={{ padding: "13px 14px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -233,7 +244,7 @@ export default function LeadsPage() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h2>Convert Lead to Customer</h2>
             <p className="modal-confirm-text">Convert <strong>{pendingConvert.firstName} {pendingConvert.lastName}</strong> to a new customer?</p>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 8 }}>This will create a new customer record with the lead&#8217;s information.</p>
+            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 8 }}>This will create a new customer record with the lead&rsquo;s information.</p>
             <div className="modal-actions">
               <button className="modal-btn cancel" onClick={() => { setShowConvertConfirm(false); setPendingConvert(null); }} disabled={converting}>Cancel</button>
               <button className="modal-btn primary" onClick={executeConvert} disabled={converting}>{converting ? "Converting..." : "Convert"}</button>
