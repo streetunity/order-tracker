@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireInvoicingPermission, applyInvoicingDataFilter } from '../middleware/invoicingAuth.js';
+import { requireInvoicingPermission } from '../middleware/invoicingAuth.js';
 import { generateCustomerNumber } from '../utils/numberGenerators.js';
 
 export function createLeadsRouter(prisma) {
@@ -11,35 +11,40 @@ export function createLeadsRouter(prisma) {
       const { status, source, assignedToId, search } = req.query;
 
       let where = { isDeleted: false };
-
-      // Apply RBAC data filtering
-      where = applyInvoicingDataFilter(req.user.role, req.user.id, where);
-
-      // Apply optional filters
       if (status) where.status = status;
       if (source) where.source = source;
       if (assignedToId) where.assignedToId = assignedToId;
 
-      // Search filter
-      if (search) {
-        where.OR = [
-          { firstName: { contains: search } },
-          { lastName: { contains: search } },
-          { email: { contains: search } },
-          { company: { contains: search } },
-          { phone: { contains: search } }
-        ];
+      // Build search conditions
+      const searchConditions = search ? [
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        { email: { contains: search } },
+        { company: { contains: search } },
+        { phone: { contains: search } }
+      ] : null;
+
+      // AGENT: can only see leads assigned to them
+      // Combine with search using AND to prevent bypass
+      if (req.user.role === 'AGENT') {
+        const agentFilter = { assignedToId: req.user.id };
+        if (searchConditions) {
+          where.AND = [
+            agentFilter,
+            { OR: searchConditions }
+          ];
+        } else {
+          Object.assign(where, agentFilter);
+        }
+      } else if (searchConditions) {
+        where.OR = searchConditions;
       }
 
       const leads = await prisma.lead.findMany({
         where,
         include: {
-          assignedTo: {
-            select: { id: true, name: true, email: true }
-          },
-          convertedToCustomer: {
-            select: { id: true, customerNumber: true, company: true }
-          }
+          assignedTo: { select: { id: true, name: true, email: true } },
+          convertedToCustomer: { select: { id: true, customerNumber: true, company: true } }
         },
         orderBy: { createdAt: 'desc' }
       });
@@ -54,30 +59,20 @@ export function createLeadsRouter(prisma) {
   // GET /leads/:id - Get single lead
   router.get('/:id', async (req, res) => {
     try {
-      const lead = await prisma.lead.findUnique({
-        where: { id: req.params.id },
+      const lead = await prisma.lead.findFirst({
+        where: { id: req.params.id, isDeleted: false },
         include: {
-          assignedTo: {
-            select: { id: true, name: true, email: true }
-          },
-          convertedToCustomer: {
-            select: { id: true, customerNumber: true, company: true, firstName: true, lastName: true }
-          },
-          deletedBy: {
-            select: { id: true, name: true }
-          }
+          assignedTo: { select: { id: true, name: true, email: true } },
+          convertedToCustomer: { select: { id: true, customerNumber: true, company: true, firstName: true, lastName: true } },
+          deletedBy: { select: { id: true, name: true } }
         }
       });
 
-      if (!lead) {
-        return res.status(404).json({ error: 'Lead not found' });
-      }
+      if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
-      // Check access for AGENT role
-      if (req.user.role === 'AGENT') {
-        if (lead.assignedToId !== req.user.id && lead.createdById !== req.user.id) {
-          return res.status(403).json({ error: 'Access denied' });
-        }
+      // AGENT access check
+      if (req.user.role === 'AGENT' && lead.assignedToId !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       res.json(lead);
@@ -91,33 +86,20 @@ export function createLeadsRouter(prisma) {
   router.post('/', requireInvoicingPermission('CREATE_LEAD'), async (req, res) => {
     try {
       const {
-        source,
-        sourceDetails,
-        firstName,
-        lastName,
-        email,
-        phone,
-        company,
-        address,
-        city,
-        state,
-        zipCode,
-        country,
-        interestedIn,
-        notes,
-        budget,
-        timeline,
-        followUpDate,
-        followUpNotes,
-        assignedToId,
-        status
+        source, sourceDetails, firstName, lastName, email, phone, company,
+        address, city, state, zipCode, country,
+        interestedIn, notes, budget, timeline, followUpDate, followUpNotes,
+        assignedToId, status
       } = req.body;
 
-      // Validation
       if (!firstName || !lastName || !email) {
-        return res.status(400).json({
-          error: 'Missing required fields: firstName, lastName, email'
-        });
+        return res.status(400).json({ error: 'Missing required fields: firstName, lastName, email' });
+      }
+
+      // Check for duplicate email
+      const existing = await prisma.lead.findFirst({ where: { email, isDeleted: false } });
+      if (existing) {
+        return res.status(409).json({ error: 'A lead with this email already exists', existingId: existing.id });
       }
 
       const lead = await prisma.lead.create({
@@ -140,13 +122,11 @@ export function createLeadsRouter(prisma) {
           timeline,
           followUpDate: followUpDate ? new Date(followUpDate) : null,
           followUpNotes,
-          assignedToId: assignedToId || req.user.id, // Default to current user
+          assignedToId: assignedToId || req.user.id,
           status: status || 'NEW'
         },
         include: {
-          assignedTo: {
-            select: { id: true, name: true, email: true }
-          }
+          assignedTo: { select: { id: true, name: true, email: true } }
         }
       });
 
@@ -157,49 +137,30 @@ export function createLeadsRouter(prisma) {
     }
   });
 
-  // PUT /leads/:id - Update lead (full update)
+  // PUT /leads/:id - Full update
   router.put('/:id', requireInvoicingPermission('EDIT_LEAD'), async (req, res) => {
     try {
-      const existing = await prisma.lead.findUnique({
-        where: { id: req.params.id }
+      const existing = await prisma.lead.findFirst({
+        where: { id: req.params.id, isDeleted: false }
       });
+      if (!existing) return res.status(404).json({ error: 'Lead not found' });
 
-      if (!existing) {
-        return res.status(404).json({ error: 'Lead not found' });
-      }
-
-      // Check access for AGENT role
-      if (req.user.role === 'AGENT') {
-        if (existing.assignedToId !== req.user.id) {
-          return res.status(403).json({ error: 'Access denied' });
-        }
+      if (req.user.role === 'AGENT' && existing.assignedToId !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       const {
-        source,
-        sourceDetails,
-        firstName,
-        lastName,
-        email,
-        phone,
-        company,
-        address,
-        city,
-        state,
-        zipCode,
-        country,
-        interestedIn,
-        notes,
-        budget,
-        timeline,
-        followUpDate,
-        followUpNotes,
-        lostReason,
-        assignedToId,
-        status
+        source, sourceDetails, firstName, lastName, email, phone, company,
+        address, city, state, zipCode, country,
+        interestedIn, notes, budget, timeline, followUpDate, followUpNotes,
+        lostReason, assignedToId, status
       } = req.body;
 
-      // Track last contact when status changes to CONTACTED
+      // Validate required fields
+      if (!firstName || !lastName || !email) {
+        return res.status(400).json({ error: 'Missing required fields: firstName, lastName, email' });
+      }
+
       let lastContactAt = existing.lastContactAt;
       if (status === 'CONTACTED' && existing.status !== 'CONTACTED') {
         lastContactAt = new Date();
@@ -208,33 +169,15 @@ export function createLeadsRouter(prisma) {
       const updated = await prisma.lead.update({
         where: { id: req.params.id },
         data: {
-          source,
-          sourceDetails,
-          firstName,
-          lastName,
-          email,
-          phone,
-          company,
-          address,
-          city,
-          state,
-          zipCode,
-          country,
-          interestedIn,
-          notes,
+          source, sourceDetails, firstName, lastName, email, phone, company,
+          address, city, state, zipCode, country,
+          interestedIn, notes, timeline, followUpNotes, lostReason,
           budget: budget !== undefined ? (budget ? parseFloat(budget) : null) : existing.budget,
-          timeline,
           followUpDate: followUpDate ? new Date(followUpDate) : null,
-          followUpNotes,
-          lostReason,
-          lastContactAt,
-          assignedToId,
-          status
+          lastContactAt, assignedToId, status
         },
         include: {
-          assignedTo: {
-            select: { id: true, name: true, email: true }
-          }
+          assignedTo: { select: { id: true, name: true, email: true } }
         }
       });
 
@@ -245,25 +188,18 @@ export function createLeadsRouter(prisma) {
     }
   });
 
-  // PATCH /leads/:id - Partial update lead
+  // PATCH /leads/:id - Partial update
   router.patch('/:id', requireInvoicingPermission('EDIT_LEAD'), async (req, res) => {
     try {
-      const existing = await prisma.lead.findUnique({
-        where: { id: req.params.id }
+      const existing = await prisma.lead.findFirst({
+        where: { id: req.params.id, isDeleted: false }
       });
+      if (!existing) return res.status(404).json({ error: 'Lead not found' });
 
-      if (!existing) {
-        return res.status(404).json({ error: 'Lead not found' });
+      if (req.user.role === 'AGENT' && existing.assignedToId !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
-      // Check access for AGENT role
-      if (req.user.role === 'AGENT') {
-        if (existing.assignedToId !== req.user.id) {
-          return res.status(403).json({ error: 'Access denied' });
-        }
-      }
-
-      // Whitelist of allowed fields for lead updates
       const allowedFields = [
         'firstName', 'lastName', 'email', 'phone', 'company',
         'address', 'city', 'state', 'zipCode', 'country',
@@ -272,23 +208,17 @@ export function createLeadsRouter(prisma) {
         'followUpDate', 'followUpNotes', 'assignedToId'
       ];
 
-      // Filter to only allowed fields
       const updateData = {};
       for (const field of allowedFields) {
-        if (req.body[field] !== undefined) {
-          updateData[field] = req.body[field];
-        }
+        if (req.body[field] !== undefined) updateData[field] = req.body[field];
       }
 
-      // Handle special field transformations
       if (updateData.budget !== undefined) {
         updateData.budget = updateData.budget ? parseFloat(updateData.budget) : null;
       }
       if (updateData.followUpDate !== undefined) {
         updateData.followUpDate = updateData.followUpDate ? new Date(updateData.followUpDate) : null;
       }
-
-      // Track last contact when status changes to CONTACTED
       if (updateData.status === 'CONTACTED' && existing.status !== 'CONTACTED') {
         updateData.lastContactAt = new Date();
       }
@@ -297,9 +227,7 @@ export function createLeadsRouter(prisma) {
         where: { id: req.params.id },
         data: updateData,
         include: {
-          assignedTo: {
-            select: { id: true, name: true, email: true }
-          }
+          assignedTo: { select: { id: true, name: true, email: true } }
         }
       });
 
@@ -310,24 +238,17 @@ export function createLeadsRouter(prisma) {
     }
   });
 
-  // DELETE /leads/:id - Soft delete lead
+  // DELETE /leads/:id - Soft delete
   router.delete('/:id', requireInvoicingPermission('DELETE_LEAD'), async (req, res) => {
     try {
-      const lead = await prisma.lead.findUnique({
-        where: { id: req.params.id }
+      const lead = await prisma.lead.findFirst({
+        where: { id: req.params.id, isDeleted: false }
       });
-
-      if (!lead) {
-        return res.status(404).json({ error: 'Lead not found' });
-      }
+      if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
       const deleted = await prisma.lead.update({
         where: { id: req.params.id },
-        data: {
-          isDeleted: true,
-          deletedAt: new Date(),
-          deletedById: req.user.id
-        }
+        data: { isDeleted: true, deletedAt: new Date(), deletedById: req.user.id }
       });
 
       res.json({ message: 'Lead deleted successfully', lead: deleted });
@@ -340,47 +261,24 @@ export function createLeadsRouter(prisma) {
   // POST /leads/:id/convert - Convert lead to customer
   router.post('/:id/convert', requireInvoicingPermission('CONVERT_LEAD'), async (req, res) => {
     try {
-      const lead = await prisma.lead.findUnique({
-        where: { id: req.params.id }
+      const lead = await prisma.lead.findFirst({
+        where: { id: req.params.id, isDeleted: false }
       });
+      if (!lead) return res.status(404).json({ error: 'Lead not found' });
+      if (lead.status === 'CONVERTED') return res.status(400).json({ error: 'Lead already converted' });
 
-      if (!lead) {
-        return res.status(404).json({ error: 'Lead not found' });
+      if (req.user.role === 'AGENT' && lead.assignedToId !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
-      if (lead.isDeleted) {
-        return res.status(400).json({ error: 'Cannot convert deleted lead' });
-      }
-
-      if (lead.status === 'CONVERTED') {
-        return res.status(400).json({ error: 'Lead already converted' });
-      }
-
-      // Check access for AGENT role
-      if (req.user.role === 'AGENT') {
-        if (lead.assignedToId !== req.user.id) {
-          return res.status(403).json({ error: 'Access denied' });
-        }
-      }
-
-      // Optional overrides from request body
       const {
-        companyName,
-        billingAddress,
-        billingCity,
-        billingState,
-        billingZipCode,
-        billingCountry,
-        paymentTerms,
-        notes: customerNotes
+        companyName, billingAddress, billingCity, billingState,
+        billingZipCode, billingCountry, paymentTerms, notes: customerNotes
       } = req.body;
 
-      // Generate customer number
       const customerNumber = await generateCustomerNumber(prisma);
 
-      // Create customer and update lead in a transaction
       const result = await prisma.$transaction(async (tx) => {
-        // Create customer from lead data
         const customer = await tx.customer.create({
           data: {
             customerNumber,
@@ -411,13 +309,10 @@ export function createLeadsRouter(prisma) {
             status: 'ACTIVE'
           },
           include: {
-            assignedTo: {
-              select: { id: true, name: true, email: true }
-            }
+            assignedTo: { select: { id: true, name: true, email: true } }
           }
         });
 
-        // Update lead to mark as converted
         const updatedLead = await tx.lead.update({
           where: { id: req.params.id },
           data: {
@@ -446,26 +341,18 @@ export function createLeadsRouter(prisma) {
   router.patch('/:id/assign', requireInvoicingPermission('ASSIGN_LEAD'), async (req, res) => {
     try {
       const { assignedToId } = req.body;
+      if (!assignedToId) return res.status(400).json({ error: 'assignedToId is required' });
 
-      if (!assignedToId) {
-        return res.status(400).json({ error: 'assignedToId is required' });
-      }
-
-      const lead = await prisma.lead.findUnique({
-        where: { id: req.params.id }
+      const lead = await prisma.lead.findFirst({
+        where: { id: req.params.id, isDeleted: false }
       });
-
-      if (!lead) {
-        return res.status(404).json({ error: 'Lead not found' });
-      }
+      if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
       const updated = await prisma.lead.update({
         where: { id: req.params.id },
         data: { assignedToId },
         include: {
-          assignedTo: {
-            select: { id: true, name: true, email: true }
-          }
+          assignedTo: { select: { id: true, name: true, email: true } }
         }
       });
 
