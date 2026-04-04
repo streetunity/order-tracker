@@ -1221,16 +1221,21 @@ model Payment {
   paymentDate   DateTime @default(now())
   paymentMethod String // CREDIT_CARD, ACH, CHECK, WIRE, CASH
 
-  // Stripe fields
+  // NexNP Gateway fields
+  nextnpTransactionId String? // NexNP transaction ID for card/ACH payments
+
+  // Legacy Stripe fields (kept for historical records)
   stripePaymentIntentId String?
   stripeChargeId        String?
-  last4                 String? // Last 4 digits of card
-  cardBrand             String? // visa, mastercard, etc.
-  bankName              String? // For ACH payments
+
+  // Card/bank details
+  last4     String? // Last 4 digits of card
+  cardBrand String? // visa, mastercard, etc.
+  bankName  String? // For ACH payments
 
   // Manual payment fields
-  checkNumber    String?
-  wireReference  String?
+  checkNumber     String?
+  wireReference   String?
   referenceNumber String? // General reference
 
   // Status
@@ -1259,6 +1264,7 @@ model Payment {
   @@index([paymentDate])
   @@index([paymentMethod])
   @@index([recordedById])
+  @@index([nextnpTransactionId])
   @@index([stripePaymentIntentId])
   @@index([scheduleItemId])
 }
