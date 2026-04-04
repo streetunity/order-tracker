@@ -139,7 +139,6 @@ export default function ProductsPage() {
 
   if (authLoading || !user) return null;
 
-  // Outlined tab buttons — matches the reference image
   const tabBtn = (id, label, count) => {
     const active = activeTab === id;
     return (
@@ -160,11 +159,13 @@ export default function ProductsPage() {
         .prod-search { padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 7px; color: rgba(255,255,255,0.9); font-size: 13px; outline: none; transition: border-color 0.15s; }
         .prod-search:focus { border-color: rgba(220,38,38,0.45); }
         .prod-search::placeholder { color: rgba(255,255,255,0.28); }
+        .files-btn { padding: 5px 11px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 6px; color: rgba(96,165,250,0.8); font-size: 12px; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.12s; white-space: nowrap; }
+        .files-btn:hover { background: rgba(59,130,246,0.15); color: #93c5fd; }
+        .files-btn.has-files { border-color: rgba(59,130,246,0.35); color: #93c5fd; font-weight: 600; }
       `}</style>
 
       <div style={{ minHeight: "calc(100vh - 64px)", background: "#0f0f0f", padding: "32px 32px 60px" }}>
 
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>Products &amp; Bundles</h1>
@@ -185,13 +186,11 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {/* Tab bar */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
           {tabBtn("products", "Products", products.length)}
           {tabBtn("bundles",  "Bundles",  bundles.length)}
         </div>
 
-        {/* Products Tab */}
         {activeTab === "products" && (
           <>
             <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
@@ -207,45 +206,56 @@ export default function ProductsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}>
-                    {TH("Short Name")}{TH("Name")}{TH("Category")}{TH("Price", "right")}{TH("Cost", "right")}{TH("Margin", "right")}{TH("Status", "center")}{TH("Actions", "right")}
+                    {TH("Short Name")}{TH("Name")}{TH("Category")}{TH("Price", "right")}{TH("Cost", "right")}{TH("Margin", "right")}{TH("Files", "center")}{TH("Status", "center")}{TH("Actions", "right")}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredProducts.length === 0 ? (
-                    <tr><td colSpan={8} style={{ padding: "60px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>{searchTerm ? "No products match" : "No products yet"}</td></tr>
-                  ) : filteredProducts.map(p => (
-                    <tr key={p.id} className="prod-row" style={{ opacity: p.isActive ? 1 : 0.5 }}>
-                      <td style={{ padding: "13px 14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", fontSize: 13, fontFamily: "monospace" }}>{p.sku}</td>
-                      <td style={{ padding: "13px 14px" }}>
-                        <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{p.name}</div>
-                        {p.description && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</div>}
-                      </td>
-                      <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13, textTransform: "capitalize" }}>{p.category || <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
-                      <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{fmt(p.price)}</td>
-                      <td style={{ padding: "13px 14px", textAlign: "right", color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{p.cost ? fmt(p.cost) : <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
-                      <td style={{ padding: "13px 14px", textAlign: "right", fontSize: 13 }}>
-                        {p.marginPercent ? <span style={{ color: parseFloat(p.marginPercent) >= 20 ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>{p.marginPercent}%</span> : <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}
-                      </td>
-                      <td style={{ padding: "13px 14px", textAlign: "center" }}>
-                        <span style={{ padding: "3px 9px", borderRadius: 5, fontSize: 11, fontWeight: 600, letterSpacing: "0.3px", background: p.isActive ? "rgba(34,197,94,0.1)" : "rgba(156,163,175,0.1)", border: p.isActive ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(156,163,175,0.3)", color: p.isActive ? "#22c55e" : "#9ca3af" }}>
-                          {p.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td style={{ padding: "13px 14px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          <button onClick={() => openEditProductModal(p)} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                          {p.isActive && <button onClick={() => confirmDeactivateProduct(p)} style={{ padding: "5px 11px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6, color: "#f87171", fontSize: 12, cursor: "pointer" }}>Deactivate</button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                    <tr><td colSpan={9} style={{ padding: "60px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>{searchTerm ? "No products match" : "No products yet"}</td></tr>
+                  ) : filteredProducts.map(p => {
+                    const fileCount = p.attachments?.length || 0;
+                    return (
+                      <tr key={p.id} className="prod-row" style={{ opacity: p.isActive ? 1 : 0.5 }}>
+                        <td style={{ padding: "13px 14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", fontSize: 13, fontFamily: "monospace" }}>{p.sku}</td>
+                        <td style={{ padding: "13px 14px" }}>
+                          <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{p.name}</div>
+                          {p.description && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</div>}
+                        </td>
+                        <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13, textTransform: "capitalize" }}>{p.category || <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{fmt(p.price)}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "right", color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{p.cost ? fmt(p.cost) : <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
+                        <td style={{ padding: "13px 14px", textAlign: "right", fontSize: 13 }}>
+                          {p.marginPercent ? <span style={{ color: parseFloat(p.marginPercent) >= 20 ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>{p.marginPercent}%</span> : <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}
+                        </td>
+                        <td style={{ padding: "13px 14px", textAlign: "center" }}>
+                          <Link
+                            href={`/invoicing/products/${p.id}`}
+                            className={`files-btn${fileCount > 0 ? ' has-files' : ''}`}
+                            title={fileCount > 0 ? `${fileCount} file${fileCount !== 1 ? 's' : ''} attached` : 'Add files to this product'}
+                          >
+                            {fileCount > 0 ? `${fileCount} file${fileCount !== 1 ? 's' : ''}` : '+ Files'}
+                          </Link>
+                        </td>
+                        <td style={{ padding: "13px 14px", textAlign: "center" }}>
+                          <span style={{ padding: "3px 9px", borderRadius: 5, fontSize: 11, fontWeight: 600, letterSpacing: "0.3px", background: p.isActive ? "rgba(34,197,94,0.1)" : "rgba(156,163,175,0.1)", border: p.isActive ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(156,163,175,0.3)", color: p.isActive ? "#22c55e" : "#9ca3af" }}>
+                            {p.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td style={{ padding: "13px 14px", textAlign: "right" }}>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button onClick={() => openEditProductModal(p)} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", fontSize: 12, cursor: "pointer" }}>Edit</button>
+                            {p.isActive && <button onClick={() => confirmDeactivateProduct(p)} style={{ padding: "5px 11px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6, color: "#f87171", fontSize: 12, cursor: "pointer" }}>Deactivate</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </>
         )}
 
-        {/* Bundles Tab */}
         {activeTab === "bundles" && (
           <>
             <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
@@ -292,7 +302,6 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* Product Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content wide" onClick={e => e.stopPropagation()}>
@@ -351,7 +360,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Bundle Modal */}
       {showBundleModal && (
         <div className="modal-overlay">
           <div className="modal-content extra-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 900, height: "80vh", maxHeight: 750, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -417,7 +425,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Confirm Modal */}
       {showConfirmModal && (
         <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
