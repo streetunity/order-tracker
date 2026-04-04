@@ -3,51 +3,42 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 
-// NexNP Tokenizer configuration from environment
 const NEXTNP_BASE_URL   = process.env.NEXT_PUBLIC_NEXTNP_BASE_URL   || 'https://sandbox.nextnpgateway.com';
 const NEXTNP_PUBLIC_KEY = process.env.NEXT_PUBLIC_NEXTNP_PUBLIC_KEY;
 const TOKENIZER_SCRIPT  = `${NEXTNP_BASE_URL}/tokenizer/tokenizer.js`;
 
 export default function PublicPaymentPage() {
   const params = useParams();
-  const [invoice,             setInvoice]             = useState(null);
-  const [loading,             setLoading]             = useState(true);
-  const [error,               setError]               = useState(null);
-  const [paymentAmount,       setPaymentAmount]       = useState('');
-  const [selectedScheduleItem,setSelectedScheduleItem]= useState(null);
-  const [processing,          setProcessing]          = useState(false);
-  const [success,             setSuccess]             = useState(false);
-  const [successData,         setSuccessData]         = useState(null);
-  const [tokenizerReady,      setTokenizerReady]      = useState(false);
-  const [scriptLoaded,        setScriptLoaded]        = useState(false);
-
+  const [invoice,              setInvoice]              = useState(null);
+  const [loading,              setLoading]              = useState(true);
+  const [error,                setError]                = useState(null);
+  const [paymentAmount,        setPaymentAmount]        = useState('');
+  const [selectedScheduleItem, setSelectedScheduleItem] = useState(null);
+  const [processing,           setProcessing]           = useState(false);
+  const [success,              setSuccess]              = useState(false);
+  const [successData,          setSuccessData]          = useState(null);
+  const [tokenizerReady,       setTokenizerReady]       = useState(false);
+  const [scriptLoaded,         setScriptLoaded]         = useState(false);
   const tokenizerRef = useRef(null);
 
-  // Load invoice data
+  // Load invoice
   useEffect(() => { loadInvoice(); }, [params.id]);
 
-  // Load Tokenizer script once invoice is loaded and we know we can pay
+  // Load Tokenizer script once invoice is confirmed payable
   useEffect(() => {
     if (!invoice || invoice.balanceDue <= 0 || ['PAID','VOID'].includes(invoice.status)) return;
     if (scriptLoaded) return;
-
     const script = document.createElement('script');
     script.src = TOKENIZER_SCRIPT;
     script.async = true;
-    script.onload = () => setScriptLoaded(true);
+    script.onload  = () => setScriptLoaded(true);
     script.onerror = () => setError('Failed to load payment form. Please refresh and try again.');
     document.head.appendChild(script);
-
-    return () => {
-      // Don't remove on unmount — let it persist for page lifetime
-    };
   }, [invoice]);
 
-  // Initialise the Tokenizer once the script is loaded and the DOM container exists
+  // Initialise Tokenizer once script is loaded
   useEffect(() => {
     if (!scriptLoaded || !window.Tokenizer || !NEXTNP_PUBLIC_KEY) return;
-
-    // Small delay to ensure the container div is rendered
     const timer = setTimeout(() => {
       try {
         tokenizerRef.current = new window.Tokenizer({
@@ -57,71 +48,36 @@ export default function PublicPaymentPage() {
           settings: {
             payment: {
               types: ['card', 'ach'],
-              card: {
-                requireCVV: true,
-                mask_number: true,
-              },
-              ach: {
-                sec_code:             'web',
-                verifyAccountRouting: true,
-                showSecCode:          false,
-              },
+              card: { requireCVV: true, mask_number: true },
+              ach:  { sec_code: 'web', verifyAccountRouting: true, showSecCode: false },
             },
             styles: {
-              body: {
-                'color':            'rgba(255,255,255,0.9)',
-                'background-color': 'transparent',
-                'font-family':      'system-ui, -apple-system, sans-serif',
-              },
-              input: {
-                'background-color': 'rgba(255,255,255,0.06)',
-                'border':           '1px solid rgba(255,255,255,0.15)',
-                'border-radius':    '8px',
-                'color':            'rgba(255,255,255,0.9)',
-                'padding':          '10px 14px',
-                'font-size':        '14px',
-              },
-              'input:focus': {
-                'border-color': 'rgba(220,38,38,0.6)',
-                'outline':      'none',
-              },
-              label: {
-                'color':       'rgba(255,255,255,0.5)',
-                'font-size':   '12px',
-                'font-weight': '500',
-              },
-              select: {
-                'background-color': 'rgba(255,255,255,0.06)',
-                'border':           '1px solid rgba(255,255,255,0.15)',
-                'border-radius':    '8px',
-                'color':            'rgba(255,255,255,0.9)',
-                'padding':          '10px 14px',
-              },
+              body:         { 'color': 'rgba(255,255,255,0.9)', 'background-color': 'transparent', 'font-family': 'system-ui,-apple-system,sans-serif' },
+              input:        { 'background-color': 'rgba(255,255,255,0.06)', 'border': '1px solid rgba(255,255,255,0.15)', 'border-radius': '8px', 'color': 'rgba(255,255,255,0.9)', 'padding': '10px 14px', 'font-size': '14px' },
+              'input:focus':{ 'border-color': 'rgba(220,38,38,0.6)', 'outline': 'none' },
+              label:        { 'color': 'rgba(255,255,255,0.5)', 'font-size': '12px', 'font-weight': '500' },
+              select:       { 'background-color': 'rgba(255,255,255,0.06)', 'border': '1px solid rgba(255,255,255,0.15)', 'border-radius': '8px', 'color': 'rgba(255,255,255,0.9)', 'padding': '10px 14px' },
             },
           },
-          onLoad: () => setTokenizerReady(true),
+          onLoad:     () => setTokenizerReady(true),
           submission: (resp) => {
             setProcessing(false);
-            if (resp.status === 'success') {
-              handleToken(resp.token);
-            } else if (resp.status === 'validation') {
-              setError('Please check your payment details and try again.');
-            } else {
-              setError(resp.msg || 'Payment form error. Please try again.');
-            }
+            if (resp.status === 'success')    handleToken(resp.token);
+            else if (resp.status === 'validation') setError('Please check your payment details and try again.');
+            else setError(resp.msg || 'Payment form error. Please try again.');
           },
         });
       } catch (e) {
         setError('Failed to initialise payment form: ' + e.message);
       }
     }, 100);
-
     return () => clearTimeout(timer);
   }, [scriptLoaded]);
 
   async function loadInvoice() {
     try {
-      const res = await fetch(`/api/view-invoice/${params.id}`);
+      // Use /api/public/view-invoice/ which is confirmed working
+      const res = await fetch(`/api/public/view-invoice/${params.id}`);
       if (!res.ok) {
         setError(res.status === 404 ? 'Invoice not found' : 'Unable to load invoice');
         return;
@@ -164,9 +120,7 @@ export default function PublicPaymentPage() {
     setProcessing(true);
     setError(null);
     try {
-      // Generate idempotency key client-side to prevent double charges on retry
       const idempotencyKey = crypto.randomUUID();
-
       const res = await fetch(`/api/public/pay/invoice/${params.id}/nextnp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -177,10 +131,8 @@ export default function PublicPaymentPage() {
           idempotencyKey,
         }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Payment failed');
-
       setSuccessData(data);
       setSuccess(true);
     } catch (e) {
@@ -193,84 +145,70 @@ export default function PublicPaymentPage() {
   const fmt  = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n || 0);
   const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '\u2014';
 
-  // ── Styles ──────────────────────────────────────────────────────────────────
   const container  = { minHeight: '100vh', background: 'linear-gradient(135deg,#0f0f0f,#1a1a1a)', padding: '40px 20px', fontFamily: 'system-ui,sans-serif' };
   const card       = { maxWidth: 560, margin: '0 auto', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 32 };
   const sectionBox = { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 20, marginBottom: 20 };
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
   if (loading) return (
-    <div style={container}>
-      <div style={{ ...card, textAlign: 'center' }}>
-        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 16 }}>Loading invoice\u2026</p>
-      </div>
-    </div>
+    <div style={container}><div style={{ ...card, textAlign: 'center' }}>
+      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 16 }}>Loading invoice…</p>
+    </div></div>
   );
 
   if (error && !invoice) return (
-    <div style={container}>
-      <div style={{ ...card, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>\u26a0\ufe0f</div>
-        <h2 style={{ color: '#ef4444', marginBottom: 8 }}>{error}</h2>
-        <p style={{ color: 'rgba(255,255,255,0.5)' }}>Please contact us if you need assistance.</p>
-      </div>
-    </div>
+    <div style={container}><div style={{ ...card, textAlign: 'center' }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+      <h2 style={{ color: '#ef4444', marginBottom: 8 }}>{error}</h2>
+      <p style={{ color: 'rgba(255,255,255,0.5)' }}>Please contact us if you need assistance.</p>
+    </div></div>
   );
 
   if (invoice?.status === 'PAID' && !success) return (
-    <div style={container}>
-      <div style={{ ...card, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 24 }}>\u2713</div>
-        <h2 style={{ color: '#22c55e', fontSize: 28, marginBottom: 12 }}>Invoice Paid</h2>
-        <p style={{ color: 'rgba(255,255,255,0.7)' }}>Invoice {invoice.invoiceNumber} has been paid in full.</p>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 8 }}>Total paid: {fmt(invoice.amountPaid)}</p>
-      </div>
-    </div>
+    <div style={container}><div style={{ ...card, textAlign: 'center' }}>
+      <div style={{ fontSize: 64, marginBottom: 24 }}>✓</div>
+      <h2 style={{ color: '#22c55e', fontSize: 28, marginBottom: 12 }}>Invoice Paid</h2>
+      <p style={{ color: 'rgba(255,255,255,0.7)' }}>Invoice {invoice.invoiceNumber} has been paid in full.</p>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 8 }}>Total paid: {fmt(invoice.amountPaid)}</p>
+    </div></div>
   );
 
   if (invoice?.status === 'VOID') return (
-    <div style={container}>
-      <div style={{ ...card, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 24 }}>\u2298</div>
-        <h2 style={{ color: '#6b7280', fontSize: 28, marginBottom: 12 }}>Invoice Voided</h2>
-        <p style={{ color: 'rgba(255,255,255,0.7)' }}>This invoice is no longer payable.</p>
-      </div>
-    </div>
+    <div style={container}><div style={{ ...card, textAlign: 'center' }}>
+      <div style={{ fontSize: 64, marginBottom: 24 }}>⊘</div>
+      <h2 style={{ color: '#6b7280', fontSize: 28, marginBottom: 12 }}>Invoice Voided</h2>
+      <p style={{ color: 'rgba(255,255,255,0.7)' }}>This invoice is no longer payable.</p>
+    </div></div>
   );
 
   if (success) return (
-    <div style={container}>
-      <div style={{ ...card, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 24 }}>
-          {successData?.isACH ? '\ud83c\udfe6' : '\u2713'}
-        </div>
-        <h2 style={{ color: '#22c55e', fontSize: 28, marginBottom: 12 }}>
-          {successData?.isACH ? 'ACH Payment Submitted' : 'Payment Successful!'}
-        </h2>
-        <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: 8 }}>
-          {successData?.message || `Your payment of ${fmt(parseFloat(paymentAmount))} has been processed.`}
+    <div style={container}><div style={{ ...card, textAlign: 'center' }}>
+      <div style={{ fontSize: 64, marginBottom: 24 }}>{successData?.isACH ? '🏦' : '✓'}</div>
+      <h2 style={{ color: '#22c55e', fontSize: 28, marginBottom: 12 }}>
+        {successData?.isACH ? 'ACH Payment Submitted' : 'Payment Successful!'}
+      </h2>
+      <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: 8 }}>
+        {successData?.message || `Your payment of ${fmt(parseFloat(paymentAmount))} has been processed.`}
+      </p>
+      {successData?.isACH && (
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 8 }}>
+          ACH payments typically settle within 1–3 business days.
+          Your invoice will be marked paid upon confirmation.
         </p>
-        {successData?.isACH && (
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 8 }}>
-            ACH payments typically settle within 1\u20133 business days.
-            Your invoice will be marked paid upon confirmation.
-          </p>
-        )}
-        {successData?.transactionId && (
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 16, fontFamily: 'monospace' }}>
-            Transaction ID: {successData.transactionId}
-          </p>
-        )}
-        {successData?.newBalanceDue > 0 && (
-          <p style={{ color: '#f59e0b', fontSize: 14, marginTop: 12 }}>
-            Remaining balance: {fmt(successData.newBalanceDue)}
-          </p>
-        )}
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 20 }}>
-          A receipt has been sent to your email address.
+      )}
+      {successData?.transactionId && (
+        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 16, fontFamily: 'monospace' }}>
+          Transaction ID: {successData.transactionId}
         </p>
-      </div>
-    </div>
+      )}
+      {successData?.newBalanceDue > 0 && (
+        <p style={{ color: '#f59e0b', fontSize: 14, marginTop: 12 }}>
+          Remaining balance: {fmt(successData.newBalanceDue)}
+        </p>
+      )}
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 20 }}>
+        A receipt has been sent to your email address.
+      </p>
+    </div></div>
   );
 
   return (
@@ -356,13 +294,13 @@ export default function PublicPaymentPage() {
           </div>
         )}
 
-        {/* Payment amount display */}
+        {/* Amount display */}
         <div style={{ padding: '14px 20px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, marginBottom: 24, textAlign: 'center' }}>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>Payment Amount</div>
           <div style={{ fontSize: 32, fontWeight: 700, color: '#22c55e' }}>{fmt(parseFloat(paymentAmount) || 0)}</div>
         </div>
 
-        {/* NexNP Tokenizer iframe — card data never touches our server */}
+        {/* NexNP Tokenizer iframe */}
         <div style={{ marginBottom: 20 }}>
           <div
             id="nextnp-payment-form"
@@ -378,7 +316,7 @@ export default function PublicPaymentPage() {
           />
           {!tokenizerReady && !error && (
             <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 8 }}>
-              Loading secure payment form\u2026
+              Loading secure payment form…
             </p>
           )}
         </div>
@@ -396,22 +334,20 @@ export default function PublicPaymentPage() {
           disabled={processing || !tokenizerReady || !paymentAmount}
           style={{
             width: '100%', padding: '14px 24px',
-            background: processing || !tokenizerReady
-              ? 'rgba(156,163,175,0.3)'
-              : 'linear-gradient(135deg,#dc2626,#b91c1c)',
+            background: (processing || !tokenizerReady) ? 'rgba(156,163,175,0.3)' : 'linear-gradient(135deg,#dc2626,#b91c1c)',
             border: 'none', borderRadius: 8, color: 'white',
             fontSize: 16, fontWeight: 700,
             cursor: (processing || !tokenizerReady) ? 'not-allowed' : 'pointer',
             transition: 'background 0.2s',
           }}
         >
-          {processing ? 'Processing\u2026' : `Pay ${fmt(parseFloat(paymentAmount) || 0)}`}
+          {processing ? 'Processing…' : `Pay ${fmt(parseFloat(paymentAmount) || 0)}`}
         </button>
 
         {/* Footer */}
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' }}>
           <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>
-            \ud83d\udd12 Payments are processed securely via NexNP Gateway.
+            🔒 Payments are processed securely via NexNP Gateway.
             Your card details are encrypted end-to-end and never stored on our servers.
           </p>
         </div>
