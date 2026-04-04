@@ -107,9 +107,13 @@ export function createZapierWebhookRouter(prisma) {
       }
 
       // IP allowlist check
+      // SECURITY: req.ip is used (not raw X-Forwarded-For) because trust proxy is
+      // configured in index.js, so Express resolves req.ip from Nginx's XFF header
+      // correctly. Reading req.headers['x-forwarded-for'] directly would allow
+      // clients to spoof their IP by setting the header before Nginx.
       if (webhook.allowedIPs) {
         const allowedList = webhook.allowedIPs.split(',').map(ip => ip.trim());
-        const clientIP = req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
+        const clientIP = req.ip;
         if (!allowedList.includes(clientIP) && !allowedList.includes('*')) {
           console.log(`IP not allowed for webhook ${webhookKey}: ${clientIP}`);
           return res.status(403).json({ error: 'IP not allowed' });
@@ -170,9 +174,8 @@ export function createZapierWebhookRouter(prisma) {
     }
   });
 
-  // ─── PROTECTED: Webhook management (SUPER_ADMIN / ADMIN only) ────────────────
+  // ─── PUBLIC: Webhook test endpoint (key-protected) ───────────────────────────
 
-  // POST /zapier/test/:webhookKey - Test endpoint (public, key-protected)
   router.post('/test/:webhookKey', async (req, res) => {
     try {
       const webhook = await prisma.zapierWebhook.findUnique({ where: { webhookKey: req.params.webhookKey } });

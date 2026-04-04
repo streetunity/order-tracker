@@ -4,7 +4,19 @@ import { PrismaClient } from '@prisma/client';
 import { isSuperAdmin, isAccountantOrHigher, isAdminOrHigher, isManufacturer } from '../utils/roleHelpers.js';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+
+// SECURITY: JWT_SECRET must be set via environment variable.
+// In production the server will refuse to start without it.
+// In development a loud error is logged if it is missing.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET environment variable is not set. Set it in your .env file and restart.');
+  } else {
+    console.error('\n⚠️  WARNING: JWT_SECRET is not set. Using an insecure fallback — DO NOT use this in production!\n');
+  }
+}
+const SECRET = JWT_SECRET || 'dev-secret-key-change-in-production';
 
 // Generate JWT token
 export function generateToken(user) {
@@ -15,7 +27,7 @@ export function generateToken(user) {
       role: user.role,
       name: user.name 
     },
-    JWT_SECRET,
+    SECRET,
     { expiresIn: '7d' }
   );
 }
@@ -23,7 +35,7 @@ export function generateToken(user) {
 // Verify JWT token
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, SECRET);
   } catch (error) {
     return null;
   }
@@ -73,18 +85,9 @@ async function getUserFromRequest(req) {
       }
     }
 
-    // Fallback to API key for backward compatibility (will be removed later)
-    const adminKey = req.headers['x-admin-key'];
-    if (adminKey === process.env.ADMIN_KEY) {
-      // Return a system admin user for API key access
-      return {
-        id: 'system',
-        email: 'system@admin',
-        name: 'System Admin',
-        role: 'SUPER_ADMIN', // System key gets SUPER_ADMIN for backward compatibility
-        isActive: true
-      };
-    }
+    // NOTE: The legacy x-admin-key / ADMIN_KEY fallback has been removed.
+    // It granted SUPER_ADMIN access with no audit trail and no DB isActive check.
+    // Use the system user account (system@ordertracker.internal) with a JWT instead.
 
     return null;
   } catch (error) {

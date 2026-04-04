@@ -100,12 +100,13 @@ export function createAuthRouter() {
     });
   });
 
-  // Generate system token for cron jobs (admin only)
+  // Generate system token for cron jobs (SUPER_ADMIN only)
   router.post('/generate-system-token', async (req, res) => {
     try {
-      // Check if user is authenticated and is admin
-      if (!req.user || req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
+      // SECURITY: Only SUPER_ADMIN may generate system tokens.
+      // Role comparison must use the uppercase value matching stored roles.
+      if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Super Admin access required' });
       }
 
       const { email, password } = req.body;
@@ -119,8 +120,8 @@ export function createAuthRouter() {
         where: { email: email.toLowerCase() }
       });
 
-      if (!user || user.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin user not found' });
+      if (!user || user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Super Admin user not found' });
       }
 
       const isValid = await comparePassword(password, user.password);
@@ -134,7 +135,7 @@ export function createAuthRouter() {
       res.json({
         token,
         message: 'System token generated successfully. Store this securely for cron jobs.',
-        warning: 'This token has admin privileges. Keep it safe!'
+        warning: 'This token has Super Admin privileges. Keep it safe!'
       });
     } catch (e) {
       console.error('Generate system token error:', e);

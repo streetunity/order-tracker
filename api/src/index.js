@@ -59,6 +59,12 @@ import { createNextnpWebhookHandler } from './routes/nextnpWebhook.js';
 const prisma = new PrismaClient();
 const app = express();
 
+// Trust the single Nginx reverse proxy in front of this server.
+// This allows req.ip to resolve to the real client IP from the
+// X-Forwarded-For header that Nginx sets, rather than always being
+// 127.0.0.1. Required for IP-based rate limiting and allowlists.
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 4000;
 const HOST = '0.0.0.0';
 
@@ -85,7 +91,7 @@ console.log('CORS Allowed Origins:', uniqueOrigins);
 app.use(cors({
   origin: (origin, cb) => (!origin || uniqueOrigins.includes(origin)) ? cb(null, true) : cb(new Error('Not allowed by CORS')),
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key', 'x-auth-token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
   exposedHeaders: ['Content-Type', 'Authorization'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 }));

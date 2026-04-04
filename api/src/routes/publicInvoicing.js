@@ -13,9 +13,13 @@ import { trackEmailOpen, trackInvoiceEmailOpen } from '../services/emailService.
 import { getPDFSignedUrl } from '../services/pdfService.js';
 import { chargeWithToken, generateIdempotencyKey } from '../services/nextnpService.js';
 import { generatePaymentNumber } from '../utils/numberGenerators.js';
+import { rateLimit } from '../rateLimit.js';
 
 export function createPublicInvoicingRouter(prisma) {
   const router = express.Router();
+
+  // Apply rate limiting to all public invoicing routes
+  router.use(rateLimit);
 
   const TRACKING_PIXEL = Buffer.from(
     'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
@@ -197,6 +201,20 @@ export function createPublicInvoicingRouter(prisma) {
       if (parsedAmount > invoice.balanceDue + 0.01) {
         return res.status(400).json({ error: `Amount exceeds balance due of $${invoice.balanceDue.toFixed(2)}` });
       }
+
+      // SECURITY: Prevent duplicate/spam payment notifications.
+      // If a PENDING notification already exists for this invoice, reject the request.
+      // Once staff processes the existing notification (status changes from PENDING),
+      // the customer may submit another notification if needed.
+      const existingPending = await prisma.payment.findFirst({
+        where: { invoiceId: invoice.id, status: 'PENDING' }
+      });
+      if (existingPending) {
+        return res.status(400).json({
+          error: 'A payment notification is already pending for this invoice. Please wait for our team to process it before submitting another.'
+        });
+      }
+
       const settings = await prisma.invoicingSettings.findFirst();
       const paymentNumber = `${settings?.paymentPrefix || 'PAY'}-${new Date().getFullYear()}-${String(settings?.nextPaymentNumber || 1).padStart(5, '0')}`;
       const payment = await prisma.payment.create({

@@ -54,14 +54,18 @@ export function generateIdempotencyKey() {
  * crypto.timingSafeEqual() throws if buffers differ in length —
  * we do an explicit length check first and wrap in try/catch.
  *
+ * SECURITY: If NEXTNP_WEBHOOK_SECRET is not set we REJECT the request
+ * (return false). Accepting unverified webhooks would allow anyone to
+ * forge payment settlement events and mark invoices as paid.
+ *
  * @param {Buffer|string} rawBody
  * @param {string}        signature  — value of the Signature header
  * @returns {boolean}
  */
 export function verifyWebhookSignature(rawBody, signature) {
   if (!NEXTNP_WEBHOOK_SECRET) {
-    console.warn('[NexNP] NEXTNP_WEBHOOK_SECRET not set — skipping signature verification');
-    return true; // must be set before going live
+    console.error('[NexNP] NEXTNP_WEBHOOK_SECRET is not set — REJECTING webhook request. Set this variable before going live.');
+    return false; // fail closed — never accept unverified webhooks
   }
   if (!signature) return false;
 
