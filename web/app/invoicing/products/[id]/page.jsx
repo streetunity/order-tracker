@@ -32,8 +32,8 @@ export default function ProductDetailPage() {
   const [formData,   setFormData]   = useState({});
   const [dragActive, setDragActive] = useState(false);
 
-  const [showConfirmModal,         setShowConfirmModal]         = useState(false);
-  const [confirmConfig,            setConfirmConfig]            = useState({ title: "", message: "", onConfirm: null });
+  const [showConfirmModal,          setShowConfirmModal]          = useState(false);
+  const [confirmConfig,             setConfirmConfig]             = useState({ title: "", message: "", onConfirm: null });
   const [pendingDeleteAttachmentId, setPendingDeleteAttachmentId] = useState(null);
 
   useEffect(() => {
@@ -119,11 +119,9 @@ export default function ProductDetailPage() {
     await uploadFiles(files);
   }
 
-  // Upload one or more files sequentially
   async function uploadFiles(files) {
     setUploading(true); setError("");
     let lastError = null;
-
     for (const file of files) {
       try {
         const fd = new FormData();
@@ -136,11 +134,9 @@ export default function ProductDetailPage() {
         if (!res.ok) lastError = data.error || "Failed to upload attachment";
       } catch (err) { lastError = err.message; }
     }
-
     await loadProduct();
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
-
     if (lastError) { setError(lastError); }
     else {
       setSuccess(files.length > 1 ? `${files.length} files uploaded` : "Attachment uploaded successfully");
@@ -243,13 +239,17 @@ export default function ProductDetailPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
 
-          {/* ── Left column: details + pricing ── */}
+          {/* ── Left: details + pricing ── */}
           <div>
             <div style={sec}>
               <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>Product Details</h2>
               {isEditing ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div><label style={lbl}>Short Name (SKU) *</label><input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value.toUpperCase()})} style={inp} required /><p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Appears on tracking board when order is created</p></div>
+                  <div>
+                    <label style={lbl}>Short Name (SKU) *</label>
+                    <input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value.toUpperCase()})} style={inp} required />
+                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Appears on tracking board when order is created</p>
+                  </div>
                   <div><label style={lbl}>Name *</label><input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={inp} required /></div>
                   <div><label style={lbl}>Model Number</label><input type="text" value={formData.modelNumber} onChange={e => setFormData({...formData, modelNumber: e.target.value})} style={inp} /></div>
                   <div><label style={lbl}>Description</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} style={{ ...inp, minHeight: 100, resize: "vertical" }} /></div>
@@ -263,9 +263,14 @@ export default function ProductDetailPage() {
                 <>
                   <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Short Name</span><span style={{ color: "rgba(255,255,255,0.9)", fontFamily: "monospace" }}>{product.sku}</span></div>
                   {product.modelNumber && <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Model #</span><span style={{ color: "rgba(255,255,255,0.9)" }}>{product.modelNumber}</span></div>}
-                  <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Category</span><span style={{ color: "rgba(255,255,255,0.9)" }}>{product.category || "\u2014"}</span></div>
+                  <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Category</span><span style={{ color: "rgba(255,255,255,0.9)" }}>{product.category || "—"}</span></div>
                   <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Taxable</span><span style={{ color: "rgba(255,255,255,0.9)" }}>{product.taxable ? "Yes" : "No"}</span></div>
-                  {product.description && <div style={{ paddingTop: 12 }}><div style={{ color: "rgba(255,255,255,0.5)", marginBottom: 6, fontSize: 13 }}>Description</div><div style={{ color: "rgba(255,255,255,0.7)", whiteSpace: "pre-wrap" }}>{product.description}</div></div>}
+                  {product.description && (
+                    <div style={{ paddingTop: 12 }}>
+                      <div style={{ color: "rgba(255,255,255,0.5)", marginBottom: 6, fontSize: 13 }}>Description</div>
+                      <div style={{ color: "rgba(255,255,255,0.7)", whiteSpace: "pre-wrap" }}>{product.description}</div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -286,14 +291,19 @@ export default function ProductDetailPage() {
               ) : (
                 <>
                   <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Price</span><span style={{ color: "#dc2626", fontWeight: 700, fontSize: 18 }}>${product.price?.toLocaleString() || "0"}</span></div>
-                  <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Cost</span><span style={{ color: "rgba(255,255,255,0.9)" }}>{product.cost ? `$${product.cost.toLocaleString()}` : "\u2014"}</span></div>
-                  <div style={{ ...row, borderBottom: "none" }}><span style={{ color: "rgba(255,255,255,0.5)" }}>Margin</span><span style={{ color: product.marginPercent ? (parseFloat(product.marginPercent) > 30 ? "#22c55e" : parseFloat(product.marginPercent) > 15 ? "#eab308" : "#ef4444") : "rgba(255,255,255,0.4)" }}>{product.marginPercent ? `$${product.margin?.toFixed(2)} (${product.marginPercent}%)` : "\u2014"}</span></div>
+                  <div style={row}><span style={{ color: "rgba(255,255,255,0.5)" }}>Cost</span><span style={{ color: "rgba(255,255,255,0.9)" }}>{product.cost ? `$${product.cost.toLocaleString()}` : "—"}</span></div>
+                  <div style={{ ...row, borderBottom: "none" }}>
+                    <span style={{ color: "rgba(255,255,255,0.5)" }}>Margin</span>
+                    <span style={{ color: product.marginPercent ? (parseFloat(product.marginPercent) > 30 ? "#22c55e" : parseFloat(product.marginPercent) > 15 ? "#eab308" : "#ef4444") : "rgba(255,255,255,0.4)" }}>
+                      {product.marginPercent ? `$${product.margin?.toFixed(2)} (${product.marginPercent}%)` : "—"}
+                    </span>
+                  </div>
                 </>
               )}
             </div>
           </div>
 
-          {/* ── Right column: attachments ── */}
+          {/* ── Right: attachments ── */}
           <div>
             <div style={sec}>
               <div style={{ marginBottom: 16 }}>
@@ -331,10 +341,10 @@ export default function ProductDetailPage() {
                 }}
               >
                 {uploading ? (
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>Uploading\u2026</div>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>Uploading…</div>
                 ) : (
                   <>
-                    <div style={{ fontSize: 28, marginBottom: 8, lineHeight: 1 }}>{dragActive ? "\ud83d\udcce" : "\u2b06"}</div>
+                    <div style={{ fontSize: 28, marginBottom: 8, lineHeight: 1 }}>{dragActive ? "📎" : "⬆"}</div>
                     <div style={{ color: dragActive ? "#dc2626" : "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: 500 }}>
                       {dragActive ? "Drop to upload" : "Drop files here or click to browse"}
                     </div>
@@ -377,10 +387,6 @@ export default function ProductDetailPage() {
                         <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                           <input type="checkbox" checked={att.includeInInvoice} onChange={e => toggleAttachmentSetting(att.id, 'includeInInvoice', e.target.checked)} style={{ width: 14, height: 14 }} />
                           <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Include in invoices</span>
-                        </label>
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                          <input type="checkbox" checked={att.isPrimary} onChange={e => toggleAttachmentSetting(att.id, 'isPrimary', e.target.checked)} style={{ width: 14, height: 14 }} />
-                          <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>Primary image</span>
                         </label>
                       </div>
                     </div>
