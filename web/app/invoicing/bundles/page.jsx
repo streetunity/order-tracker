@@ -19,28 +19,22 @@ export default function BundlesPage() {
 
   useEffect(() => {
     if (authLoading) return;
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-    loadBundles();
+    if (!user) { router.push("/login"); return; }
+    loadBundles(showInactive);
   }, [user, router, showInactive]);
 
-  async function loadBundles() {
+  async function loadBundles(inactive) {
     try {
       const params = new URLSearchParams();
-      if (showInactive) params.append('includeInactive', 'true');
+      if (inactive) params.append('includeInactive', 'true');
 
       const res = await fetch(`/api/bundles?${params.toString()}`, {
         headers: getAuthHeaders(),
+        cache: 'no-store',
       });
 
       if (!res.ok) {
-        if (res.status === 401) {
-          router.push("/login");
-          return;
-        }
+        if (res.status === 401) { router.push("/login"); return; }
         throw new Error("Failed to load bundles");
       }
 
@@ -192,9 +186,9 @@ export default function BundlesPage() {
             }}>
               <div style={{ fontSize: "48px", marginBottom: "16px" }}>📦</div>
               <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: "20px" }}>
-                {searchTerm ? "No bundles match your search" : "No bundles yet"}
+                {searchTerm ? "No bundles match your search" : showInactive ? "No bundles found" : "No active bundles"}
               </p>
-              {!searchTerm && (
+              {!searchTerm && !showInactive && (
                 <Link
                   href="/invoicing/bundles/new"
                   style={{
@@ -295,7 +289,7 @@ export default function BundlesPage() {
                     fontSize: "12px",
                     color: "rgba(255,255,255,0.5)"
                   }}>
-                    {bundle.items.slice(0, 3).map((item, i) => (
+                    {bundle.items.slice(0, 3).map((item) => (
                       <div key={item.id} style={{ display: "flex", justifyContent: "space-between" }}>
                         <span>{item.product.name}</span>
                         <span>×{item.quantity}</span>
