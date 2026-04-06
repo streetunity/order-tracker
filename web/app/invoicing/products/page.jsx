@@ -51,33 +51,40 @@ export default function ProductsPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
-    loadProducts(); loadBundles();
+    loadProducts(showInactive, categoryFilter);
+    loadBundles(showBundleInactive);
   }, [user, router]);
 
-  async function loadProducts() {
+  async function loadProducts(inactive, category) {
     try {
       const params = new URLSearchParams();
-      if (categoryFilter) params.append('category', categoryFilter);
-      if (showInactive) params.append('includeInactive', 'true');
-      const res = await fetch('/api/products' + (params.toString() ? '?' + params.toString() : ''), { headers: getAuthHeaders() });
+      if (category) params.append('category', category);
+      if (inactive) params.append('includeInactive', 'true');
+      const res = await fetch('/api/products' + (params.toString() ? '?' + params.toString() : ''), {
+        headers: getAuthHeaders(),
+        cache: 'no-store',
+      });
       if (!res.ok) { if (res.status === 401) { router.push("/login"); return; } throw new Error("Failed to load products"); }
       setProducts(await res.json());
     } catch (e) { setError("Failed to load products"); }
     finally { setLoading(false); }
   }
 
-  async function loadBundles() {
+  async function loadBundles(inactive) {
     try {
       const params = new URLSearchParams();
-      if (showBundleInactive) params.append('includeInactive', 'true');
-      const res = await fetch('/api/bundles' + (params.toString() ? '?' + params.toString() : ''), { headers: getAuthHeaders() });
+      if (inactive) params.append('includeInactive', 'true');
+      const res = await fetch('/api/bundles' + (params.toString() ? '?' + params.toString() : ''), {
+        headers: getAuthHeaders(),
+        cache: 'no-store',
+      });
       if (res.ok) setBundles(await res.json());
     } catch (e) { console.error(e); }
     finally { setBundlesLoading(false); }
   }
 
-  useEffect(() => { if (user) loadProducts(); }, [categoryFilter, showInactive]);
-  useEffect(() => { if (user) loadBundles(); }, [showBundleInactive]);
+  useEffect(() => { if (user) loadProducts(showInactive, categoryFilter); }, [categoryFilter, showInactive]);
+  useEffect(() => { if (user) loadBundles(showBundleInactive); }, [showBundleInactive]);
 
   const filteredProducts = products.filter(p => {
     if (!searchTerm) return true;
@@ -116,26 +123,55 @@ export default function ProductsPage() {
     try {
       const res = await fetch(editingProduct ? '/api/products/' + editingProduct.id : '/api/products', { method: editingProduct ? 'PATCH' : 'POST', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ ...formData, price: parseFloat(formData.price)||0, cost: formData.cost ? parseFloat(formData.cost) : null }) });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to save product'); }
-      setShowModal(false); loadProducts();
+      setShowModal(false); loadProducts(showInactive, categoryFilter);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
+
   const handleBundleSubmit = async (e) => {
     e.preventDefault(); setSaving(true); setError("");
     if (bundleFormData.items.length === 0) { setError("Add at least one product to the bundle"); setSaving(false); return; }
     try {
-      const res = await fetch(editingBundle ? '/api/bundles/' + editingBundle.id : '/api/bundles', { method: editingBundle ? 'PATCH' : 'POST', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bundleFormData.name, description: bundleFormData.description, price: bundlePrice, cost: bundleCost, items: bundleFormData.items.map(i => ({ productId: i.productId, quantity: i.quantity })) }) });
+      const url = editingBundle ? '/api/bundles/' + editingBundle.id : '/api/bundles';
+      const method = editingBundle ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        // price/cost are auto-calculated server-side; send items for new bundles
+        body: JSON.stringify({
+          name: bundleFormData.name,
+          description: bundleFormData.description,
+          ...(editingBundle ? {} : { items: bundleFormData.items.map(i => ({ productId: i.productId, quantity: i.quantity })) })
+        })
+      });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to save bundle'); }
-      setShowBundleModal(false); loadBundles();
+      setShowBundleModal(false); loadBundles(showBundleInactive);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
 
   function showConfirm(title, message, onConfirm) { setConfirmConfig({ title, message, onConfirm }); setShowConfirmModal(true); }
-  function confirmDeactivateProduct(p) { showConfirm("Deactivate Product", `Deactivate "${p.name}"?`, () => handleDelete(p)); }
-  function confirmDeactivateBundle(b)  { showConfirm("Deactivate Bundle",  `Deactivate "${b.name}"?`,  () => handleDeleteBundle(b)); }
-  const handleDelete = async (p) => { setShowConfirmModal(false); const res = await fetch('/api/products/' + p.id, { method: 'DELETE', headers: getAuthHeaders() }); if (!res.ok) setError('Failed to deactivate product'); else loadProducts(); };
-  const handleDeleteBundle = async (b) => { setShowConfirmModal(false); const res = await fetch('/api/bundles/' + b.id, { method: 'DELETE', headers: getAuthHeaders() }); if (!res.ok) setError('Failed to deactivate bundle'); else loadBundles(); };
+  function confirmDeactivateProduct(p) { showConfirm("Deactivate Product", `Deactivate "${p.name}"?`, () => handleDeactivateProduct(p)); }
+  function confirmDeactivateBundle(b)  { showConfirm("Deactivate Bundle",  `Deactivate "${b.name}"?`,  () => handleDeactivateBundle(b)); }
+
+  const handleDeactivateProduct = async (p) => {
+    setShowConfirmModal(false);
+    const res = await fetch('/api/products/' + p.id, { method: 'DELETE', headers: getAuthHeaders() });
+    if (!res.ok) setError('Failed to deactivate product');
+    else loadProducts(showInactive, categoryFilter);
+  };
+
+  const handleDeactivateBundle = async (b) => {
+    setShowConfirmModal(false);
+    // PATCH isActive=false — do NOT call DELETE (that permanently removes the bundle)
+    const res = await fetch('/api/bundles/' + b.id, {
+      method: 'PATCH',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: false })
+    });
+    if (!res.ok) setError('Failed to deactivate bundle');
+    else loadBundles(showBundleInactive);
+  };
 
   if (authLoading || !user) return null;
 
@@ -273,7 +309,9 @@ export default function ProductsPage() {
                 </thead>
                 <tbody>
                   {filteredBundles.length === 0 ? (
-                    <tr><td colSpan={5} style={{ padding: "60px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>No bundles yet</td></tr>
+                    <tr><td colSpan={5} style={{ padding: "60px", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>
+                      {showBundleInactive ? "No bundles found" : "No active bundles"}
+                    </td></tr>
                   ) : filteredBundles.map(b => (
                     <tr key={b.id} className="prod-row" style={{ opacity: b.isActive ? 1 : 0.5 }}>
                       <td style={{ padding: "13px 14px" }}>
@@ -290,7 +328,10 @@ export default function ProductsPage() {
                       <td style={{ padding: "13px 14px", textAlign: "right" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                           <button onClick={() => openEditBundleModal(b)} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", fontSize: 12, cursor: "pointer" }}>Edit</button>
-                          {b.isActive && <button onClick={() => confirmDeactivateBundle(b)} style={{ padding: "5px 11px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6, color: "#f87171", fontSize: 12, cursor: "pointer" }}>Deactivate</button>}
+                          {b.isActive
+                            ? <button onClick={() => confirmDeactivateBundle(b)} style={{ padding: "5px 11px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6, color: "#f87171", fontSize: 12, cursor: "pointer" }}>Deactivate</button>
+                            : <button onClick={() => { setShowConfirmModal(false); fetch('/api/bundles/' + b.id, { method: 'PATCH', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: true }) }).then(() => loadBundles(showBundleInactive)); }} style={{ padding: "5px 11px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: 6, color: "#4ade80", fontSize: 12, cursor: "pointer" }}>Activate</button>
+                          }
                         </div>
                       </td>
                     </tr>
@@ -364,6 +405,7 @@ export default function ProductsPage() {
         <div className="modal-overlay">
           <div className="modal-content extra-wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 900, height: "80vh", maxHeight: 750, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <h2 style={{ flexShrink: 0 }}>{editingBundle ? 'Edit Bundle' : 'New Bundle'}</h2>
+            {!editingBundle && <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: "-8px 0 12px", flexShrink: 0 }}>Bundle price is automatically calculated from component products.</p>}
             <form onSubmit={handleBundleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
               <div style={{ flex: 1, overflowY: "auto", paddingRight: 8 }}>
                 <div className="modal-form-group">
@@ -374,51 +416,58 @@ export default function ProductsPage() {
                   <label>Description</label>
                   <textarea value={bundleFormData.description} onChange={e => setBundleFormData({...bundleFormData, description: e.target.value})} rows={2} />
                 </div>
-                <div className="modal-form-group">
-                  <label>Products in Bundle</label>
-                  <div style={{ position: "relative" }}>
-                    <input type="text" placeholder="Type to search products..." value={productSearch} onChange={e => { setProductSearch(e.target.value); setShowProductDropdown(true); }} onFocus={() => setShowProductDropdown(true)} />
-                    {showProductDropdown && searchedProducts.length > 0 && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, marginTop: 4, maxHeight: 250, overflow: "auto", zIndex: 100, boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }}>
-                        {searchedProducts.map(p => (
-                          <div key={p.id} onClick={() => addProductToBundle(p)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                            <div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{p.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{p.sku}</div></div>
-                            <div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(p.price)}</div>
+                {!editingBundle && (
+                  <div className="modal-form-group">
+                    <label>Products in Bundle</label>
+                    <div style={{ position: "relative" }}>
+                      <input type="text" placeholder="Type to search products..." value={productSearch} onChange={e => { setProductSearch(e.target.value); setShowProductDropdown(true); }} onFocus={() => setShowProductDropdown(true)} />
+                      {showProductDropdown && searchedProducts.length > 0 && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, marginTop: 4, maxHeight: 250, overflow: "auto", zIndex: 100, boxShadow: "0 4px 20px rgba(0,0,0,0.5)" }}>
+                          {searchedProducts.map(p => (
+                            <div key={p.id} onClick={() => addProductToBundle(p)} style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                              <div><div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{p.name}</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{p.sku}</div></div>
+                              <div style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(p.price)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {bundleFormData.items.length > 0 ? (
+                      <div style={{ marginTop: 12, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden" }}>
+                        {bundleFormData.items.map((item, idx) => (
+                          <div key={item.productId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderTop: idx > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", background: "rgba(255,255,255,0.02)" }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 14 }}>{item.name}</div>
+                              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{item.sku} &#183; {fmt(item.price)} each</div>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <button type="button" onClick={() => updateBundleItemQuantity(item.productId, item.quantity-1)} style={{ width: 28, height: 28, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>-</button>
+                              <span style={{ color: "rgba(255,255,255,0.9)", minWidth: 24, textAlign: "center" }}>{item.quantity}</span>
+                              <button type="button" onClick={() => updateBundleItemQuantity(item.productId, item.quantity+1)} style={{ width: 28, height: 28, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>+</button>
+                              <span style={{ color: "#dc2626", fontWeight: 600, minWidth: 80, textAlign: "right" }}>{fmt(item.price * item.quantity)}</span>
+                              <button type="button" onClick={() => removeBundleItem(item.productId)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18, padding: "0 4px" }}>&#215;</button>
+                            </div>
                           </div>
                         ))}
+                        <div style={{ display: "flex", justifyContent: "space-between", padding: 12, background: "rgba(220,38,38,0.08)", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                          <span style={{ color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>Bundle Total (auto):</span>
+                          <span style={{ color: "#dc2626", fontWeight: 700, fontSize: 16 }}>{fmt(bundlePrice)}</span>
+                        </div>
                       </div>
+                    ) : (
+                      <div style={{ marginTop: 12, padding: 20, textAlign: "center", color: "rgba(255,255,255,0.35)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 13 }}>Search and add products above</div>
                     )}
                   </div>
-                  {bundleFormData.items.length > 0 ? (
-                    <div style={{ marginTop: 12, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden" }}>
-                      {bundleFormData.items.map((item, idx) => (
-                        <div key={item.productId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderTop: idx > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", background: "rgba(255,255,255,0.02)" }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 14 }}>{item.name}</div>
-                            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{item.sku} &#183; {fmt(item.price)} each</div>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <button type="button" onClick={() => updateBundleItemQuantity(item.productId, item.quantity-1)} style={{ width: 28, height: 28, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>-</button>
-                            <span style={{ color: "rgba(255,255,255,0.9)", minWidth: 24, textAlign: "center" }}>{item.quantity}</span>
-                            <button type="button" onClick={() => updateBundleItemQuantity(item.productId, item.quantity+1)} style={{ width: 28, height: 28, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>+</button>
-                            <span style={{ color: "#dc2626", fontWeight: 600, minWidth: 80, textAlign: "right" }}>{fmt(item.price * item.quantity)}</span>
-                            <button type="button" onClick={() => removeBundleItem(item.productId)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 18, padding: "0 4px" }}>&#215;</button>
-                          </div>
-                        </div>
-                      ))}
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: 12, background: "rgba(220,38,38,0.08)", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                        <span style={{ color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>Bundle Total:</span>
-                        <span style={{ color: "#dc2626", fontWeight: 700, fontSize: 16 }}>{fmt(bundlePrice)}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 12, padding: 20, textAlign: "center", color: "rgba(255,255,255,0.35)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 13 }}>Search and add products above</div>
-                  )}
-                </div>
+                )}
+                {editingBundle && (
+                  <div style={{ padding: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
+                    To add or remove products, open the bundle detail page.
+                  </div>
+                )}
               </div>
               <div className="modal-actions" style={{ flexShrink: 0, marginTop: "auto" }}>
                 <button type="button" className="modal-btn cancel" onClick={() => setShowBundleModal(false)}>Cancel</button>
-                <button type="submit" className="modal-btn primary" disabled={saving || bundleFormData.items.length === 0}>{saving ? 'Saving...' : (editingBundle ? 'Update Bundle' : 'Create Bundle')}</button>
+                <button type="submit" className="modal-btn primary" disabled={saving || (!editingBundle && bundleFormData.items.length === 0)}>{saving ? 'Saving...' : (editingBundle ? 'Update Bundle' : 'Create Bundle')}</button>
               </div>
             </form>
           </div>
