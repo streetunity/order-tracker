@@ -42,7 +42,6 @@ const SAMPLE_PAYOUT_DETAILS =
   '<td style="padding:10px;font-size:15px;font-weight:700;color:#22c55e;text-align:right;">$625.00</td>'+
   '</tr></tfoot></table>';
 
-// Sample pending-approval table (amber total — awaiting action)
 const SAMPLE_APPROVAL_DETAILS =
   '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dddddd;border-radius:4px;overflow:hidden;margin-top:12px;">'+
   '<thead><tr style="background-color:#f5f5f5;">'+
@@ -59,6 +58,37 @@ const SAMPLE_APPROVAL_DETAILS =
   '<td colspan="3" style="padding:10px;font-size:13px;font-weight:600;color:#333333;">Total</td>'+
   '<td style="padding:10px;font-size:15px;font-weight:700;color:#f59e0b;text-align:right;">$312.50</td>'+
   '</tr></tfoot></table>';
+
+const SAMPLE_BROKER_DOCUMENT_LIST =
+  '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dddddd;border-radius:4px;overflow:hidden;margin-top:12px;">'+
+  '<thead><tr style="background-color:#f5f5f5;">'+
+  '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Type</th>'+
+  '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">File Name</th>'+
+  '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Order / PO</th>'+
+  '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Item</th>'+
+  '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Customer</th>'+
+  '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Uploaded By</th>'+
+  '<th style="padding:8px 12px;text-align:center;font-size:12px;color:#666666;font-weight:600;">Link</th>'+
+  '</tr></thead><tbody>'+
+  '<tr>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">Bill of Lading</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">BOL_SL3015_2026.pdf</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">PO-2026-0041</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">SL-3015</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">Acme Corp</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">Brian M.</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;text-align:center;"><a href="#" style="color:#dc2626;text-decoration:none;font-weight:600;">View &rarr;</a></td>'+
+  '</tr>'+
+  '<tr>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">Arrival Notice</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">arrival_FP2000.pdf</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">PO-2026-0039</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">FP-2000</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">Globex Inc</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">Brian M.</td>'+
+  '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;text-align:center;"><a href="#" style="color:#dc2626;text-decoration:none;font-weight:600;">View &rarr;</a></td>'+
+  '</tr>'+
+  '</tbody></table>';
 
 const DEFAULT_TEMPLATES = {
   // ---- Invoice Email ----
@@ -256,6 +286,33 @@ const DEFAULT_TEMPLATES = {
       { name: 'companyEmail',  description: 'Company email' },
     ],
   },
+
+  // ---- Broker Document Notification ----
+  broker_document: {
+    key: 'broker_document', name: 'Broker Document Notification',
+    description: 'Internal email sent to broker users when documents are uploaded to the broker portal by internal staff. Multiple uploads within a 5-minute window are consolidated into a single digest email.',
+    category: 'internal',
+    subject: '{{documentCount}} New Document{{documentPlural}} Available \u2014 Broker Portal',
+    bodyContent:
+      '<p>Hello {{brokerName}},</p>\n\n' +
+      '<p>{{documentCount}} new document{{documentPlural}} {{documentCountVerb}} been uploaded to the broker portal and {{documentCountVerb}} ready for your review.</p>\n\n' +
+      '{{documentList}}\n\n' +
+      '<p style="text-align: center; margin: 30px 0;">\n  <a href="{{portalUrl}}" class="btn">Open Broker Portal</a>\n</p>\n\n' +
+      '<p>Use the View links in the table above to go directly to each item, or open the portal to see all pending shipments.</p>',
+    closingContent: '',
+    footerContent: '<p>{{companyName}} \u2014 Internal Notification</p>',
+    variables: [
+      { name: 'brokerName',        description: 'Name of the broker receiving this email' },
+      { name: 'documentCount',     description: 'Number of documents in this notification (1 or more)' },
+      { name: 'documentPlural',    description: 'Empty string when count is 1, "s" when multiple' },
+      { name: 'documentCountVerb', description: '"has" when count is 1, "have" when multiple' },
+      { name: 'documentList',      description: 'HTML table: Type | File Name | Order | Item | Customer | Uploaded By | View link' },
+      { name: 'portalUrl',         description: 'Link to the broker portal' },
+      { name: 'companyName',       description: 'Company name' },
+      { name: 'companyPhone',      description: 'Company phone' },
+      { name: 'companyEmail',      description: 'Company email' },
+    ],
+  },
 };
 
 const DEFAULT_STAGE_CONFIGS = {
@@ -386,9 +443,14 @@ export function createEmailTemplateSettingsRouter(prisma) {
         stage: 'SHIPPING',
         // customer_files vars
         totalCount: '3', photoCount: '2', videoCount: '1', manualCount: '0', documentCount: '0',
+        // broker_document vars (defaults; overridden below for broker_document key)
+        brokerName: 'Alex Broker', documentPlural: 's', documentCountVerb: 'have',
+        documentList: SAMPLE_BROKER_DOCUMENT_LIST,
+        portalUrl: 'https://smt-orders.com/broker',
       };
-      // Use the right sample table for pending-approval template
       if (key === 'pending_approval_notification') sampleData.payoutDetails = SAMPLE_APPROVAL_DETAILS;
+      if (key === 'broker_document') sampleData.documentCount = '2';
+      else sampleData.documentCount = sampleData.documentCount || '0'; // preserve customer_files value
 
       let processedSubject = subject || '';
       let processedBody    = bodyContent || '';
@@ -444,8 +506,14 @@ export function createEmailTemplateSettingsRouter(prisma) {
         stage: 'SHIPPING',
         // customer_files vars
         totalCount: '3', photoCount: '2', videoCount: '1', manualCount: '0', documentCount: '0',
+        // broker_document vars
+        brokerName: 'Test Broker', documentPlural: 's', documentCountVerb: 'have',
+        documentList: SAMPLE_BROKER_DOCUMENT_LIST,
+        portalUrl: 'https://smt-orders.com/broker',
       };
       if (templateKey === 'pending_approval_notification') sampleData.payoutDetails = SAMPLE_APPROVAL_DETAILS;
+      if (templateKey === 'broker_document') sampleData.documentCount = '2';
+      else sampleData.documentCount = sampleData.documentCount || '0';
 
       let subject = tpl.subject || defaultTpl.subject;
       let body    = tpl.bodyContent || defaultTpl.bodyContent;

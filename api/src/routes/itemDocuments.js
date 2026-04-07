@@ -7,7 +7,7 @@ import {
   DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES, BROKER_DOCUMENT_TYPES,
   getDocumentsForItem, resolveDocumentById, deleteResolvedDocument
 } from "../services/documentService.js";
-import { notifyBrokersOfDocumentUpload } from "../services/brokerEmailService.js";
+import { queueBrokerDocumentNotification } from "../services/brokerEmailService.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -19,8 +19,6 @@ const upload = multer({
 });
 
 // Re-export constants for backward compatibility
-// Other route files (broker.js, shipments.js) may still import from here.
-// New code should import from documentService.js directly.
 export { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES, BROKER_DOCUMENT_TYPES };
 
 /**
@@ -34,18 +32,15 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
     const file = req.file;
     const username = req.user.name;
 
-    // Validate documentType
     if (!DOCUMENT_TYPES[documentType]) {
       return res.status(400).json({ error: "Invalid document type" });
     }
 
-    // Validate file
     const validationErrors = validateFile(file);
     if (validationErrors.length > 0) {
       return res.status(400).json({ error: validationErrors.join(', ') });
     }
 
-    // Get item and check access
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
       include: { 
@@ -59,7 +54,6 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
       return res.status(404).json({ error: "Item not found" });
     }
 
-    // Check permissions
     if (req.user.role === 'AGENT' && item.order.sku !== req.user.name) {
       return res.status(403).json({ error: "Not authorized to upload to this item" });
     }
@@ -67,16 +61,14 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
       return res.status(403).json({ error: "Not authorized to upload to this item" });
     }
 
-    // Upload to S3
     const s3Data = await uploadFileToS3({
       fileBuffer: file.buffer,
       originalName: file.originalname,
       mimeType: file.mimetype,
-      orderId: item.orderId, // Keep folder structure by order
+      orderId: item.orderId,
       uploadedBy: username
     });
 
-    // Create document record with audit log
     const document = await prisma.$transaction(async (tx) => {
       const doc = await tx.itemDocument.create({
         data: {
@@ -91,7 +83,6 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
         }
       });
 
-      // Create audit log
       await tx.auditLog.create({
         data: {
           entityType: 'ItemDocument',
@@ -117,15 +108,15 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
       return doc;
     });
 
-    // Notify brokers if this item is currently AT_SEA and uploader is not a broker
+    // Queue broker digest notification if item is AT_SEA and uploader is not a broker
     if (item.currentStage === 'AT_SEA' && req.user.role !== 'BROKER') {
-      notifyBrokersOfDocumentUpload(prisma, {
+      queueBrokerDocumentNotification(prisma, {
         item,
         document,
         uploadedBy: username,
         documentType,
         isShipmentDoc: false
-      }).catch(err => console.error('[BROKER EMAIL] Notification error:', err.message));
+      }).catch(err => console.error('[BROKER EMAIL] Queue error:', err.message));
     }
 
     res.json({ message: "Document uploaded successfully", document });
@@ -136,15 +127,12 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
 });
 
 /**
- * Get all documents for an item with checklist status
- * Uses documentService for unified view across both tables
  * GET /api/items/:itemId/documents
  */
 router.get("/items/:itemId/documents", authGuard, async (req, res) => {
   try {
     const { itemId } = req.params;
 
-    // Check permissions first
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
       include: { order: true }
@@ -171,15 +159,12 @@ router.get("/items/:itemId/documents", authGuard, async (req, res) => {
 });
 
 /**
- * Get signed download URL for document
- * Uses documentService to resolve across both tables
  * GET /api/items/:itemId/documents/:documentId/download
  */
 router.get("/items/:itemId/documents/:documentId/download", authGuard, async (req, res) => {
   try {
     const { itemId, documentId } = req.params;
 
-    // Check permissions
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
       include: { order: true }
@@ -207,15 +192,12 @@ router.get("/items/:itemId/documents/:documentId/download", authGuard, async (re
 });
 
 /**
- * Delete document
- * Uses documentService to resolve and delete from correct table
  * DELETE /api/items/:itemId/documents/:documentId
  */
 router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res) => {
   try {
     const { itemId, documentId } = req.params;
 
-    // Get the item for permissions and audit logging
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId },
       include: { 
@@ -234,7 +216,6 @@ router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res
       return res.status(404).json({ error: "Document not found" });
     }
 
-    // Check permissions (only uploader, admin, or super admin can delete)
     const canDelete =
       resolved.document.uploadedBy === req.user.name ||
       req.user.role === 'SUPER_ADMIN' ||
@@ -244,11 +225,9 @@ router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res
       return res.status(403).json({ error: "Not authorized to delete this document" });
     }
 
-    // Delete with audit log
     await prisma.$transaction(async (tx) => {
       await deleteResolvedDocument(resolved, deleteFileFromS3, tx);
 
-      // Create audit log
       await tx.auditLog.create({
         data: {
           entityType: resolved.table,
@@ -282,13 +261,8 @@ router.delete("/items/:itemId/documents/:documentId", authGuard, async (req, res
 
 // =============================
 // MANUFACTURER DOCUMENT ENDPOINTS
-// (These don't deal with shared shipment documents)
 // =============================
 
-/**
- * Get documents for a manufacturer's assigned item
- * GET /api/manufacturer/item/:itemId/documents
- */
 router.get("/manufacturer/item/:itemId/documents", authGuard, async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -303,7 +277,6 @@ router.get("/manufacturer/item/:itemId/documents", authGuard, async (req, res) =
 
     const manufacturerId = req.user.manufacturer.id;
 
-    // Verify item is assigned to this manufacturer
     const item = await prisma.orderItem.findUnique({
       where: { id: itemId }
     });
@@ -312,26 +285,18 @@ router.get("/manufacturer/item/:itemId/documents", authGuard, async (req, res) =
       return res.status(403).json({ error: "Item not assigned to you" });
     }
 
-    // Get documents
     const documents = await prisma.itemDocument.findMany({
       where: { itemId },
       orderBy: { uploadedAt: 'desc' }
     });
 
-    // Build checklist (exclude OTHER for manufacturer view)
     const checklist = {};
     for (const type of REQUIRED_DOCUMENT_TYPES) {
       const count = documents.filter(d => d.documentType === type).length;
-      checklist[type] = {
-        uploaded: count > 0,
-        count,
-        label: DOCUMENT_TYPE_LABELS[type]
-      };
+      checklist[type] = { uploaded: count > 0, count, label: DOCUMENT_TYPE_LABELS[type] };
     }
 
-    const uploadedRequired = REQUIRED_DOCUMENT_TYPES.filter(
-      type => checklist[type].uploaded
-    ).length;
+    const uploadedRequired = REQUIRED_DOCUMENT_TYPES.filter(type => checklist[type].uploaded).length;
 
     res.json({
       documents: documents.filter(d => d.documentType !== 'OTHER'),
@@ -348,10 +313,6 @@ router.get("/manufacturer/item/:itemId/documents", authGuard, async (req, res) =
   }
 });
 
-/**
- * Upload document (manufacturer - 6 required types only, NO "Other")
- * POST /api/manufacturer/item/:itemId/documents
- */
 router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('file'), async (req, res) => {
   try {
     const { itemId } = req.params;
@@ -442,15 +403,15 @@ router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('fi
       return doc;
     });
 
-    // Notify brokers if item is AT_SEA (manufacturer uploading a required shipping doc)
+    // Queue broker digest notification if item is AT_SEA
     if (item.currentStage === 'AT_SEA') {
-      notifyBrokersOfDocumentUpload(prisma, {
+      queueBrokerDocumentNotification(prisma, {
         item,
         document,
         uploadedBy: username,
         documentType,
         isShipmentDoc: false
-      }).catch(err => console.error('[BROKER EMAIL] Notification error:', err.message));
+      }).catch(err => console.error('[BROKER EMAIL] Queue error:', err.message));
     }
 
     res.json({ message: "Document uploaded successfully", document });
@@ -460,10 +421,6 @@ router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('fi
   }
 });
 
-/**
- * Get signed download URL for manufacturer
- * GET /api/manufacturer/item/:itemId/documents/:documentId/download
- */
 router.get("/manufacturer/item/:itemId/documents/:documentId/download", authGuard, async (req, res) => {
   try {
     const { itemId, documentId } = req.params;
@@ -499,10 +456,6 @@ router.get("/manufacturer/item/:itemId/documents/:documentId/download", authGuar
   }
 });
 
-/**
- * Delete document (manufacturer can only delete own uploads)
- * DELETE /api/manufacturer/item/:itemId/documents/:documentId
- */
 router.delete("/manufacturer/item/:itemId/documents/:documentId", authGuard, async (req, res) => {
   try {
     const { itemId, documentId } = req.params;
@@ -545,9 +498,7 @@ router.delete("/manufacturer/item/:itemId/documents/:documentId", authGuard, asy
     await deleteFileFromS3(document.s3Key);
 
     await prisma.$transaction(async (tx) => {
-      await tx.itemDocument.delete({
-        where: { id: documentId }
-      });
+      await tx.itemDocument.delete({ where: { id: documentId } });
 
       await tx.auditLog.create({
         data: {
