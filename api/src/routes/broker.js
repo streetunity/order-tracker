@@ -7,6 +7,7 @@ import {
   DOCUMENT_TYPE_LABELS, BROKER_DOCUMENT_TYPES,
   getDocumentsForItem, resolveDocumentById, deleteResolvedDocument
 } from '../services/documentService.js';
+import { notifyBrokersOfDocumentUpload } from '../services/brokerEmailService.js';
 
 const prisma = new PrismaClient();
 
@@ -598,6 +599,8 @@ export function createBrokerRouter() {
 
   // POST /broker/item/:itemId/documents
   // Upload document (to shipment if linked, otherwise to item)
+  // Brokers upload their own docs here; SUPER_ADMINs can also use this route
+  // and will trigger a notification to all active brokers
   router.post('/item/:itemId/documents', authGuard, requireBrokerRole, upload.single('file'), async (req, res) => {
     try {
       const { itemId } = req.params;
@@ -621,7 +624,12 @@ export function createBrokerRouter() {
       // Verify item exists and check for shipment link
       const item = await prisma.orderItem.findUnique({
         where: { id: itemId },
-        include: { order: true, shipment: true }
+        include: {
+          order: {
+            include: { account: { select: { name: true } } }
+          },
+          shipment: true
+        }
       });
 
       if (!item) {
@@ -692,6 +700,18 @@ export function createBrokerRouter() {
           notes: `Uploaded ${DOCUMENT_TYPE_LABELS[documentType] || documentType}: ${file.originalname}${isSharedShipment ? ' (to shared shipment)' : ''}`
         }
       });
+
+      // Notify brokers if a SUPER_ADMIN uploaded through the broker portal
+      // (Brokers uploading their own docs do not trigger a notification)
+      if (req.user.role === 'SUPER_ADMIN') {
+        notifyBrokersOfDocumentUpload(prisma, {
+          item,
+          document,
+          uploadedBy: username,
+          documentType,
+          isShipmentDoc: isSharedShipment
+        }).catch(err => console.error('[BROKER EMAIL] Notification error:', err.message));
+      }
 
       res.json({ 
         message: 'Document uploaded successfully', 

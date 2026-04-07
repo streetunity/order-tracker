@@ -7,6 +7,7 @@ import {
   DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES, BROKER_DOCUMENT_TYPES,
   getDocumentsForItem, resolveDocumentById, deleteResolvedDocument
 } from "../services/documentService.js";
+import { notifyBrokersOfDocumentUpload } from "../services/brokerEmailService.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -115,6 +116,17 @@ router.post("/items/:itemId/documents", authGuard, upload.single('file'), async 
 
       return doc;
     });
+
+    // Notify brokers if this item is currently AT_SEA and uploader is not a broker
+    if (item.currentStage === 'AT_SEA' && req.user.role !== 'BROKER') {
+      notifyBrokersOfDocumentUpload(prisma, {
+        item,
+        document,
+        uploadedBy: username,
+        documentType,
+        isShipmentDoc: false
+      }).catch(err => console.error('[BROKER EMAIL] Notification error:', err.message));
+    }
 
     res.json({ message: "Document uploaded successfully", document });
   } catch (error) {
@@ -429,6 +441,17 @@ router.post("/manufacturer/item/:itemId/documents", authGuard, upload.single('fi
 
       return doc;
     });
+
+    // Notify brokers if item is AT_SEA (manufacturer uploading a required shipping doc)
+    if (item.currentStage === 'AT_SEA') {
+      notifyBrokersOfDocumentUpload(prisma, {
+        item,
+        document,
+        uploadedBy: username,
+        documentType,
+        isShipmentDoc: false
+      }).catch(err => console.error('[BROKER EMAIL] Notification error:', err.message));
+    }
 
     res.json({ message: "Document uploaded successfully", document });
   } catch (error) {
