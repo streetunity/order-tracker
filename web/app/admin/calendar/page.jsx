@@ -484,9 +484,10 @@ export default function CalendarPage() {
   const isAdmin   = user && ADMIN_ROLES.includes(user.role);
   const canCreate = type => user && CREATE_PERMISSIONS[type]?.includes(user.role);
 
+  // Fetch all internal employees (excludes MANUFACTURER and BROKER)
   useEffect(() => {
     if (!user) return;
-    fetch('/api/users/sales-reps', { headers: getAuthHeaders() })
+    fetch('/api/users/internal', { headers: getAuthHeaders() })
       .then(r => r.json())
       .then(d => setUsers(Array.isArray(d) ? d : []))
       .catch(() => {});
