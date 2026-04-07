@@ -14,10 +14,17 @@ import {
 
 const prisma = new PrismaClient();
 
+// Fields returned on every user read
+const USER_SELECT = {
+  id: true, email: true, name: true, role: true,
+  isActive: true, isEmployee: true, showInSalesRepDropdown: true,
+  lastLogin: true, createdAt: true,
+};
+
 export function createUsersRouter() {
   const router = express.Router();
 
-  // GET /users — list all users
+  // GET /users
   router.get('/', async (req, res) => {
     try {
       const { role } = req.query;
@@ -25,7 +32,7 @@ export function createUsersRouter() {
       if (role) where.role = role;
       const users = await prisma.user.findMany({
         where,
-        select: { id: true, email: true, name: true, role: true, isActive: true, showInSalesRepDropdown: true, lastLogin: true, createdAt: true },
+        select: USER_SELECT,
         orderBy: { createdAt: 'desc' }
       });
       res.json(users);
@@ -67,22 +74,13 @@ export function createUsersRouter() {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // GET /users/email-settings — get current user's email settings
+  // GET /users/email-settings
   router.get('/email-settings', async (req, res) => {
     try {
-      const settings = await prisma.userEmailSettings.findUnique({
-        where: { userId: req.user.id }
-      });
-      // Return empty defaults if not yet created
+      const settings = await prisma.userEmailSettings.findUnique({ where: { userId: req.user.id } });
       res.json(settings || {
-        fromName: '',
-        emailSignature: '',
-        phoneNumber: '',
-        mobileNumber: '',
-        title: '',
-        invoiceEmailBody: '',
-        estimateEmailBody: '',
-        reminderEmailBody: '',
+        fromName: '', emailSignature: '', phoneNumber: '', mobileNumber: '',
+        title: '', invoiceEmailBody: '', estimateEmailBody: '', reminderEmailBody: '',
       });
     } catch (e) {
       console.error('GET /users/email-settings error:', e);
@@ -90,27 +88,24 @@ export function createUsersRouter() {
     }
   });
 
-  // PATCH /users/email-settings — upsert current user's email settings
+  // PATCH /users/email-settings
   router.patch('/email-settings', async (req, res) => {
     try {
       const { fromName, emailSignature, phoneNumber, mobileNumber, title, invoiceEmailBody, estimateEmailBody, reminderEmailBody } = req.body;
-
       const data = {};
-      if (fromName         !== undefined) data.fromName         = fromName;
-      if (emailSignature   !== undefined) data.emailSignature   = emailSignature;
-      if (phoneNumber      !== undefined) data.phoneNumber      = phoneNumber;
-      if (mobileNumber     !== undefined) data.mobileNumber     = mobileNumber;
-      if (title            !== undefined) data.title            = title;
-      if (invoiceEmailBody !== undefined) data.invoiceEmailBody = invoiceEmailBody;
-      if (estimateEmailBody!== undefined) data.estimateEmailBody= estimateEmailBody;
-      if (reminderEmailBody!== undefined) data.reminderEmailBody= reminderEmailBody;
-
+      if (fromName          !== undefined) data.fromName          = fromName;
+      if (emailSignature    !== undefined) data.emailSignature    = emailSignature;
+      if (phoneNumber       !== undefined) data.phoneNumber       = phoneNumber;
+      if (mobileNumber      !== undefined) data.mobileNumber      = mobileNumber;
+      if (title             !== undefined) data.title             = title;
+      if (invoiceEmailBody  !== undefined) data.invoiceEmailBody  = invoiceEmailBody;
+      if (estimateEmailBody !== undefined) data.estimateEmailBody = estimateEmailBody;
+      if (reminderEmailBody !== undefined) data.reminderEmailBody = reminderEmailBody;
       const settings = await prisma.userEmailSettings.upsert({
         where:  { userId: req.user.id },
         update: data,
         create: { userId: req.user.id, ...data },
       });
-
       res.json(settings);
     } catch (e) {
       console.error('PATCH /users/email-settings error:', e);
@@ -123,7 +118,7 @@ export function createUsersRouter() {
     try {
       const user = await prisma.user.findUnique({
         where: { id: req.params.id },
-        select: { id: true, email: true, name: true, role: true, isActive: true, showInSalesRepDropdown: true, lastLogin: true, createdAt: true, updatedAt: true }
+        select: { ...USER_SELECT, updatedAt: true },
       });
       if (!user) return res.status(404).json({ error: 'User not found' });
       res.json(user);
@@ -140,7 +135,7 @@ export function createUsersRouter() {
       const hashedPassword = await hashPassword(systemPassword);
       const systemUser = await prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
-          data: { email: 'system@ordertracker.internal', name: 'System (Cron Jobs)', password: hashedPassword, role: 'ADMIN', isActive: true, showInSalesRepDropdown: false },
+          data: { email: 'system@ordertracker.internal', name: 'System (Cron Jobs)', password: hashedPassword, role: 'ADMIN', isActive: true, isEmployee: false, showInSalesRepDropdown: false },
           select: { id: true, email: true, name: true, role: true }
         });
         await tx.auditLog.create({ data: { entityType: 'User', entityId: user.id, action: 'USER_CREATED', metadata: JSON.stringify({ userName: user.name, userEmail: user.email, userRole: user.role }), performedByUserId: req.user.id, performedByName: req.user.name } });
@@ -154,7 +149,7 @@ export function createUsersRouter() {
   router.post('/', async (req, res) => {
     try {
       if (!isAdminOrHigher(req.user.role)) return res.status(403).json({ error: 'Admin access required' });
-      const { email, name, password, role = 'AGENT', showInSalesRepDropdown = true } = req.body;
+      const { email, name, password, role = 'AGENT', isEmployee = true, showInSalesRepDropdown = true } = req.body;
       if (!email || !name || !password) return res.status(400).json({ error: 'Email, name, and password are required' });
       const targetRole = role.toUpperCase();
       if (!isValidRole(targetRole)) return res.status(400).json({ error: `Invalid role: ${role}` });
@@ -166,8 +161,8 @@ export function createUsersRouter() {
       const hashedPassword = await hashPassword(password);
       const user = await prisma.$transaction(async (tx) => {
         const newUser = await tx.user.create({
-          data: { email: email.toLowerCase(), name, password: hashedPassword, role: targetRole, isActive: true, showInSalesRepDropdown },
-          select: { id: true, email: true, name: true, role: true, isActive: true, showInSalesRepDropdown: true, createdAt: true }
+          data: { email: email.toLowerCase(), name, password: hashedPassword, role: targetRole, isActive: true, isEmployee, showInSalesRepDropdown },
+          select: USER_SELECT,
         });
         await tx.auditLog.create({ data: { entityType: 'User', entityId: newUser.id, action: 'USER_CREATED', metadata: JSON.stringify({ userName: newUser.name, userEmail: newUser.email, userRole: newUser.role }), performedByUserId: req.user.id, performedByName: req.user.name } });
         return newUser;
@@ -185,12 +180,27 @@ export function createUsersRouter() {
       if (original.email === 'system@ordertracker.internal') return res.status(403).json({ error: 'Cannot edit system user' });
       const isSelfEdit = req.params.id === req.user.id;
       if (!isSelfEdit && !canEditRole(req.user.role, original.role)) return res.status(403).json({ error: `You cannot edit users with role ${getRoleDisplayName(original.role)}` });
-      const { name, email, role, isActive, showInSalesRepDropdown, password } = req.body;
+
+      const { name, email, role, isActive, isEmployee, showInSalesRepDropdown, password } = req.body;
       const data = {};
       const changes = [];
-      if (name !== undefined && name !== original.name)                       { data.name  = name;                    changes.push({ field: 'name',  oldValue: original.name,  newValue: name }); }
-      if (email !== undefined && email.toLowerCase() !== original.email)       { data.email = email.toLowerCase();     changes.push({ field: 'email', oldValue: original.email, newValue: data.email }); }
-      if (showInSalesRepDropdown !== undefined && showInSalesRepDropdown !== original.showInSalesRepDropdown) { data.showInSalesRepDropdown = showInSalesRepDropdown; changes.push({ field: 'showInSalesRepDropdown', oldValue: String(original.showInSalesRepDropdown), newValue: String(showInSalesRepDropdown) }); }
+
+      if (name !== undefined && name !== original.name) {
+        data.name = name;
+        changes.push({ field: 'name', oldValue: original.name, newValue: name });
+      }
+      if (email !== undefined && email.toLowerCase() !== original.email) {
+        data.email = email.toLowerCase();
+        changes.push({ field: 'email', oldValue: original.email, newValue: data.email });
+      }
+      if (isEmployee !== undefined && isEmployee !== original.isEmployee) {
+        data.isEmployee = isEmployee;
+        changes.push({ field: 'isEmployee', oldValue: String(original.isEmployee), newValue: String(isEmployee) });
+      }
+      if (showInSalesRepDropdown !== undefined && showInSalesRepDropdown !== original.showInSalesRepDropdown) {
+        data.showInSalesRepDropdown = showInSalesRepDropdown;
+        changes.push({ field: 'showInSalesRepDropdown', oldValue: String(original.showInSalesRepDropdown), newValue: String(showInSalesRepDropdown) });
+      }
       if (role !== undefined && role.toUpperCase() !== original.role) {
         const targetRole = role.toUpperCase();
         if (isSelfEdit) return res.status(403).json({ error: 'You cannot change your own role' });
@@ -211,11 +221,14 @@ export function createUsersRouter() {
         data.password = await hashPassword(password);
         changes.push({ field: 'password', oldValue: '[hidden]', newValue: '[changed]' });
       }
+
       if (Object.keys(data).length === 0) return res.status(400).json({ error: 'No fields to update' });
+
       const user = await prisma.$transaction(async (tx) => {
         const updated = await tx.user.update({
-          where: { id: req.params.id }, data,
-          select: { id: true, email: true, name: true, role: true, isActive: true, showInSalesRepDropdown: true, updatedAt: true }
+          where: { id: req.params.id },
+          data,
+          select: USER_SELECT,
         });
         if (changes.length > 0) {
           let action = 'USER_UPDATED';
