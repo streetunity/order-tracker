@@ -1,28 +1,48 @@
 /**
  * brokerEmailService.js
  *
- * Sends email notifications to all active BROKER users when a document
- * is uploaded to the broker portal by a non-broker (admin, agent, manufacturer, SUPER_ADMIN).
+ * Digest-aware email notifications for broker users.
+ *
+ * Instead of sending an email on every document upload, notifications are
+ * queued per broker for up to DIGEST_DELAY_MS (5 minutes). If more uploads
+ * arrive within that window they are appended to the same queue entry.
+ * The timer starts on the FIRST upload and does NOT reset on subsequent ones,
+ * so brokers get exactly one email per burst, approximately 5 minutes after
+ * the first upload in that burst.
+ *
+ * Trade-off: if PM2 restarts during a pending window, queued items are lost
+ * (no email sent for that batch). This is acceptable for the use case.
  */
 
 import { sendEmail } from './emailService.js';
 import { DOCUMENT_TYPE_LABELS } from './documentService.js';
 
-const FROM_EMAIL = process.env.FROM_EMAIL || 'orders@stealthlaser.com';
-const FROM_NAME = 'Stealth Machine Tools';
+const FROM_EMAIL      = process.env.FROM_EMAIL || 'orders@stealthlaser.com';
+const FROM_NAME       = 'Stealth Machine Tools';
+const PORTAL_BASE_URL = process.env.FRONTEND_URL || 'https://smt-orders.com';
+const PORTAL_URL      = `${PORTAL_BASE_URL}/broker`;
+const DIGEST_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Notify all active brokers that a new document has been uploaded.
- *
- * @param {object} prisma - Prisma client instance
- * @param {object} params
- * @param {object} params.item          - The orderItem record (must include order.poNumber, order.account.name, productCode)
- * @param {object} params.document      - The created document record (fileName, fileSize, documentType)
- * @param {string} params.uploadedBy    - Display name of the uploader
- * @param {string} params.documentType  - Raw documentType key (e.g. 'BILL_OF_LADING')
- * @param {boolean} [params.isShipmentDoc=false] - Whether this doc was uploaded to a shared shipment
+ * In-memory digest queue.
+ * Map<brokerId, { broker: {id, name, email}, prisma, items: Array, timer: TimeoutId }>
  */
-export async function notifyBrokersOfDocumentUpload(prisma, {
+const digestQueue = new Map();
+
+/**
+ * Queue a document upload notification for all active brokers.
+ * The actual email is sent after DIGEST_DELAY_MS, batching any additional
+ * uploads that arrive within the same window.
+ *
+ * @param {object} prisma
+ * @param {object} params
+ * @param {object}  params.item          - orderItem (needs id, productCode, currentStage, order.poNumber, order.account.name)
+ * @param {object}  params.document      - created document (fileName, documentType)
+ * @param {string}  params.uploadedBy    - display name of uploader
+ * @param {string}  params.documentType  - raw documentType key
+ * @param {boolean} [params.isShipmentDoc=false]
+ */
+export async function queueBrokerDocumentNotification(prisma, {
   item,
   document,
   uploadedBy,
@@ -30,137 +50,233 @@ export async function notifyBrokersOfDocumentUpload(prisma, {
   isShipmentDoc = false
 }) {
   try {
-    // Find all active brokers with email addresses
     const brokers = await prisma.user.findMany({
       where: { role: 'BROKER', isActive: true },
       select: { id: true, name: true, email: true }
     });
 
     if (!brokers.length) {
-      console.log('[BROKER EMAIL] No active brokers found, skipping notification');
+      console.log('[BROKER EMAIL] No active brokers — skipping queue');
       return;
     }
 
-    const docTypeLabel = DOCUMENT_TYPE_LABELS[documentType] || documentType;
-    const poNumber = item.order?.poNumber || item.orderId || 'N/A';
-    const customerName = item.order?.account?.name || '';
-    const productCode = item.productCode || item.id;
+    const payload = { item, document, uploadedBy, documentType, isShipmentDoc };
 
-    const subject = `New Document Available: ${docTypeLabel} \u2014 ${poNumber}`;
+    for (const broker of brokers) {
+      const existing = digestQueue.get(broker.id);
+      if (existing) {
+        // Timer already running — just append to existing batch
+        existing.items.push(payload);
+        console.log(`[BROKER EMAIL] Queued doc for ${broker.name} (${existing.items.length} pending in digest)`);
+      } else {
+        // First upload in this burst — start the 5-minute timer
+        const entry = { broker, prisma, items: [payload], timer: null };
+        entry.timer = setTimeout(() => flushBrokerQueue(broker.id), DIGEST_DELAY_MS);
+        digestQueue.set(broker.id, entry);
+        console.log(`[BROKER EMAIL] Started 5-min digest timer for ${broker.name}`);
+      }
+    }
+  } catch (error) {
+    console.error('[BROKER EMAIL] Queue error:', error.message);
+  }
+}
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f0f0;padding:24px 0;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:4px;overflow:hidden;">
+/**
+ * Flush the queue for a specific broker and send the digest email.
+ * Called automatically by setTimeout; can also be called manually for testing.
+ */
+async function flushBrokerQueue(brokerId) {
+  const entry = digestQueue.get(brokerId);
+  if (!entry) return;
+  digestQueue.delete(brokerId);
 
-          <!-- Header -->
-          <tr>
-            <td style="background:#1a1a1a;padding:20px 28px;border-bottom:3px solid #dc2626;">
-              <span style="color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.5px;">New Document Available</span>
-            </td>
-          </tr>
+  const { broker, prisma, items } = entry;
+  console.log(`[BROKER EMAIL] Flushing digest for ${broker.name}: ${items.length} document(s)`);
+  await sendBrokerDigestEmail(prisma, broker, items);
+}
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:28px;">
-              <p style="color:#333333;font-size:15px;margin:0 0 20px 0;">
-                A new document has been uploaded to the broker portal and is ready for your review.
-              </p>
+/**
+ * Build and send the consolidated digest email to a single broker.
+ */
+async function sendBrokerDigestEmail(prisma, broker, items) {
+  try {
+    const count     = items.length;
+    const plural    = count === 1 ? '' : 's';
+    const countVerb = count === 1 ? 'has' : 'have';
 
-              <!-- Details table -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-                <tr>
-                  <td style="padding:10px 14px;background:#f7f7f7;border:1px solid #e0e0e0;font-weight:bold;color:#555;font-size:13px;width:38%;">Document Type</td>
-                  <td style="padding:10px 14px;background:#f7f7f7;border:1px solid #e0e0e0;color:#111;font-size:13px;">${docTypeLabel}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 14px;background:#ffffff;border:1px solid #e0e0e0;font-weight:bold;color:#555;font-size:13px;">File Name</td>
-                  <td style="padding:10px 14px;background:#ffffff;border:1px solid #e0e0e0;color:#111;font-size:13px;">${document.fileName}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 14px;background:#f7f7f7;border:1px solid #e0e0e0;font-weight:bold;color:#555;font-size:13px;">Order / PO</td>
-                  <td style="padding:10px 14px;background:#f7f7f7;border:1px solid #e0e0e0;color:#111;font-size:13px;">${poNumber}</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 14px;background:#ffffff;border:1px solid #e0e0e0;font-weight:bold;color:#555;font-size:13px;">Item</td>
-                  <td style="padding:10px 14px;background:#ffffff;border:1px solid #e0e0e0;color:#111;font-size:13px;">${productCode}</td>
-                </tr>
-                ${customerName ? `
-                <tr>
-                  <td style="padding:10px 14px;background:#f7f7f7;border:1px solid #e0e0e0;font-weight:bold;color:#555;font-size:13px;">Customer</td>
-                  <td style="padding:10px 14px;background:#f7f7f7;border:1px solid #e0e0e0;color:#111;font-size:13px;">${customerName}</td>
-                </tr>` : ''}
-                <tr>
-                  <td style="padding:10px 14px;background:${customerName ? '#ffffff' : '#f7f7f7'};border:1px solid #e0e0e0;font-weight:bold;color:#555;font-size:13px;">Uploaded By</td>
-                  <td style="padding:10px 14px;background:${customerName ? '#ffffff' : '#f7f7f7'};border:1px solid #e0e0e0;color:#111;font-size:13px;">${uploadedBy}</td>
-                </tr>
-                ${isShipmentDoc ? `
-                <tr>
-                  <td style="padding:10px 14px;background:#fffbea;border:1px solid #e0e0e0;font-weight:bold;color:#555;font-size:13px;">Note</td>
-                  <td style="padding:10px 14px;background:#fffbea;border:1px solid #e0e0e0;color:#111;font-size:13px;">This document is shared across all items in the shipment.</td>
-                </tr>` : ''}
-              </table>
+    // Build the HTML document table (one row per upload)
+    const tableRows = items.map(({ item, document, uploadedBy, documentType, isShipmentDoc }) => {
+      const docLabel    = DOCUMENT_TYPE_LABELS[documentType] || documentType;
+      const poNumber    = item.order?.poNumber || item.orderId || 'N/A';
+      const customer    = item.order?.account?.name || '';
+      const productCode = item.productCode || item.id;
+      const itemUrl     = `${PORTAL_URL}/item/${item.id}`;
+      const shipNote    = isShipmentDoc
+        ? ' <span style="font-size:11px;color:#f59e0b;font-weight:600;">(shared)</span>'
+        : '';
 
-              <p style="color:#666666;font-size:13px;margin:20px 0 0 0;">
-                Log in to the broker portal to view and download this document.
-              </p>
-            </td>
-          </tr>
+      return (
+        '<tr>' +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${docLabel}${shipNote}</td>` +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${document.fileName}</td>` +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${poNumber}</td>` +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${productCode}</td>` +
+        (customer
+          ? `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${customer}</td>`
+          : '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#aaaaaa;font-style:italic;">&mdash;</td>') +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${uploadedBy}</td>` +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;text-align:center;">` +
+        `<a href="${itemUrl}" style="color:#dc2626;text-decoration:none;font-weight:600;font-size:13px;">View &rarr;</a>` +
+        '</td>' +
+        '</tr>'
+      );
+    }).join('');
 
-          <!-- Footer -->
-          <tr>
-            <td style="background:#1a1a1a;padding:14px 28px;text-align:center;">
-              <span style="color:#999999;font-size:11px;">Stealth Machine Tools &mdash; Order Tracker</span>
-            </td>
-          </tr>
+    const documentListHtml =
+      '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dddddd;border-radius:4px;overflow:hidden;margin-top:12px;">' +
+      '<thead><tr style="background-color:#f5f5f5;">' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Type</th>' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">File Name</th>' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Order / PO</th>' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Item</th>' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Customer</th>' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Uploaded By</th>' +
+      '<th style="padding:8px 12px;text-align:center;font-size:12px;color:#666666;font-weight:600;">Link</th>' +
+      '</tr></thead>' +
+      `<tbody>${tableRows}</tbody>` +
+      '</table>';
 
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+    // Get company settings
+    let companyName  = 'Stealth Machine Tools';
+    let companyPhone = '';
+    let companyEmail = '';
+    try {
+      const settings = await prisma.invoicingSettings.findFirst();
+      if (settings) {
+        companyName  = settings.companyName || companyName;
+        companyPhone = settings.phone || '';
+        companyEmail = settings.email || '';
+      }
+    } catch (_) {}
+
+    const vars = {
+      brokerName:        broker.name || 'Broker',
+      documentCount:     String(count),
+      documentPlural:    plural,
+      documentCountVerb: countVerb,
+      documentList:      documentListHtml,
+      portalUrl:         PORTAL_URL,
+      companyName,
+      companyPhone,
+      companyEmail,
+    };
+
+    const processTemplate = (str) => {
+      let out = str || '';
+      for (const [k, v] of Object.entries(vars)) {
+        out = out.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v);
+      }
+      return out;
+    };
+
+    // Check for admin-customised template in DB
+    let dbTemplate = null;
+    try {
+      dbTemplate = await prisma.emailTemplate.findUnique({
+        where: { templateKey: 'broker_document' }
+      });
+    } catch (_) {}
+
+    let subject, html;
+
+    if (dbTemplate) {
+      const { wrapInBaseTemplate } = await import('./emailTemplates.js');
+
+      subject       = processTemplate(dbTemplate.subject);
+      const body    = processTemplate(dbTemplate.bodyContent || '');
+      const closing = processTemplate(dbTemplate.closingContent || '');
+      const footer  = processTemplate(dbTemplate.footerContent || `<p>${companyName} \u2014 Internal Notification</p>`);
+
+      const content =
+        `<tr bgcolor="#1a1a1a"><td bgcolor="#1a1a1a" style="background-color:#1a1a1a;padding:24px 30px;text-align:center;border-bottom:3px solid #dc2626;">` +
+        `<h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">` +
+        (count === 1 ? 'New Document Available' : `${count} New Documents Available`) +
+        `</h1></td></tr>` +
+        `<tr><td bgcolor="#ffffff" style="padding:30px;color:#333333;font-size:15px;line-height:1.6;background-color:#ffffff;">` +
+        body +
+        (closing ? `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #dddddd;">${closing}</div>` : '') +
+        `</td></tr>` +
+        `<tr><td bgcolor="#f5f5f5" style="background-color:#f5f5f5;padding:20px 30px;text-align:center;font-size:12px;color:#666666;">` +
+        footer +
+        `</td></tr>`;
+
+      html = wrapInBaseTemplate(content, subject);
+    } else {
+      // Hardcoded fallback
+      subject = count === 1
+        ? 'New Document Available \u2014 Broker Portal'
+        : `${count} New Documents Available \u2014 Broker Portal`;
+
+      html = [
+        '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,sans-serif;">',
+        '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f0f0;padding:24px 0;">',
+        '<tr><td align="center">',
+        '<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:4px;overflow:hidden;">',
+        // Header
+        '<tr><td style="background:#1a1a1a;padding:20px 28px;border-bottom:3px solid #dc2626;">',
+        `<span style="color:#ffffff;font-size:20px;font-weight:bold;">${count === 1 ? 'New Document Available' : `${count} New Documents Available`}</span>`,
+        '</td></tr>',
+        // Body
+        '<tr><td style="padding:28px;">',
+        `<p style="color:#333333;font-size:15px;margin:0 0 20px 0;">`,
+        `Hello ${broker.name}, ${count} new document${plural} ${countVerb} been uploaded to the broker portal and ${count === 1 ? 'is' : 'are'} ready for your review.`,
+        '</p>',
+        documentListHtml,
+        '<p style="text-align:center;margin:28px 0 0 0;">',
+        `<a href="${PORTAL_URL}" style="display:inline-block;background:#dc2626;color:#ffffff;padding:12px 28px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">Open Broker Portal</a>`,
+        '</p>',
+        '</td></tr>',
+        // Footer
+        `<tr><td style="background:#1a1a1a;padding:14px 28px;text-align:center;">`,
+        `<span style="color:#999999;font-size:11px;">${companyName} &mdash; Order Tracker</span>`,
+        '</td></tr>',
+        '</table>',
+        '</td></tr></table>',
+        '</body></html>'
+      ].join('');
+    }
 
     const text = [
-      'New document available in the broker portal.',
+      `Hello ${broker.name},`,
       '',
-      `Document Type: ${docTypeLabel}`,
-      `File Name:     ${document.fileName}`,
-      `Order / PO:    ${poNumber}`,
-      `Item:          ${productCode}`,
-      customerName ? `Customer:      ${customerName}` : null,
-      `Uploaded By:   ${uploadedBy}`,
-      isShipmentDoc ? 'Note: This document is shared across all items in the shipment.' : null,
+      `${count} new document${plural} ${countVerb} been uploaded to the broker portal.`,
       '',
-      'Log in to the broker portal to view and download this document.'
-    ].filter(Boolean).join('\n');
+      ...items.map(({ item, document, documentType, uploadedBy }) => {
+        const docLabel    = DOCUMENT_TYPE_LABELS[documentType] || documentType;
+        const poNumber    = item.order?.poNumber || item.orderId || 'N/A';
+        const productCode = item.productCode || item.id;
+        const itemUrl     = `${PORTAL_URL}/item/${item.id}`;
+        return `  - ${docLabel}: ${document.fileName} | Order: ${poNumber} | Item: ${productCode} | ${itemUrl}`;
+      }),
+      '',
+      `Broker Portal: ${PORTAL_URL}`
+    ].join('\n');
 
-    const results = await Promise.allSettled(
-      brokers.map(broker =>
-        sendEmail({
-          to: broker.email,
-          from: FROM_EMAIL,
-          fromName: FROM_NAME,
-          subject,
-          html,
-          text
-        })
-      )
-    );
+    const result = await sendEmail({
+      to: broker.email,
+      from: FROM_EMAIL,
+      fromName: FROM_NAME,
+      subject,
+      html,
+      text
+    });
 
-    const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
-    const failed = brokers.length - sent;
-
-    console.log(`[BROKER EMAIL] Document notification: ${sent}/${brokers.length} sent` +
-      (failed ? `, ${failed} failed` : '') +
-      ` | ${docTypeLabel} | Order: ${poNumber}`);
-
+    if (result.success) {
+      console.log(`[BROKER EMAIL] Digest sent to ${broker.name} <${broker.email}>: ${count} document(s)`);
+    } else {
+      console.error(`[BROKER EMAIL] Failed to send to ${broker.email}: ${result.error}`);
+    }
   } catch (error) {
-    // Never let email failure break the upload response
-    console.error('[BROKER EMAIL] Failed to send document notification:', error.message);
+    console.error('[BROKER EMAIL] sendBrokerDigestEmail error:', error.message);
   }
 }
