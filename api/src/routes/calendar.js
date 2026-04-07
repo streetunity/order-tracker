@@ -2,8 +2,8 @@
  * Calendar routes
  * GET    /calendar/events              - fetch events by date range
  * GET    /calendar/orders/search       - search orders for INSTALL dropdown
- * POST   /calendar/events              - create event
- * PUT    /calendar/events/:id          - update event
+ * POST   /calendar/events              - create event (never auto-sends email)
+ * PUT    /calendar/events/:id          - update event; sends email only when resendEmail=true
  * DELETE /calendar/events/:id          - delete event
  */
 
@@ -112,9 +112,11 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── POST /calendar/events ───────────────────────────────────────────────────
+  // Email is NEVER sent automatically on create.
+  // Use the manual Send Email button in the view modal.
   router.post('/events', authGuard, async (req, res) => {
     try {
-      const { type, title, startDate, endDate, allDay, orderId, userId, notes, assigneeIds, skipEmail } = req.body;
+      const { type, title, startDate, endDate, allDay, orderId, userId, notes, assigneeIds } = req.body;
       const user = req.user;
 
       const allowedRoles = CREATE_PERMISSIONS[type];
@@ -146,27 +148,12 @@ export function createCalendarRouter(prisma) {
         },
       });
 
-      // Sync onsiteInstallationDate
+      // Sync onsiteInstallationDate on the Order — no email sent
       if (type === 'INSTALL' && orderId) {
         await prisma.order.update({
           where: { id: orderId },
           data:  { onsiteInstallationDate: new Date(startDate) },
         }).catch(e => console.error('[CALENDAR] Failed to sync onsiteInstallationDate:', e));
-
-        // Send customer email unless explicitly skipped
-        if (!skipEmail) {
-          try {
-            const emailResult = await sendInstallEmail(prisma, { calendarEvent: event, isReschedule: false });
-            if (emailResult.success) {
-              await prisma.calendarEvent.update({ where: { id: event.id }, data: { customerNotified: true } });
-              event.customerNotified = true;
-            }
-          } catch (emailErr) {
-            console.error('[CALENDAR] Email error on create:', emailErr);
-          }
-        } else {
-          console.log(`[CALENDAR] Email skipped by user for event ${event.id}`);
-        }
       }
 
       const ids = parseAssigneeIds(event.assigneeIds);
@@ -178,6 +165,8 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── PUT /calendar/events/:id ────────────────────────────────────────────────
+  // Email only fires when resendEmail=true (manual Send/Resend button).
+  // Date changes alone do NOT trigger an email.
   router.put('/events/:id', authGuard, async (req, res) => {
     try {
       const { id } = req.params;
@@ -189,9 +178,6 @@ export function createCalendarRouter(prisma) {
 
       const canEdit = ADMIN_ROLES.includes(user.role) || existing.createdById === user.id;
       if (!canEdit) return res.status(403).json({ error: 'Insufficient permissions' });
-
-      const dateChanged = startDate &&
-        new Date(startDate).toDateString() !== new Date(existing.startDate).toDateString();
 
       const updated = await prisma.calendarEvent.update({
         where: { id },
@@ -211,6 +197,7 @@ export function createCalendarRouter(prisma) {
         },
       });
 
+      // Sync onsiteInstallationDate if date changed
       if (existing.type === 'INSTALL' && existing.orderId && startDate) {
         await prisma.order.update({
           where: { id: existing.orderId },
@@ -218,15 +205,17 @@ export function createCalendarRouter(prisma) {
         }).catch(e => console.error('[CALENDAR] Failed to sync onsiteInstallationDate on update:', e));
       }
 
-      if (existing.type === 'INSTALL' && (dateChanged || resendEmail)) {
+      // Email ONLY fires on explicit manual request
+      if (existing.type === 'INSTALL' && resendEmail) {
         try {
-          const emailResult = await sendInstallEmail(prisma, { calendarEvent: updated, isReschedule: true });
+          const isReschedule = existing.customerNotified; // true if already sent before
+          const emailResult  = await sendInstallEmail(prisma, { calendarEvent: updated, isReschedule });
           if (emailResult.success) {
             await prisma.calendarEvent.update({ where: { id }, data: { customerNotified: true } });
             updated.customerNotified = true;
           }
         } catch (emailErr) {
-          console.error('[CALENDAR] Email error on update:', emailErr);
+          console.error('[CALENDAR] Email error on manual send:', emailErr);
         }
       }
 
