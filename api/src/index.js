@@ -55,6 +55,7 @@ import { createRemindersRouter } from './routes/reminders.js';
 import { createEmailTemplateSettingsRouter } from './routes/emailTemplateSettings.js';
 import createInvoicingSettingsRouter from './routes/invoicingSettings.js';
 import { createNextnpWebhookHandler } from './routes/nextnpWebhook.js';
+import { createCalendarRouter } from './routes/calendar.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -165,6 +166,7 @@ const commentsRouter           = createCommentsRouter();
 const remindersRouter          = createRemindersRouter();
 const emailTemplateSettingsRouter = createEmailTemplateSettingsRouter(prisma);
 const invoicingSettingsRouter  = createInvoicingSettingsRouter(prisma);
+const calendarRouter           = createCalendarRouter(prisma);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
@@ -260,6 +262,9 @@ app.use('/notifications', authGuard, notificationsRouter);
 app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
 app.use('/commissions', authGuard, commissionsRouter);
+
+// ── Calendar ──────────────────────────────────────────────────────────────────
+app.use('/calendar', authGuard, calendarRouter);
 
 // ── Other modules ─────────────────────────────────────────────────────────────
 app.use('/customs', brokerRouter);
