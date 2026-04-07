@@ -67,7 +67,7 @@ model ItemCommission {
   // Item details (snapshot at calculation time)
   productCode String
   qty         Int
-  itemPrice   Float // Total price for this item (price × qty)
+  itemPrice   Float // Total price for this item (price x qty)
 
   // Discount allocation (proportional)
   itemSubtotal       Float // itemPrice
@@ -77,7 +77,7 @@ model ItemCommission {
 
   // Commission calculation
   commissionRate   Float // Rate at time of calculation
-  commissionAmount Float // netAmount × rate / 100
+  commissionAmount Float // netAmount x rate / 100
 
   // Status tracking (item-level)
   status String @default("CALCULATED") // CALCULATED, PARTIAL_PAID, FULLY_PAID
@@ -747,6 +747,7 @@ model CalendarEvent {
 
   notes            String?
   customerNotified Boolean @default(false)
+  assigneeIds      String? @default("[]") // JSON array of user IDs assigned to INSTALL events
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
