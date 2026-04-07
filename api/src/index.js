@@ -163,7 +163,7 @@ const calendarRouter           = createCalendarRouter(prisma);
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
-// ── Public routes ─────────────────────────────────────────────────────────────────
+// ── Public routes ─────────────────────────────────────────────────────────────
 app.use('/public', publicRouter);
 app.use('/public', publicCustomerDocumentsRouter);
 app.use('/public', publicInvoicingRouter);
@@ -179,7 +179,7 @@ app.get('/pdfs/:filename', (req, res) => {
   res.sendFile(pdfPath, err => err && res.status(404).json({ error: 'PDF not found' }));
 });
 
-// ── Auth ──────────────────────────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────────────────────
 app.use('/auth', (req, res, next) => {
   if (['/me', '/logout', '/change-password'].includes(req.path)) {
     return authGuard(req, res, () => authRouter(req, res, next));
@@ -204,13 +204,14 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
     }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// Internal employees: active, isEmployee=true, not MANUFACTURER or BROKER
+// Internal employees: active, isEmployee not explicitly false, not MANUFACTURER or BROKER.
+// Using { not: false } treats NULL (existing rows before column was added) as employees.
 app.get('/users/internal', authGuard, async (req, res) => {
   try {
     res.json(await prisma.user.findMany({
       where: {
         isActive:   true,
-        isEmployee: true,
+        isEmployee: { not: false },
         role: { notIn: ['MANUFACTURER', 'BROKER'] },
       },
       select: { id: true, name: true, role: true },
