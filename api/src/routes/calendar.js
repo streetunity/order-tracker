@@ -11,7 +11,6 @@ import express from 'express';
 import { authGuard } from '../middleware/auth.js';
 import { sendInstallEmail } from '../services/calendarEmailService.js';
 
-// Which roles can create each event type
 const CREATE_PERMISSIONS = {
   INSTALL:  ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
   TIME_OFF: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
@@ -19,6 +18,10 @@ const CREATE_PERMISSIONS = {
 };
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
+
+function parseAssigneeIds(raw) {
+  try { return JSON.parse(raw || '[]'); } catch { return []; }
+}
 
 export function createCalendarRouter(prisma) {
   const router = express.Router();
@@ -32,43 +35,42 @@ export function createCalendarRouter(prisma) {
       const where = {};
       if (start || end) {
         where.OR = [
-          {
-            startDate: {
-              ...(start ? { gte: new Date(start) } : {}),
-              ...(end   ? { lte: new Date(end)   } : {}),
-            },
-          },
-          {
-            endDate: {
-              ...(start ? { gte: new Date(start) } : {}),
-              ...(end   ? { lte: new Date(end)   } : {}),
-            },
-          },
+          { startDate: { ...(start ? { gte: new Date(start) } : {}), ...(end ? { lte: new Date(end) } : {}) } },
+          { endDate:   { ...(start ? { gte: new Date(start) } : {}), ...(end ? { lte: new Date(end) } : {}) } },
         ];
       }
 
       const events = await prisma.calendarEvent.findMany({
         where,
         include: {
-          order: {
-            select: {
-              id: true,
-              poNumber: true,
-              account: { select: { name: true } },
-            },
-          },
+          order:     { select: { id: true, poNumber: true, account: { select: { name: true } } } },
           user:      { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },
         orderBy: { startDate: 'asc' },
       });
 
-      // Agents see other users' TIME_OFF anonymised (date visible, no name/notes)
+      // Resolve assignee names from DB for INSTALL events
+      const allAssigneeIds = [...new Set(
+        events.flatMap(e => parseAssigneeIds(e.assigneeIds))
+      )];
+      let assigneeMap = {};
+      if (allAssigneeIds.length > 0) {
+        const assigneeUsers = await prisma.user.findMany({
+          where: { id: { in: allAssigneeIds } },
+          select: { id: true, name: true },
+        });
+        assigneeMap = Object.fromEntries(assigneeUsers.map(u => [u.id, u.name]));
+      }
+
       const sanitized = events.map(e => {
+        const assigneeIds = parseAssigneeIds(e.assigneeIds);
+        const assignees   = assigneeIds.map(id => ({ id, name: assigneeMap[id] || id }));
+
         if (e.type === 'TIME_OFF' && user.role === 'AGENT' && e.userId !== user.id) {
-          return { ...e, title: 'Time Off', user: null, notes: null };
+          return { ...e, assigneeIds, assignees, title: 'Time Off', user: null, notes: null };
         }
-        return e;
+        return { ...e, assigneeIds, assignees };
       });
 
       res.json(sanitized);
@@ -83,22 +85,17 @@ export function createCalendarRouter(prisma) {
     try {
       const { q = '' } = req.query;
       const user = req.user;
-
       if (q.length < 1) return res.json([]);
 
       const where = {
         isArchived: false,
         OR: [
           { poNumber: { contains: q } },
-          { account: { name: { contains: q } } },
-          { id: { contains: q } },
+          { account:  { name: { contains: q } } },
+          { id:       { contains: q } },
         ],
       };
-
-      // Agents only see their own orders
-      if (user.role === 'AGENT') {
-        where.sku = user.name;
-      }
+      if (user.role === 'AGENT') where.sku = user.name;
 
       const orders = await prisma.order.findMany({
         where,
@@ -121,55 +118,49 @@ export function createCalendarRouter(prisma) {
   // ── POST /calendar/events ───────────────────────────────────────────────────
   router.post('/events', authGuard, async (req, res) => {
     try {
-      const { type, title, startDate, endDate, allDay, orderId, userId, notes } = req.body;
+      const { type, title, startDate, endDate, allDay, orderId, userId, notes, assigneeIds } = req.body;
       const user = req.user;
 
       const allowedRoles = CREATE_PERMISSIONS[type];
-      if (!allowedRoles) return res.status(400).json({ error: 'Invalid event type' });
+      if (!allowedRoles)                    return res.status(400).json({ error: 'Invalid event type' });
       if (!allowedRoles.includes(user.role)) return res.status(403).json({ error: 'Insufficient permissions' });
-      if (!startDate) return res.status(400).json({ error: 'startDate is required' });
+      if (!startDate)                        return res.status(400).json({ error: 'startDate is required' });
 
-      // Agents can only create TIME_OFF for themselves
       let targetUserId = userId;
-      if (type === 'TIME_OFF' && user.role === 'AGENT') {
-        targetUserId = user.id;
-      }
+      if (type === 'TIME_OFF' && user.role === 'AGENT') targetUserId = user.id;
 
       const event = await prisma.calendarEvent.create({
         data: {
           type,
-          title: title || buildTitle(type, null, user.name),
+          title:            title || buildTitle(type, null, user.name),
           startDate:        new Date(startDate),
           endDate:          new Date(endDate || startDate),
           allDay:           allDay !== false,
-          orderId:          type === 'INSTALL'  ? (orderId  || null) : null,
+          orderId:          type === 'INSTALL'  ? (orderId || null)      : null,
           userId:           type === 'TIME_OFF' ? (targetUserId || null) : null,
+          assigneeIds:      type === 'INSTALL'  ? JSON.stringify(Array.isArray(assigneeIds) ? assigneeIds : []) : '[]',
           createdById:      user.id,
           notes:            notes || null,
           customerNotified: false,
         },
         include: {
-          order: { select: { id: true, poNumber: true, account: { select: { name: true } } } },
+          order:     { select: { id: true, poNumber: true, account: { select: { name: true } } } },
           user:      { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },
       });
 
-      // Sync onsiteInstallationDate on the Order
+      // Sync onsiteInstallationDate
       if (type === 'INSTALL' && orderId) {
         await prisma.order.update({
           where: { id: orderId },
           data:  { onsiteInstallationDate: new Date(startDate) },
         }).catch(e => console.error('[CALENDAR] Failed to sync onsiteInstallationDate:', e));
 
-        // Send customer email
         try {
           const emailResult = await sendInstallEmail(prisma, { calendarEvent: event, isReschedule: false });
           if (emailResult.success) {
-            await prisma.calendarEvent.update({
-              where: { id: event.id },
-              data:  { customerNotified: true },
-            });
+            await prisma.calendarEvent.update({ where: { id: event.id }, data: { customerNotified: true } });
             event.customerNotified = true;
           }
         } catch (emailErr) {
@@ -177,7 +168,8 @@ export function createCalendarRouter(prisma) {
         }
       }
 
-      res.status(201).json(event);
+      const ids = parseAssigneeIds(event.assigneeIds);
+      res.status(201).json({ ...event, assigneeIds: ids, assignees: ids.map(id => ({ id })) });
     } catch (err) {
       console.error('[CALENDAR] POST /events error:', err);
       res.status(500).json({ error: err.message });
@@ -188,7 +180,7 @@ export function createCalendarRouter(prisma) {
   router.put('/events/:id', authGuard, async (req, res) => {
     try {
       const { id } = req.params;
-      const { title, startDate, endDate, notes, resendEmail } = req.body;
+      const { title, startDate, endDate, notes, resendEmail, assigneeIds } = req.body;
       const user = req.user;
 
       const existing = await prisma.calendarEvent.findUnique({ where: { id } });
@@ -203,19 +195,21 @@ export function createCalendarRouter(prisma) {
       const updated = await prisma.calendarEvent.update({
         where: { id },
         data: {
-          ...(title     !== undefined && { title }),
-          ...(startDate !== undefined && { startDate: new Date(startDate) }),
-          ...(endDate   !== undefined && { endDate:   new Date(endDate) }),
-          ...(notes     !== undefined && { notes }),
+          ...(title       !== undefined && { title }),
+          ...(startDate   !== undefined && { startDate: new Date(startDate) }),
+          ...(endDate     !== undefined && { endDate:   new Date(endDate) }),
+          ...(notes       !== undefined && { notes }),
+          ...(assigneeIds !== undefined && existing.type === 'INSTALL' && {
+            assigneeIds: JSON.stringify(Array.isArray(assigneeIds) ? assigneeIds : []),
+          }),
         },
         include: {
-          order: { select: { id: true, poNumber: true, account: { select: { name: true } } } },
+          order:     { select: { id: true, poNumber: true, account: { select: { name: true } } } },
           user:      { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },
       });
 
-      // Keep onsiteInstallationDate in sync
       if (existing.type === 'INSTALL' && existing.orderId && startDate) {
         await prisma.order.update({
           where: { id: existing.orderId },
@@ -223,15 +217,11 @@ export function createCalendarRouter(prisma) {
         }).catch(e => console.error('[CALENDAR] Failed to sync onsiteInstallationDate on update:', e));
       }
 
-      // Resend email if date changed or explicitly requested
       if (existing.type === 'INSTALL' && (dateChanged || resendEmail)) {
         try {
           const emailResult = await sendInstallEmail(prisma, { calendarEvent: updated, isReschedule: true });
           if (emailResult.success) {
-            await prisma.calendarEvent.update({
-              where: { id },
-              data:  { customerNotified: true },
-            });
+            await prisma.calendarEvent.update({ where: { id }, data: { customerNotified: true } });
             updated.customerNotified = true;
           }
         } catch (emailErr) {
@@ -239,7 +229,8 @@ export function createCalendarRouter(prisma) {
         }
       }
 
-      res.json(updated);
+      const ids = parseAssigneeIds(updated.assigneeIds);
+      res.json({ ...updated, assigneeIds: ids, assignees: ids.map(id => ({ id })) });
     } catch (err) {
       console.error('[CALENDAR] PUT /events/:id error:', err);
       res.status(500).json({ error: err.message });
@@ -260,12 +251,11 @@ export function createCalendarRouter(prisma) {
 
       await prisma.calendarEvent.delete({ where: { id } });
 
-      // Clear onsiteInstallationDate
       if (existing.type === 'INSTALL' && existing.orderId) {
         await prisma.order.update({
           where: { id: existing.orderId },
           data:  { onsiteInstallationDate: null },
-        }).catch(() => {}); // Ignore if order already deleted
+        }).catch(() => {});
       }
 
       res.json({ success: true });
@@ -277,8 +267,6 @@ export function createCalendarRouter(prisma) {
 
   return router;
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function buildTitle(type, order, userName) {
   if (type === 'INSTALL'  && order) return `Install \u2014 ${order.account?.name || order.id}`;

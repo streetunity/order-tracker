@@ -8,8 +8,6 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
 const EVENT_COLORS = {
   INSTALL:  { bg: '#dc2626', border: '#b91c1c', text: '#fff' },
   TIME_OFF: { bg: '#f59e0b', border: '#d97706', text: '#000' },
@@ -23,8 +21,6 @@ const CREATE_PERMISSIONS = {
 };
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getAuthHeaders() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -48,8 +44,6 @@ function toInputDate(dateOrStr) {
   ].join('-');
 }
 
-// ── Shared style atoms ────────────────────────────────────────────────────────
-
 const inputSt = {
   width: '100%', padding: '10px 12px', background: '#0f0f0f',
   border: '1px solid #333', borderRadius: '6px', color: '#e4e4e4',
@@ -60,8 +54,6 @@ const btnBase = {
   padding: '9px 20px', borderRadius: '6px', fontSize: '14px',
   cursor: 'pointer', fontWeight: 600, border: 'none', fontFamily: 'inherit',
 };
-
-// ── Sub-components ────────────────────────────────────────────────────────────
 
 function Overlay({ children, onClose }) {
   return (
@@ -103,12 +95,9 @@ function ModalHead({ title, badge, badgeColor, onClose }) {
       </div>
       <button
         onClick={onClose}
-        style={{
-          background: 'none', border: 'none', color: '#6b7280',
-          cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: '4px',
-        }}
+        style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: '4px' }}
       >
-        \u00D7
+        &times;
       </button>
     </div>
   );
@@ -124,9 +113,7 @@ function Field({ label, hint, children }) {
         {label}
       </label>
       {children}
-      {hint && (
-        <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>{hint}</p>
-      )}
+      {hint && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>{hint}</p>}
     </div>
   );
 }
@@ -191,6 +178,94 @@ function TypeTabs({ value, onChange, canCreate }) {
   );
 }
 
+// ── Assignee multi-select ─────────────────────────────────────────────────────
+
+function AssigneePicker({ users, selected, onChange }) {
+  const [search, setSearch] = useState('');
+
+  const filtered = users.filter(u =>
+    u.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function toggle(id) {
+    onChange(
+      selected.includes(id)
+        ? selected.filter(s => s !== id)
+        : [...selected, id]
+    );
+  }
+
+  return (
+    <div>
+      {/* Selected tags */}
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+          {selected.map(id => {
+            const u = users.find(u => u.id === id);
+            return (
+              <span
+                key={id}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  padding: '4px 10px', background: '#dc262620', border: '1px solid #dc2626',
+                  borderRadius: '99px', fontSize: '12px', color: '#e4e4e4',
+                }}
+              >
+                {u?.name || id}
+                <button
+                  onClick={() => toggle(id)}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: 0 }}
+                >
+                  &times;
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Search */}
+      <input
+        type="text"
+        placeholder="Search employees..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ ...inputSt, marginBottom: '8px' }}
+      />
+
+      {/* Checklist */}
+      <div style={{
+        maxHeight: '180px', overflowY: 'auto',
+        border: '1px solid #2d2d2d', borderRadius: '6px',
+        background: '#0f0f0f',
+      }}>
+        {filtered.length === 0 && (
+          <div style={{ padding: '12px 14px', color: '#6b7280', fontSize: '13px' }}>No employees found</div>
+        )}
+        {filtered.map((u, i) => (
+          <label
+            key={u.id}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '10px 14px', cursor: 'pointer',
+              borderBottom: i < filtered.length - 1 ? '1px solid #1f1f1f' : 'none',
+              background: selected.includes(u.id) ? '#1a1a1a' : 'transparent',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={selected.includes(u.id)}
+              onChange={() => toggle(u.id)}
+              style={{ accentColor: '#dc2626', width: '15px', height: '15px', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: '14px', color: '#e4e4e4' }}>{u.name}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Create / Edit Modal ───────────────────────────────────────────────────────
 
 function CreateEditModal({
@@ -198,6 +273,7 @@ function CreateEditModal({
   formStart, setFormStart, formEnd, setFormEnd,
   formTitle, setFormTitle, formNotes, setFormNotes,
   formUserId, setFormUserId,
+  formAssigneeIds, setFormAssigneeIds,
   orderSearch, setOrderSearch,
   orderResults, orderLoading,
   selectedOrder, setSelectedOrder, setFormOrderId,
@@ -215,7 +291,6 @@ function CreateEditModal({
       />
       <div style={{ padding: '24px' }}>
 
-        {/* Type selector — only on create */}
         {mode === 'create' && (
           <TypeTabs value={formType} onChange={setFormType} canCreate={canCreate} />
         )}
@@ -229,21 +304,19 @@ function CreateEditModal({
                 padding: '10px 12px', background: '#0f0f0f',
                 border: '1px solid #dc2626', borderRadius: '6px',
               }}>
-                <span style={{ color: '#e4e4e4', fontSize: '14px', flex: 1 }}>
-                  {selectedOrder.label}
-                </span>
+                <span style={{ color: '#e4e4e4', fontSize: '14px', flex: 1 }}>{selectedOrder.label}</span>
                 <button
                   onClick={() => { setSelectedOrder(null); setFormOrderId(''); setOrderSearch(''); }}
                   style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px' }}
                 >
-                  \u00D7
+                  &times;
                 </button>
               </div>
             ) : (
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  placeholder="Search by customer name or PO number\u2026"
+                  placeholder="Search by customer name or PO number..."
                   value={orderSearch}
                   onChange={e => setOrderSearch(e.target.value)}
                   style={inputSt}
@@ -256,7 +329,7 @@ function CreateEditModal({
                     zIndex: 20, maxHeight: '220px', overflowY: 'auto',
                   }}>
                     {orderLoading && (
-                      <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>Searching\u2026</div>
+                      <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>Searching...</div>
                     )}
                     {orderResults.map(o => (
                       <button
@@ -281,27 +354,27 @@ function CreateEditModal({
           </Field>
         )}
 
+        {/* INSTALL: assigned employees */}
+        {formType === 'INSTALL' && (
+          <Field label="Assigned Employees" hint="Select one or more team members for this install.">
+            <AssigneePicker
+              users={users}
+              selected={formAssigneeIds}
+              onChange={setFormAssigneeIds}
+            />
+          </Field>
+        )}
+
         {/* TIME_OFF: user picker */}
         {formType === 'TIME_OFF' && (
           <Field label="Team Member">
             {isAdmin ? (
-              <select
-                value={formUserId}
-                onChange={e => setFormUserId(e.target.value)}
-                style={inputSt}
-              >
-                <option value="">Select team member\u2026</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
+              <select value={formUserId} onChange={e => setFormUserId(e.target.value)} style={inputSt}>
+                <option value="">Select team member...</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             ) : (
-              <input
-                type="text"
-                value={user?.name || ''}
-                disabled
-                style={{ ...inputSt, color: '#6b7280' }}
-              />
+              <input type="text" value={user?.name || ''} disabled style={{ ...inputSt, color: '#6b7280' }} />
             )}
           </Field>
         )}
@@ -311,7 +384,7 @@ function CreateEditModal({
           <Field label="Title">
             <input
               type="text"
-              placeholder="e.g. Company Holiday, Shop Closed\u2026"
+              placeholder="e.g. Company Holiday, Shop Closed..."
               value={formTitle}
               onChange={e => setFormTitle(e.target.value)}
               style={inputSt}
@@ -323,8 +396,7 @@ function CreateEditModal({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <Field label="Start Date">
             <input
-              type="date"
-              value={formStart}
+              type="date" value={formStart}
               onChange={e => {
                 setFormStart(e.target.value);
                 if (!formEnd || formEnd < e.target.value) setFormEnd(e.target.value);
@@ -333,22 +405,13 @@ function CreateEditModal({
             />
           </Field>
           <Field label="End Date">
-            <input
-              type="date"
-              value={formEnd}
-              min={formStart}
-              onChange={e => setFormEnd(e.target.value)}
-              style={inputSt}
-            />
+            <input type="date" value={formEnd} min={formStart} onChange={e => setFormEnd(e.target.value)} style={inputSt} />
           </Field>
         </div>
 
         {/* Notes — INSTALL only */}
         {formType === 'INSTALL' && (
-          <Field
-            label="Notes (Optional)"
-            hint="The customer will see this note in their install confirmation email."
-          >
+          <Field label="Notes (Optional)" hint="The customer will see this note in their install confirmation email.">
             <textarea
               value={formNotes}
               onChange={e => setFormNotes(e.target.value)}
@@ -362,18 +425,14 @@ function CreateEditModal({
         <ErrBox msg={err} />
 
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
-          <button
-            onClick={onCancel}
-            style={{ ...btnBase, background: '#252525', color: '#a0a0a0', border: '1px solid #333' }}
-          >
+          <button onClick={onCancel} style={{ ...btnBase, background: '#252525', color: '#a0a0a0', border: '1px solid #333' }}>
             Cancel
           </button>
           <button
-            onClick={onSave}
-            disabled={saving}
+            onClick={onSave} disabled={saving}
             style={{ ...btnBase, background: '#dc2626', color: '#fff', opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}
           >
-            {saving ? 'Saving\u2026' : mode === 'create' ? 'Create Event' : 'Save Changes'}
+            {saving ? 'Saving...' : mode === 'create' ? 'Create Event' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -383,11 +442,18 @@ function CreateEditModal({
 
 // ── View Modal ────────────────────────────────────────────────────────────────
 
-function ViewModal({ event, user, isAdmin, saving, err, onEdit, onDelete, onResend, onClose }) {
-  const color   = EVENT_COLORS[event.type] || { bg: '#888' };
-  const canEdit = isAdmin || event.createdById === user?.id;
+function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete, onResend, onClose }) {
+  const color    = EVENT_COLORS[event.type] || { bg: '#888' };
+  const canEdit  = isAdmin || event.createdById === user?.id;
   const isSameDay = toInputDate(event.startDate) === toInputDate(event.endDate);
   const badgeLabel = { INSTALL: 'Install', TIME_OFF: 'Time Off', BLOCKED: 'Blocked' }[event.type];
+
+  // Resolve assignee names — event.assignees has {id, name} from backend,
+  // but fall back to users list if needed.
+  const assignees = (event.assignees || []).map(a => ({
+    id: a.id,
+    name: a.name || users.find(u => u.id === a.id)?.name || a.id,
+  }));
 
   return (
     <>
@@ -407,6 +473,21 @@ function ViewModal({ event, user, isAdmin, saving, err, onEdit, onDelete, onRese
           </InfoRow>
         )}
 
+        {event.type === 'INSTALL' && assignees.length > 0 && (
+          <InfoRow label="Assigned Employees">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+              {assignees.map(a => (
+                <span key={a.id} style={{
+                  padding: '4px 12px', background: '#1f1f1f', border: '1px solid #404040',
+                  borderRadius: '99px', fontSize: '13px', color: '#e4e4e4',
+                }}>
+                  {a.name}
+                </span>
+              ))}
+            </div>
+          </InfoRow>
+        )}
+
         {event.type === 'TIME_OFF' && event.user && (
           <InfoRow label="Team Member">{event.user.name}</InfoRow>
         )}
@@ -423,40 +504,23 @@ function ViewModal({ event, user, isAdmin, saving, err, onEdit, onDelete, onRese
           </InfoRow>
         )}
 
-        <InfoRow label="Created By">
-          {event.createdBy?.name || '\u2014'}
-        </InfoRow>
+        <InfoRow label="Created By">{event.createdBy?.name || '\u2014'}</InfoRow>
 
         <ErrBox msg={err} />
 
         <div style={{ display: 'flex', gap: '8px', marginTop: '20px', flexWrap: 'wrap' }}>
           {canEdit && (
             <>
-              <button
-                onClick={onEdit}
-                style={{ ...btnBase, background: '#252525', color: '#e4e4e4', border: '1px solid #404040', fontWeight: 400 }}
-              >
-                Edit
-              </button>
-              <button
-                onClick={onDelete}
-                style={{ ...btnBase, background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', fontWeight: 400 }}
-              >
-                Delete
-              </button>
+              <button onClick={onEdit} style={{ ...btnBase, background: '#252525', color: '#e4e4e4', border: '1px solid #404040', fontWeight: 400 }}>Edit</button>
+              <button onClick={onDelete} style={{ ...btnBase, background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', fontWeight: 400 }}>Delete</button>
             </>
           )}
           {event.type === 'INSTALL' && canEdit && (
             <button
-              onClick={onResend}
-              disabled={saving}
-              style={{
-                ...btnBase, background: '#0f172a', color: '#93c5fd',
-                border: '1px solid #1e3a5f', fontWeight: 400,
-                opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer',
-              }}
+              onClick={onResend} disabled={saving}
+              style={{ ...btnBase, background: '#0f172a', color: '#93c5fd', border: '1px solid #1e3a5f', fontWeight: 400, opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}
             >
-              {saving ? 'Sending\u2026' : event.customerNotified ? 'Resend Email' : 'Send Email'}
+              {saving ? 'Sending...' : event.customerNotified ? 'Resend Email' : 'Send Email'}
             </button>
           )}
         </div>
@@ -465,7 +529,7 @@ function ViewModal({ event, user, isAdmin, saving, err, onEdit, onDelete, onRese
   );
 }
 
-// ── Confirm Delete Modal ──────────────────────────────────────────────────────
+// ── Confirm Delete ────────────────────────────────────────────────────────────
 
 function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
   return (
@@ -480,23 +544,17 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
             padding: '12px 16px', background: '#451a03', border: '1px solid #92400e',
             borderRadius: '6px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px',
           }}>
-            This will remove the install date from the customer\u2019s tracking page.
+            This will remove the install date from the customer's tracking page.
           </div>
         )}
         <ErrBox msg={err} />
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} style={{ ...btnBase, background: '#252525', color: '#a0a0a0', border: '1px solid #333', fontWeight: 400 }}>Cancel</button>
           <button
-            onClick={onCancel}
-            style={{ ...btnBase, background: '#252525', color: '#a0a0a0', border: '1px solid #333', fontWeight: 400 }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={saving}
+            onClick={onConfirm} disabled={saving}
             style={{ ...btnBase, background: '#dc2626', color: '#fff', opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}
           >
-            {saving ? 'Deleting\u2026' : 'Delete'}
+            {saving ? 'Deleting...' : 'Delete'}
           </button>
         </div>
       </div>
@@ -514,40 +572,36 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [users,   setUsers]   = useState([]);
 
-  // Modal
-  const [modal, setModal]               = useState(null);
+  const [modal,         setModal]         = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
-  // Form
-  const [formType,   setFormType]   = useState('INSTALL');
-  const [formStart,  setFormStart]  = useState('');
-  const [formEnd,    setFormEnd]    = useState('');
-  const [formTitle,  setFormTitle]  = useState('');
-  const [formNotes,  setFormNotes]  = useState('');
-  const [formUserId, setFormUserId] = useState('');
-  const [formOrderId, setFormOrderId] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [orderSearch, setOrderSearch]     = useState('');
-  const [orderResults, setOrderResults]   = useState([]);
-  const [orderLoading, setOrderLoading]   = useState(false);
-
+  const [formType,       setFormType]       = useState('INSTALL');
+  const [formStart,      setFormStart]      = useState('');
+  const [formEnd,        setFormEnd]        = useState('');
+  const [formTitle,      setFormTitle]      = useState('');
+  const [formNotes,      setFormNotes]      = useState('');
+  const [formUserId,     setFormUserId]     = useState('');
+  const [formOrderId,    setFormOrderId]    = useState('');
+  const [formAssigneeIds, setFormAssigneeIds] = useState([]);
+  const [selectedOrder,  setSelectedOrder]  = useState(null);
+  const [orderSearch,    setOrderSearch]    = useState('');
+  const [orderResults,   setOrderResults]   = useState([]);
+  const [orderLoading,   setOrderLoading]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
 
-  // Auth helpers
   const isAdmin   = user && ADMIN_ROLES.includes(user.role);
   const canCreate = type => user && CREATE_PERMISSIONS[type]?.includes(user.role);
 
-  // ── Fetch users for TIME_OFF dropdown ────────────────────────────────────────
+  // Fetch users for both assignee picker and TIME_OFF dropdown
   useEffect(() => {
-    if (!user || !isAdmin) return;
+    if (!user) return;
     fetch('/api/users/sales-reps', { headers: getAuthHeaders() })
       .then(r => r.json())
       .then(d => setUsers(Array.isArray(d) ? d : []))
       .catch(() => {});
-  }, [user, isAdmin]);
+  }, [user]);
 
-  // ── Fetch events ─────────────────────────────────────────────────────────────
   const fetchEvents = useCallback(async (start, end) => {
     if (!user) return;
     setLoading(true);
@@ -564,9 +618,9 @@ export default function CalendarPage() {
         start:           e.startDate,
         end:             e.endDate,
         allDay:          e.allDay,
-        backgroundColor: EVENT_COLORS[e.type]?.bg     || '#888',
-        borderColor:     EVENT_COLORS[e.type]?.border  || '#666',
-        textColor:       EVENT_COLORS[e.type]?.text    || '#fff',
+        backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
+        borderColor:     EVENT_COLORS[e.type]?.border || '#666',
+        textColor:       EVENT_COLORS[e.type]?.text   || '#fff',
         extendedProps:   e,
       })));
     } catch (e) {
@@ -576,31 +630,21 @@ export default function CalendarPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (user) fetchEvents(null, null);
-  }, [user, fetchEvents]);
+  useEffect(() => { if (user) fetchEvents(null, null); }, [user, fetchEvents]);
 
-  // ── Order search debounce ─────────────────────────────────────────────────────
+  // Order search debounce
   useEffect(() => {
-    if (formType !== 'INSTALL' || orderSearch.length < 2) {
-      setOrderResults([]);
-      return;
-    }
+    if (formType !== 'INSTALL' || orderSearch.length < 2) { setOrderResults([]); return; }
     const t = setTimeout(async () => {
       setOrderLoading(true);
       try {
-        const res = await fetch(
-          `/api/calendar/orders/search?q=${encodeURIComponent(orderSearch)}`,
-          { headers: getAuthHeaders() }
-        );
+        const res = await fetch(`/api/calendar/orders/search?q=${encodeURIComponent(orderSearch)}`, { headers: getAuthHeaders() });
         if (res.ok) setOrderResults(await res.json());
       } catch {}
       setOrderLoading(false);
     }, 300);
     return () => clearTimeout(t);
   }, [orderSearch, formType]);
-
-  // ── Handlers ──────────────────────────────────────────────────────────────────
 
   function openCreate(dateStr) {
     const defaultType = canCreate('INSTALL') ? 'INSTALL' : canCreate('TIME_OFF') ? 'TIME_OFF' : 'BLOCKED';
@@ -611,6 +655,7 @@ export default function CalendarPage() {
     setFormNotes('');
     setFormUserId(user?.id || '');
     setFormOrderId('');
+    setFormAssigneeIds([]);
     setSelectedOrder(null);
     setOrderSearch('');
     setOrderResults([]);
@@ -633,6 +678,7 @@ export default function CalendarPage() {
     setFormNotes(e.notes || '');
     setFormUserId(e.userId || '');
     setFormOrderId(e.orderId || '');
+    setFormAssigneeIds(Array.isArray(e.assigneeIds) ? e.assigneeIds : []);
     setSelectedOrder(
       e.order
         ? { id: e.order.id, label: `${e.order.account?.name || ''} \u2014 ${e.order.poNumber || e.order.id.slice(-8).toUpperCase()}` }
@@ -646,7 +692,7 @@ export default function CalendarPage() {
 
   async function handleSave() {
     setErr('');
-    if (!formStart) { setErr('Start date is required'); return; }
+    if (!formStart)                              { setErr('Start date is required'); return; }
     if (formType === 'INSTALL'  && !formOrderId) { setErr('Please select an order'); return; }
     if (formType === 'BLOCKED'  && !formTitle)   { setErr('Title is required'); return; }
 
@@ -667,8 +713,8 @@ export default function CalendarPage() {
         endDate:   formEnd || formStart,
         allDay:    true,
         notes:     formNotes || null,
-        ...(formType === 'INSTALL'  && { orderId: formOrderId }),
-        ...(formType === 'TIME_OFF' && { userId:  formUserId || user?.id }),
+        ...(formType === 'INSTALL'  && { orderId: formOrderId, assigneeIds: formAssigneeIds }),
+        ...(formType === 'TIME_OFF' && { userId: formUserId || user?.id }),
       };
 
       const isEdit = modal === 'edit';
@@ -698,10 +744,7 @@ export default function CalendarPage() {
   async function handleDelete() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/calendar/events/${selectedEvent.id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(`/api/calendar/events/${selectedEvent.id}`, { method: 'DELETE', headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Delete failed');
       setModal(null);
       fetchEvents(null, null);
@@ -731,23 +774,12 @@ export default function CalendarPage() {
     }
   }
 
-  // ── Guards ────────────────────────────────────────────────────────────────────
-
-  if (authLoading) {
-    return (
-      <div style={{ padding: '80px', textAlign: 'center', color: '#6b7280' }}>
-        Loading\u2026
-      </div>
-    );
-  }
+  if (authLoading) return <div style={{ padding: '80px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>;
   if (!user) return null;
-
-  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f0f0f', padding: '24px 28px 60px' }}>
 
-      {/* FullCalendar dark theme overrides */}
       <style>{`
         .cal-wrap .fc { color: #e4e4e4; }
         .cal-wrap .fc-toolbar-title { color: #e4e4e4; font-size: 18px; font-weight: 700; }
@@ -765,24 +797,16 @@ export default function CalendarPage() {
           padding: 6px 14px !important; box-shadow: none !important;
         }
         .cal-wrap .fc-button:hover { background: #333 !important; border-color: #555 !important; }
-        .cal-wrap .fc-button-active,
-        .cal-wrap .fc-button:focus {
-          background: #dc2626 !important;
-          border-color: #dc2626 !important;
-          box-shadow: none !important;
+        .cal-wrap .fc-button-active, .cal-wrap .fc-button:focus {
+          background: #dc2626 !important; border-color: #dc2626 !important; box-shadow: none !important;
         }
         .cal-wrap .fc-event {
           border-radius: 5px; padding: 2px 7px;
-          font-size: 12px; font-weight: 600; cursor: pointer;
-          transition: opacity 0.15s;
+          font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
         }
         .cal-wrap .fc-event:hover { opacity: 0.8; }
         .cal-wrap .fc-more-link { color: #dc2626; font-size: 12px; }
-        .cal-wrap .fc-popover {
-          background: #1a1a1a !important;
-          border-color: #404040 !important;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
-        }
+        .cal-wrap .fc-popover { background: #1a1a1a !important; border-color: #404040 !important; box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; }
         .cal-wrap .fc-popover-title { background: #252525 !important; color: #e4e4e4 !important; }
         .cal-wrap .fc-popover-body  { background: #1a1a1a !important; }
         .cal-wrap .fc-timegrid-slot { background: #111; border-color: #2d2d2d !important; }
@@ -790,18 +814,11 @@ export default function CalendarPage() {
         .cal-wrap .fc-toolbar { margin-bottom: 18px !important; }
       `}</style>
 
-      {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 style={{ color: '#e4e4e4', fontSize: '24px', fontWeight: 700, margin: 0 }}>
-            Calendar
-          </h1>
-          <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0' }}>
-            Schedule installations and manage team availability
-          </p>
+          <h1 style={{ color: '#e4e4e4', fontSize: '24px', fontWeight: 700, margin: 0 }}>Calendar</h1>
+          <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0' }}>Schedule installations and manage team availability</p>
         </div>
-
-        {/* Legend */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
           {Object.entries(EVENT_COLORS).map(([type, c]) => (
             <span key={type} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#a0a0a0' }}>
@@ -812,32 +829,19 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Calendar */}
-      <div
-        className="cal-wrap"
-        style={{
-          background: '#111', borderRadius: '12px',
-          padding: '20px 20px 4px', border: '1px solid #2d2d2d',
-        }}
-      >
+      <div className="cal-wrap" style={{ background: '#111', borderRadius: '12px', padding: '20px 20px 4px', border: '1px solid #2d2d2d' }}>
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
-          headerToolbar={{
-            left:   'prev,next today',
-            center: 'title',
-            right:  'dayGridMonth,timeGridWeek,timeGridDay',
-          }}
+          headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
           buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
           events={events}
           height="auto"
           fixedWeekCount={false}
           dayMaxEvents={4}
           dateClick={info => {
-            if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) {
-              openCreate(info.dateStr);
-            }
+            if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) openCreate(info.dateStr);
           }}
           eventClick={info => openView(info)}
           datesSet={info => fetchEvents(info.start, info.end)}
@@ -845,31 +849,27 @@ export default function CalendarPage() {
       </div>
 
       {loading && (
-        <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '13px', marginTop: '12px' }}>
-          Loading events\u2026
-        </div>
+        <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '13px', marginTop: '12px' }}>Loading events...</div>
       )}
 
-      {/* Modals */}
       {modal === 'create' && (
         <Overlay onClose={() => !saving && setModal(null)}>
           <CreateEditModal
             mode="create"
-            formType={formType}        setFormType={setFormType}
-            formStart={formStart}      setFormStart={setFormStart}
-            formEnd={formEnd}          setFormEnd={setFormEnd}
-            formTitle={formTitle}      setFormTitle={setFormTitle}
-            formNotes={formNotes}      setFormNotes={setFormNotes}
-            formUserId={formUserId}    setFormUserId={setFormUserId}
-            orderSearch={orderSearch}  setOrderSearch={setOrderSearch}
-            orderResults={orderResults} orderLoading={orderLoading}
-            selectedOrder={selectedOrder} setSelectedOrder={setSelectedOrder}
+            formType={formType}             setFormType={setFormType}
+            formStart={formStart}           setFormStart={setFormStart}
+            formEnd={formEnd}               setFormEnd={setFormEnd}
+            formTitle={formTitle}           setFormTitle={setFormTitle}
+            formNotes={formNotes}           setFormNotes={setFormNotes}
+            formUserId={formUserId}         setFormUserId={setFormUserId}
+            formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
+            orderSearch={orderSearch}       setOrderSearch={setOrderSearch}
+            orderResults={orderResults}     orderLoading={orderLoading}
+            selectedOrder={selectedOrder}   setSelectedOrder={setSelectedOrder}
             setFormOrderId={setFormOrderId}
             users={users} user={user} isAdmin={isAdmin}
-            canCreate={canCreate}
-            saving={saving} err={err}
-            onSave={handleSave}
-            onCancel={() => setModal(null)}
+            canCreate={canCreate} saving={saving} err={err}
+            onSave={handleSave} onCancel={() => setModal(null)}
           />
         </Overlay>
       )}
@@ -877,7 +877,7 @@ export default function CalendarPage() {
       {modal === 'view' && selectedEvent && (
         <Overlay onClose={() => !saving && setModal(null)}>
           <ViewModal
-            event={selectedEvent} user={user} isAdmin={isAdmin}
+            event={selectedEvent} user={user} isAdmin={isAdmin} users={users}
             saving={saving} err={err}
             onEdit={openEdit}
             onDelete={() => { setErr(''); setModal('confirm-delete'); }}
@@ -891,21 +891,20 @@ export default function CalendarPage() {
         <Overlay onClose={() => !saving && setModal('view')}>
           <CreateEditModal
             mode="edit"
-            formType={formType}        setFormType={() => {}}
-            formStart={formStart}      setFormStart={setFormStart}
-            formEnd={formEnd}          setFormEnd={setFormEnd}
-            formTitle={formTitle}      setFormTitle={setFormTitle}
-            formNotes={formNotes}      setFormNotes={setFormNotes}
-            formUserId={formUserId}    setFormUserId={setFormUserId}
-            orderSearch={orderSearch}  setOrderSearch={setOrderSearch}
-            orderResults={orderResults} orderLoading={orderLoading}
-            selectedOrder={selectedOrder} setSelectedOrder={setSelectedOrder}
+            formType={formType}             setFormType={() => {}}
+            formStart={formStart}           setFormStart={setFormStart}
+            formEnd={formEnd}               setFormEnd={setFormEnd}
+            formTitle={formTitle}           setFormTitle={setFormTitle}
+            formNotes={formNotes}           setFormNotes={setFormNotes}
+            formUserId={formUserId}         setFormUserId={setFormUserId}
+            formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
+            orderSearch={orderSearch}       setOrderSearch={setOrderSearch}
+            orderResults={orderResults}     orderLoading={orderLoading}
+            selectedOrder={selectedOrder}   setSelectedOrder={setSelectedOrder}
             setFormOrderId={setFormOrderId}
             users={users} user={user} isAdmin={isAdmin}
-            canCreate={canCreate}
-            saving={saving} err={err}
-            onSave={handleSave}
-            onCancel={() => setModal('view')}
+            canCreate={canCreate} saving={saving} err={err}
+            onSave={handleSave} onCancel={() => setModal('view')}
           />
         </Overlay>
       )}
@@ -913,10 +912,8 @@ export default function CalendarPage() {
       {modal === 'confirm-delete' && selectedEvent && (
         <Overlay onClose={() => !saving && setModal('view')}>
           <ConfirmDeleteModal
-            event={selectedEvent}
-            saving={saving} err={err}
-            onConfirm={handleDelete}
-            onCancel={() => setModal('view')}
+            event={selectedEvent} saving={saving} err={err}
+            onConfirm={handleDelete} onCancel={() => setModal('view')}
           />
         </Overlay>
       )}
