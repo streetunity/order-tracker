@@ -112,7 +112,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Commission helpers (global) ───────────────────────────────────────────────
 global.calculateCommissionForOrder = calculateCommissionForOrder;
 global.recalculateCommissionIfPriceChanged = recalculateCommissionIfPriceChanged;
 global.checkCommissionPayoutTrigger = checkCommissionPayoutTrigger;
@@ -164,7 +163,7 @@ const calendarRouter           = createCalendarRouter(prisma);
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
-// ── Public routes (no auth) ───────────────────────────────────────────────────
+// ── Public routes ─────────────────────────────────────────────────────────────────
 app.use('/public', publicRouter);
 app.use('/public', publicCustomerDocumentsRouter);
 app.use('/public', publicInvoicingRouter);
@@ -172,7 +171,6 @@ app.use('/signatures', signaturesRouter);
 app.use('/portal', customerPortalRouter);
 console.log('✅ Public routes loaded');
 
-// Local PDF serving (dev)
 app.get('/pdfs/:filename', (req, res) => {
   const pdfDir  = new URL('../uploads/pdfs', import.meta.url).pathname;
   const pdfPath = `${pdfDir}/${req.params.filename}`;
@@ -181,7 +179,7 @@ app.get('/pdfs/:filename', (req, res) => {
   res.sendFile(pdfPath, err => err && res.status(404).json({ error: 'PDF not found' }));
 });
 
-// ── Auth routes ───────────────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────────────────────────
 app.use('/auth', (req, res, next) => {
   if (['/me', '/logout', '/change-password'].includes(req.path)) {
     return authGuard(req, res, () => authRouter(req, res, next));
@@ -194,7 +192,6 @@ app.use('/reports', authGuard, nonManufacturerGuard, reportsRouter);
 app.use('/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
 app.use('/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
 
-// ── Settings ──────────────────────────────────────────────────────────────────
 app.use('/settings', adminGuard, settingsRouter);
 
 // ── Users (specific routes BEFORE adminGuard catch-all) ───────────────────────
@@ -207,12 +204,13 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
     }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// Internal employees: all active users except MANUFACTURER and BROKER
+// Internal employees: active, isEmployee=true, not MANUFACTURER or BROKER
 app.get('/users/internal', authGuard, async (req, res) => {
   try {
     res.json(await prisma.user.findMany({
       where: {
-        isActive: true,
+        isActive:   true,
+        isEmployee: true,
         role: { notIn: ['MANUFACTURER', 'BROKER'] },
       },
       select: { id: true, name: true, role: true },
@@ -234,7 +232,7 @@ app.get('/users/search', authGuard, async (req, res) => {
 });
 app.use('/users', adminGuard, usersRouter);
 
-// ── Manufacturers (specific BEFORE catch-all) ─────────────────────────────────
+// ── Manufacturers ─────────────────────────────────────────────────────────────
 app.get('/manufacturers/active', authGuard, async (req, res) => {
   try {
     res.json(await prisma.manufacturer.findMany({
@@ -254,7 +252,6 @@ app.use('/orders', authGuard, measurementsRouter);
 app.use('/orders', authGuard, stagesRouter);
 app.use('/orders', authGuard, locksRouter);
 
-// ── Audit (specific BEFORE catch-all) ────────────────────────────────────────
 app.use('/audit', authGuard, nonManufacturerGuard, auditSearchRouter);
 app.use('/audit', authGuard, nonManufacturerGuard, auditBackfillRouter);
 app.use('/audit', authGuard, nonManufacturerGuard, auditRouter);
@@ -264,22 +261,18 @@ app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
 app.use('/notifications', authGuard, notificationsRouter);
 
-// ── Commissions (specific BEFORE general) ────────────────────────────────────
 app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
 app.use('/commissions', authGuard, commissionsRouter);
 
-// ── Calendar ──────────────────────────────────────────────────────────────────
 app.use('/calendar', authGuard, calendarRouter);
 
-// ── Other modules ─────────────────────────────────────────────────────────────
 app.use('/customs', brokerRouter);
 app.use('/shipments', shipmentsRouter);
 app.use(documentsRouter);
 app.use(itemDocumentsRouter);
 app.use('/customer-documents', customerDocumentsRouter);
 
-// ── Invoicing system ──────────────────────────────────────────────────────────
 app.use('/leads', authGuard, leadsRouter);
 app.use('/customers', authGuard, customersRouter);
 app.use('/estimates', authGuard, estimatesRouter);
@@ -298,7 +291,6 @@ app.use('/email-templates', authGuard, emailTemplateSettingsRouter);
 app.use('/zapier', zapierWebhookRouter);
 console.log('✅ All routes loaded');
 
-// ── Error handlers ────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error', message: process.env.NODE_ENV === 'development' ? err.message : undefined });
@@ -308,7 +300,6 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {
   console.log(`API server running at http://${HOST}:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

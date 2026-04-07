@@ -1,38 +1,24 @@
-export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSalesRep, togglingUserId, showInactive, sectionTitle, hideSalesRep }) {
+export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSalesRep, onToggleEmployee, togglingUserId, togglingEmployeeId, showInactive, hideSalesRep }) {
   const formatDate = (date) => {
     if (!date) return 'Never';
     return new Date(date).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
   };
 
-  const getRoleDisplayName = (role) => {
-    const names = {
-      'SUPER_ADMIN': 'Super Admin',
-      'ADMIN': 'Admin',
-      'ACCOUNTANT': 'Accountant',
-      'AGENT': 'Agent',
-      'MANUFACTURER': 'Manufacturer',
-      'BROKER': 'Broker'
-    };
-    return names[role] || role;
-  };
+  const getRoleDisplayName = (role) => ({
+    SUPER_ADMIN: 'Super Admin', ADMIN: 'Admin', ACCOUNTANT: 'Accountant',
+    AGENT: 'Agent', MANUFACTURER: 'Manufacturer', BROKER: 'Broker'
+  }[role] || role);
 
-  const getRoleBadgeColor = (role) => {
-    const colors = {
-      'SUPER_ADMIN': { bg: '#7f1d1d', text: '#fecaca' },
-      'ADMIN': { bg: '#7c2d12', text: '#fed7aa' },
-      'ACCOUNTANT': { bg: '#065f46', text: '#a7f3d0' },
-      'AGENT': { bg: '#1e40af', text: '#bfdbfe' },
-      'MANUFACTURER': { bg: '#6b21a8', text: '#e9d5ff' },
-      'BROKER': { bg: '#164e63', text: '#a5f3fc' }
-    };
-    return colors[role] || { bg: '#374151', text: '#d1d5db' };
-  };
+  const getRoleBadgeColor = (role) => ({
+    SUPER_ADMIN:  { bg: '#7f1d1d', text: '#fecaca' },
+    ADMIN:        { bg: '#7c2d12', text: '#fed7aa' },
+    ACCOUNTANT:   { bg: '#065f46', text: '#a7f3d0' },
+    AGENT:        { bg: '#1e40af', text: '#bfdbfe' },
+    MANUFACTURER: { bg: '#6b21a8', text: '#e9d5ff' },
+    BROKER:       { bg: '#164e63', text: '#a5f3fc' },
+  }[role] || { bg: '#374151', text: '#d1d5db' });
 
   if (users.length === 0) {
     return (
@@ -51,6 +37,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
+              {!hideSalesRep && <th>Employee</th>}
               {!hideSalesRep && <th>Sales Rep</th>}
               {hideSalesRep && <th>Has User Account</th>}
               <th>Status</th>
@@ -63,8 +50,10 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
             {users.map((user) => {
               const roleBadge = getRoleBadgeColor(user.role);
               const isSelf = currentUser?.id === user.id;
-              const isTogglingThisUser = togglingUserId === user.id;
-              const isSalesRep = Boolean(user.showInSalesRepDropdown);
+              const isTogglingThis     = togglingUserId     === user.id;
+              const isTogglingEmployee = togglingEmployeeId === user.id;
+              const isSalesRep  = Boolean(user.showInSalesRepDropdown);
+              const isEmployee  = user.isEmployee !== false; // default true
 
               return (
                 <tr key={user.id} className={!user.isActive ? 'inactive' : ''}>
@@ -81,6 +70,24 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
                       {getRoleDisplayName(user.role)}
                     </span>
                   </td>
+
+                  {/* Employee toggle — system users only */}
+                  {!hideSalesRep && (
+                    <td className="sales-rep-cell">
+                      <div className="sales-rep-toggle">
+                        <input
+                          type="checkbox"
+                          checked={isEmployee}
+                          onChange={() => onToggleEmployee && onToggleEmployee(user)}
+                          disabled={isTogglingEmployee}
+                          title={isEmployee ? 'Mark as non-employee (system account)' : 'Mark as employee'}
+                        />
+                        {isTogglingEmployee && <span className="saving-indicator">Saving...</span>}
+                      </div>
+                    </td>
+                  )}
+
+                  {/* Sales rep toggle — system users only */}
                   {!hideSalesRep && (
                     <td className="sales-rep-cell">
                       <div className="sales-rep-toggle">
@@ -88,22 +95,20 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
                           type="checkbox"
                           checked={isSalesRep}
                           onChange={() => onToggleSalesRep(user)}
-                          disabled={isTogglingThisUser}
-                          title={isSalesRep ? "Remove from sales rep dropdown" : "Add to sales rep dropdown"}
+                          disabled={isTogglingThis}
+                          title={isSalesRep ? 'Remove from sales rep dropdown' : 'Add to sales rep dropdown'}
                         />
-                        {isTogglingThisUser && <span className="saving-indicator">Saving...</span>}
+                        {isTogglingThis && <span className="saving-indicator">Saving...</span>}
                       </div>
                     </td>
                   )}
+
                   {hideSalesRep && (
                     <td className="center-cell">
-                      {user.email ? (
-                        <span className="has-account-badge">✓ Yes</span>
-                      ) : (
-                        <span className="no-data">—</span>
-                      )}
+                      {user.email ? <span className="has-account-badge">✓ Yes</span> : <span className="no-data">—</span>}
                     </td>
                   )}
+
                   <td>
                     <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
                       {user.isActive ? 'Active' : 'Inactive'}
@@ -113,11 +118,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
                   <td className="date-cell">{formatDate(user.createdAt)}</td>
                   <td className="actions-cell">
                     <button onClick={() => onEdit(user)} className="action-btn edit">Edit</button>
-                    <button
-                      onClick={() => onDeactivate(user)}
-                      disabled={!user.isActive}
-                      className="action-btn deactivate"
-                    >
+                    <button onClick={() => onDeactivate(user)} disabled={!user.isActive} className="action-btn deactivate">
                       {user.isActive ? 'Deactivate' : 'Inactive'}
                     </button>
                   </td>

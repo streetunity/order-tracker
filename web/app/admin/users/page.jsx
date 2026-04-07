@@ -21,6 +21,8 @@ const TABS = [
   { id: 'broker',       label: 'Broker Accounts',       addLabel: 'Add Broker Account',   defaultRole: 'BROKER' },
 ];
 
+const EMPTY_USER_FORM = { name: '', email: '', password: '', role: 'AGENT', isEmployee: true, showInSalesRepDropdown: true };
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
@@ -31,7 +33,8 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [assignableRoles, setAssignableRoles] = useState([]);
   const [togglingUserId, setTogglingUserId] = useState(null);
-  const [userFormData, setUserFormData] = useState({ name: '', email: '', password: '', role: 'AGENT', showInSalesRepDropdown: true });
+  const [togglingEmployeeId, setTogglingEmployeeId] = useState(null);
+  const [userFormData, setUserFormData] = useState(EMPTY_USER_FORM);
   const [userError, setUserError] = useState('');
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [pendingDeactivate, setPendingDeactivate] = useState(null);
@@ -135,6 +138,18 @@ export default function UsersPage() {
     finally { setTogglingUserId(null); }
   }
 
+  async function toggleEmployee(user) {
+    try {
+      setTogglingEmployeeId(user.id);
+      const token = localStorage.getItem('token');
+      const res  = await fetch(`/api/users/${user.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ isEmployee: !(user.isEmployee !== false) }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      await loadUsers();
+    } catch (e) { setUserError(e.message); }
+    finally { setTogglingEmployeeId(null); }
+  }
+
   function deactivateUser(user) {
     if (!canDeactivate(user)) { setUserError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`); return; }
     setPendingDeactivate(user); setShowDeactivateConfirm(true);
@@ -153,19 +168,26 @@ export default function UsersPage() {
 
   function openUserAddModal() {
     const tab = TABS.find(t => t.id === activeTab);
-    setUserFormData({ name: '', email: '', password: '', role: tab?.defaultRole || 'AGENT', showInSalesRepDropdown: false });
+    setUserFormData({ ...EMPTY_USER_FORM, role: tab?.defaultRole || 'AGENT', showInSalesRepDropdown: false });
     setEditingUser(null); setUserError(''); setShowAddModal(true);
   }
 
   function openUserEditModal(user) {
     if (!canEdit(user)) { setUserError(`You cannot edit users with role ${getRoleDisplayName(user.role)}`); return; }
-    setUserFormData({ name: user.name, email: user.email, password: '', role: user.role, showInSalesRepDropdown: user.showInSalesRepDropdown ?? false });
+    setUserFormData({
+      name: user.name,
+      email: user.email,
+      password: '',
+      role: user.role,
+      isEmployee: user.isEmployee !== false,
+      showInSalesRepDropdown: user.showInSalesRepDropdown ?? false,
+    });
     setEditingUser(user); setUserError(''); setShowAddModal(true);
   }
 
   function closeUserModal() {
     setShowAddModal(false); setEditingUser(null);
-    setUserFormData({ name: '', email: '', password: '', role: 'AGENT', showInSalesRepDropdown: true }); setUserError('');
+    setUserFormData(EMPTY_USER_FORM); setUserError('');
   }
 
   async function handleMfgSubmit(e) {
@@ -216,10 +238,10 @@ export default function UsersPage() {
 
   const inactiveUserCount = users.filter(u => !u.isActive).length;
   const inactiveMfgCount  = manufacturers.filter(m => !m.isActive).length;
-  const currentTab = TABS.find(t => t.id === activeTab);
-  const isMfgTab   = activeTab === 'manufacturer';
+  const currentTab  = TABS.find(t => t.id === activeTab);
+  const isMfgTab    = activeTab === 'manufacturer';
   const isBrokerTab = activeTab === 'broker';
-  const error = isMfgTab ? mfgError : userError;
+  const error    = isMfgTab ? mfgError    : userError;
   const setError = isMfgTab ? setMfgError : setUserError;
 
   const tabStyle = (id) => ({
@@ -235,7 +257,6 @@ export default function UsersPage() {
       <TopNav />
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 16px 40px' }}>
 
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>User Management</h1>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'rgba(255,255,255,0.55)', cursor: 'pointer' }}>
@@ -254,7 +275,6 @@ export default function UsersPage() {
           </div>
         )}
 
-        {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: 20 }}>
           {TABS.map(tab => (
             <button key={tab.id} style={tabStyle(tab.id)} onClick={() => setActiveTab(tab.id)}>
@@ -284,11 +304,23 @@ export default function UsersPage() {
         ))}
 
         {activeTab === 'system' && (
-          <UserTable users={regularUsers} currentUser={currentUser} onEdit={openUserEditModal} onDeactivate={deactivateUser} onToggleSalesRep={toggleSalesRep} togglingUserId={togglingUserId} showInactive={showInactive} hideSalesRep={false} />
+          <UserTable
+            users={regularUsers} currentUser={currentUser}
+            onEdit={openUserEditModal} onDeactivate={deactivateUser}
+            onToggleSalesRep={toggleSalesRep} onToggleEmployee={toggleEmployee}
+            togglingUserId={togglingUserId} togglingEmployeeId={togglingEmployeeId}
+            showInactive={showInactive} hideSalesRep={false}
+          />
         )}
 
         {isBrokerTab && (
-          <UserTable users={brokerUsers} currentUser={currentUser} onEdit={openUserEditModal} onDeactivate={deactivateUser} onToggleSalesRep={toggleSalesRep} togglingUserId={togglingUserId} showInactive={showInactive} hideSalesRep={true} />
+          <UserTable
+            users={brokerUsers} currentUser={currentUser}
+            onEdit={openUserEditModal} onDeactivate={deactivateUser}
+            onToggleSalesRep={toggleSalesRep}
+            togglingUserId={togglingUserId}
+            showInactive={showInactive} hideSalesRep={true}
+          />
         )}
 
         <UserModal show={showAddModal} editingUser={editingUser} formData={userFormData} setFormData={setUserFormData} onSubmit={handleUserSubmit} onClose={closeUserModal} error={userError} assignableRoles={assignableRoles} currentUser={currentUser} hideSalesRep={isBrokerTab} />

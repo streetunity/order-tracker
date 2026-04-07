@@ -60,19 +60,33 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
             {!isSelfEdit && <div className="hint">You can assign: {assignableRoleNames}</div>}
           </div>
 
-          {/* Only show Sales Rep toggle for system users — never for manufacturer or broker accounts */}
+          {/* System user toggles — only on System Users tab */}
           {!hideSalesRep && (
-            <div className="form-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={formData.showInSalesRepDropdown}
-                  onChange={(e) => setFormData({ ...formData, showInSalesRepDropdown: e.target.checked })}
-                />
-                Show in Sales Rep dropdown
-              </label>
-              <div className="hint">When checked, this user will appear in the "Sales Person" field when adding/editing orders</div>
-            </div>
+            <>
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.isEmployee}
+                    onChange={(e) => setFormData({ ...formData, isEmployee: e.target.checked })}
+                  />
+                  Is Employee
+                </label>
+                <div className="hint">Uncheck for system/service accounts (cron jobs, sysop, etc.) that should never appear in employee lists</div>
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.showInSalesRepDropdown}
+                    onChange={(e) => setFormData({ ...formData, showInSalesRepDropdown: e.target.checked })}
+                  />
+                  Show in Sales Rep dropdown
+                </label>
+                <div className="hint">When checked, this user will appear in the "Sales Person" field when adding/editing orders</div>
+              </div>
+            </>
           )}
 
           <div className="modal-actions">
