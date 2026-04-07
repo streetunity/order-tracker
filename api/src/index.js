@@ -60,10 +60,6 @@ import { createCalendarRouter } from './routes/calendar.js';
 const prisma = new PrismaClient();
 const app = express();
 
-// Trust the single Nginx reverse proxy in front of this server.
-// This allows req.ip to resolve to the real client IP from the
-// X-Forwarded-For header that Nginx sets, rather than always being
-// 127.0.0.1. Required for IP-based rate limiting and allowlists.
 app.set('trust proxy', 1);
 
 const PORT = process.env.PORT || 4000;
@@ -98,9 +94,6 @@ app.use(cors({
 }));
 
 // ── NexNP WEBHOOK — must be BEFORE express.json() ────────────────────────────
-// express.raw() captures the raw Buffer needed for HMAC-SHA256 signature verification.
-// If express.json() ran first, req.body would already be a parsed object and
-// we couldn't reconstruct the exact bytes NexNP signed.
 app.post(
   '/public/nextnp-webhook',
   express.raw({ type: '*/*' }),
@@ -210,6 +203,19 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
     res.json(await prisma.user.findMany({
       where: { isActive: true, showInSalesRepDropdown: true },
       select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// Internal employees: all active users except MANUFACTURER and BROKER
+app.get('/users/internal', authGuard, async (req, res) => {
+  try {
+    res.json(await prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { notIn: ['MANUFACTURER', 'BROKER'] },
+      },
+      select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
     }));
   } catch (e) { res.status(500).json({ error: e.message }); }
