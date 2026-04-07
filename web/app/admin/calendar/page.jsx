@@ -233,7 +233,6 @@ function CreateEditModal({
   formTitle, setFormTitle, formNotes, setFormNotes,
   formUserId, setFormUserId,
   formAssigneeIds, setFormAssigneeIds,
-  formSkipEmail, setFormSkipEmail,
   orderSearch, setOrderSearch,
   orderResults, orderLoading,
   selectedOrder, setSelectedOrder, setFormOrderId,
@@ -323,22 +322,6 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* Skip email — INSTALL create only */}
-        {formType === 'INSTALL' && mode === 'create' && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '20px', padding: '12px 14px', background: '#0f0f0f', border: '1px solid #2d2d2d', borderRadius: '8px' }}>
-            <input
-              type="checkbox"
-              checked={formSkipEmail}
-              onChange={e => setFormSkipEmail(e.target.checked)}
-              style={{ accentColor: '#dc2626', width: '16px', height: '16px', flexShrink: 0 }}
-            />
-            <div>
-              <div style={{ fontSize: '14px', color: '#e4e4e4', fontWeight: 500 }}>Do not notify customer</div>
-              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>No confirmation email will be sent when this install is created.</div>
-            </div>
-          </label>
-        )}
-
         <ErrBox msg={err} />
 
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
@@ -399,7 +382,7 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         {event.type === 'INSTALL' && (
           <InfoRow label="Customer Email">
             <span style={{ color: event.customerNotified ? '#10b981' : '#f59e0b', fontSize: '13px' }}>
-              {event.customerNotified ? '\u2713 Notification sent' : '\u26A0 Not notified'}
+              {event.customerNotified ? '\u2713 Notification sent' : '\u26A0 Not yet notified'}
             </span>
           </InfoRow>
         )}
@@ -473,7 +456,6 @@ export default function CalendarPage() {
   const [formUserId,      setFormUserId]      = useState('');
   const [formOrderId,     setFormOrderId]     = useState('');
   const [formAssigneeIds, setFormAssigneeIds] = useState([]);
-  const [formSkipEmail,   setFormSkipEmail]   = useState(false);
   const [selectedOrder,   setSelectedOrder]   = useState(null);
   const [orderSearch,     setOrderSearch]     = useState('');
   const [orderResults,    setOrderResults]    = useState([]);
@@ -484,7 +466,6 @@ export default function CalendarPage() {
   const isAdmin   = user && ADMIN_ROLES.includes(user.role);
   const canCreate = type => user && CREATE_PERMISSIONS[type]?.includes(user.role);
 
-  // Fetch all internal employees (excludes MANUFACTURER and BROKER)
   useEffect(() => {
     if (!user) return;
     fetch('/api/users/internal', { headers: getAuthHeaders() })
@@ -546,7 +527,6 @@ export default function CalendarPage() {
     setFormUserId(user?.id || '');
     setFormOrderId('');
     setFormAssigneeIds([]);
-    setFormSkipEmail(false);
     setSelectedOrder(null);
     setOrderSearch('');
     setOrderResults([]);
@@ -570,7 +550,6 @@ export default function CalendarPage() {
     setFormUserId(e.userId || '');
     setFormOrderId(e.orderId || '');
     setFormAssigneeIds(Array.isArray(e.assigneeIds) ? e.assigneeIds : []);
-    setFormSkipEmail(false);
     setSelectedOrder(
       e.order
         ? { id: e.order.id, label: `${e.order.account?.name || ''} \u2014 ${e.order.poNumber || e.order.id.slice(-8).toUpperCase()}` }
@@ -605,7 +584,7 @@ export default function CalendarPage() {
         endDate:   formEnd || formStart,
         allDay:    true,
         notes:     formNotes || null,
-        ...(formType === 'INSTALL'  && { orderId: formOrderId, assigneeIds: formAssigneeIds, skipEmail: formSkipEmail }),
+        ...(formType === 'INSTALL'  && { orderId: formOrderId, assigneeIds: formAssigneeIds }),
         ...(formType === 'TIME_OFF' && { userId: formUserId || user?.id }),
       };
 
@@ -656,7 +635,7 @@ export default function CalendarPage() {
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ resendEmail: true }),
       });
-      if (!res.ok) throw new Error('Resend failed');
+      if (!res.ok) throw new Error('Send failed');
       setModal(null);
       fetchEvents(null, null);
     } catch (e) {
@@ -742,7 +721,6 @@ export default function CalendarPage() {
             formNotes={formNotes}             setFormNotes={setFormNotes}
             formUserId={formUserId}           setFormUserId={setFormUserId}
             formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
-            formSkipEmail={formSkipEmail}     setFormSkipEmail={setFormSkipEmail}
             orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
             orderResults={orderResults}       orderLoading={orderLoading}
             selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
@@ -778,7 +756,6 @@ export default function CalendarPage() {
             formNotes={formNotes}             setFormNotes={setFormNotes}
             formUserId={formUserId}           setFormUserId={setFormUserId}
             formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
-            formSkipEmail={formSkipEmail}     setFormSkipEmail={setFormSkipEmail}
             orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
             orderResults={orderResults}       orderLoading={orderLoading}
             selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
