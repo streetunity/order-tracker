@@ -50,10 +50,7 @@ export function createCalendarRouter(prisma) {
         orderBy: { startDate: 'asc' },
       });
 
-      // Resolve assignee names from DB for INSTALL events
-      const allAssigneeIds = [...new Set(
-        events.flatMap(e => parseAssigneeIds(e.assigneeIds))
-      )];
+      const allAssigneeIds = [...new Set(events.flatMap(e => parseAssigneeIds(e.assigneeIds)))];
       let assigneeMap = {};
       if (allAssigneeIds.length > 0) {
         const assigneeUsers = await prisma.user.findMany({
@@ -66,7 +63,6 @@ export function createCalendarRouter(prisma) {
       const sanitized = events.map(e => {
         const assigneeIds = parseAssigneeIds(e.assigneeIds);
         const assignees   = assigneeIds.map(id => ({ id, name: assigneeMap[id] || id }));
-
         if (e.type === 'TIME_OFF' && user.role === 'AGENT' && e.userId !== user.id) {
           return { ...e, assigneeIds, assignees, title: 'Time Off', user: null, notes: null };
         }
@@ -118,13 +114,13 @@ export function createCalendarRouter(prisma) {
   // ── POST /calendar/events ───────────────────────────────────────────────────
   router.post('/events', authGuard, async (req, res) => {
     try {
-      const { type, title, startDate, endDate, allDay, orderId, userId, notes, assigneeIds } = req.body;
+      const { type, title, startDate, endDate, allDay, orderId, userId, notes, assigneeIds, skipEmail } = req.body;
       const user = req.user;
 
       const allowedRoles = CREATE_PERMISSIONS[type];
-      if (!allowedRoles)                    return res.status(400).json({ error: 'Invalid event type' });
-      if (!allowedRoles.includes(user.role)) return res.status(403).json({ error: 'Insufficient permissions' });
-      if (!startDate)                        return res.status(400).json({ error: 'startDate is required' });
+      if (!allowedRoles)                     return res.status(400).json({ error: 'Invalid event type' });
+      if (!allowedRoles.includes(user.role))  return res.status(403).json({ error: 'Insufficient permissions' });
+      if (!startDate)                         return res.status(400).json({ error: 'startDate is required' });
 
       let targetUserId = userId;
       if (type === 'TIME_OFF' && user.role === 'AGENT') targetUserId = user.id;
@@ -157,14 +153,19 @@ export function createCalendarRouter(prisma) {
           data:  { onsiteInstallationDate: new Date(startDate) },
         }).catch(e => console.error('[CALENDAR] Failed to sync onsiteInstallationDate:', e));
 
-        try {
-          const emailResult = await sendInstallEmail(prisma, { calendarEvent: event, isReschedule: false });
-          if (emailResult.success) {
-            await prisma.calendarEvent.update({ where: { id: event.id }, data: { customerNotified: true } });
-            event.customerNotified = true;
+        // Send customer email unless explicitly skipped
+        if (!skipEmail) {
+          try {
+            const emailResult = await sendInstallEmail(prisma, { calendarEvent: event, isReschedule: false });
+            if (emailResult.success) {
+              await prisma.calendarEvent.update({ where: { id: event.id }, data: { customerNotified: true } });
+              event.customerNotified = true;
+            }
+          } catch (emailErr) {
+            console.error('[CALENDAR] Email error on create:', emailErr);
           }
-        } catch (emailErr) {
-          console.error('[CALENDAR] Email error on create:', emailErr);
+        } else {
+          console.log(`[CALENDAR] Email skipped by user for event ${event.id}`);
         }
       }
 
