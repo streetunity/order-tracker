@@ -55,7 +55,7 @@ export function createCalendarRouter(prisma) {
       const events = await prisma.calendarEvent.findMany({
         where,
         include: {
-          order:     { select: { id: true, poNumber: true, account: { select: { name: true } } } },
+          order:     { select: { id: true, account: { select: { name: true, contactName: true } } } },
           user:      { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },
@@ -89,6 +89,7 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── GET /calendar/orders/search?q= ─────────────────────────────────────────
+  // Searches by customer name and contact name; label shows both.
   router.get('/orders/search', authGuard, async (req, res) => {
     try {
       const { q = '' } = req.query;
@@ -98,26 +99,29 @@ export function createCalendarRouter(prisma) {
       const where = {
         isArchived: false,
         OR: [
-          { poNumber: { contains: q } },
-          { account:  { name: { contains: q } } },
-          { id:       { contains: q } },
+          { account: { name:        { contains: q } } },
+          { account: { contactName: { contains: q } } },
         ],
       };
       if (user.role === 'AGENT') where.sku = user.name;
 
       const orders = await prisma.order.findMany({
         where,
-        include: { account: { select: { name: true } } },
+        include: { account: { select: { name: true, contactName: true } } },
         take: 10,
         orderBy: { createdAt: 'desc' },
       });
 
-      res.json(orders.map(o => ({
-        id:          o.id,
-        poNumber:    o.poNumber,
-        accountName: o.account?.name,
-        label:       `${o.account?.name || 'Unknown'} \u2014 ${o.poNumber || o.id.slice(-8).toUpperCase()}`,
-      })));
+      res.json(orders.map(o => {
+        const name    = o.account?.name || 'Unknown';
+        const contact = o.account?.contactName;
+        return {
+          id:          o.id,
+          accountName: name,
+          contactName: contact,
+          label:       contact ? `${name} \u2014 ${contact}` : name,
+        };
+      }));
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -156,7 +160,7 @@ export function createCalendarRouter(prisma) {
           customerNotified: false,
         },
         include: {
-          order:     { select: { id: true, poNumber: true, account: { select: { name: true } } } },
+          order:     { select: { id: true, account: { select: { name: true, contactName: true } } } },
           user:      { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },
@@ -206,7 +210,7 @@ export function createCalendarRouter(prisma) {
           }),
         },
         include: {
-          order:     { select: { id: true, poNumber: true, account: { select: { name: true } } } },
+          order:     { select: { id: true, account: { select: { name: true, contactName: true } } } },
           user:      { select: { id: true, name: true } },
           createdBy: { select: { id: true, name: true } },
         },

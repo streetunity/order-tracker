@@ -195,7 +195,6 @@ function AssigneePicker({ users, selected, onChange }) {
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Selected pills */}
       {selected.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
           {selected.map(id => {
@@ -213,8 +212,6 @@ function AssigneePicker({ users, selected, onChange }) {
           })}
         </div>
       )}
-
-      {/* Search input */}
       <input
         type="text"
         placeholder="Search employees..."
@@ -222,8 +219,6 @@ function AssigneePicker({ users, selected, onChange }) {
         onChange={e => setSearch(e.target.value)}
         style={inputSt}
       />
-
-      {/* Dropdown — only shown when searching */}
       {search.length > 0 && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
@@ -296,7 +291,7 @@ function CreateEditModal({
               </div>
             ) : (
               <div style={{ position: 'relative' }}>
-                <input type="text" placeholder="Search by customer name or PO number..." value={orderSearch} onChange={e => setOrderSearch(e.target.value)} style={inputSt} />
+                <input type="text" placeholder="Search by customer name or contact..." value={orderSearch} onChange={e => setOrderSearch(e.target.value)} style={inputSt} />
                 {(orderResults.length > 0 || orderLoading) && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#252525', border: '1px solid #333', borderTop: 'none', borderRadius: '0 0 6px 6px', zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}>
                     {orderLoading && <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>Searching...</div>}
@@ -390,8 +385,11 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         </InfoRow>
 
         {event.type === 'INSTALL' && event.order && (
-          <InfoRow label="Order">
-            {event.order.account?.name}{event.order.poNumber ? ` \u2014 PO: ${event.order.poNumber}` : ''}
+          <InfoRow label="Customer">
+            {event.order.account?.name}
+            {event.order.account?.contactName && (
+              <span style={{ color: '#a0a0a0', fontSize: '14px' }}> \u2014 {event.order.account.contactName}</span>
+            )}
           </InfoRow>
         )}
 
@@ -578,9 +576,10 @@ export default function CalendarPage() {
     setFormUserId(e.userId || '');
     setFormOrderId(e.orderId || '');
     setFormAssigneeIds(Array.isArray(e.assigneeIds) ? e.assigneeIds : []);
+    const acct = e.order?.account;
     setSelectedOrder(
       e.order
-        ? { id: e.order.id, label: `${e.order.account?.name || ''} \u2014 ${e.order.poNumber || e.order.id.slice(-8).toUpperCase()}` }
+        ? { id: e.order.id, label: acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || e.order.id) }
         : null
     );
     setOrderSearch('');
