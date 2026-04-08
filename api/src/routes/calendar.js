@@ -41,6 +41,25 @@ function parseEventDate(dateStr, isAllDay) {
   return new Date(dateStr); // local datetime, no Z
 }
 
+/**
+ * Normalize a FullCalendar range boundary to a UTC day boundary.
+ *
+ * FullCalendar sends local-midnight timestamps, e.g. for a UTC-5 user
+ * the day view for April 9 sends start=2026-04-09T05:00:00Z (5am UTC).
+ * Events stored at midnight UTC (2026-04-09T00:00:00Z) would fail the
+ * endDate >= start check (00:00Z < 05:00Z) and be excluded incorrectly.
+ *
+ * Extracting the UTC date string and rebuilding as midnight UTC gives
+ * 2026-04-09T00:00:00Z, so midnight-stored events are included correctly.
+ * For the end boundary we use 23:59:59Z so any event touching that date is caught.
+ */
+function toUTCDayStart(dateInput) {
+  return new Date(new Date(dateInput).toISOString().substring(0, 10) + 'T00:00:00.000Z');
+}
+function toUTCDayEnd(dateInput) {
+  return new Date(new Date(dateInput).toISOString().substring(0, 10) + 'T23:59:59.999Z');
+}
+
 export function createCalendarRouter(prisma) {
   const router = express.Router();
 
@@ -50,17 +69,20 @@ export function createCalendarRouter(prisma) {
       const { start, end } = req.query;
       const user = req.user;
 
-      // Interval overlap: startDate ≤ rangeEnd AND endDate ≥ rangeStart
+      // Interval overlap: startDate ≤ rangeEnd AND endDate ≥ rangeStart.
+      // Normalize to UTC day boundaries to handle timezone offsets: FullCalendar
+      // sends local-midnight timestamps which are ahead of UTC midnight for US timezones,
+      // causing events stored at UTC midnight to be excluded from day/week views.
       const where = {};
       if (start && end) {
         where.AND = [
-          { startDate: { lte: new Date(end) } },
-          { endDate:   { gte: new Date(start) } },
+          { startDate: { lte: toUTCDayEnd(end) } },
+          { endDate:   { gte: toUTCDayStart(start) } },
         ];
       } else if (start) {
-        where.startDate = { gte: new Date(start) };
+        where.startDate = { gte: toUTCDayStart(start) };
       } else if (end) {
-        where.endDate = { lte: new Date(end) };
+        where.endDate = { lte: toUTCDayEnd(end) };
       }
 
       const events = await prisma.calendarEvent.findMany({
