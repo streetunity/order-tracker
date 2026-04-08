@@ -15,6 +15,7 @@ const CREATE_PERMISSIONS = {
   INSTALL:  ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
   TIME_OFF: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
   BLOCKED:  ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'],
+  OTHER:    ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
 };
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
@@ -23,36 +24,14 @@ function parseAssigneeIds(raw) {
   try { return JSON.parse(raw || '[]'); } catch { return []; }
 }
 
-/**
- * Parse an event date/datetime string.
- *
- * All-day events: store at noon UTC so the calendar date is correct in any timezone.
- *   e.g. "2026-04-08" → 2026-04-08T12:00:00.000Z
- *
- * Timed events: the string is already a local datetime ("2026-04-08T09:00:00").
- *   new Date() with no Z suffix treats it as local time, which is what we want.
- *   e.g. "2026-04-08T09:00:00" in Chicago → 2026-04-08T14:00:00.000Z
- */
 function parseEventDate(dateStr, isAllDay) {
   if (isAllDay !== false) {
     const part = String(dateStr).substring(0, 10);
     return new Date(`${part}T12:00:00.000Z`);
   }
-  return new Date(dateStr); // local datetime, no Z
+  return new Date(dateStr);
 }
 
-/**
- * Normalize a FullCalendar range boundary to a UTC day boundary.
- *
- * FullCalendar sends local-midnight timestamps, e.g. for a UTC-5 user
- * the day view for April 9 sends start=2026-04-09T05:00:00Z (5am UTC).
- * Events stored at midnight UTC (2026-04-09T00:00:00Z) would fail the
- * endDate >= start check (00:00Z < 05:00Z) and be excluded incorrectly.
- *
- * Extracting the UTC date string and rebuilding as midnight UTC gives
- * 2026-04-09T00:00:00Z, so midnight-stored events are included correctly.
- * For the end boundary we use 23:59:59Z so any event touching that date is caught.
- */
 function toUTCDayStart(dateInput) {
   return new Date(new Date(dateInput).toISOString().substring(0, 10) + 'T00:00:00.000Z');
 }
@@ -69,10 +48,6 @@ export function createCalendarRouter(prisma) {
       const { start, end } = req.query;
       const user = req.user;
 
-      // Interval overlap: startDate ≤ rangeEnd AND endDate ≥ rangeStart.
-      // Normalize to UTC day boundaries to handle timezone offsets: FullCalendar
-      // sends local-midnight timestamps which are ahead of UTC midnight for US timezones,
-      // causing events stored at UTC midnight to be excluded from day/week views.
       const where = {};
       if (start && end) {
         where.AND = [
@@ -160,8 +135,6 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── POST /calendar/events ───────────────────────────────────────────────────
-  // orderId is optional for INSTALL.
-  // Email is NEVER sent automatically on create.
   router.post('/events', authGuard, async (req, res) => {
     try {
       const { type, title, startDate, endDate, allDay, orderId, userId, notes, assigneeIds } = req.body;
@@ -216,7 +189,6 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── PUT /calendar/events/:id ────────────────────────────────────────────────
-  // Email only fires when resendEmail=true (manual Send/Resend button).
   router.put('/events/:id', authGuard, async (req, res) => {
     try {
       const { id } = req.params;
@@ -229,7 +201,6 @@ export function createCalendarRouter(prisma) {
       const canEdit = ADMIN_ROLES.includes(user.role) || existing.createdById === user.id;
       if (!canEdit) return res.status(403).json({ error: 'Insufficient permissions' });
 
-      // Use the existing event's allDay flag to decide how to parse incoming dates
       const startUTC = startDate ? parseEventDate(startDate, existing.allDay) : undefined;
       const endUTC   = endDate   ? parseEventDate(endDate,   existing.allDay) : undefined;
 
@@ -314,5 +285,6 @@ function buildTitle(type, order, userName) {
   if (type === 'INSTALL'  && order) return `Install \u2014 ${order.account?.name || order.id}`;
   if (type === 'TIME_OFF')          return `${userName || 'Team Member'} \u2014 Out of Office`;
   if (type === 'BLOCKED')           return 'Blocked';
+  if (type === 'OTHER')             return 'Other';
   return type;
 }

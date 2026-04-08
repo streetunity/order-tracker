@@ -14,18 +14,21 @@ const EVENT_COLORS = {
   INSTALL:  { bg: '#dc2626', border: '#b91c1c', text: '#fff' },
   TIME_OFF: { bg: '#f59e0b', border: '#d97706', text: '#000' },
   BLOCKED:  { bg: '#525252', border: '#404040', text: '#e4e4e4' },
+  OTHER:    { bg: '#2563eb', border: '#1d4ed8', text: '#fff' },
 };
 
 const TYPE_LABELS = {
   INSTALL:  'Install',
   TIME_OFF: 'Out of Office',
   BLOCKED:  'Blocked',
+  OTHER:    'Other',
 };
 
 const CREATE_PERMISSIONS = {
   INSTALL:  ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
   TIME_OFF: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
   BLOCKED:  ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'],
+  OTHER:    ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
 };
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
@@ -85,6 +88,7 @@ function buildEventTitle(event) {
     if (name) return `${name} \u2014 Out of Office`;
     return event.title.replace(/\u2014 Time Off$/, '\u2014 Out of Office');
   }
+  // BLOCKED and OTHER use the stored title directly (it is the custom label)
   return event.title;
 }
 
@@ -152,6 +156,7 @@ function TypeTabs({ value, onChange, canCreate }) {
   const types = [
     { key: 'INSTALL',  color: '#dc2626' },
     { key: 'TIME_OFF', color: '#f59e0b' },
+    { key: 'OTHER',    color: '#2563eb' },
     { key: 'BLOCKED',  color: '#525252' },
   ].filter(t => canCreate(t.key));
 
@@ -161,7 +166,7 @@ function TypeTabs({ value, onChange, canCreate }) {
         <button key={t.key} onClick={() => onChange(t.key)} style={{
           flex: 1, padding: '13px 8px', borderRadius: '10px',
           border: `1.5px solid ${value === t.key ? t.color : '#222'}`,
-          background: value === t.key ? t.color + '15' : '#0f0f0f',
+          background: value === t.key ? t.color + '18' : '#0f0f0f',
           color: value === t.key ? '#e4e4e4' : '#555',
           cursor: 'pointer', fontSize: '13px', fontWeight: value === t.key ? 700 : 500,
           transition: 'all 0.15s', fontFamily: 'inherit',
@@ -241,6 +246,7 @@ function CreateEditModal({
       <div style={{ padding: '24px' }}>
         {mode === 'create' && <TypeTabs value={formType} onChange={t => { setFormType(t); if (t === 'TIME_OFF') setFormAllDay(true); }} canCreate={canCreate} />}
 
+        {/* INSTALL: optional order link */}
         {formType === 'INSTALL' && (
           <Field label="Order (Optional)" hint="Link to a board order, or leave blank for jobs not yet on the board.">
             {selectedOrder ? (
@@ -280,6 +286,7 @@ function CreateEditModal({
           </Field>
         )}
 
+        {/* TIME_OFF: team member picker */}
         {formType === 'TIME_OFF' && (
           <Field label="Team Member">
             {isAdmin
@@ -289,12 +296,28 @@ function CreateEditModal({
           </Field>
         )}
 
+        {/* BLOCKED: free-form title */}
         {formType === 'BLOCKED' && (
           <Field label="Title">
             <input type="text" placeholder="e.g. Company Holiday, Shop Closed..." value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} />
           </Field>
         )}
 
+        {/* OTHER: custom event label */}
+        {formType === 'OTHER' && (
+          <Field label="Event Label" hint="Describe the event, e.g. On Site Demo, Customer Visit, Product Meeting">
+            <input
+              type="text"
+              placeholder="e.g. On Site Demo"
+              value={formTitle}
+              onChange={e => setFormTitle(e.target.value)}
+              style={inputSt}
+              autoFocus
+            />
+          </Field>
+        )}
+
+        {/* All-day toggle for types that support timed scheduling */}
         {supportsTime && (
           <div style={{ marginBottom: '18px' }}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -317,9 +340,10 @@ function CreateEditModal({
           </div>
         )}
 
-        {formType === 'INSTALL' && (
-          <Field label="Notes (Optional)" hint="The customer will see this in their install confirmation email.">
-            <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="e.g. Please ensure the installation area is clear and accessible." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
+        {/* Notes for INSTALL and OTHER */}
+        {(formType === 'INSTALL' || formType === 'OTHER') && (
+          <Field label="Notes (Optional)">
+            <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="Additional details..." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
           </Field>
         )}
 
@@ -414,11 +438,6 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
         <p style={{ color: '#c0c0c0', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>
           Are you sure you want to delete <strong style={{ color: '#f0f0f0' }}>{buildEventTitle(event)}</strong>?
         </p>
-        {event.type === 'INSTALL' && event.order && (
-          <div style={{ padding: '12px 16px', background: '#1a0d00', border: '1px solid #7c3a00', borderRadius: '8px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px' }}>
-            This will remove the install date from the customer tracking page.
-          </div>
-        )}
         <ErrBox msg={err} />
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={{ ...btnBase, background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', fontWeight: 500 }}>Cancel</button>
@@ -539,7 +558,7 @@ export default function CalendarPage() {
   }, [orderSearch, formType]);
 
   function openCreate(dateStr, isAllDay = true, startTime = null, endTime = null) {
-    const defaultType = canCreate('INSTALL') ? 'INSTALL' : canCreate('TIME_OFF') ? 'TIME_OFF' : 'BLOCKED';
+    const defaultType = canCreate('INSTALL') ? 'INSTALL' : canCreate('TIME_OFF') ? 'TIME_OFF' : canCreate('OTHER') ? 'OTHER' : 'BLOCKED';
     setFormType(defaultType);
     setFormAllDay(defaultType === 'TIME_OFF' ? true : isAllDay);
     setFormStart(String(dateStr).substring(0, 10));
@@ -578,6 +597,7 @@ export default function CalendarPage() {
       const prefix = 'Install \u2014 ';
       setFormTitle(e.title?.startsWith(prefix) ? e.title.slice(prefix.length) : '');
     } else {
+      // For OTHER and BLOCKED the stored title IS the label
       setFormTitle(e.title || '');
     }
     setSelectedOrder(e.order ? { id: e.order.id, label: acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || e.order.id) } : null);
@@ -589,16 +609,23 @@ export default function CalendarPage() {
   async function handleSave() {
     setErr('');
     if (!formStart) { setErr('Start date is required'); return; }
-    if (formType === 'BLOCKED' && !formTitle) { setErr('Title is required'); return; }
+    if ((formType === 'BLOCKED' || formType === 'OTHER') && !formTitle.trim()) {
+      setErr('Label is required');
+      return;
+    }
 
     const isAllDay = formType === 'TIME_OFF' ? true : formAllDay;
-    let autoTitle = formTitle;
+
+    let autoTitle = formTitle.trim();
     if (formType === 'INSTALL') {
-      autoTitle = selectedOrder ? `Install \u2014 ${selectedOrder.label}` : `Install${formTitle ? ` \u2014 ${formTitle}` : ''}`;
+      autoTitle = selectedOrder
+        ? `Install \u2014 ${selectedOrder.label}`
+        : `Install${formTitle.trim() ? ` \u2014 ${formTitle.trim()}` : ''}`;
     } else if (formType === 'TIME_OFF') {
       const tUser = users.find(u => u.id === formUserId);
       autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Out of Office`;
     }
+    // BLOCKED and OTHER: autoTitle is already formTitle.trim()
 
     const startDate = isAllDay ? formStart : `${formStart}T${formStartTime}:00`;
     const endDate   = isAllDay ? (formEnd || formStart) : `${formStart}T${formEndTime}:00`;
@@ -716,11 +743,8 @@ export default function CalendarPage() {
           .cal-wrap .fc, .cal-wrap .fc-view-harness { height: 100% !important; }
         `}</style>
 
-        {/* ── Page header: title left, legend right, vertically centered ── */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '18px 32px 14px', flexShrink: 0,
-        }}>
+        {/* Header with legend */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 32px 14px', flexShrink: 0 }}>
           <div>
             <h1 style={{ color: '#f0f0f0', fontSize: '24px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
             <p style={{ color: '#444', fontSize: '13px', margin: '3px 0 0', fontWeight: 500 }}>Schedule installations and manage team availability</p>
@@ -740,7 +764,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* ── Calendar ── */}
+        {/* Calendar */}
         <div
           className="cal-wrap"
           style={{
@@ -766,7 +790,7 @@ export default function CalendarPage() {
             slotLabelInterval="01:00:00"
             nowIndicator={true}
             dateClick={info => {
-              if (!canCreate('INSTALL') && !canCreate('TIME_OFF') && !canCreate('BLOCKED')) return;
+              if (!canCreate('INSTALL') && !canCreate('TIME_OFF') && !canCreate('OTHER') && !canCreate('BLOCKED')) return;
               if (info.allDay) {
                 openCreate(info.dateStr, true);
               } else {
