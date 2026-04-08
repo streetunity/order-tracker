@@ -23,6 +23,18 @@ function parseAssigneeIds(raw) {
   try { return JSON.parse(raw || '[]'); } catch { return []; }
 }
 
+/**
+ * Parse an incoming date string (YYYY-MM-DD from a date input) as noon UTC.
+ *
+ * Why noon? new Date("2026-04-08") is midnight UTC. In UTC-5 (Chicago) that
+ * becomes April 7 at 7 pm — the wrong calendar day. Storing noon UTC means
+ * the date is correct in any timezone from UTC-12 to UTC+11.
+ */
+function parseDateAsNoonUTC(dateStr) {
+  const part = String(dateStr).substring(0, 10); // keep YYYY-MM-DD only
+  return new Date(`${part}T12:00:00.000Z`);
+}
+
 export function createCalendarRouter(prisma) {
   const router = express.Router();
 
@@ -113,7 +125,6 @@ export function createCalendarRouter(prisma) {
 
   // ── POST /calendar/events ───────────────────────────────────────────────────
   // Email is NEVER sent automatically on create.
-  // Use the manual Send Email button in the view modal.
   router.post('/events', authGuard, async (req, res) => {
     try {
       const { type, title, startDate, endDate, allDay, orderId, userId, notes, assigneeIds } = req.body;
@@ -127,12 +138,15 @@ export function createCalendarRouter(prisma) {
       let targetUserId = userId;
       if (type === 'TIME_OFF' && user.role === 'AGENT') targetUserId = user.id;
 
+      const startUTC = parseDateAsNoonUTC(startDate);
+      const endUTC   = parseDateAsNoonUTC(endDate || startDate);
+
       const event = await prisma.calendarEvent.create({
         data: {
           type,
           title:            title || buildTitle(type, null, user.name),
-          startDate:        new Date(startDate),
-          endDate:          new Date(endDate || startDate),
+          startDate:        startUTC,
+          endDate:          endUTC,
           allDay:           allDay !== false,
           orderId:          type === 'INSTALL'  ? (orderId || null)      : null,
           userId:           type === 'TIME_OFF' ? (targetUserId || null) : null,
@@ -148,11 +162,10 @@ export function createCalendarRouter(prisma) {
         },
       });
 
-      // Sync onsiteInstallationDate on the Order — no email sent
       if (type === 'INSTALL' && orderId) {
         await prisma.order.update({
           where: { id: orderId },
-          data:  { onsiteInstallationDate: new Date(startDate) },
+          data:  { onsiteInstallationDate: startUTC },
         }).catch(e => console.error('[CALENDAR] Failed to sync onsiteInstallationDate:', e));
       }
 
@@ -166,7 +179,6 @@ export function createCalendarRouter(prisma) {
 
   // ── PUT /calendar/events/:id ────────────────────────────────────────────────
   // Email only fires when resendEmail=true (manual Send/Resend button).
-  // Date changes alone do NOT trigger an email.
   router.put('/events/:id', authGuard, async (req, res) => {
     try {
       const { id } = req.params;
@@ -179,12 +191,15 @@ export function createCalendarRouter(prisma) {
       const canEdit = ADMIN_ROLES.includes(user.role) || existing.createdById === user.id;
       if (!canEdit) return res.status(403).json({ error: 'Insufficient permissions' });
 
+      const startUTC = startDate ? parseDateAsNoonUTC(startDate) : undefined;
+      const endUTC   = endDate   ? parseDateAsNoonUTC(endDate)   : undefined;
+
       const updated = await prisma.calendarEvent.update({
         where: { id },
         data: {
           ...(title       !== undefined && { title }),
-          ...(startDate   !== undefined && { startDate: new Date(startDate) }),
-          ...(endDate     !== undefined && { endDate:   new Date(endDate) }),
+          ...(startUTC    !== undefined && { startDate: startUTC }),
+          ...(endUTC      !== undefined && { endDate:   endUTC }),
           ...(notes       !== undefined && { notes }),
           ...(assigneeIds !== undefined && existing.type === 'INSTALL' && {
             assigneeIds: JSON.stringify(Array.isArray(assigneeIds) ? assigneeIds : []),
@@ -197,18 +212,16 @@ export function createCalendarRouter(prisma) {
         },
       });
 
-      // Sync onsiteInstallationDate if date changed
-      if (existing.type === 'INSTALL' && existing.orderId && startDate) {
+      if (existing.type === 'INSTALL' && existing.orderId && startUTC) {
         await prisma.order.update({
           where: { id: existing.orderId },
-          data:  { onsiteInstallationDate: new Date(startDate) },
+          data:  { onsiteInstallationDate: startUTC },
         }).catch(e => console.error('[CALENDAR] Failed to sync onsiteInstallationDate on update:', e));
       }
 
-      // Email ONLY fires on explicit manual request
       if (existing.type === 'INSTALL' && resendEmail) {
         try {
-          const isReschedule = existing.customerNotified; // true if already sent before
+          const isReschedule = existing.customerNotified;
           const emailResult  = await sendInstallEmail(prisma, { calendarEvent: updated, isReschedule });
           if (emailResult.success) {
             await prisma.calendarEvent.update({ where: { id }, data: { customerNotified: true } });

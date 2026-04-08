@@ -27,10 +27,14 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// All dates are stored as noon UTC on the backend. Always use UTC accessors
+// so a UTC noon timestamp (e.g. 2026-04-08T12:00:00Z) is never shifted to
+// April 7 just because the browser is in a negative UTC offset.
 function formatDisplayDate(dateStr) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    timeZone: 'UTC',
   });
 }
 
@@ -38,10 +42,15 @@ function toInputDate(dateOrStr) {
   if (!dateOrStr) return '';
   const d = new Date(dateOrStr);
   return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    String(d.getDate()).padStart(2, '0'),
+    d.getUTCFullYear(),
+    String(d.getUTCMonth() + 1).padStart(2, '0'),
+    String(d.getUTCDate()).padStart(2, '0'),
   ].join('-');
+}
+
+// Return a YYYY-MM-DD string from a stored ISO date, always in UTC.
+function toDateStr(dateOrStr) {
+  return toInputDate(dateOrStr);
 }
 
 const inputSt = {
@@ -178,8 +187,6 @@ function TypeTabs({ value, onChange, canCreate }) {
   );
 }
 
-// ── Assignee multi-select ─────────────────────────────────────────────────────
-
 function AssigneePicker({ users, selected, onChange }) {
   const [search, setSearch] = useState('');
   const filtered = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
@@ -225,8 +232,6 @@ function AssigneePicker({ users, selected, onChange }) {
   );
 }
 
-// ── Create / Edit Modal ───────────────────────────────────────────────────────
-
 function CreateEditModal({
   mode, formType, setFormType,
   formStart, setFormStart, formEnd, setFormEnd,
@@ -249,7 +254,6 @@ function CreateEditModal({
 
         {mode === 'create' && <TypeTabs value={formType} onChange={setFormType} canCreate={canCreate} />}
 
-        {/* INSTALL: order search */}
         {formType === 'INSTALL' && (
           <Field label="Order">
             {selectedOrder ? (
@@ -277,14 +281,12 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* INSTALL: assigned employees */}
         {formType === 'INSTALL' && (
           <Field label="Assigned Employees" hint="Select one or more team members for this install.">
             <AssigneePicker users={users} selected={formAssigneeIds} onChange={setFormAssigneeIds} />
           </Field>
         )}
 
-        {/* TIME_OFF: user picker */}
         {formType === 'TIME_OFF' && (
           <Field label="Team Member">
             {isAdmin ? (
@@ -298,14 +300,12 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* BLOCKED: title */}
         {formType === 'BLOCKED' && (
           <Field label="Title">
             <input type="text" placeholder="e.g. Company Holiday, Shop Closed..." value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} />
           </Field>
         )}
 
-        {/* Dates */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <Field label="Start Date">
             <input type="date" value={formStart} onChange={e => { setFormStart(e.target.value); if (!formEnd || formEnd < e.target.value) setFormEnd(e.target.value); }} style={inputSt} />
@@ -315,7 +315,6 @@ function CreateEditModal({
           </Field>
         </div>
 
-        {/* Notes — INSTALL only */}
         {formType === 'INSTALL' && (
           <Field label="Notes (Optional)" hint="The customer will see this note in their install confirmation email.">
             <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="e.g. Please ensure the installation area is clear and accessible." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
@@ -335,12 +334,10 @@ function CreateEditModal({
   );
 }
 
-// ── View Modal ────────────────────────────────────────────────────────────────
-
 function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete, onResend, onClose }) {
   const color    = EVENT_COLORS[event.type] || { bg: '#888' };
   const canEdit  = isAdmin || event.createdById === user?.id;
-  const isSameDay = toInputDate(event.startDate) === toInputDate(event.endDate);
+  const isSameDay = toDateStr(event.startDate) === toDateStr(event.endDate);
   const badgeLabel = { INSTALL: 'Install', TIME_OFF: 'Time Off', BLOCKED: 'Blocked' }[event.type];
 
   const assignees = (event.assignees || []).map(a => ({
@@ -354,7 +351,9 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
       <div style={{ padding: '24px' }}>
 
         <InfoRow label="Date">
-          {isSameDay ? formatDisplayDate(event.startDate) : `${formatDisplayDate(event.startDate)} \u2192 ${formatDisplayDate(event.endDate)}`}
+          {isSameDay
+            ? formatDisplayDate(event.startDate)
+            : `${formatDisplayDate(event.startDate)} \u2192 ${formatDisplayDate(event.endDate)}`}
         </InfoRow>
 
         {event.type === 'INSTALL' && event.order && (
@@ -410,8 +409,6 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
   );
 }
 
-// ── Confirm Delete ────────────────────────────────────────────────────────────
-
 function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
   return (
     <>
@@ -434,8 +431,6 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
     </>
   );
 }
-
-// ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
@@ -487,9 +482,12 @@ export default function CalendarPage() {
       setEvents(data.map(e => ({
         id:              e.id,
         title:           e.title,
-        start:           e.startDate,
-        end:             e.endDate,
-        allDay:          e.allDay,
+        // Pass date-only strings to FullCalendar for all-day events.
+        // FullCalendar treats bare YYYY-MM-DD strings as local-date all-day
+        // events with no timezone shift, which is exactly what we want.
+        start:           toDateStr(e.startDate),
+        end:             toDateStr(e.endDate),
+        allDay:          true,
         backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
         borderColor:     EVENT_COLORS[e.type]?.border || '#666',
         textColor:       EVENT_COLORS[e.type]?.text   || '#fff',
