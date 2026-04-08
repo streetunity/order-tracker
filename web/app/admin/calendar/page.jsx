@@ -30,7 +30,7 @@ const CREATE_PERMISSIONS = {
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
 const NAV_KEY = 'calendarNavContext';
-const NAV_HEIGHT = 64; // px — TopNav/InvoicingNav height
+const NAV_HEIGHT = 64; // TopNav/InvoicingNav measured height in px
 
 function getAuthHeaders() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -683,8 +683,20 @@ export default function CalendarPage() {
     <>
       {navContext === 'invoicing' ? <InvoicingNav /> : <TopNav />}
 
-      {/* Subtract nav height so the page fills exactly the remaining viewport */}
-      <div style={{ minHeight: `calc(100vh - ${NAV_HEIGHT}px)`, background: '#0a0a0a', padding: '24px 32px 40px', position: 'relative' }}>
+      {/*
+        Outer wrapper: exact height = viewport minus nav.
+        Flex column so the calendar can fill all remaining space.
+        overflow: hidden prevents the page from scrolling.
+      */}
+      <div style={{
+        height: `calc(100vh - ${NAV_HEIGHT}px)`,
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#0a0a0a',
+        overflow: 'hidden',
+        position: 'relative',
+        boxSizing: 'border-box',
+      }}>
 
         <style>{`
           /* ── Core ── */
@@ -692,22 +704,21 @@ export default function CalendarPage() {
           .cal-wrap .fc-toolbar-title { color: #f0f0f0; font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
           .cal-wrap .fc-scrollgrid, .cal-wrap td, .cal-wrap th { border-color: #1a1a1a !important; }
 
-          /* ── Column headers (Sun Mon Tue…) ── */
+          /* ── Column headers ── */
           .cal-wrap .fc-col-header-cell { background: #0d0d0d; border-bottom: 1px solid #1a1a1a !important; }
           .cal-wrap .fc-col-header-cell-cushion {
             color: #555 !important; text-decoration: none;
             font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
-            padding: 12px 0 11px; display: block;
+            padding: 10px 0 9px; display: block;
           }
 
-          /* ── Day cells ── */
+          /* ── Day cells — no min-height so FullCalendar distributes space to fit viewport ── */
           .cal-wrap .fc-daygrid-day { background: #0d0d0d; transition: background 0.12s; }
           .cal-wrap .fc-daygrid-day:hover { background: #131313; }
-          .cal-wrap .fc-daygrid-day-frame { min-height: 130px; }
-          .cal-wrap .fc-daygrid-day-top { padding: 10px 12px 3px; justify-content: flex-end; }
+          .cal-wrap .fc-daygrid-day-top { padding: 8px 10px 2px; justify-content: flex-end; }
           .cal-wrap .fc-daygrid-day-number {
             color: #555; text-decoration: none; font-size: 13px; font-weight: 500;
-            width: 30px; height: 30px; display: flex; align-items: center;
+            width: 28px; height: 28px; display: flex; align-items: center;
             justify-content: center; border-radius: 50%; transition: all 0.12s;
           }
           .cal-wrap .fc-day-other { background: #090909; }
@@ -766,7 +777,7 @@ export default function CalendarPage() {
 
           /* ── Toolbar layout ── */
           .cal-wrap .fc-toolbar { margin-bottom: 0 !important; }
-          .cal-wrap .fc-header-toolbar { padding-bottom: 18px; border-bottom: 1px solid #141414; margin-bottom: 0 !important; }
+          .cal-wrap .fc-header-toolbar { padding-bottom: 16px; border-bottom: 1px solid #141414; margin-bottom: 0 !important; }
 
           /* ── Time grid ── */
           .cal-wrap .fc-timegrid-slot { height: 44px !important; background: #0d0d0d; border-color: #141414 !important; }
@@ -781,64 +792,74 @@ export default function CalendarPage() {
           .cal-wrap .fc-timegrid-now-indicator-line { border-color: #dc2626 !important; border-width: 2px !important; }
           .cal-wrap .fc-timegrid-now-indicator-arrow { border-top-color: #dc2626 !important; border-bottom-color: #dc2626 !important; }
 
-          /* ── Week view all-day row ── */
+          /* ── All-day row ── */
           .cal-wrap .fc-daygrid-body { background: #0d0d0d; }
+
+          /* ── FullCalendar height=100% requires the fc root to also fill its container ── */
+          .cal-wrap .fc, .cal-wrap .fc-view-harness { height: 100% !important; }
         `}</style>
 
-        {/* ── Page Header — title only, legend moved to bottom-right ── */}
-        <div style={{ marginBottom: '20px' }}>
-          <h1 style={{ color: '#f0f0f0', fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
-          <p style={{ color: '#444', fontSize: '13px', margin: '4px 0 0', fontWeight: 500 }}>Schedule installations and manage team availability</p>
+        {/* ── Page Header (fixed height, flex-shrink: 0) ── */}
+        <div style={{ padding: '20px 32px 14px', flexShrink: 0 }}>
+          <h1 style={{ color: '#f0f0f0', fontSize: '24px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
+          <p style={{ color: '#444', fontSize: '13px', margin: '3px 0 0', fontWeight: 500 }}>Schedule installations and manage team availability</p>
         </div>
 
-        {/* ── Calendar ── */}
-        <div className="cal-wrap" style={{
-          background: '#0d0d0d', borderRadius: '16px',
-          padding: '20px 0 0', border: '1px solid #1a1a1a',
-          overflow: 'hidden',
-        }}>
-          <div style={{ padding: '0 20px' }}>
-            <FullCalendar
-              ref={calendarRef}
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
-              buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
-              events={events}
-              height="auto"
-              fixedWeekCount={false}
-              dayMaxEvents={4}
-              slotMinTime="05:00:00"
-              slotMaxTime="19:00:00"
-              slotLabelInterval="01:00:00"
-              nowIndicator={true}
-              dateClick={info => {
-                if (!canCreate('INSTALL') && !canCreate('TIME_OFF') && !canCreate('BLOCKED')) return;
-                if (info.allDay) {
-                  openCreate(info.dateStr, true);
-                } else {
-                  const d    = info.date;
-                  const hS   = String(d.getHours()).padStart(2, '0');
-                  const mS   = String(d.getMinutes()).padStart(2, '0');
-                  const dEnd = new Date(d.getTime() + 60 * 60 * 1000);
-                  const hE   = String(dEnd.getHours()).padStart(2, '0');
-                  const mE   = String(dEnd.getMinutes()).padStart(2, '0');
-                  openCreate(info.dateStr, false, `${hS}:${mS}`, `${hE}:${mE}`);
-                }
-              }}
-              eventClick={info => openView(info)}
-              datesSet={info => fetchEvents(info.start, info.end)}
-            />
-          </div>
+        {/*
+          Calendar container: flex: 1 + minHeight: 0 fills all remaining space.
+          minHeight: 0 is required — without it flex children default to min-height: auto
+          which lets them overflow the container and cause page scroll.
+          FullCalendar receives height="100%" and fills this container exactly.
+        */}
+        <div
+          className="cal-wrap"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            margin: '0 32px 20px',
+            borderRadius: '16px',
+            border: '1px solid #1a1a1a',
+            background: '#0d0d0d',
+            overflow: 'hidden',
+            padding: '18px 20px 0',
+            boxSizing: 'border-box',
+          }}
+        >
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            initialView="dayGridMonth"
+            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
+            buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
+            events={events}
+            height="100%"
+            fixedWeekCount={false}
+            dayMaxEvents={4}
+            slotMinTime="05:00:00"
+            slotMaxTime="19:00:00"
+            slotLabelInterval="01:00:00"
+            nowIndicator={true}
+            dateClick={info => {
+              if (!canCreate('INSTALL') && !canCreate('TIME_OFF') && !canCreate('BLOCKED')) return;
+              if (info.allDay) {
+                openCreate(info.dateStr, true);
+              } else {
+                const d    = info.date;
+                const hS   = String(d.getHours()).padStart(2, '0');
+                const mS   = String(d.getMinutes()).padStart(2, '0');
+                const dEnd = new Date(d.getTime() + 60 * 60 * 1000);
+                const hE   = String(dEnd.getHours()).padStart(2, '0');
+                const mE   = String(dEnd.getMinutes()).padStart(2, '0');
+                openCreate(info.dateStr, false, `${hS}:${mS}`, `${hE}:${mE}`);
+              }
+            }}
+            eventClick={info => openView(info)}
+            datesSet={info => fetchEvents(info.start, info.end)}
+          />
         </div>
 
-        {loading && <div style={{ textAlign: 'center', color: '#333', fontSize: '13px', marginTop: '16px' }}>Loading events...</div>}
-
-        {/* ── Legend — bottom-right corner ── */}
-        <div style={{
-          position: 'absolute', bottom: '20px', right: '32px',
-          display: 'flex', gap: '6px', alignItems: 'center',
-        }}>
+        {/* ── Legend — absolute bottom-right, sits within the overflow:hidden container ── */}
+        <div style={{ position: 'absolute', bottom: '28px', right: '32px', display: 'flex', gap: '6px', alignItems: 'center' }}>
           {Object.entries(EVENT_COLORS).map(([type, c]) => (
             <span key={type} style={{
               display: 'inline-flex', alignItems: 'center', gap: '5px',
