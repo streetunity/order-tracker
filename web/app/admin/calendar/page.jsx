@@ -76,12 +76,28 @@ function fcEndDate(dateStr) {
   return [next.getUTCFullYear(), String(next.getUTCMonth()+1).padStart(2,'0'), String(next.getUTCDate()).padStart(2,'0')].join('-');
 }
 
-function buildInstallTitle(event) {
-  if (event.type !== 'INSTALL') return event.title;
-  if (!event.order) return event.title;
-  const acct = event.order.account;
-  const label = acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || 'Install');
-  return `Install \u2014 ${label}`;
+/**
+ * Build the display title for any event from live data, bypassing stale stored titles.
+ * - INSTALL: uses live order account/contact name instead of stored PO format
+ * - TIME_OFF: uses live user name + "Out of Office" regardless of old "Time Off" stored label
+ * - BLOCKED: uses stored title as-is (free-form)
+ */
+function buildEventTitle(event) {
+  if (event.type === 'INSTALL') {
+    if (!event.order) return event.title;
+    const acct = event.order.account;
+    const label = acct?.contactName
+      ? `${acct.name} \u2014 ${acct.contactName}`
+      : (acct?.name || 'Install');
+    return `Install \u2014 ${label}`;
+  }
+  if (event.type === 'TIME_OFF') {
+    // Build from live user record; falls back to replacing the old label in the stored title
+    const name = event.user?.name;
+    if (name) return `${name} \u2014 Out of Office`;
+    return event.title.replace(/\u2014 Time Off$/, '\u2014 Out of Office');
+  }
+  return event.title;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -351,7 +367,7 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
   const isSameDay  = toDateStr(event.startDate) === toDateStr(event.endDate);
   const badgeLabel = TYPE_LABELS[event.type] || event.type;
   const assignees  = (event.assignees || []).map(a => ({ id: a.id, name: a.name || users.find(u => u.id === a.id)?.name || a.id }));
-  const displayTitle = buildInstallTitle(event);
+  const displayTitle = buildEventTitle(event);
 
   return (
     <>
@@ -426,7 +442,7 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
       <ModalHead title="Delete Event" onClose={onCancel} />
       <div style={{ padding: '24px' }}>
         <p style={{ color: '#c0c0c0', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>
-          Are you sure you want to delete <strong style={{ color: '#f0f0f0' }}>{buildInstallTitle(event)}</strong>?
+          Are you sure you want to delete <strong style={{ color: '#f0f0f0' }}>{buildEventTitle(event)}</strong>?
         </p>
         {event.type === 'INSTALL' && event.order && (
           <div style={{ padding: '12px 16px', background: '#1a0d00', border: '1px solid #7c3a00', borderRadius: '8px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px' }}>
@@ -506,7 +522,8 @@ export default function CalendarPage() {
       if (!res.ok) throw new Error('Failed to load events');
       const data = await res.json();
       setEvents(data.map(e => {
-        let tileTitle = buildInstallTitle(e);
+        // Build display title from live data so stale stored labels are never shown
+        let tileTitle = buildEventTitle(e);
         if (e.type === 'INSTALL' && e.assignees?.length > 0) {
           const firstNames = e.assignees.map(a => a.name.split(' ')[0]).join(', ');
           tileTitle = `${tileTitle} \u00b7 ${firstNames}`;
@@ -683,11 +700,6 @@ export default function CalendarPage() {
     <>
       {navContext === 'invoicing' ? <InvoicingNav /> : <TopNav />}
 
-      {/*
-        Outer wrapper: exact height = viewport minus nav.
-        Flex column so the calendar can fill all remaining space.
-        overflow: hidden prevents the page from scrolling.
-      */}
       <div style={{
         height: `calc(100vh - ${NAV_HEIGHT}px)`,
         display: 'flex',
@@ -699,20 +711,15 @@ export default function CalendarPage() {
       }}>
 
         <style>{`
-          /* ── Core ── */
           .cal-wrap .fc { color: #d0d0d0; font-family: inherit; }
           .cal-wrap .fc-toolbar-title { color: #f0f0f0; font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
           .cal-wrap .fc-scrollgrid, .cal-wrap td, .cal-wrap th { border-color: #1a1a1a !important; }
-
-          /* ── Column headers ── */
           .cal-wrap .fc-col-header-cell { background: #0d0d0d; border-bottom: 1px solid #1a1a1a !important; }
           .cal-wrap .fc-col-header-cell-cushion {
             color: #555 !important; text-decoration: none;
             font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
             padding: 10px 0 9px; display: block;
           }
-
-          /* ── Day cells — no min-height so FullCalendar distributes space to fit viewport ── */
           .cal-wrap .fc-daygrid-day { background: #0d0d0d; transition: background 0.12s; }
           .cal-wrap .fc-daygrid-day:hover { background: #131313; }
           .cal-wrap .fc-daygrid-day-top { padding: 8px 10px 2px; justify-content: flex-end; }
@@ -723,14 +730,8 @@ export default function CalendarPage() {
           }
           .cal-wrap .fc-day-other { background: #090909; }
           .cal-wrap .fc-day-other .fc-daygrid-day-number { color: #252525; }
-
-          /* ── Today ── */
           .cal-wrap .fc-day-today { background: rgba(220,38,38,0.05) !important; }
-          .cal-wrap .fc-day-today .fc-daygrid-day-number {
-            background: #dc2626; color: #fff !important; font-weight: 700;
-          }
-
-          /* ── Events ── */
+          .cal-wrap .fc-day-today .fc-daygrid-day-number { background: #dc2626; color: #fff !important; font-weight: 700; }
           .cal-wrap .fc-event {
             border-radius: 6px; padding: 3px 8px; font-size: 11.5px; font-weight: 600;
             cursor: pointer; transition: opacity 0.12s; border: none !important;
@@ -738,48 +739,21 @@ export default function CalendarPage() {
           .cal-wrap .fc-event:hover { opacity: 0.82; }
           .cal-wrap .fc-daygrid-event { margin: 1px 4px 1px; }
           .cal-wrap .fc-event-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-          /* ── More link ── */
-          .cal-wrap .fc-more-link {
-            color: #dc2626; font-size: 11px; font-weight: 700;
-            padding: 1px 6px; margin: 0 4px; border-radius: 4px;
-          }
+          .cal-wrap .fc-more-link { color: #dc2626; font-size: 11px; font-weight: 700; padding: 1px 6px; margin: 0 4px; border-radius: 4px; }
           .cal-wrap .fc-more-link:hover { background: rgba(220,38,38,0.12); }
-
-          /* ── Popover ── */
-          .cal-wrap .fc-popover {
-            background: #141414 !important; border: 1px solid #222 !important;
-            border-radius: 12px !important; box-shadow: 0 20px 50px rgba(0,0,0,0.8) !important;
-            overflow: hidden;
-          }
+          .cal-wrap .fc-popover { background: #141414 !important; border: 1px solid #222 !important; border-radius: 12px !important; box-shadow: 0 20px 50px rgba(0,0,0,0.8) !important; overflow: hidden; }
           .cal-wrap .fc-popover-header { background: #0f0f0f !important; border-bottom: 1px solid #1a1a1a !important; }
           .cal-wrap .fc-popover-title { background: transparent !important; color: #d0d0d0 !important; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; padding: 10px 14px; }
           .cal-wrap .fc-popover-close { color: #555 !important; }
           .cal-wrap .fc-popover-body { background: #141414 !important; padding: 8px 8px 10px; }
-
-          /* ── Toolbar buttons ── */
-          .cal-wrap .fc-button {
-            background: #161616 !important; border: 1px solid #252525 !important;
-            color: #888 !important; font-size: 12px !important; font-weight: 600 !important;
-            padding: 7px 15px !important; border-radius: 6px !important; box-shadow: none !important;
-            transition: all 0.12s !important; letter-spacing: 0.02em;
-          }
-          .cal-wrap .fc-button:hover {
-            background: #202020 !important; border-color: #333 !important; color: #d0d0d0 !important;
-          }
-          .cal-wrap .fc-button-active, .cal-wrap .fc-button:focus {
-            background: #dc2626 !important; border-color: #dc2626 !important;
-            color: #fff !important; box-shadow: none !important;
-          }
+          .cal-wrap .fc-button { background: #161616 !important; border: 1px solid #252525 !important; color: #888 !important; font-size: 12px !important; font-weight: 600 !important; padding: 7px 15px !important; border-radius: 6px !important; box-shadow: none !important; transition: all 0.12s !important; letter-spacing: 0.02em; }
+          .cal-wrap .fc-button:hover { background: #202020 !important; border-color: #333 !important; color: #d0d0d0 !important; }
+          .cal-wrap .fc-button-active, .cal-wrap .fc-button:focus { background: #dc2626 !important; border-color: #dc2626 !important; color: #fff !important; box-shadow: none !important; }
           .cal-wrap .fc-button-group .fc-button { border-radius: 0 !important; border-left-width: 0 !important; }
           .cal-wrap .fc-button-group .fc-button:first-child { border-radius: 6px 0 0 6px !important; border-left-width: 1px !important; }
           .cal-wrap .fc-button-group .fc-button:last-child { border-radius: 0 6px 6px 0 !important; }
-
-          /* ── Toolbar layout ── */
           .cal-wrap .fc-toolbar { margin-bottom: 0 !important; }
           .cal-wrap .fc-header-toolbar { padding-bottom: 16px; border-bottom: 1px solid #141414; margin-bottom: 0 !important; }
-
-          /* ── Time grid ── */
           .cal-wrap .fc-timegrid-slot { height: 44px !important; background: #0d0d0d; border-color: #141414 !important; }
           .cal-wrap .fc-timegrid-slot-minor { border-top-color: #111 !important; border-top-style: dashed !important; }
           .cal-wrap .fc-timegrid-slot-label { background: #090909; border-right: 1px solid #1a1a1a !important; }
@@ -787,30 +761,17 @@ export default function CalendarPage() {
           .cal-wrap .fc-timegrid-col { background: #0d0d0d; }
           .cal-wrap .fc-timegrid-col.fc-day-today { background: rgba(220,38,38,0.03) !important; }
           .cal-wrap .fc-timegrid-divider { background: #141414 !important; height: 3px !important; }
-
-          /* ── Now indicator ── */
           .cal-wrap .fc-timegrid-now-indicator-line { border-color: #dc2626 !important; border-width: 2px !important; }
           .cal-wrap .fc-timegrid-now-indicator-arrow { border-top-color: #dc2626 !important; border-bottom-color: #dc2626 !important; }
-
-          /* ── All-day row ── */
           .cal-wrap .fc-daygrid-body { background: #0d0d0d; }
-
-          /* ── FullCalendar height=100% requires the fc root to also fill its container ── */
           .cal-wrap .fc, .cal-wrap .fc-view-harness { height: 100% !important; }
         `}</style>
 
-        {/* ── Page Header (fixed height, flex-shrink: 0) ── */}
         <div style={{ padding: '20px 32px 14px', flexShrink: 0 }}>
           <h1 style={{ color: '#f0f0f0', fontSize: '24px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
           <p style={{ color: '#444', fontSize: '13px', margin: '3px 0 0', fontWeight: 500 }}>Schedule installations and manage team availability</p>
         </div>
 
-        {/*
-          Calendar container: flex: 1 + minHeight: 0 fills all remaining space.
-          minHeight: 0 is required — without it flex children default to min-height: auto
-          which lets them overflow the container and cause page scroll.
-          FullCalendar receives height="100%" and fills this container exactly.
-        */}
         <div
           className="cal-wrap"
           style={{
@@ -858,7 +819,6 @@ export default function CalendarPage() {
           />
         </div>
 
-        {/* ── Legend — absolute bottom-right, sits within the overflow:hidden container ── */}
         <div style={{ position: 'absolute', bottom: '28px', right: '32px', display: 'flex', gap: '6px', alignItems: 'center' }}>
           {Object.entries(EVENT_COLORS).map(([type, c]) => (
             <span key={type} style={{
