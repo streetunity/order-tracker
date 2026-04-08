@@ -569,8 +569,8 @@ export default function CalendarPage() {
           id:              e.id,
           title:           tileTitle,
           start:           startStr,
-          // fcEndDate adds 1 day because FullCalendar all-day ends are exclusive.
-          // A stored end of "April 15" must be passed as "April 16" to render through April 15.
+          // FullCalendar all-day ends are exclusive — add 1 day so "through April 15"
+          // is passed as "April 16" and renders correctly on all intended days.
           end:             fcEndDate(endStr),
           allDay:          true,
           backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
@@ -797,9 +797,6 @@ export default function CalendarPage() {
             fixedWeekCount={false}
             dayMaxEvents={4}
             dateClick={info => {
-              // Only open the create modal from the all-day area (month view day cells or
-              // the all-day row in week/day view). Ignore clicks on hour time-slots.
-              if (!info.allDay) return;
               if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) openCreate(info.dateStr);
             }}
             eventClick={info => openView(info)}
