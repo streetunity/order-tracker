@@ -204,15 +204,19 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
     }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// Internal employees: active, isEmployee not explicitly false, not MANUFACTURER or BROKER.
-// Using { not: false } treats NULL (existing rows before column was added) as employees.
+// Internal employees: active, not MANUFACTURER or BROKER, and isEmployee is not
+// explicitly false. Using OR [true, null] because SQLite NULL != false doesn't
+// work as expected with Prisma's { not: false } filter.
 app.get('/users/internal', authGuard, async (req, res) => {
   try {
     res.json(await prisma.user.findMany({
       where: {
-        isActive:   true,
-        isEmployee: { not: false },
+        isActive: true,
         role: { notIn: ['MANUFACTURER', 'BROKER'] },
+        OR: [
+          { isEmployee: true },
+          { isEmployee: null },
+        ],
       },
       select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
