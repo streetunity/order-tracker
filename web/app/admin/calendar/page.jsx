@@ -16,7 +16,6 @@ const EVENT_COLORS = {
   BLOCKED:  { bg: '#525252', border: '#404040', text: '#e4e4e4' },
 };
 
-// Display labels — DB type values stay unchanged
 const TYPE_LABELS = {
   INSTALL:  'Install',
   TIME_OFF: 'Out of Office',
@@ -30,7 +29,6 @@ const CREATE_PERMISSIONS = {
 };
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
-
 const NAV_KEY = 'calendarNavContext';
 
 function getAuthHeaders() {
@@ -58,6 +56,19 @@ function toInputDate(dateOrStr) {
 
 function toDateStr(dateOrStr) {
   return toInputDate(dateOrStr);
+}
+
+// FullCalendar all-day event end dates are exclusive.
+// Add 1 calendar day so a stored end of "April 15" renders through April 15, not just April 14.
+function fcEndDate(dateStr) {
+  if (!dateStr) return dateStr;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return [
+    next.getUTCFullYear(),
+    String(next.getUTCMonth() + 1).padStart(2, '0'),
+    String(next.getUTCDate()).padStart(2, '0'),
+  ].join('-');
 }
 
 const inputSt = {
@@ -293,7 +304,6 @@ function CreateEditModal({
 
         {mode === 'create' && <TypeTabs value={formType} onChange={setFormType} canCreate={canCreate} />}
 
-        {/* INSTALL: optional order search */}
         {formType === 'INSTALL' && (
           <Field label="Order (Optional)" hint="Link to a board order, or leave blank for jobs not yet on the board.">
             {selectedOrder ? (
@@ -321,7 +331,6 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* INSTALL without order: freeform description */}
         {formType === 'INSTALL' && !selectedOrder && (
           <Field label="Description" hint="Shown on the calendar tile, e.g. Tech Support, Training Session">
             <input
@@ -492,8 +501,6 @@ export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
   const calendarRef = useRef(null);
 
-  // Detect which nav to show based on where the user navigated from.
-  // Persisted in sessionStorage so refreshing the page doesn't forget.
   const [navContext, setNavContext] = useState('board');
 
   useEffect(() => {
@@ -503,10 +510,7 @@ export default function CalendarPage() {
       setNavContext('invoicing');
     } else {
       const stored = sessionStorage.getItem(NAV_KEY);
-      if (stored === 'invoicing' || stored === 'board') {
-        setNavContext(stored);
-      }
-      // If no stored value and referrer isn't invoicing, leave as 'board' (default)
+      if (stored === 'invoicing' || stored === 'board') setNavContext(stored);
     }
   }, []);
 
@@ -559,11 +563,15 @@ export default function CalendarPage() {
           const firstNames = e.assignees.map(a => a.name.split(' ')[0]).join(', ');
           tileTitle = `${e.title} \u00b7 ${firstNames}`;
         }
+        const startStr = toDateStr(e.startDate);
+        const endStr   = toDateStr(e.endDate);
         return {
           id:              e.id,
           title:           tileTitle,
-          start:           toDateStr(e.startDate),
-          end:             toDateStr(e.endDate),
+          start:           startStr,
+          // fcEndDate adds 1 day because FullCalendar all-day ends are exclusive.
+          // A stored end of "April 15" must be passed as "April 16" to render through April 15.
+          end:             fcEndDate(endStr),
           allDay:          true,
           backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
           borderColor:     EVENT_COLORS[e.type]?.border || '#666',
@@ -788,7 +796,12 @@ export default function CalendarPage() {
             height="auto"
             fixedWeekCount={false}
             dayMaxEvents={4}
-            dateClick={info => { if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) openCreate(info.dateStr); }}
+            dateClick={info => {
+              // Only open the create modal from the all-day area (month view day cells or
+              // the all-day row in week/day view). Ignore clicks on hour time-slots.
+              if (!info.allDay) return;
+              if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) openCreate(info.dateStr);
+            }}
             eventClick={info => openView(info)}
             datesSet={info => fetchEvents(info.start, info.end)}
           />

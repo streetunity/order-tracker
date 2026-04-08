@@ -37,12 +37,19 @@ export function createCalendarRouter(prisma) {
       const { start, end } = req.query;
       const user = req.user;
 
+      // Proper interval overlap: an event is visible if it overlaps the requested window.
+      // Two intervals [A,B] and [C,D] overlap when A <= D AND B >= C.
+      // This catches events that start in range, end in range, OR span the entire window.
       const where = {};
-      if (start || end) {
-        where.OR = [
-          { startDate: { ...(start ? { gte: new Date(start) } : {}), ...(end ? { lte: new Date(end) } : {}) } },
-          { endDate:   { ...(start ? { gte: new Date(start) } : {}), ...(end ? { lte: new Date(end) } : {}) } },
+      if (start && end) {
+        where.AND = [
+          { startDate: { lte: new Date(end) } },
+          { endDate:   { gte: new Date(start) } },
         ];
+      } else if (start) {
+        where.startDate = { gte: new Date(start) };
+      } else if (end) {
+        where.endDate = { lte: new Date(end) };
       }
 
       const events = await prisma.calendarEvent.findMany({
@@ -159,7 +166,6 @@ export function createCalendarRouter(prisma) {
         },
       });
 
-      // Only sync onsiteInstallationDate when linked to an order
       if (type === 'INSTALL' && orderId) {
         await prisma.order.update({
           where: { id: orderId },
