@@ -30,6 +30,7 @@ const CREATE_PERMISSIONS = {
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
 const NAV_KEY = 'calendarNavContext';
+const NAV_HEIGHT = 64; // px — TopNav/InvoicingNav height
 
 function getAuthHeaders() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -682,7 +683,8 @@ export default function CalendarPage() {
     <>
       {navContext === 'invoicing' ? <InvoicingNav /> : <TopNav />}
 
-      <div style={{ minHeight: '100vh', background: '#0a0a0a', padding: '28px 32px 60px' }}>
+      {/* Subtract nav height so the page fills exactly the remaining viewport */}
+      <div style={{ minHeight: `calc(100vh - ${NAV_HEIGHT}px)`, background: '#0a0a0a', padding: '24px 32px 40px', position: 'relative' }}>
 
         <style>{`
           /* ── Core ── */
@@ -720,7 +722,7 @@ export default function CalendarPage() {
           /* ── Events ── */
           .cal-wrap .fc-event {
             border-radius: 6px; padding: 3px 8px; font-size: 11.5px; font-weight: 600;
-            cursor: pointer; transition: opacity 0.12s, transform 0.1s; border: none !important;
+            cursor: pointer; transition: opacity 0.12s; border: none !important;
           }
           .cal-wrap .fc-event:hover { opacity: 0.82; }
           .cal-wrap .fc-daygrid-event { margin: 1px 4px 1px; }
@@ -783,27 +785,10 @@ export default function CalendarPage() {
           .cal-wrap .fc-daygrid-body { background: #0d0d0d; }
         `}</style>
 
-        {/* ── Page Header ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h1 style={{ color: '#f0f0f0', fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
-            <p style={{ color: '#444', fontSize: '13px', margin: '4px 0 0', fontWeight: 500 }}>Schedule installations and manage team availability</p>
-          </div>
-
-          {/* Legend as subtle pills */}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {Object.entries(EVENT_COLORS).map(([type, c]) => (
-              <span key={type} style={{
-                display: 'inline-flex', alignItems: 'center', gap: '7px',
-                padding: '6px 12px', borderRadius: '99px',
-                background: '#141414', border: '1px solid #222',
-                fontSize: '12px', fontWeight: 600, color: '#888',
-              }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: c.bg, flexShrink: 0 }} />
-                {TYPE_LABELS[type]}
-              </span>
-            ))}
-          </div>
+        {/* ── Page Header — title only, legend moved to bottom-right ── */}
+        <div style={{ marginBottom: '20px' }}>
+          <h1 style={{ color: '#f0f0f0', fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
+          <p style={{ color: '#444', fontSize: '13px', margin: '4px 0 0', fontWeight: 500 }}>Schedule installations and manage team availability</p>
         </div>
 
         {/* ── Calendar ── */}
@@ -848,6 +833,24 @@ export default function CalendarPage() {
         </div>
 
         {loading && <div style={{ textAlign: 'center', color: '#333', fontSize: '13px', marginTop: '16px' }}>Loading events...</div>}
+
+        {/* ── Legend — bottom-right corner ── */}
+        <div style={{
+          position: 'absolute', bottom: '20px', right: '32px',
+          display: 'flex', gap: '6px', alignItems: 'center',
+        }}>
+          {Object.entries(EVENT_COLORS).map(([type, c]) => (
+            <span key={type} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+              padding: '4px 9px', borderRadius: '99px',
+              background: '#111', border: '1px solid #1e1e1e',
+              fontSize: '11px', fontWeight: 600, color: '#555',
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.bg, flexShrink: 0 }} />
+              {TYPE_LABELS[type]}
+            </span>
+          ))}
+        </div>
 
         {modal === 'create' && (
           <Overlay onClose={() => !saving && setModal(null)}>
