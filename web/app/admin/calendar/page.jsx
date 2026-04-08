@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import TopNav from '@/components/TopNav';
+import InvoicingNav from '@/components/InvoicingNav';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -28,6 +30,8 @@ const CREATE_PERMISSIONS = {
 };
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
+
+const NAV_KEY = 'calendarNavContext';
 
 function getAuthHeaders() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -488,6 +492,24 @@ export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
   const calendarRef = useRef(null);
 
+  // Detect which nav to show based on where the user navigated from.
+  // Persisted in sessionStorage so refreshing the page doesn't forget.
+  const [navContext, setNavContext] = useState('board');
+
+  useEffect(() => {
+    const referrer = typeof document !== 'undefined' ? document.referrer : '';
+    if (referrer && referrer.includes('/invoicing')) {
+      sessionStorage.setItem(NAV_KEY, 'invoicing');
+      setNavContext('invoicing');
+    } else {
+      const stored = sessionStorage.getItem(NAV_KEY);
+      if (stored === 'invoicing' || stored === 'board') {
+        setNavContext(stored);
+      }
+      // If no stored value and referrer isn't invoicing, leave as 'board' (default)
+    }
+  }, []);
+
   const [events,  setEvents]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [users,   setUsers]   = useState([]);
@@ -532,7 +554,6 @@ export default function CalendarPage() {
       if (!res.ok) throw new Error('Failed to load events');
       const data = await res.json();
       setEvents(data.map(e => {
-        // For INSTALL tiles: append assignee first names so you can see who's going
         let tileTitle = e.title;
         if (e.type === 'INSTALL' && e.assignees?.length > 0) {
           const firstNames = e.assignees.map(a => a.name.split(' ')[0]).join(', ');
@@ -606,7 +627,6 @@ export default function CalendarPage() {
     setFormAssigneeIds(Array.isArray(e.assigneeIds) ? e.assigneeIds : []);
     const acct = e.order?.account;
     if (e.type === 'INSTALL' && !e.order) {
-      // Extract description from title: "Install \u2014 Tech Support" => "Tech Support"
       const prefix = 'Install \u2014 ';
       setFormTitle(e.title?.startsWith(prefix) ? e.title.slice(prefix.length) : '');
     } else {
@@ -630,8 +650,6 @@ export default function CalendarPage() {
 
     let autoTitle = formTitle;
     if (formType === 'INSTALL') {
-      // With order: "Install \u2014 Customer Name"
-      // Without order: "Install" or "Install \u2014 Description"
       autoTitle = selectedOrder
         ? `Install \u2014 ${selectedOrder.label}`
         : `Install${formTitle ? ` \u2014 ${formTitle}` : ''}`;
@@ -714,129 +732,133 @@ export default function CalendarPage() {
   if (!user) return null;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f0f0f', padding: '24px 28px 60px' }}>
+    <>
+      {navContext === 'invoicing' ? <InvoicingNav /> : <TopNav />}
 
-      <style>{`
-        .cal-wrap .fc { color: #e4e4e4; }
-        .cal-wrap .fc-toolbar-title { color: #e4e4e4; font-size: 18px; font-weight: 700; }
-        .cal-wrap .fc-col-header-cell-cushion { color: #a0a0a0; text-decoration: none; font-weight: 600; }
-        .cal-wrap .fc-daygrid-day-number { color: #a0a0a0; text-decoration: none; }
-        .cal-wrap .fc-day-today { background: rgba(220,38,38,0.08) !important; }
-        .cal-wrap .fc-day-today .fc-daygrid-day-number { color: #dc2626 !important; font-weight: 700; }
-        .cal-wrap .fc-scrollgrid, .cal-wrap td, .cal-wrap th { border-color: #2d2d2d !important; }
-        .cal-wrap .fc-daygrid-day { background: #111; transition: background 0.1s; }
-        .cal-wrap .fc-daygrid-day:hover { background: #1a1a1a; }
-        .cal-wrap .fc-day-other .fc-daygrid-day-number { color: #3d3d3d; }
-        .cal-wrap .fc-button { background: #252525 !important; border-color: #404040 !important; color: #e4e4e4 !important; font-size: 13px !important; padding: 6px 14px !important; box-shadow: none !important; }
-        .cal-wrap .fc-button:hover { background: #333 !important; border-color: #555 !important; }
-        .cal-wrap .fc-button-active, .cal-wrap .fc-button:focus { background: #dc2626 !important; border-color: #dc2626 !important; box-shadow: none !important; }
-        .cal-wrap .fc-event { border-radius: 5px; padding: 2px 7px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
-        .cal-wrap .fc-event:hover { opacity: 0.8; }
-        .cal-wrap .fc-more-link { color: #dc2626; font-size: 12px; }
-        .cal-wrap .fc-popover { background: #1a1a1a !important; border-color: #404040 !important; box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; }
-        .cal-wrap .fc-popover-title { background: #252525 !important; color: #e4e4e4 !important; }
-        .cal-wrap .fc-popover-body  { background: #1a1a1a !important; }
-        .cal-wrap .fc-timegrid-slot { background: #111; border-color: #2d2d2d !important; }
-        .cal-wrap .fc-timegrid-slot-label-cushion { color: #6b7280; font-size: 12px; }
-        .cal-wrap .fc-toolbar { margin-bottom: 18px !important; }
-      `}</style>
+      <div style={{ minHeight: '100vh', background: '#0f0f0f', padding: '24px 28px 60px' }}>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <h1 style={{ color: '#e4e4e4', fontSize: '24px', fontWeight: 700, margin: 0 }}>Calendar</h1>
-          <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0' }}>Schedule installations and manage team availability</p>
+        <style>{`
+          .cal-wrap .fc { color: #e4e4e4; }
+          .cal-wrap .fc-toolbar-title { color: #e4e4e4; font-size: 18px; font-weight: 700; }
+          .cal-wrap .fc-col-header-cell-cushion { color: #a0a0a0; text-decoration: none; font-weight: 600; }
+          .cal-wrap .fc-daygrid-day-number { color: #a0a0a0; text-decoration: none; }
+          .cal-wrap .fc-day-today { background: rgba(220,38,38,0.08) !important; }
+          .cal-wrap .fc-day-today .fc-daygrid-day-number { color: #dc2626 !important; font-weight: 700; }
+          .cal-wrap .fc-scrollgrid, .cal-wrap td, .cal-wrap th { border-color: #2d2d2d !important; }
+          .cal-wrap .fc-daygrid-day { background: #111; transition: background 0.1s; }
+          .cal-wrap .fc-daygrid-day:hover { background: #1a1a1a; }
+          .cal-wrap .fc-day-other .fc-daygrid-day-number { color: #3d3d3d; }
+          .cal-wrap .fc-button { background: #252525 !important; border-color: #404040 !important; color: #e4e4e4 !important; font-size: 13px !important; padding: 6px 14px !important; box-shadow: none !important; }
+          .cal-wrap .fc-button:hover { background: #333 !important; border-color: #555 !important; }
+          .cal-wrap .fc-button-active, .cal-wrap .fc-button:focus { background: #dc2626 !important; border-color: #dc2626 !important; box-shadow: none !important; }
+          .cal-wrap .fc-event { border-radius: 5px; padding: 2px 7px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+          .cal-wrap .fc-event:hover { opacity: 0.8; }
+          .cal-wrap .fc-more-link { color: #dc2626; font-size: 12px; }
+          .cal-wrap .fc-popover { background: #1a1a1a !important; border-color: #404040 !important; box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; }
+          .cal-wrap .fc-popover-title { background: #252525 !important; color: #e4e4e4 !important; }
+          .cal-wrap .fc-popover-body  { background: #1a1a1a !important; }
+          .cal-wrap .fc-timegrid-slot { background: #111; border-color: #2d2d2d !important; }
+          .cal-wrap .fc-timegrid-slot-label-cushion { color: #6b7280; font-size: 12px; }
+          .cal-wrap .fc-toolbar { margin-bottom: 18px !important; }
+        `}</style>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ color: '#e4e4e4', fontSize: '24px', fontWeight: 700, margin: 0 }}>Calendar</h1>
+            <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0' }}>Schedule installations and manage team availability</p>
+          </div>
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {Object.entries(EVENT_COLORS).map(([type, c]) => (
+              <span key={type} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#a0a0a0' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: c.bg, flexShrink: 0 }} />
+                {TYPE_LABELS[type]}
+              </span>
+            ))}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {Object.entries(EVENT_COLORS).map(([type, c]) => (
-            <span key={type} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#a0a0a0' }}>
-              <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: c.bg, flexShrink: 0 }} />
-              {TYPE_LABELS[type]}
-            </span>
-          ))}
+
+        <div className="cal-wrap" style={{ background: '#111', borderRadius: '12px', padding: '20px 20px 4px', border: '1px solid #2d2d2d' }}>
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            initialView="dayGridMonth"
+            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
+            buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
+            events={events}
+            height="auto"
+            fixedWeekCount={false}
+            dayMaxEvents={4}
+            dateClick={info => { if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) openCreate(info.dateStr); }}
+            eventClick={info => openView(info)}
+            datesSet={info => fetchEvents(info.start, info.end)}
+          />
         </div>
+
+        {loading && <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '13px', marginTop: '12px' }}>Loading events...</div>}
+
+        {modal === 'create' && (
+          <Overlay onClose={() => !saving && setModal(null)}>
+            <CreateEditModal
+              mode="create"
+              formType={formType}               setFormType={setFormType}
+              formStart={formStart}             setFormStart={setFormStart}
+              formEnd={formEnd}                 setFormEnd={setFormEnd}
+              formTitle={formTitle}             setFormTitle={setFormTitle}
+              formNotes={formNotes}             setFormNotes={setFormNotes}
+              formUserId={formUserId}           setFormUserId={setFormUserId}
+              formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
+              orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
+              orderResults={orderResults}       orderLoading={orderLoading}
+              selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
+              setFormOrderId={setFormOrderId}
+              users={users} user={user} isAdmin={isAdmin}
+              canCreate={canCreate} saving={saving} err={err}
+              onSave={handleSave} onCancel={() => setModal(null)}
+            />
+          </Overlay>
+        )}
+
+        {modal === 'view' && selectedEvent && (
+          <Overlay onClose={() => !saving && setModal(null)}>
+            <ViewModal
+              event={selectedEvent} user={user} isAdmin={isAdmin} users={users}
+              saving={saving} err={err}
+              onEdit={openEdit}
+              onDelete={() => { setErr(''); setModal('confirm-delete'); }}
+              onResend={handleResend}
+              onClose={() => setModal(null)}
+            />
+          </Overlay>
+        )}
+
+        {modal === 'edit' && (
+          <Overlay onClose={() => !saving && setModal('view')}>
+            <CreateEditModal
+              mode="edit"
+              formType={formType}               setFormType={() => {}}
+              formStart={formStart}             setFormStart={setFormStart}
+              formEnd={formEnd}                 setFormEnd={setFormEnd}
+              formTitle={formTitle}             setFormTitle={setFormTitle}
+              formNotes={formNotes}             setFormNotes={setFormNotes}
+              formUserId={formUserId}           setFormUserId={setFormUserId}
+              formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
+              orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
+              orderResults={orderResults}       orderLoading={orderLoading}
+              selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
+              setFormOrderId={setFormOrderId}
+              users={users} user={user} isAdmin={isAdmin}
+              canCreate={canCreate} saving={saving} err={err}
+              onSave={handleSave} onCancel={() => setModal('view')}
+            />
+          </Overlay>
+        )}
+
+        {modal === 'confirm-delete' && selectedEvent && (
+          <Overlay onClose={() => !saving && setModal('view')}>
+            <ConfirmDeleteModal event={selectedEvent} saving={saving} err={err} onConfirm={handleDelete} onCancel={() => setModal('view')} />
+          </Overlay>
+        )}
       </div>
-
-      <div className="cal-wrap" style={{ background: '#111', borderRadius: '12px', padding: '20px 20px 4px', border: '1px solid #2d2d2d' }}>
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
-          headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
-          buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
-          events={events}
-          height="auto"
-          fixedWeekCount={false}
-          dayMaxEvents={4}
-          dateClick={info => { if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) openCreate(info.dateStr); }}
-          eventClick={info => openView(info)}
-          datesSet={info => fetchEvents(info.start, info.end)}
-        />
-      </div>
-
-      {loading && <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '13px', marginTop: '12px' }}>Loading events...</div>}
-
-      {modal === 'create' && (
-        <Overlay onClose={() => !saving && setModal(null)}>
-          <CreateEditModal
-            mode="create"
-            formType={formType}               setFormType={setFormType}
-            formStart={formStart}             setFormStart={setFormStart}
-            formEnd={formEnd}                 setFormEnd={setFormEnd}
-            formTitle={formTitle}             setFormTitle={setFormTitle}
-            formNotes={formNotes}             setFormNotes={setFormNotes}
-            formUserId={formUserId}           setFormUserId={setFormUserId}
-            formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
-            orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
-            orderResults={orderResults}       orderLoading={orderLoading}
-            selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
-            setFormOrderId={setFormOrderId}
-            users={users} user={user} isAdmin={isAdmin}
-            canCreate={canCreate} saving={saving} err={err}
-            onSave={handleSave} onCancel={() => setModal(null)}
-          />
-        </Overlay>
-      )}
-
-      {modal === 'view' && selectedEvent && (
-        <Overlay onClose={() => !saving && setModal(null)}>
-          <ViewModal
-            event={selectedEvent} user={user} isAdmin={isAdmin} users={users}
-            saving={saving} err={err}
-            onEdit={openEdit}
-            onDelete={() => { setErr(''); setModal('confirm-delete'); }}
-            onResend={handleResend}
-            onClose={() => setModal(null)}
-          />
-        </Overlay>
-      )}
-
-      {modal === 'edit' && (
-        <Overlay onClose={() => !saving && setModal('view')}>
-          <CreateEditModal
-            mode="edit"
-            formType={formType}               setFormType={() => {}}
-            formStart={formStart}             setFormStart={setFormStart}
-            formEnd={formEnd}                 setFormEnd={setFormEnd}
-            formTitle={formTitle}             setFormTitle={setFormTitle}
-            formNotes={formNotes}             setFormNotes={setFormNotes}
-            formUserId={formUserId}           setFormUserId={setFormUserId}
-            formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
-            orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
-            orderResults={orderResults}       orderLoading={orderLoading}
-            selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
-            setFormOrderId={setFormOrderId}
-            users={users} user={user} isAdmin={isAdmin}
-            canCreate={canCreate} saving={saving} err={err}
-            onSave={handleSave} onCancel={() => setModal('view')}
-          />
-        </Overlay>
-      )}
-
-      {modal === 'confirm-delete' && selectedEvent && (
-        <Overlay onClose={() => !saving && setModal('view')}>
-          <ConfirmDeleteModal event={selectedEvent} saving={saving} err={err} onConfirm={handleDelete} onCancel={() => setModal('view')} />
-        </Overlay>
-      )}
-    </div>
+    </>
   );
 }
