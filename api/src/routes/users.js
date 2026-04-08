@@ -21,6 +21,10 @@ const USER_SELECT = {
   lastLogin: true, createdAt: true,
 };
 
+// Fields allowed to be changed on the system user account.
+// Everything else is blocked to protect the service account.
+const SYSTEM_USER_ALLOWED_FIELDS = ['isEmployee', 'showInSalesRepDropdown'];
+
 export function createUsersRouter() {
   const router = express.Router();
 
@@ -177,9 +181,22 @@ export function createUsersRouter() {
       if (!isAdminOrHigher(req.user.role)) return res.status(403).json({ error: 'Admin access required' });
       const original = await prisma.user.findUnique({ where: { id: req.params.id } });
       if (!original) return res.status(404).json({ error: 'User not found' });
-      if (original.email === 'system@ordertracker.internal') return res.status(403).json({ error: 'Cannot edit system user' });
+
+      const isSystemUser = original.email === 'system@ordertracker.internal';
+      const requestedFields = Object.keys(req.body);
+
+      // System user: only allow toggling isEmployee / showInSalesRepDropdown
+      if (isSystemUser) {
+        const disallowed = requestedFields.filter(f => !SYSTEM_USER_ALLOWED_FIELDS.includes(f));
+        if (disallowed.length > 0) {
+          return res.status(403).json({ error: 'Cannot edit system user' });
+        }
+      }
+
       const isSelfEdit = req.params.id === req.user.id;
-      if (!isSelfEdit && !canEditRole(req.user.role, original.role)) return res.status(403).json({ error: `You cannot edit users with role ${getRoleDisplayName(original.role)}` });
+      if (!isSystemUser && !isSelfEdit && !canEditRole(req.user.role, original.role)) {
+        return res.status(403).json({ error: `You cannot edit users with role ${getRoleDisplayName(original.role)}` });
+      }
 
       const { name, email, role, isActive, isEmployee, showInSalesRepDropdown, password } = req.body;
       const data = {};
