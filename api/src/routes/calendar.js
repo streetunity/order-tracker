@@ -23,9 +23,22 @@ function parseAssigneeIds(raw) {
   try { return JSON.parse(raw || '[]'); } catch { return []; }
 }
 
-function parseDateAsNoonUTC(dateStr) {
-  const part = String(dateStr).substring(0, 10);
-  return new Date(`${part}T12:00:00.000Z`);
+/**
+ * Parse an event date/datetime string.
+ *
+ * All-day events: store at noon UTC so the calendar date is correct in any timezone.
+ *   e.g. "2026-04-08" → 2026-04-08T12:00:00.000Z
+ *
+ * Timed events: the string is already a local datetime ("2026-04-08T09:00:00").
+ *   new Date() with no Z suffix treats it as local time, which is what we want.
+ *   e.g. "2026-04-08T09:00:00" in Chicago → 2026-04-08T14:00:00.000Z
+ */
+function parseEventDate(dateStr, isAllDay) {
+  if (isAllDay !== false) {
+    const part = String(dateStr).substring(0, 10);
+    return new Date(`${part}T12:00:00.000Z`);
+  }
+  return new Date(dateStr); // local datetime, no Z
 }
 
 export function createCalendarRouter(prisma) {
@@ -37,9 +50,7 @@ export function createCalendarRouter(prisma) {
       const { start, end } = req.query;
       const user = req.user;
 
-      // Proper interval overlap: an event is visible if it overlaps the requested window.
-      // Two intervals [A,B] and [C,D] overlap when A <= D AND B >= C.
-      // This catches events that start in range, end in range, OR span the entire window.
+      // Interval overlap: startDate ≤ rangeEnd AND endDate ≥ rangeStart
       const where = {};
       if (start && end) {
         where.AND = [
@@ -127,7 +138,7 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── POST /calendar/events ───────────────────────────────────────────────────
-  // orderId is optional for INSTALL — allows events not linked to a board order.
+  // orderId is optional for INSTALL.
   // Email is NEVER sent automatically on create.
   router.post('/events', authGuard, async (req, res) => {
     try {
@@ -142,8 +153,9 @@ export function createCalendarRouter(prisma) {
       let targetUserId = userId;
       if (type === 'TIME_OFF' && user.role === 'AGENT') targetUserId = user.id;
 
-      const startUTC = parseDateAsNoonUTC(startDate);
-      const endUTC   = parseDateAsNoonUTC(endDate || startDate);
+      const isAllDay  = allDay !== false;
+      const startUTC  = parseEventDate(startDate, isAllDay);
+      const endUTC    = parseEventDate(endDate || startDate, isAllDay);
 
       const event = await prisma.calendarEvent.create({
         data: {
@@ -151,7 +163,7 @@ export function createCalendarRouter(prisma) {
           title:            title || buildTitle(type, null, user.name),
           startDate:        startUTC,
           endDate:          endUTC,
-          allDay:           allDay !== false,
+          allDay:           isAllDay,
           orderId:          type === 'INSTALL'  ? (orderId || null)      : null,
           userId:           type === 'TIME_OFF' ? (targetUserId || null) : null,
           assigneeIds:      type === 'INSTALL'  ? JSON.stringify(Array.isArray(assigneeIds) ? assigneeIds : []) : '[]',
@@ -182,6 +194,7 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── PUT /calendar/events/:id ────────────────────────────────────────────────
+  // Email only fires when resendEmail=true (manual Send/Resend button).
   router.put('/events/:id', authGuard, async (req, res) => {
     try {
       const { id } = req.params;
@@ -194,8 +207,9 @@ export function createCalendarRouter(prisma) {
       const canEdit = ADMIN_ROLES.includes(user.role) || existing.createdById === user.id;
       if (!canEdit) return res.status(403).json({ error: 'Insufficient permissions' });
 
-      const startUTC = startDate ? parseDateAsNoonUTC(startDate) : undefined;
-      const endUTC   = endDate   ? parseDateAsNoonUTC(endDate)   : undefined;
+      // Use the existing event's allDay flag to decide how to parse incoming dates
+      const startUTC = startDate ? parseEventDate(startDate, existing.allDay) : undefined;
+      const endUTC   = endDate   ? parseEventDate(endDate,   existing.allDay) : undefined;
 
       const updated = await prisma.calendarEvent.update({
         where: { id },

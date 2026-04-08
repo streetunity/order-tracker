@@ -36,12 +36,22 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// ── Date / time helpers ───────────────────────────────────────────────────────
+
 function formatDisplayDate(dateStr) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     timeZone: 'UTC',
   });
+}
+
+function formatDisplayDateTime(startStr, endStr) {
+  const start = new Date(startStr);
+  const end   = new Date(endStr);
+  const date  = start.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const fmtT  = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return `${date} \u00b7 ${fmtT(start)} \u2013 ${fmtT(end)}`;
 }
 
 function toInputDate(dateOrStr) {
@@ -54,22 +64,23 @@ function toInputDate(dateOrStr) {
   ].join('-');
 }
 
-function toDateStr(dateOrStr) {
-  return toInputDate(dateOrStr);
+function toInputTime(dateOrStr) {
+  if (!dateOrStr) return '09:00';
+  const d = new Date(dateOrStr);
+  return [String(d.getHours()).padStart(2, '0'), String(d.getMinutes()).padStart(2, '0')].join(':');
 }
 
-// FullCalendar all-day event end dates are exclusive.
-// Add 1 calendar day so a stored end of "April 15" renders through April 15, not just April 14.
+function toDateStr(dateOrStr) { return toInputDate(dateOrStr); }
+
+// FullCalendar all-day ends are exclusive: add 1 day.
 function fcEndDate(dateStr) {
   if (!dateStr) return dateStr;
   const [y, m, d] = dateStr.split('-').map(Number);
   const next = new Date(Date.UTC(y, m - 1, d + 1));
-  return [
-    next.getUTCFullYear(),
-    String(next.getUTCMonth() + 1).padStart(2, '0'),
-    String(next.getUTCDate()).padStart(2, '0'),
-  ].join('-');
+  return [next.getUTCFullYear(), String(next.getUTCMonth()+1).padStart(2,'0'), String(next.getUTCDate()).padStart(2,'0')].join('-');
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const inputSt = {
   width: '100%', padding: '10px 12px', background: '#0f0f0f',
@@ -82,20 +93,15 @@ const btnBase = {
   cursor: 'pointer', fontWeight: 600, border: 'none', fontFamily: 'inherit',
 };
 
+// ── Shared UI ────────────────────────────────────────────────────────────────
+
 function Overlay({ children, onClose }) {
   return (
     <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-        zIndex: 1000, display: 'flex', alignItems: 'center',
-        justifyContent: 'center', padding: '16px',
-      }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div style={{
-        background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px',
-        width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto',
-      }}>
+      <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
         {children}
       </div>
     </div>
@@ -104,28 +110,12 @@ function Overlay({ children, onClose }) {
 
 function ModalHead({ title, badge, badgeColor, onClose }) {
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '20px 24px', borderBottom: '1px solid #2d2d2d',
-    }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #2d2d2d' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <h2 style={{ color: '#e4e4e4', fontSize: '17px', fontWeight: 700, margin: 0 }}>{title}</h2>
-        {badge && (
-          <span style={{
-            padding: '3px 9px', borderRadius: '99px', fontSize: '11px',
-            fontWeight: 700, background: badgeColor || '#333', color: '#fff',
-            textTransform: 'uppercase', letterSpacing: '0.05em',
-          }}>
-            {badge}
-          </span>
-        )}
+        {badge && <span style={{ padding: '3px 9px', borderRadius: '99px', fontSize: '11px', fontWeight: 700, background: badgeColor || '#333', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{badge}</span>}
       </div>
-      <button
-        onClick={onClose}
-        style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: '4px' }}
-      >
-        &times;
-      </button>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: '4px' }}>&times;</button>
     </div>
   );
 }
@@ -133,12 +123,7 @@ function ModalHead({ title, badge, badgeColor, onClose }) {
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: '16px' }}>
-      <label style={{
-        display: 'block', fontSize: '11px', fontWeight: 700, color: '#a0a0a0',
-        textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px',
-      }}>
-        {label}
-      </label>
+      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#a0a0a0', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>{label}</label>
       {children}
       {hint && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>{hint}</p>}
     </div>
@@ -148,12 +133,7 @@ function Field({ label, hint, children }) {
 function InfoRow({ label, children }) {
   return (
     <div style={{ marginBottom: '14px' }}>
-      <div style={{
-        fontSize: '11px', fontWeight: 700, color: '#dc2626',
-        textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '4px',
-      }}>
-        {label}
-      </div>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '4px' }}>{label}</div>
       <div style={{ fontSize: '15px', color: '#e4e4e4', lineHeight: 1.5 }}>{children}</div>
     </div>
   );
@@ -161,14 +141,7 @@ function InfoRow({ label, children }) {
 
 function ErrBox({ msg }) {
   if (!msg) return null;
-  return (
-    <div style={{
-      padding: '10px 14px', background: '#7f1d1d', border: '1px solid #991b1b',
-      borderRadius: '6px', color: '#fecaca', fontSize: '13px', marginBottom: '16px',
-    }}>
-      {msg}
-    </div>
-  );
+  return <div style={{ padding: '10px 14px', background: '#7f1d1d', border: '1px solid #991b1b', borderRadius: '6px', color: '#fecaca', fontSize: '13px', marginBottom: '16px' }}>{msg}</div>;
 }
 
 function TypeTabs({ value, onChange, canCreate }) {
@@ -181,23 +154,15 @@ function TypeTabs({ value, onChange, canCreate }) {
   return (
     <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
       {types.map(t => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          style={{
-            flex: 1, padding: '12px 8px', borderRadius: '8px',
-            border: `2px solid ${value === t.key ? t.color : '#2d2d2d'}`,
-            background: value === t.key ? t.color + '18' : '#111',
-            color: value === t.key ? '#e4e4e4' : '#6b7280',
-            cursor: 'pointer', fontSize: '13px',
-            fontWeight: value === t.key ? 700 : 400,
-            transition: 'all 0.15s', fontFamily: 'inherit',
-          }}
-        >
-          <span style={{
-            display: 'block', width: '10px', height: '10px',
-            borderRadius: '50%', background: t.color, margin: '0 auto 6px',
-          }} />
+        <button key={t.key} onClick={() => onChange(t.key)} style={{
+          flex: 1, padding: '12px 8px', borderRadius: '8px',
+          border: `2px solid ${value === t.key ? t.color : '#2d2d2d'}`,
+          background: value === t.key ? t.color + '18' : '#111',
+          color: value === t.key ? '#e4e4e4' : '#6b7280',
+          cursor: 'pointer', fontSize: '13px', fontWeight: value === t.key ? 700 : 400,
+          transition: 'all 0.15s', fontFamily: 'inherit',
+        }}>
+          <span style={{ display: 'block', width: '10px', height: '10px', borderRadius: '50%', background: t.color, margin: '0 auto 6px' }} />
           {TYPE_LABELS[t.key]}
         </button>
       ))}
@@ -207,13 +172,8 @@ function TypeTabs({ value, onChange, canCreate }) {
 
 function AssigneePicker({ users, selected, onChange }) {
   const [search, setSearch] = useState('');
-  const filtered = search.length > 0
-    ? users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()))
-    : [];
-
-  function toggle(id) {
-    onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]);
-  }
+  const filtered = search.length > 0 ? users.filter(u => u.name.toLowerCase().includes(search.toLowerCase())) : [];
+  const toggle = id => onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -222,11 +182,7 @@ function AssigneePicker({ users, selected, onChange }) {
           {selected.map(id => {
             const u = users.find(u => u.id === id);
             return (
-              <span key={id} style={{
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                padding: '4px 10px', background: '#dc262620', border: '1px solid #dc2626',
-                borderRadius: '99px', fontSize: '12px', color: '#e4e4e4',
-              }}>
+              <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: '#dc262620', border: '1px solid #dc2626', borderRadius: '99px', fontSize: '12px', color: '#e4e4e4' }}>
                 {u?.name || id}
                 <button onClick={() => toggle(id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: 0 }}>&times;</button>
               </span>
@@ -234,76 +190,58 @@ function AssigneePicker({ users, selected, onChange }) {
           })}
         </div>
       )}
-      <input
-        type="text"
-        placeholder="Search employees..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={inputSt}
-      />
+      <input type="text" placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} style={inputSt} />
       {search.length > 0 && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
-          background: '#252525', border: '1px solid #333', borderTop: 'none',
-          borderRadius: '0 0 6px 6px', zIndex: 20, maxHeight: '200px', overflowY: 'auto',
-        }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>No employees found</div>
-          ) : (
-            filtered.map(u => (
-              <button
-                key={u.id}
-                onClick={() => { toggle(u.id); setSearch(''); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  width: '100%', textAlign: 'left', padding: '10px 14px',
-                  background: selected.includes(u.id) ? '#1a1a1a' : 'none',
-                  border: 'none', borderBottom: '1px solid #2d2d2d',
-                  color: '#e4e4e4', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit',
-                }}
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#252525', border: '1px solid #333', borderTop: 'none', borderRadius: '0 0 6px 6px', zIndex: 20, maxHeight: '200px', overflowY: 'auto' }}>
+          {filtered.length === 0
+            ? <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>No employees found</div>
+            : filtered.map(u => (
+              <button key={u.id} onClick={() => { toggle(u.id); setSearch(''); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', padding: '10px 14px', background: selected.includes(u.id) ? '#1a1a1a' : 'none', border: 'none', borderBottom: '1px solid #2d2d2d', color: '#e4e4e4', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#333'}
                 onMouseLeave={e => e.currentTarget.style.background = selected.includes(u.id) ? '#1a1a1a' : 'none'}
               >
-                <span style={{
-                  width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0,
-                  background: selected.includes(u.id) ? '#dc2626' : '#333',
-                  border: `1px solid ${selected.includes(u.id) ? '#dc2626' : '#555'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
+                <span style={{ width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0, background: selected.includes(u.id) ? '#dc2626' : '#333', border: `1px solid ${selected.includes(u.id) ? '#dc2626' : '#555'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {selected.includes(u.id) && <span style={{ color: '#fff', fontSize: '10px', lineHeight: 1 }}>&#10003;</span>}
                 </span>
                 {u.name}
               </button>
             ))
-          )}
+          }
         </div>
       )}
     </div>
   );
 }
 
+// ── Create / Edit Modal ───────────────────────────────────────────────────────
+
 function CreateEditModal({
   mode, formType, setFormType,
   formStart, setFormStart, formEnd, setFormEnd,
+  formAllDay, setFormAllDay,
+  formStartTime, setFormStartTime, formEndTime, setFormEndTime,
   formTitle, setFormTitle, formNotes, setFormNotes,
   formUserId, setFormUserId,
   formAssigneeIds, setFormAssigneeIds,
-  orderSearch, setOrderSearch,
-  orderResults, orderLoading,
+  orderSearch, setOrderSearch, orderResults, orderLoading,
   selectedOrder, setSelectedOrder, setFormOrderId,
-  users, user, isAdmin,
-  canCreate, saving, err,
+  users, user, isAdmin, canCreate, saving, err,
   onSave, onCancel,
 }) {
   const typeLabel = TYPE_LABELS[formType] || formType;
+  // TIME_OFF is always all-day
+  const supportsTime = formType !== 'TIME_OFF';
+  const isAllDay = !supportsTime || formAllDay;
 
   return (
     <>
       <ModalHead title={mode === 'create' ? 'New Event' : `Edit ${typeLabel}`} onClose={onCancel} />
       <div style={{ padding: '24px' }}>
 
-        {mode === 'create' && <TypeTabs value={formType} onChange={setFormType} canCreate={canCreate} />}
+        {mode === 'create' && <TypeTabs value={formType} onChange={t => { setFormType(t); if (t === 'TIME_OFF') setFormAllDay(true); }} canCreate={canCreate} />}
 
+        {/* INSTALL: optional order */}
         {formType === 'INSTALL' && (
           <Field label="Order (Optional)" hint="Link to a board order, or leave blank for jobs not yet on the board.">
             {selectedOrder ? (
@@ -331,52 +269,77 @@ function CreateEditModal({
           </Field>
         )}
 
+        {/* INSTALL without order: description */}
         {formType === 'INSTALL' && !selectedOrder && (
           <Field label="Description" hint="Shown on the calendar tile, e.g. Tech Support, Training Session">
-            <input
-              type="text"
-              placeholder="e.g. Tech Support Visit"
-              value={formTitle}
-              onChange={e => setFormTitle(e.target.value)}
-              style={inputSt}
-            />
+            <input type="text" placeholder="e.g. Tech Support Visit" value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} />
           </Field>
         )}
 
+        {/* INSTALL: assigned employees */}
         {formType === 'INSTALL' && (
           <Field label="Assigned Employees" hint="Search and select one or more team members for this install.">
             <AssigneePicker users={users} selected={formAssigneeIds} onChange={setFormAssigneeIds} />
           </Field>
         )}
 
+        {/* TIME_OFF: team member */}
         {formType === 'TIME_OFF' && (
           <Field label="Team Member">
-            {isAdmin ? (
-              <select value={formUserId} onChange={e => setFormUserId(e.target.value)} style={inputSt}>
-                <option value="">Select team member...</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            ) : (
-              <input type="text" value={user?.name || ''} disabled style={{ ...inputSt, color: '#6b7280' }} />
-            )}
+            {isAdmin
+              ? <select value={formUserId} onChange={e => setFormUserId(e.target.value)} style={inputSt}><option value="">Select team member...</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+              : <input type="text" value={user?.name || ''} disabled style={{ ...inputSt, color: '#6b7280' }} />
+            }
           </Field>
         )}
 
+        {/* BLOCKED: title */}
         {formType === 'BLOCKED' && (
           <Field label="Title">
             <input type="text" placeholder="e.g. Company Holiday, Shop Closed..." value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} />
           </Field>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <Field label="Start Date">
-            <input type="date" value={formStart} onChange={e => { setFormStart(e.target.value); if (!formEnd || formEnd < e.target.value) setFormEnd(e.target.value); }} style={inputSt} />
-          </Field>
-          <Field label="End Date">
-            <input type="date" value={formEnd} min={formStart} onChange={e => setFormEnd(e.target.value)} style={inputSt} />
-          </Field>
-        </div>
+        {/* All Day toggle — only for event types that support timed scheduling */}
+        {supportsTime && (
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={formAllDay}
+                onChange={e => setFormAllDay(e.target.checked)}
+                style={{ accentColor: '#dc2626', width: '15px', height: '15px' }}
+              />
+              <span style={{ fontSize: '13px', color: '#a0a0a0', userSelect: 'none' }}>All day event</span>
+            </label>
+          </div>
+        )}
 
+        {/* Date row — single date for timed, start+end for all-day */}
+        {isAllDay ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Field label="Start Date">
+              <input type="date" value={formStart} onChange={e => { setFormStart(e.target.value); if (!formEnd || formEnd < e.target.value) setFormEnd(e.target.value); }} style={inputSt} />
+            </Field>
+            <Field label="End Date">
+              <input type="date" value={formEnd} min={formStart} onChange={e => setFormEnd(e.target.value)} style={inputSt} />
+            </Field>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <Field label="Date">
+              <input type="date" value={formStart} onChange={e => setFormStart(e.target.value)} style={inputSt} />
+            </Field>
+            <Field label="Start Time">
+              <input type="time" value={formStartTime} onChange={e => setFormStartTime(e.target.value)} style={inputSt} />
+            </Field>
+            <Field label="End Time">
+              <input type="time" value={formEndTime} onChange={e => setFormEndTime(e.target.value)} style={inputSt} />
+            </Field>
+          </div>
+        )}
+
+        {/* Notes */}
         {formType === 'INSTALL' && (
           <Field label="Notes (Optional)" hint="The customer will see this note in their install confirmation email.">
             <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="e.g. Please ensure the installation area is clear and accessible." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
@@ -396,16 +359,14 @@ function CreateEditModal({
   );
 }
 
+// ── View Modal ────────────────────────────────────────────────────────────────
+
 function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete, onResend, onClose }) {
   const color      = EVENT_COLORS[event.type] || { bg: '#888' };
   const canEdit    = isAdmin || event.createdById === user?.id;
   const isSameDay  = toDateStr(event.startDate) === toDateStr(event.endDate);
   const badgeLabel = TYPE_LABELS[event.type] || event.type;
-
-  const assignees = (event.assignees || []).map(a => ({
-    id: a.id,
-    name: a.name || users.find(u => u.id === a.id)?.name || a.id,
-  }));
+  const assignees  = (event.assignees || []).map(a => ({ id: a.id, name: a.name || users.find(u => u.id === a.id)?.name || a.id }));
 
   return (
     <>
@@ -413,34 +374,30 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
       <div style={{ padding: '24px' }}>
 
         <InfoRow label="Date">
-          {isSameDay
-            ? formatDisplayDate(event.startDate)
-            : `${formatDisplayDate(event.startDate)} \u2192 ${formatDisplayDate(event.endDate)}`}
+          {event.allDay === false
+            ? formatDisplayDateTime(event.startDate, event.endDate)
+            : isSameDay
+              ? formatDisplayDate(event.startDate)
+              : `${formatDisplayDate(event.startDate)} \u2192 ${formatDisplayDate(event.endDate)}`
+          }
         </InfoRow>
 
         {event.type === 'INSTALL' && event.order && (
           <InfoRow label="Customer">
             {event.order.account?.name}
-            {event.order.account?.contactName && (
-              <span style={{ color: '#a0a0a0', fontSize: '14px' }}> \u2014 {event.order.account.contactName}</span>
-            )}
+            {event.order.account?.contactName && <span style={{ color: '#a0a0a0', fontSize: '14px' }}> \u2014 {event.order.account.contactName}</span>}
           </InfoRow>
         )}
 
         {event.type === 'INSTALL' && assignees.length > 0 && (
           <InfoRow label="Assigned Employees">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-              {assignees.map(a => (
-                <span key={a.id} style={{ padding: '4px 12px', background: '#1f1f1f', border: '1px solid #404040', borderRadius: '99px', fontSize: '13px', color: '#e4e4e4' }}>{a.name}</span>
-              ))}
+              {assignees.map(a => <span key={a.id} style={{ padding: '4px 12px', background: '#1f1f1f', border: '1px solid #404040', borderRadius: '99px', fontSize: '13px', color: '#e4e4e4' }}>{a.name}</span>)}
             </div>
           </InfoRow>
         )}
 
-        {event.type === 'TIME_OFF' && event.user && (
-          <InfoRow label="Team Member">{event.user.name}</InfoRow>
-        )}
-
+        {event.type === 'TIME_OFF' && event.user && <InfoRow label="Team Member">{event.user.name}</InfoRow>}
         {event.notes && <InfoRow label="Notes">{event.notes}</InfoRow>}
 
         {event.type === 'INSTALL' && (
@@ -452,7 +409,6 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         )}
 
         <InfoRow label="Created By">{event.createdBy?.name || '\u2014'}</InfoRow>
-
         <ErrBox msg={err} />
 
         <div style={{ display: 'flex', gap: '8px', marginTop: '20px', flexWrap: 'wrap' }}>
@@ -463,8 +419,7 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
             </>
           )}
           {event.type === 'INSTALL' && canEdit && (
-            <button onClick={onResend} disabled={saving}
-              style={{ ...btnBase, background: '#0f172a', color: '#93c5fd', border: '1px solid #1e3a5f', fontWeight: 400, opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            <button onClick={onResend} disabled={saving} style={{ ...btnBase, background: '#0f172a', color: '#93c5fd', border: '1px solid #1e3a5f', fontWeight: 400, opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
               {saving ? 'Sending...' : event.customerNotified ? 'Resend Email' : 'Send Email'}
             </button>
           )}
@@ -482,7 +437,7 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
         <p style={{ color: '#e4e4e4', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>Are you sure you want to delete <strong>{event.title}</strong>?</p>
         {event.type === 'INSTALL' && event.order && (
           <div style={{ padding: '12px 16px', background: '#451a03', border: '1px solid #92400e', borderRadius: '6px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px' }}>
-            This will remove the install date from the customer's tracking page.
+            This will remove the install date from the customer tracking page.
           </div>
         )}
         <ErrBox msg={err} />
@@ -497,17 +452,17 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
   );
 }
 
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
   const calendarRef = useRef(null);
 
   const [navContext, setNavContext] = useState('board');
-
   useEffect(() => {
     const referrer = typeof document !== 'undefined' ? document.referrer : '';
     if (referrer && referrer.includes('/invoicing')) {
-      sessionStorage.setItem(NAV_KEY, 'invoicing');
-      setNavContext('invoicing');
+      sessionStorage.setItem(NAV_KEY, 'invoicing'); setNavContext('invoicing');
     } else {
       const stored = sessionStorage.getItem(NAV_KEY);
       if (stored === 'invoicing' || stored === 'board') setNavContext(stored);
@@ -517,13 +472,16 @@ export default function CalendarPage() {
   const [events,  setEvents]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [users,   setUsers]   = useState([]);
-
   const [modal,         setModal]         = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
+  // Form state
   const [formType,        setFormType]        = useState('INSTALL');
+  const [formAllDay,      setFormAllDay]      = useState(true);
   const [formStart,       setFormStart]       = useState('');
   const [formEnd,         setFormEnd]         = useState('');
+  const [formStartTime,   setFormStartTime]   = useState('09:00');
+  const [formEndTime,     setFormEndTime]     = useState('10:00');
   const [formTitle,       setFormTitle]       = useState('');
   const [formNotes,       setFormNotes]       = useState('');
   const [formUserId,      setFormUserId]      = useState('');
@@ -542,9 +500,7 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!user) return;
     fetch('/api/users/internal', { headers: getAuthHeaders() })
-      .then(r => r.json())
-      .then(d => setUsers(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .then(r => r.json()).then(d => setUsers(Array.isArray(d) ? d : [])).catch(() => {});
   }, [user]);
 
   const fetchEvents = useCallback(async (start, end) => {
@@ -563,21 +519,29 @@ export default function CalendarPage() {
           const firstNames = e.assignees.map(a => a.name.split(' ')[0]).join(', ');
           tileTitle = `${e.title} \u00b7 ${firstNames}`;
         }
-        const startStr = toDateStr(e.startDate);
-        const endStr   = toDateStr(e.endDate);
-        return {
-          id:              e.id,
-          title:           tileTitle,
-          start:           startStr,
-          // FullCalendar all-day ends are exclusive — add 1 day so "through April 15"
-          // is passed as "April 16" and renders correctly on all intended days.
-          end:             fcEndDate(endStr),
-          allDay:          true,
-          backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
-          borderColor:     EVENT_COLORS[e.type]?.border || '#666',
-          textColor:       EVENT_COLORS[e.type]?.text   || '#fff',
-          extendedProps:   e,
-        };
+        if (e.allDay !== false) {
+          // All-day: use date-only strings with exclusive-end offset
+          const startStr = toDateStr(e.startDate);
+          const endStr   = toDateStr(e.endDate);
+          return {
+            id: e.id, title: tileTitle, allDay: true,
+            start: startStr, end: fcEndDate(endStr),
+            backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
+            borderColor:     EVENT_COLORS[e.type]?.border || '#666',
+            textColor:       EVENT_COLORS[e.type]?.text   || '#fff',
+            extendedProps: e,
+          };
+        } else {
+          // Timed: pass raw ISO strings — FullCalendar renders in the time grid
+          return {
+            id: e.id, title: tileTitle, allDay: false,
+            start: e.startDate, end: e.endDate,
+            backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
+            borderColor:     EVENT_COLORS[e.type]?.border || '#666',
+            textColor:       EVENT_COLORS[e.type]?.text   || '#fff',
+            extendedProps: e,
+          };
+        }
       }));
     } catch (e) {
       console.error('[CALENDAR] fetchEvents error:', e);
@@ -601,19 +565,18 @@ export default function CalendarPage() {
     return () => clearTimeout(t);
   }, [orderSearch, formType]);
 
-  function openCreate(dateStr) {
+  function openCreate(dateStr, isAllDay = true, startTime = null, endTime = null) {
     const defaultType = canCreate('INSTALL') ? 'INSTALL' : canCreate('TIME_OFF') ? 'TIME_OFF' : 'BLOCKED';
     setFormType(defaultType);
-    setFormStart(dateStr);
-    setFormEnd(dateStr);
-    setFormTitle('');
-    setFormNotes('');
-    setFormUserId(user?.id || '');
-    setFormOrderId('');
-    setFormAssigneeIds([]);
-    setSelectedOrder(null);
-    setOrderSearch('');
-    setOrderResults([]);
+    setFormAllDay(defaultType === 'TIME_OFF' ? true : isAllDay);
+    setFormStart(String(dateStr).substring(0, 10));
+    setFormEnd(String(dateStr).substring(0, 10));
+    setFormStartTime(startTime || '09:00');
+    setFormEndTime(endTime || '10:00');
+    setFormTitle(''); setFormNotes('');
+    setFormUserId(user?.id || ''); setFormOrderId('');
+    setFormAssigneeIds([]); setSelectedOrder(null);
+    setOrderSearch(''); setOrderResults([]);
     setErr('');
     setModal('create');
   }
@@ -626,9 +589,13 @@ export default function CalendarPage() {
 
   function openEdit() {
     const e = selectedEvent;
+    const isAllDay = e.allDay !== false;
     setFormType(e.type);
+    setFormAllDay(isAllDay);
     setFormStart(toInputDate(e.startDate));
     setFormEnd(toInputDate(e.endDate));
+    setFormStartTime(isAllDay ? '09:00' : toInputTime(e.startDate));
+    setFormEndTime(isAllDay ? '10:00' : toInputTime(e.endDate));
     setFormNotes(e.notes || '');
     setFormUserId(e.userId || '');
     setFormOrderId(e.orderId || '');
@@ -640,13 +607,8 @@ export default function CalendarPage() {
     } else {
       setFormTitle(e.title || '');
     }
-    setSelectedOrder(
-      e.order
-        ? { id: e.order.id, label: acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || e.order.id) }
-        : null
-    );
-    setOrderSearch('');
-    setOrderResults([]);
+    setSelectedOrder(e.order ? { id: e.order.id, label: acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || e.order.id) } : null);
+    setOrderSearch(''); setOrderResults([]);
     setErr('');
     setModal('edit');
   }
@@ -656,44 +618,36 @@ export default function CalendarPage() {
     if (!formStart) { setErr('Start date is required'); return; }
     if (formType === 'BLOCKED' && !formTitle) { setErr('Title is required'); return; }
 
+    const isAllDay = formType === 'TIME_OFF' ? true : formAllDay;
+
     let autoTitle = formTitle;
     if (formType === 'INSTALL') {
-      autoTitle = selectedOrder
-        ? `Install \u2014 ${selectedOrder.label}`
-        : `Install${formTitle ? ` \u2014 ${formTitle}` : ''}`;
+      autoTitle = selectedOrder ? `Install \u2014 ${selectedOrder.label}` : `Install${formTitle ? ` \u2014 ${formTitle}` : ''}`;
     } else if (formType === 'TIME_OFF') {
       const tUser = users.find(u => u.id === formUserId);
       autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Out of Office`;
     }
 
+    // Build date strings: YYYY-MM-DD for all-day, YYYY-MM-DDTHH:MM:SS for timed
+    const startDate = isAllDay ? formStart : `${formStart}T${formStartTime}:00`;
+    const endDate   = isAllDay ? (formEnd || formStart) : `${formStart}T${formEndTime}:00`;
+
     setSaving(true);
     try {
       const body = {
-        type:      formType,
-        title:     autoTitle,
-        startDate: formStart,
-        endDate:   formEnd || formStart,
-        allDay:    true,
-        notes:     formNotes || null,
+        type: formType, title: autoTitle,
+        startDate, endDate, allDay: isAllDay,
+        notes: formNotes || null,
         ...(formType === 'INSTALL'  && { orderId: formOrderId || null, assigneeIds: formAssigneeIds }),
         ...(formType === 'TIME_OFF' && { userId: formUserId || user?.id }),
       };
 
       const isEdit = modal === 'edit';
-      const url    = isEdit ? `/api/calendar/events/${selectedEvent.id}` : '/api/calendar/events';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || 'Save failed');
-      }
-
+      const res = await fetch(
+        isEdit ? `/api/calendar/events/${selectedEvent.id}` : '/api/calendar/events',
+        { method: isEdit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(body) }
+      );
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Save failed'); }
       setModal(null);
       fetchEvents(null, null);
     } catch (e) {
@@ -708,36 +662,34 @@ export default function CalendarPage() {
     try {
       const res = await fetch(`/api/calendar/events/${selectedEvent.id}`, { method: 'DELETE', headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Delete failed');
-      setModal(null);
-      fetchEvents(null, null);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setSaving(false);
-    }
+      setModal(null); fetchEvents(null, null);
+    } catch (e) { setErr(e.message); } finally { setSaving(false); }
   }
 
   async function handleResend() {
-    setSaving(true);
-    setErr('');
+    setSaving(true); setErr('');
     try {
       const res = await fetch(`/api/calendar/events/${selectedEvent.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ resendEmail: true }),
       });
       if (!res.ok) throw new Error('Send failed');
-      setModal(null);
-      fetchEvents(null, null);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setSaving(false);
-    }
+      setModal(null); fetchEvents(null, null);
+    } catch (e) { setErr(e.message); } finally { setSaving(false); }
   }
 
   if (authLoading) return <div style={{ padding: '80px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>;
   if (!user) return null;
+
+  const sharedModalProps = {
+    formType, setFormType, formStart, setFormStart, formEnd, setFormEnd,
+    formAllDay, setFormAllDay, formStartTime, setFormStartTime, formEndTime, setFormEndTime,
+    formTitle, setFormTitle, formNotes, setFormNotes,
+    formUserId, setFormUserId, formAssigneeIds, setFormAssigneeIds,
+    orderSearch, setOrderSearch, orderResults, orderLoading,
+    selectedOrder, setSelectedOrder, setFormOrderId,
+    users, user, isAdmin, canCreate, saving, err,
+  };
 
   return (
     <>
@@ -768,6 +720,8 @@ export default function CalendarPage() {
           .cal-wrap .fc-timegrid-slot { background: #111; border-color: #2d2d2d !important; }
           .cal-wrap .fc-timegrid-slot-label-cushion { color: #6b7280; font-size: 12px; }
           .cal-wrap .fc-toolbar { margin-bottom: 18px !important; }
+          .cal-wrap .fc-timegrid-now-indicator-line { border-color: #dc2626 !important; }
+          .cal-wrap .fc-timegrid-now-indicator-arrow { border-top-color: #dc2626 !important; border-bottom-color: #dc2626 !important; }
         `}</style>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
@@ -796,8 +750,23 @@ export default function CalendarPage() {
             height="auto"
             fixedWeekCount={false}
             dayMaxEvents={4}
+            slotMinTime="05:00:00"
+            slotMaxTime="19:00:00"
+            nowIndicator={true}
             dateClick={info => {
-              if (canCreate('INSTALL') || canCreate('TIME_OFF') || canCreate('BLOCKED')) openCreate(info.dateStr);
+              if (!canCreate('INSTALL') && !canCreate('TIME_OFF') && !canCreate('BLOCKED')) return;
+              if (info.allDay) {
+                openCreate(info.dateStr, true);
+              } else {
+                // Time-slot click: pre-fill the clicked hour and +1 hour
+                const d    = info.date;
+                const hS   = String(d.getHours()).padStart(2, '0');
+                const mS   = String(d.getMinutes()).padStart(2, '0');
+                const dEnd = new Date(d.getTime() + 60 * 60 * 1000);
+                const hE   = String(dEnd.getHours()).padStart(2, '0');
+                const mE   = String(dEnd.getMinutes()).padStart(2, '0');
+                openCreate(info.dateStr, false, `${hS}:${mS}`, `${hE}:${mE}`);
+              }
             }}
             eventClick={info => openView(info)}
             datesSet={info => fetchEvents(info.start, info.end)}
@@ -808,58 +777,21 @@ export default function CalendarPage() {
 
         {modal === 'create' && (
           <Overlay onClose={() => !saving && setModal(null)}>
-            <CreateEditModal
-              mode="create"
-              formType={formType}               setFormType={setFormType}
-              formStart={formStart}             setFormStart={setFormStart}
-              formEnd={formEnd}                 setFormEnd={setFormEnd}
-              formTitle={formTitle}             setFormTitle={setFormTitle}
-              formNotes={formNotes}             setFormNotes={setFormNotes}
-              formUserId={formUserId}           setFormUserId={setFormUserId}
-              formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
-              orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
-              orderResults={orderResults}       orderLoading={orderLoading}
-              selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
-              setFormOrderId={setFormOrderId}
-              users={users} user={user} isAdmin={isAdmin}
-              canCreate={canCreate} saving={saving} err={err}
-              onSave={handleSave} onCancel={() => setModal(null)}
-            />
+            <CreateEditModal mode="create" {...sharedModalProps} onSave={handleSave} onCancel={() => setModal(null)} />
           </Overlay>
         )}
 
         {modal === 'view' && selectedEvent && (
           <Overlay onClose={() => !saving && setModal(null)}>
-            <ViewModal
-              event={selectedEvent} user={user} isAdmin={isAdmin} users={users}
-              saving={saving} err={err}
-              onEdit={openEdit}
-              onDelete={() => { setErr(''); setModal('confirm-delete'); }}
-              onResend={handleResend}
-              onClose={() => setModal(null)}
-            />
+            <ViewModal event={selectedEvent} user={user} isAdmin={isAdmin} users={users} saving={saving} err={err}
+              onEdit={openEdit} onDelete={() => { setErr(''); setModal('confirm-delete'); }} onResend={handleResend} onClose={() => setModal(null)} />
           </Overlay>
         )}
 
         {modal === 'edit' && (
           <Overlay onClose={() => !saving && setModal('view')}>
-            <CreateEditModal
-              mode="edit"
-              formType={formType}               setFormType={() => {}}
-              formStart={formStart}             setFormStart={setFormStart}
-              formEnd={formEnd}                 setFormEnd={setFormEnd}
-              formTitle={formTitle}             setFormTitle={setFormTitle}
-              formNotes={formNotes}             setFormNotes={setFormNotes}
-              formUserId={formUserId}           setFormUserId={setFormUserId}
-              formAssigneeIds={formAssigneeIds} setFormAssigneeIds={setFormAssigneeIds}
-              orderSearch={orderSearch}         setOrderSearch={setOrderSearch}
-              orderResults={orderResults}       orderLoading={orderLoading}
-              selectedOrder={selectedOrder}     setSelectedOrder={setSelectedOrder}
-              setFormOrderId={setFormOrderId}
-              users={users} user={user} isAdmin={isAdmin}
-              canCreate={canCreate} saving={saving} err={err}
-              onSave={handleSave} onCancel={() => setModal('view')}
-            />
+            <CreateEditModal mode="edit" {...sharedModalProps}
+              setFormType={() => {}} onSave={handleSave} onCancel={() => setModal('view')} />
           </Overlay>
         )}
 
