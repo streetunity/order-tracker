@@ -65,7 +65,6 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4000;
 const HOST = '0.0.0.0';
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
   'https://smt-orders.com', 'http://smt-orders.com',
   'https://www.smt-orders.com', 'http://www.smt-orders.com',
@@ -93,7 +92,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 }));
 
-// ── NexNP WEBHOOK — must be BEFORE express.json() ────────────────────────────
 app.post(
   '/public/nextnp-webhook',
   express.raw({ type: '*/*' }),
@@ -101,7 +99,6 @@ app.post(
 );
 console.log('✅ NexNP webhook endpoint loaded (raw body, pre-json)');
 
-// ── Global middleware ─────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(cookieParser());
 app.use((req, res, next) => {
@@ -116,7 +113,6 @@ global.calculateCommissionForOrder = calculateCommissionForOrder;
 global.recalculateCommissionIfPriceChanged = recalculateCommissionIfPriceChanged;
 global.checkCommissionPayoutTrigger = checkCommissionPayoutTrigger;
 
-// ── Initialise routers ────────────────────────────────────────────────────────
 const reportsRouter            = createReportsRouter(prisma);
 const operationalReportsRouter = createOperationalReportsRouter(prisma);
 const cycleTimeReportsRouter   = createCycleTimeReportsRouter(prisma);
@@ -160,10 +156,8 @@ const emailTemplateSettingsRouter = createEmailTemplateSettingsRouter(prisma);
 const invoicingSettingsRouter  = createInvoicingSettingsRouter(prisma);
 const calendarRouter           = createCalendarRouter(prisma);
 
-// ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
-// ── Public routes ─────────────────────────────────────────────────────────────
 app.use('/public', publicRouter);
 app.use('/public', publicCustomerDocumentsRouter);
 app.use('/public', publicInvoicingRouter);
@@ -179,7 +173,6 @@ app.get('/pdfs/:filename', (req, res) => {
   res.sendFile(pdfPath, err => err && res.status(404).json({ error: 'PDF not found' }));
 });
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
 app.use('/auth', (req, res, next) => {
   if (['/me', '/logout', '/change-password'].includes(req.path)) {
     return authGuard(req, res, () => authRouter(req, res, next));
@@ -187,14 +180,12 @@ app.use('/auth', (req, res, next) => {
   authRouter(req, res, next);
 });
 
-// ── Reports ───────────────────────────────────────────────────────────────────
 app.use('/reports', authGuard, nonManufacturerGuard, reportsRouter);
 app.use('/reports', authGuard, nonManufacturerGuard, operationalReportsRouter);
 app.use('/reports', authGuard, nonManufacturerGuard, cycleTimeReportsRouter);
 
 app.use('/settings', adminGuard, settingsRouter);
 
-// ── Users (specific routes BEFORE adminGuard catch-all) ───────────────────────
 app.get('/users/sales-reps', authGuard, async (req, res) => {
   try {
     res.json(await prisma.user.findMany({
@@ -204,25 +195,26 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
     }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// Internal employees: active, not MANUFACTURER or BROKER, and isEmployee is not
-// explicitly false. Using OR [true, null] because SQLite NULL != false doesn't
-// work as expected with Prisma's { not: false } filter.
+
+// Internal employees for calendar assignee picker.
+// Uses raw SQL because the isEmployee column was added via db push — pre-existing
+// rows have SQLite NULL even though the Prisma schema declares it non-nullable.
+// Prisma ORM rejects { isEmployee: null } queries on non-nullable fields, so
+// $queryRawUnsafe is the only way to correctly match NULL OR 1 here.
 app.get('/users/internal', authGuard, async (req, res) => {
   try {
-    res.json(await prisma.user.findMany({
-      where: {
-        isActive: true,
-        role: { notIn: ['MANUFACTURER', 'BROKER'] },
-        OR: [
-          { isEmployee: true },
-          { isEmployee: null },
-        ],
-      },
-      select: { id: true, name: true, role: true },
-      orderBy: { name: 'asc' },
-    }));
+    const users = await prisma.$queryRawUnsafe(`
+      SELECT id, name, role
+      FROM "User"
+      WHERE isActive = 1
+        AND role NOT IN ('MANUFACTURER', 'BROKER')
+        AND (isEmployee IS NULL OR isEmployee = 1)
+      ORDER BY name ASC
+    `);
+    res.json(users);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
 app.get('/users/search', authGuard, async (req, res) => {
   try {
     const { q } = req.query;
@@ -237,7 +229,6 @@ app.get('/users/search', authGuard, async (req, res) => {
 });
 app.use('/users', adminGuard, usersRouter);
 
-// ── Manufacturers ─────────────────────────────────────────────────────────────
 app.get('/manufacturers/active', authGuard, async (req, res) => {
   try {
     res.json(await prisma.manufacturer.findMany({
@@ -249,7 +240,6 @@ app.get('/manufacturers/active', authGuard, async (req, res) => {
 });
 app.use('/manufacturers', adminGuard, manufacturersRouter);
 
-// ── Core order management ─────────────────────────────────────────────────────
 app.use('/accounts', authGuard, nonManufacturerGuard, accountsRouter);
 app.use('/orders', authGuard, ordersRouter);
 app.use('/orders', authGuard, itemsRouter);
