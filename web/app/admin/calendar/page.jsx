@@ -57,11 +57,7 @@ function formatDisplayDateTime(startStr, endStr) {
 function toInputDate(dateOrStr) {
   if (!dateOrStr) return '';
   const d = new Date(dateOrStr);
-  return [
-    d.getUTCFullYear(),
-    String(d.getUTCMonth() + 1).padStart(2, '0'),
-    String(d.getUTCDate()).padStart(2, '0'),
-  ].join('-');
+  return [d.getUTCFullYear(), String(d.getUTCMonth() + 1).padStart(2, '0'), String(d.getUTCDate()).padStart(2, '0')].join('-');
 }
 
 function toInputTime(dateOrStr) {
@@ -72,7 +68,6 @@ function toInputTime(dateOrStr) {
 
 function toDateStr(dateOrStr) { return toInputDate(dateOrStr); }
 
-// FullCalendar all-day ends are exclusive: add 1 day.
 function fcEndDate(dateStr) {
   if (!dateStr) return dateStr;
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -80,18 +75,11 @@ function fcEndDate(dateStr) {
   return [next.getUTCFullYear(), String(next.getUTCMonth()+1).padStart(2,'0'), String(next.getUTCDate()).padStart(2,'0')].join('-');
 }
 
-/**
- * Build the display title for an INSTALL event from live order data.
- * Stored titles may have the old "Install — Customer — PO#" format.
- * This always produces "Install — Customer — Contact" (or just "Install — Customer").
- */
 function buildInstallTitle(event) {
   if (event.type !== 'INSTALL') return event.title;
-  if (!event.order) return event.title; // no order linked — use stored title (free-form)
+  if (!event.order) return event.title;
   const acct = event.order.account;
-  const label = acct?.contactName
-    ? `${acct.name} \u2014 ${acct.contactName}`
-    : (acct?.name || 'Install');
+  const label = acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || 'Install');
   return `Install \u2014 ${label}`;
 }
 
@@ -113,10 +101,10 @@ const btnBase = {
 function Overlay({ children, onClose }) {
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div style={{ background: '#171717', border: '1px solid #2a2a2a', borderRadius: '14px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
         {children}
       </div>
     </div>
@@ -125,12 +113,12 @@ function Overlay({ children, onClose }) {
 
 function ModalHead({ title, badge, badgeColor, onClose }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #2d2d2d' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #222' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <h2 style={{ color: '#e4e4e4', fontSize: '17px', fontWeight: 700, margin: 0 }}>{title}</h2>
-        {badge && <span style={{ padding: '3px 9px', borderRadius: '99px', fontSize: '11px', fontWeight: 700, background: badgeColor || '#333', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{badge}</span>}
+        <h2 style={{ color: '#f0f0f0', fontSize: '17px', fontWeight: 700, margin: 0, letterSpacing: '-0.2px' }}>{title}</h2>
+        {badge && <span style={{ padding: '3px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 700, background: badgeColor || '#333', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{badge}</span>}
       </div>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: '4px' }}>&times;</button>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '22px', lineHeight: 1, padding: '4px', borderRadius: '4px' }}>&times;</button>
     </div>
   );
 }
@@ -138,17 +126,17 @@ function ModalHead({ title, badge, badgeColor, onClose }) {
 function Field({ label, hint, children }) {
   return (
     <div style={{ marginBottom: '16px' }}>
-      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#a0a0a0', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '6px' }}>{label}</label>
+      <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>{label}</label>
       {children}
-      {hint && <p style={{ fontSize: '11px', color: '#6b7280', margin: '4px 0 0' }}>{hint}</p>}
+      {hint && <p style={{ fontSize: '11px', color: '#555', margin: '5px 0 0', lineHeight: 1.4 }}>{hint}</p>}
     </div>
   );
 }
 
 function InfoRow({ label, children }) {
   return (
-    <div style={{ marginBottom: '14px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '4px' }}>{label}</div>
+    <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #1e1e1e' }}>
+      <div style={{ fontSize: '10px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>{label}</div>
       <div style={{ fontSize: '15px', color: '#e4e4e4', lineHeight: 1.5 }}>{children}</div>
     </div>
   );
@@ -156,7 +144,7 @@ function InfoRow({ label, children }) {
 
 function ErrBox({ msg }) {
   if (!msg) return null;
-  return <div style={{ padding: '10px 14px', background: '#7f1d1d', border: '1px solid #991b1b', borderRadius: '6px', color: '#fecaca', fontSize: '13px', marginBottom: '16px' }}>{msg}</div>;
+  return <div style={{ padding: '10px 14px', background: '#2d0a0a', border: '1px solid #7f1d1d', borderRadius: '6px', color: '#fca5a5', fontSize: '13px', marginBottom: '16px' }}>{msg}</div>;
 }
 
 function TypeTabs({ value, onChange, canCreate }) {
@@ -167,17 +155,17 @@ function TypeTabs({ value, onChange, canCreate }) {
   ].filter(t => canCreate(t.key));
 
   return (
-    <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+    <div style={{ display: 'flex', gap: '8px', marginBottom: '22px' }}>
       {types.map(t => (
         <button key={t.key} onClick={() => onChange(t.key)} style={{
-          flex: 1, padding: '12px 8px', borderRadius: '8px',
-          border: `2px solid ${value === t.key ? t.color : '#2d2d2d'}`,
-          background: value === t.key ? t.color + '18' : '#111',
-          color: value === t.key ? '#e4e4e4' : '#6b7280',
-          cursor: 'pointer', fontSize: '13px', fontWeight: value === t.key ? 700 : 400,
+          flex: 1, padding: '13px 8px', borderRadius: '10px',
+          border: `1.5px solid ${value === t.key ? t.color : '#222'}`,
+          background: value === t.key ? t.color + '15' : '#0f0f0f',
+          color: value === t.key ? '#e4e4e4' : '#555',
+          cursor: 'pointer', fontSize: '13px', fontWeight: value === t.key ? 700 : 500,
           transition: 'all 0.15s', fontFamily: 'inherit',
         }}>
-          <span style={{ display: 'block', width: '10px', height: '10px', borderRadius: '50%', background: t.color, margin: '0 auto 6px' }} />
+          <span style={{ display: 'block', width: '9px', height: '9px', borderRadius: '50%', background: t.color, margin: '0 auto 7px', opacity: value === t.key ? 1 : 0.5 }} />
           {TYPE_LABELS[t.key]}
         </button>
       ))}
@@ -197,7 +185,7 @@ function AssigneePicker({ users, selected, onChange }) {
           {selected.map(id => {
             const u = users.find(u => u.id === id);
             return (
-              <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: '#dc262620', border: '1px solid #dc2626', borderRadius: '99px', fontSize: '12px', color: '#e4e4e4' }}>
+              <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '99px', fontSize: '12px', color: '#fca5a5' }}>
                 {u?.name || id}
                 <button onClick={() => toggle(id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: 0 }}>&times;</button>
               </span>
@@ -207,16 +195,16 @@ function AssigneePicker({ users, selected, onChange }) {
       )}
       <input type="text" placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} style={inputSt} />
       {search.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#252525', border: '1px solid #333', borderTop: 'none', borderRadius: '0 0 6px 6px', zIndex: 20, maxHeight: '200px', overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1a1a', border: '1px solid #2a2a2a', borderTop: 'none', borderRadius: '0 0 8px 8px', zIndex: 20, maxHeight: '200px', overflowY: 'auto' }}>
           {filtered.length === 0
-            ? <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>No employees found</div>
+            ? <div style={{ padding: '10px 14px', color: '#555', fontSize: '13px' }}>No employees found</div>
             : filtered.map(u => (
               <button key={u.id} onClick={() => { toggle(u.id); setSearch(''); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', padding: '10px 14px', background: selected.includes(u.id) ? '#1a1a1a' : 'none', border: 'none', borderBottom: '1px solid #2d2d2d', color: '#e4e4e4', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#333'}
-                onMouseLeave={e => e.currentTarget.style.background = selected.includes(u.id) ? '#1a1a1a' : 'none'}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left', padding: '10px 14px', background: selected.includes(u.id) ? '#222' : 'none', border: 'none', borderBottom: '1px solid #1e1e1e', color: '#e4e4e4', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#252525'}
+                onMouseLeave={e => e.currentTarget.style.background = selected.includes(u.id) ? '#222' : 'none'}
               >
-                <span style={{ width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0, background: selected.includes(u.id) ? '#dc2626' : '#333', border: `1px solid ${selected.includes(u.id) ? '#dc2626' : '#555'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ width: '16px', height: '16px', borderRadius: '4px', flexShrink: 0, background: selected.includes(u.id) ? '#dc2626' : '#222', border: `1px solid ${selected.includes(u.id) ? '#dc2626' : '#3a3a3a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {selected.includes(u.id) && <span style={{ color: '#fff', fontSize: '10px', lineHeight: 1 }}>&#10003;</span>}
                 </span>
                 {u.name}
@@ -258,20 +246,20 @@ function CreateEditModal({
         {formType === 'INSTALL' && (
           <Field label="Order (Optional)" hint="Link to a board order, or leave blank for jobs not yet on the board.">
             {selectedOrder ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#0f0f0f', border: '1px solid #dc2626', borderRadius: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#0f0f0f', border: '1px solid #dc2626', borderRadius: '8px' }}>
                 <span style={{ color: '#e4e4e4', fontSize: '14px', flex: 1 }}>{selectedOrder.label}</span>
-                <button onClick={() => { setSelectedOrder(null); setFormOrderId(''); setOrderSearch(''); }} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px' }}>&times;</button>
+                <button onClick={() => { setSelectedOrder(null); setFormOrderId(''); setOrderSearch(''); }} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '18px' }}>&times;</button>
               </div>
             ) : (
               <div style={{ position: 'relative' }}>
                 <input type="text" placeholder="Search by customer name or contact..." value={orderSearch} onChange={e => setOrderSearch(e.target.value)} style={inputSt} />
                 {(orderResults.length > 0 || orderLoading) && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#252525', border: '1px solid #333', borderTop: 'none', borderRadius: '0 0 6px 6px', zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}>
-                    {orderLoading && <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>Searching...</div>}
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#1a1a1a', border: '1px solid #2a2a2a', borderTop: 'none', borderRadius: '0 0 8px 8px', zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}>
+                    {orderLoading && <div style={{ padding: '10px 14px', color: '#555', fontSize: '13px' }}>Searching...</div>}
                     {orderResults.map(o => (
                       <button key={o.id} onClick={() => { setSelectedOrder(o); setFormOrderId(o.id); setOrderSearch(''); }}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', color: '#e4e4e4', cursor: 'pointer', fontSize: '13px', borderBottom: '1px solid #2d2d2d', fontFamily: 'inherit' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#333'}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', color: '#e4e4e4', cursor: 'pointer', fontSize: '13px', borderBottom: '1px solid #1e1e1e', fontFamily: 'inherit' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#222'}
                         onMouseLeave={e => e.currentTarget.style.background = 'none'}
                       >{o.label}</button>
                     ))}
@@ -289,7 +277,7 @@ function CreateEditModal({
         )}
 
         {formType === 'INSTALL' && (
-          <Field label="Assigned Employees" hint="Search and select one or more team members for this install.">
+          <Field label="Assigned Employees" hint="Search and select one or more team members.">
             <AssigneePicker users={users} selected={formAssigneeIds} onChange={setFormAssigneeIds} />
           </Field>
         )}
@@ -298,7 +286,7 @@ function CreateEditModal({
           <Field label="Team Member">
             {isAdmin
               ? <select value={formUserId} onChange={e => setFormUserId(e.target.value)} style={inputSt}><option value="">Select team member...</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
-              : <input type="text" value={user?.name || ''} disabled style={{ ...inputSt, color: '#6b7280' }} />
+              : <input type="text" value={user?.name || ''} disabled style={{ ...inputSt, color: '#555' }} />
             }
           </Field>
         )}
@@ -310,10 +298,10 @@ function CreateEditModal({
         )}
 
         {supportsTime && (
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '18px' }}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <input type="checkbox" checked={formAllDay} onChange={e => setFormAllDay(e.target.checked)} style={{ accentColor: '#dc2626', width: '15px', height: '15px' }} />
-              <span style={{ fontSize: '13px', color: '#a0a0a0', userSelect: 'none' }}>All day event</span>
+              <span style={{ fontSize: '13px', color: '#888', userSelect: 'none' }}>All day event</span>
             </label>
           </div>
         )}
@@ -329,28 +317,22 @@ function CreateEditModal({
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            <Field label="Date">
-              <input type="date" value={formStart} onChange={e => setFormStart(e.target.value)} style={inputSt} />
-            </Field>
-            <Field label="Start Time">
-              <input type="time" value={formStartTime} onChange={e => setFormStartTime(e.target.value)} style={inputSt} />
-            </Field>
-            <Field label="End Time">
-              <input type="time" value={formEndTime} onChange={e => setFormEndTime(e.target.value)} style={inputSt} />
-            </Field>
+            <Field label="Date"><input type="date" value={formStart} onChange={e => setFormStart(e.target.value)} style={inputSt} /></Field>
+            <Field label="Start Time"><input type="time" value={formStartTime} onChange={e => setFormStartTime(e.target.value)} style={inputSt} /></Field>
+            <Field label="End Time"><input type="time" value={formEndTime} onChange={e => setFormEndTime(e.target.value)} style={inputSt} /></Field>
           </div>
         )}
 
         {formType === 'INSTALL' && (
-          <Field label="Notes (Optional)" hint="The customer will see this note in their install confirmation email.">
+          <Field label="Notes (Optional)" hint="The customer will see this in their install confirmation email.">
             <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="e.g. Please ensure the installation area is clear and accessible." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
           </Field>
         )}
 
         <ErrBox msg={err} />
 
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
-          <button onClick={onCancel} style={{ ...btnBase, background: '#252525', color: '#a0a0a0', border: '1px solid #333' }}>Cancel</button>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+          <button onClick={onCancel} style={{ ...btnBase, background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', fontWeight: 500 }}>Cancel</button>
           <button onClick={onSave} disabled={saving} style={{ ...btnBase, background: '#dc2626', color: '#fff', opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
             {saving ? 'Saving...' : mode === 'create' ? 'Create Event' : 'Save Changes'}
           </button>
@@ -368,8 +350,6 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
   const isSameDay  = toDateStr(event.startDate) === toDateStr(event.endDate);
   const badgeLabel = TYPE_LABELS[event.type] || event.type;
   const assignees  = (event.assignees || []).map(a => ({ id: a.id, name: a.name || users.find(u => u.id === a.id)?.name || a.id }));
-
-  // Build modal title from live order data (bypasses stale stored title)
   const displayTitle = buildInstallTitle(event);
 
   return (
@@ -380,8 +360,7 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         <InfoRow label="Date">
           {event.allDay === false
             ? formatDisplayDateTime(event.startDate, event.endDate)
-            : isSameDay
-              ? formatDisplayDate(event.startDate)
+            : isSameDay ? formatDisplayDate(event.startDate)
               : `${formatDisplayDate(event.startDate)} \u2192 ${formatDisplayDate(event.endDate)}`
           }
         </InfoRow>
@@ -389,14 +368,16 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         {event.type === 'INSTALL' && event.order && (
           <InfoRow label="Customer">
             {event.order.account?.name}
-            {event.order.account?.contactName && <span style={{ color: '#a0a0a0', fontSize: '14px' }}> \u2014 {event.order.account.contactName}</span>}
+            {event.order.account?.contactName && <span style={{ color: '#888', fontSize: '14px' }}> \u2014 {event.order.account.contactName}</span>}
           </InfoRow>
         )}
 
         {event.type === 'INSTALL' && assignees.length > 0 && (
           <InfoRow label="Assigned Employees">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-              {assignees.map(a => <span key={a.id} style={{ padding: '4px 12px', background: '#1f1f1f', border: '1px solid #404040', borderRadius: '99px', fontSize: '13px', color: '#e4e4e4' }}>{a.name}</span>)}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+              {assignees.map(a => (
+                <span key={a.id} style={{ padding: '4px 12px', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '99px', fontSize: '13px', color: '#d0d0d0' }}>{a.name}</span>
+              ))}
             </div>
           </InfoRow>
         )}
@@ -405,25 +386,30 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         {event.notes && <InfoRow label="Notes">{event.notes}</InfoRow>}
 
         {event.type === 'INSTALL' && (
-          <InfoRow label="Customer Email">
-            <span style={{ color: event.customerNotified ? '#10b981' : '#f59e0b', fontSize: '13px' }}>
-              {event.customerNotified ? '\u2713 Notification sent' : '\u26A0 Not yet notified'}
+          <InfoRow label="Customer Notification">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: event.customerNotified ? '#10b981' : '#f59e0b' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+              {event.customerNotified ? 'Email sent' : 'Not yet notified'}
             </span>
           </InfoRow>
         )}
 
-        <InfoRow label="Created By">{event.createdBy?.name || '\u2014'}</InfoRow>
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>Created By</div>
+          <div style={{ fontSize: '15px', color: '#e4e4e4' }}>{event.createdBy?.name || '\u2014'}</div>
+        </div>
+
         <ErrBox msg={err} />
 
         <div style={{ display: 'flex', gap: '8px', marginTop: '20px', flexWrap: 'wrap' }}>
           {canEdit && (
             <>
-              <button onClick={onEdit} style={{ ...btnBase, background: '#252525', color: '#e4e4e4', border: '1px solid #404040', fontWeight: 400 }}>Edit</button>
-              <button onClick={onDelete} style={{ ...btnBase, background: '#450a0a', color: '#fca5a5', border: '1px solid #7f1d1d', fontWeight: 400 }}>Delete</button>
+              <button onClick={onEdit} style={{ ...btnBase, background: '#1a1a1a', color: '#d0d0d0', border: '1px solid #2a2a2a', fontWeight: 500, fontSize: '13px', padding: '8px 16px' }}>Edit</button>
+              <button onClick={onDelete} style={{ ...btnBase, background: '#1a0808', color: '#fca5a5', border: '1px solid #5a1515', fontWeight: 500, fontSize: '13px', padding: '8px 16px' }}>Delete</button>
             </>
           )}
           {event.type === 'INSTALL' && canEdit && (
-            <button onClick={onResend} disabled={saving} style={{ ...btnBase, background: '#0f172a', color: '#93c5fd', border: '1px solid #1e3a5f', fontWeight: 400, opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            <button onClick={onResend} disabled={saving} style={{ ...btnBase, background: '#0a1525', color: '#93c5fd', border: '1px solid #1e3a5f', fontWeight: 500, fontSize: '13px', padding: '8px 16px', opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
               {saving ? 'Sending...' : event.customerNotified ? 'Resend Email' : 'Send Email'}
             </button>
           )}
@@ -438,15 +424,17 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
     <>
       <ModalHead title="Delete Event" onClose={onCancel} />
       <div style={{ padding: '24px' }}>
-        <p style={{ color: '#e4e4e4', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>Are you sure you want to delete <strong>{buildInstallTitle(event)}</strong>?</p>
+        <p style={{ color: '#c0c0c0', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>
+          Are you sure you want to delete <strong style={{ color: '#f0f0f0' }}>{buildInstallTitle(event)}</strong>?
+        </p>
         {event.type === 'INSTALL' && event.order && (
-          <div style={{ padding: '12px 16px', background: '#451a03', border: '1px solid #92400e', borderRadius: '6px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px' }}>
+          <div style={{ padding: '12px 16px', background: '#1a0d00', border: '1px solid #7c3a00', borderRadius: '8px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px' }}>
             This will remove the install date from the customer tracking page.
           </div>
         )}
         <ErrBox msg={err} />
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ ...btnBase, background: '#252525', color: '#a0a0a0', border: '1px solid #333', fontWeight: 400 }}>Cancel</button>
+          <button onClick={onCancel} style={{ ...btnBase, background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', fontWeight: 500 }}>Cancel</button>
           <button onClick={onConfirm} disabled={saving} style={{ ...btnBase, background: '#dc2626', color: '#fff', opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
             {saving ? 'Deleting...' : 'Delete'}
           </button>
@@ -517,13 +505,11 @@ export default function CalendarPage() {
       if (!res.ok) throw new Error('Failed to load events');
       const data = await res.json();
       setEvents(data.map(e => {
-        // Build tile title from live order data so stale stored titles (old PO format) are ignored
         let tileTitle = buildInstallTitle(e);
         if (e.type === 'INSTALL' && e.assignees?.length > 0) {
           const firstNames = e.assignees.map(a => a.name.split(' ')[0]).join(', ');
           tileTitle = `${tileTitle} \u00b7 ${firstNames}`;
         }
-
         if (e.allDay !== false) {
           const startStr = toDateStr(e.startDate);
           const endStr   = toDateStr(e.endDate);
@@ -643,7 +629,6 @@ export default function CalendarPage() {
         ...(formType === 'INSTALL'  && { orderId: formOrderId || null, assigneeIds: formAssigneeIds }),
         ...(formType === 'TIME_OFF' && { userId: formUserId || user?.id }),
       };
-
       const isEdit = modal === 'edit';
       const res = await fetch(
         isEdit ? `/api/calendar/events/${selectedEvent.id}` : '/api/calendar/events',
@@ -680,7 +665,7 @@ export default function CalendarPage() {
     } catch (e) { setErr(e.message); } finally { setSaving(false); }
   }
 
-  if (authLoading) return <div style={{ padding: '80px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>;
+  if (authLoading) return <div style={{ padding: '80px', textAlign: 'center', color: '#555' }}>Loading...</div>;
   if (!user) return null;
 
   const sharedModalProps = {
@@ -697,84 +682,172 @@ export default function CalendarPage() {
     <>
       {navContext === 'invoicing' ? <InvoicingNav /> : <TopNav />}
 
-      <div style={{ minHeight: '100vh', background: '#0f0f0f', padding: '24px 28px 60px' }}>
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', padding: '28px 32px 60px' }}>
 
         <style>{`
-          .cal-wrap .fc { color: #e4e4e4; }
-          .cal-wrap .fc-toolbar-title { color: #e4e4e4; font-size: 18px; font-weight: 700; }
-          .cal-wrap .fc-col-header-cell-cushion { color: #a0a0a0; text-decoration: none; font-weight: 600; }
-          .cal-wrap .fc-daygrid-day-number { color: #a0a0a0; text-decoration: none; }
-          .cal-wrap .fc-day-today { background: rgba(220,38,38,0.08) !important; }
-          .cal-wrap .fc-day-today .fc-daygrid-day-number { color: #dc2626 !important; font-weight: 700; }
-          .cal-wrap .fc-scrollgrid, .cal-wrap td, .cal-wrap th { border-color: #2d2d2d !important; }
-          .cal-wrap .fc-daygrid-day { background: #111; transition: background 0.1s; }
-          .cal-wrap .fc-daygrid-day:hover { background: #1a1a1a; }
-          .cal-wrap .fc-day-other .fc-daygrid-day-number { color: #3d3d3d; }
-          .cal-wrap .fc-button { background: #252525 !important; border-color: #404040 !important; color: #e4e4e4 !important; font-size: 13px !important; padding: 6px 14px !important; box-shadow: none !important; }
-          .cal-wrap .fc-button:hover { background: #333 !important; border-color: #555 !important; }
-          .cal-wrap .fc-button-active, .cal-wrap .fc-button:focus { background: #dc2626 !important; border-color: #dc2626 !important; box-shadow: none !important; }
-          .cal-wrap .fc-event { border-radius: 5px; padding: 2px 7px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
-          .cal-wrap .fc-event:hover { opacity: 0.8; }
-          .cal-wrap .fc-more-link { color: #dc2626; font-size: 12px; }
-          .cal-wrap .fc-popover { background: #1a1a1a !important; border-color: #404040 !important; box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important; }
-          .cal-wrap .fc-popover-title { background: #252525 !important; color: #e4e4e4 !important; }
-          .cal-wrap .fc-popover-body  { background: #1a1a1a !important; }
-          .cal-wrap .fc-timegrid-slot { background: #111; border-color: #2d2d2d !important; }
-          .cal-wrap .fc-timegrid-slot-label-cushion { color: #6b7280; font-size: 12px; }
-          .cal-wrap .fc-toolbar { margin-bottom: 18px !important; }
-          .cal-wrap .fc-timegrid-now-indicator-line { border-color: #dc2626 !important; }
+          /* ── Core ── */
+          .cal-wrap .fc { color: #d0d0d0; font-family: inherit; }
+          .cal-wrap .fc-toolbar-title { color: #f0f0f0; font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
+          .cal-wrap .fc-scrollgrid, .cal-wrap td, .cal-wrap th { border-color: #1a1a1a !important; }
+
+          /* ── Column headers (Sun Mon Tue…) ── */
+          .cal-wrap .fc-col-header-cell { background: #0d0d0d; border-bottom: 1px solid #1a1a1a !important; }
+          .cal-wrap .fc-col-header-cell-cushion {
+            color: #555 !important; text-decoration: none;
+            font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+            padding: 12px 0 11px; display: block;
+          }
+
+          /* ── Day cells ── */
+          .cal-wrap .fc-daygrid-day { background: #0d0d0d; transition: background 0.12s; }
+          .cal-wrap .fc-daygrid-day:hover { background: #131313; }
+          .cal-wrap .fc-daygrid-day-frame { min-height: 130px; }
+          .cal-wrap .fc-daygrid-day-top { padding: 10px 12px 3px; justify-content: flex-end; }
+          .cal-wrap .fc-daygrid-day-number {
+            color: #555; text-decoration: none; font-size: 13px; font-weight: 500;
+            width: 30px; height: 30px; display: flex; align-items: center;
+            justify-content: center; border-radius: 50%; transition: all 0.12s;
+          }
+          .cal-wrap .fc-day-other { background: #090909; }
+          .cal-wrap .fc-day-other .fc-daygrid-day-number { color: #252525; }
+
+          /* ── Today ── */
+          .cal-wrap .fc-day-today { background: rgba(220,38,38,0.05) !important; }
+          .cal-wrap .fc-day-today .fc-daygrid-day-number {
+            background: #dc2626; color: #fff !important; font-weight: 700;
+          }
+
+          /* ── Events ── */
+          .cal-wrap .fc-event {
+            border-radius: 6px; padding: 3px 8px; font-size: 11.5px; font-weight: 600;
+            cursor: pointer; transition: opacity 0.12s, transform 0.1s; border: none !important;
+          }
+          .cal-wrap .fc-event:hover { opacity: 0.82; }
+          .cal-wrap .fc-daygrid-event { margin: 1px 4px 1px; }
+          .cal-wrap .fc-event-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+          /* ── More link ── */
+          .cal-wrap .fc-more-link {
+            color: #dc2626; font-size: 11px; font-weight: 700;
+            padding: 1px 6px; margin: 0 4px; border-radius: 4px;
+          }
+          .cal-wrap .fc-more-link:hover { background: rgba(220,38,38,0.12); }
+
+          /* ── Popover ── */
+          .cal-wrap .fc-popover {
+            background: #141414 !important; border: 1px solid #222 !important;
+            border-radius: 12px !important; box-shadow: 0 20px 50px rgba(0,0,0,0.8) !important;
+            overflow: hidden;
+          }
+          .cal-wrap .fc-popover-header { background: #0f0f0f !important; border-bottom: 1px solid #1a1a1a !important; }
+          .cal-wrap .fc-popover-title { background: transparent !important; color: #d0d0d0 !important; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; padding: 10px 14px; }
+          .cal-wrap .fc-popover-close { color: #555 !important; }
+          .cal-wrap .fc-popover-body { background: #141414 !important; padding: 8px 8px 10px; }
+
+          /* ── Toolbar buttons ── */
+          .cal-wrap .fc-button {
+            background: #161616 !important; border: 1px solid #252525 !important;
+            color: #888 !important; font-size: 12px !important; font-weight: 600 !important;
+            padding: 7px 15px !important; border-radius: 6px !important; box-shadow: none !important;
+            transition: all 0.12s !important; letter-spacing: 0.02em;
+          }
+          .cal-wrap .fc-button:hover {
+            background: #202020 !important; border-color: #333 !important; color: #d0d0d0 !important;
+          }
+          .cal-wrap .fc-button-active, .cal-wrap .fc-button:focus {
+            background: #dc2626 !important; border-color: #dc2626 !important;
+            color: #fff !important; box-shadow: none !important;
+          }
+          .cal-wrap .fc-button-group .fc-button { border-radius: 0 !important; border-left-width: 0 !important; }
+          .cal-wrap .fc-button-group .fc-button:first-child { border-radius: 6px 0 0 6px !important; border-left-width: 1px !important; }
+          .cal-wrap .fc-button-group .fc-button:last-child { border-radius: 0 6px 6px 0 !important; }
+
+          /* ── Toolbar layout ── */
+          .cal-wrap .fc-toolbar { margin-bottom: 0 !important; }
+          .cal-wrap .fc-header-toolbar { padding-bottom: 18px; border-bottom: 1px solid #141414; margin-bottom: 0 !important; }
+
+          /* ── Time grid ── */
+          .cal-wrap .fc-timegrid-slot { height: 44px !important; background: #0d0d0d; border-color: #141414 !important; }
+          .cal-wrap .fc-timegrid-slot-minor { border-top-color: #111 !important; border-top-style: dashed !important; }
+          .cal-wrap .fc-timegrid-slot-label { background: #090909; border-right: 1px solid #1a1a1a !important; }
+          .cal-wrap .fc-timegrid-slot-label-cushion { color: #383838; font-size: 11px; font-weight: 600; padding-right: 10px; }
+          .cal-wrap .fc-timegrid-col { background: #0d0d0d; }
+          .cal-wrap .fc-timegrid-col.fc-day-today { background: rgba(220,38,38,0.03) !important; }
+          .cal-wrap .fc-timegrid-divider { background: #141414 !important; height: 3px !important; }
+
+          /* ── Now indicator ── */
+          .cal-wrap .fc-timegrid-now-indicator-line { border-color: #dc2626 !important; border-width: 2px !important; }
           .cal-wrap .fc-timegrid-now-indicator-arrow { border-top-color: #dc2626 !important; border-bottom-color: #dc2626 !important; }
+
+          /* ── Week view all-day row ── */
+          .cal-wrap .fc-daygrid-body { background: #0d0d0d; }
         `}</style>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+        {/* ── Page Header ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h1 style={{ color: '#e4e4e4', fontSize: '24px', fontWeight: 700, margin: 0 }}>Calendar</h1>
-            <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0' }}>Schedule installations and manage team availability</p>
+            <h1 style={{ color: '#f0f0f0', fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
+            <p style={{ color: '#444', fontSize: '13px', margin: '4px 0 0', fontWeight: 500 }}>Schedule installations and manage team availability</p>
           </div>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* Legend as subtle pills */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             {Object.entries(EVENT_COLORS).map(([type, c]) => (
-              <span key={type} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#a0a0a0' }}>
-                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: c.bg, flexShrink: 0 }} />
+              <span key={type} style={{
+                display: 'inline-flex', alignItems: 'center', gap: '7px',
+                padding: '6px 12px', borderRadius: '99px',
+                background: '#141414', border: '1px solid #222',
+                fontSize: '12px', fontWeight: 600, color: '#888',
+              }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: c.bg, flexShrink: 0 }} />
                 {TYPE_LABELS[type]}
               </span>
             ))}
           </div>
         </div>
 
-        <div className="cal-wrap" style={{ background: '#111', borderRadius: '12px', padding: '20px 20px 4px', border: '1px solid #2d2d2d' }}>
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
-            buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
-            events={events}
-            height="auto"
-            fixedWeekCount={false}
-            dayMaxEvents={4}
-            slotMinTime="05:00:00"
-            slotMaxTime="19:00:00"
-            nowIndicator={true}
-            dateClick={info => {
-              if (!canCreate('INSTALL') && !canCreate('TIME_OFF') && !canCreate('BLOCKED')) return;
-              if (info.allDay) {
-                openCreate(info.dateStr, true);
-              } else {
-                const d    = info.date;
-                const hS   = String(d.getHours()).padStart(2, '0');
-                const mS   = String(d.getMinutes()).padStart(2, '0');
-                const dEnd = new Date(d.getTime() + 60 * 60 * 1000);
-                const hE   = String(dEnd.getHours()).padStart(2, '0');
-                const mE   = String(dEnd.getMinutes()).padStart(2, '0');
-                openCreate(info.dateStr, false, `${hS}:${mS}`, `${hE}:${mE}`);
-              }
-            }}
-            eventClick={info => openView(info)}
-            datesSet={info => fetchEvents(info.start, info.end)}
-          />
+        {/* ── Calendar ── */}
+        <div className="cal-wrap" style={{
+          background: '#0d0d0d', borderRadius: '16px',
+          padding: '20px 0 0', border: '1px solid #1a1a1a',
+          overflow: 'hidden',
+        }}>
+          <div style={{ padding: '0 20px' }}>
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }}
+              buttonText={{ today: 'Today', month: 'Month', week: 'Week', day: 'Day' }}
+              events={events}
+              height="auto"
+              fixedWeekCount={false}
+              dayMaxEvents={4}
+              slotMinTime="05:00:00"
+              slotMaxTime="19:00:00"
+              slotLabelInterval="01:00:00"
+              nowIndicator={true}
+              dateClick={info => {
+                if (!canCreate('INSTALL') && !canCreate('TIME_OFF') && !canCreate('BLOCKED')) return;
+                if (info.allDay) {
+                  openCreate(info.dateStr, true);
+                } else {
+                  const d    = info.date;
+                  const hS   = String(d.getHours()).padStart(2, '0');
+                  const mS   = String(d.getMinutes()).padStart(2, '0');
+                  const dEnd = new Date(d.getTime() + 60 * 60 * 1000);
+                  const hE   = String(dEnd.getHours()).padStart(2, '0');
+                  const mE   = String(dEnd.getMinutes()).padStart(2, '0');
+                  openCreate(info.dateStr, false, `${hS}:${mS}`, `${hE}:${mE}`);
+                }
+              }}
+              eventClick={info => openView(info)}
+              datesSet={info => fetchEvents(info.start, info.end)}
+            />
+          </div>
         </div>
 
-        {loading && <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '13px', marginTop: '12px' }}>Loading events...</div>}
+        {loading && <div style={{ textAlign: 'center', color: '#333', fontSize: '13px', marginTop: '16px' }}>Loading events...</div>}
 
         {modal === 'create' && (
           <Overlay onClose={() => !saving && setModal(null)}>
