@@ -80,6 +80,21 @@ function fcEndDate(dateStr) {
   return [next.getUTCFullYear(), String(next.getUTCMonth()+1).padStart(2,'0'), String(next.getUTCDate()).padStart(2,'0')].join('-');
 }
 
+/**
+ * Build the display title for an INSTALL event from live order data.
+ * Stored titles may have the old "Install — Customer — PO#" format.
+ * This always produces "Install — Customer — Contact" (or just "Install — Customer").
+ */
+function buildInstallTitle(event) {
+  if (event.type !== 'INSTALL') return event.title;
+  if (!event.order) return event.title; // no order linked — use stored title (free-form)
+  const acct = event.order.account;
+  const label = acct?.contactName
+    ? `${acct.name} \u2014 ${acct.contactName}`
+    : (acct?.name || 'Install');
+  return `Install \u2014 ${label}`;
+}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const inputSt = {
@@ -230,7 +245,6 @@ function CreateEditModal({
   onSave, onCancel,
 }) {
   const typeLabel = TYPE_LABELS[formType] || formType;
-  // TIME_OFF is always all-day
   const supportsTime = formType !== 'TIME_OFF';
   const isAllDay = !supportsTime || formAllDay;
 
@@ -241,7 +255,6 @@ function CreateEditModal({
 
         {mode === 'create' && <TypeTabs value={formType} onChange={t => { setFormType(t); if (t === 'TIME_OFF') setFormAllDay(true); }} canCreate={canCreate} />}
 
-        {/* INSTALL: optional order */}
         {formType === 'INSTALL' && (
           <Field label="Order (Optional)" hint="Link to a board order, or leave blank for jobs not yet on the board.">
             {selectedOrder ? (
@@ -269,21 +282,18 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* INSTALL without order: description */}
         {formType === 'INSTALL' && !selectedOrder && (
           <Field label="Description" hint="Shown on the calendar tile, e.g. Tech Support, Training Session">
             <input type="text" placeholder="e.g. Tech Support Visit" value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} />
           </Field>
         )}
 
-        {/* INSTALL: assigned employees */}
         {formType === 'INSTALL' && (
           <Field label="Assigned Employees" hint="Search and select one or more team members for this install.">
             <AssigneePicker users={users} selected={formAssigneeIds} onChange={setFormAssigneeIds} />
           </Field>
         )}
 
-        {/* TIME_OFF: team member */}
         {formType === 'TIME_OFF' && (
           <Field label="Team Member">
             {isAdmin
@@ -293,29 +303,21 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* BLOCKED: title */}
         {formType === 'BLOCKED' && (
           <Field label="Title">
             <input type="text" placeholder="e.g. Company Holiday, Shop Closed..." value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} />
           </Field>
         )}
 
-        {/* All Day toggle — only for event types that support timed scheduling */}
         {supportsTime && (
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={formAllDay}
-                onChange={e => setFormAllDay(e.target.checked)}
-                style={{ accentColor: '#dc2626', width: '15px', height: '15px' }}
-              />
+              <input type="checkbox" checked={formAllDay} onChange={e => setFormAllDay(e.target.checked)} style={{ accentColor: '#dc2626', width: '15px', height: '15px' }} />
               <span style={{ fontSize: '13px', color: '#a0a0a0', userSelect: 'none' }}>All day event</span>
             </label>
           </div>
         )}
 
-        {/* Date row — single date for timed, start+end for all-day */}
         {isAllDay ? (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Field label="Start Date">
@@ -339,7 +341,6 @@ function CreateEditModal({
           </div>
         )}
 
-        {/* Notes */}
         {formType === 'INSTALL' && (
           <Field label="Notes (Optional)" hint="The customer will see this note in their install confirmation email.">
             <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="e.g. Please ensure the installation area is clear and accessible." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
@@ -368,9 +369,12 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
   const badgeLabel = TYPE_LABELS[event.type] || event.type;
   const assignees  = (event.assignees || []).map(a => ({ id: a.id, name: a.name || users.find(u => u.id === a.id)?.name || a.id }));
 
+  // Build modal title from live order data (bypasses stale stored title)
+  const displayTitle = buildInstallTitle(event);
+
   return (
     <>
-      <ModalHead title={event.title} badge={badgeLabel} badgeColor={color.bg} onClose={onClose} />
+      <ModalHead title={displayTitle} badge={badgeLabel} badgeColor={color.bg} onClose={onClose} />
       <div style={{ padding: '24px' }}>
 
         <InfoRow label="Date">
@@ -434,7 +438,7 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
     <>
       <ModalHead title="Delete Event" onClose={onCancel} />
       <div style={{ padding: '24px' }}>
-        <p style={{ color: '#e4e4e4', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>Are you sure you want to delete <strong>{event.title}</strong>?</p>
+        <p style={{ color: '#e4e4e4', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>Are you sure you want to delete <strong>{buildInstallTitle(event)}</strong>?</p>
         {event.type === 'INSTALL' && event.order && (
           <div style={{ padding: '12px 16px', background: '#451a03', border: '1px solid #92400e', borderRadius: '6px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px' }}>
             This will remove the install date from the customer tracking page.
@@ -475,7 +479,6 @@ export default function CalendarPage() {
   const [modal,         setModal]         = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
 
-  // Form state
   const [formType,        setFormType]        = useState('INSTALL');
   const [formAllDay,      setFormAllDay]      = useState(true);
   const [formStart,       setFormStart]       = useState('');
@@ -514,13 +517,14 @@ export default function CalendarPage() {
       if (!res.ok) throw new Error('Failed to load events');
       const data = await res.json();
       setEvents(data.map(e => {
-        let tileTitle = e.title;
+        // Build tile title from live order data so stale stored titles (old PO format) are ignored
+        let tileTitle = buildInstallTitle(e);
         if (e.type === 'INSTALL' && e.assignees?.length > 0) {
           const firstNames = e.assignees.map(a => a.name.split(' ')[0]).join(', ');
-          tileTitle = `${e.title} \u00b7 ${firstNames}`;
+          tileTitle = `${tileTitle} \u00b7 ${firstNames}`;
         }
+
         if (e.allDay !== false) {
-          // All-day: use date-only strings with exclusive-end offset
           const startStr = toDateStr(e.startDate);
           const endStr   = toDateStr(e.endDate);
           return {
@@ -532,7 +536,6 @@ export default function CalendarPage() {
             extendedProps: e,
           };
         } else {
-          // Timed: pass raw ISO strings — FullCalendar renders in the time grid
           return {
             id: e.id, title: tileTitle, allDay: false,
             start: e.startDate, end: e.endDate,
@@ -628,7 +631,6 @@ export default function CalendarPage() {
       autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Out of Office`;
     }
 
-    // Build date strings: YYYY-MM-DD for all-day, YYYY-MM-DDTHH:MM:SS for timed
     const startDate = isAllDay ? formStart : `${formStart}T${formStartTime}:00`;
     const endDate   = isAllDay ? (formEnd || formStart) : `${formStart}T${formEndTime}:00`;
 
@@ -758,7 +760,6 @@ export default function CalendarPage() {
               if (info.allDay) {
                 openCreate(info.dateStr, true);
               } else {
-                // Time-slot click: pre-fill the clicked hour and +1 hour
                 const d    = info.date;
                 const hS   = String(d.getHours()).padStart(2, '0');
                 const mS   = String(d.getMinutes()).padStart(2, '0');
