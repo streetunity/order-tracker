@@ -23,15 +23,8 @@ function parseAssigneeIds(raw) {
   try { return JSON.parse(raw || '[]'); } catch { return []; }
 }
 
-/**
- * Parse an incoming date string (YYYY-MM-DD from a date input) as noon UTC.
- *
- * Why noon? new Date("2026-04-08") is midnight UTC. In UTC-5 (Chicago) that
- * becomes April 7 at 7 pm — the wrong calendar day. Storing noon UTC means
- * the date is correct in any timezone from UTC-12 to UTC+11.
- */
 function parseDateAsNoonUTC(dateStr) {
-  const part = String(dateStr).substring(0, 10); // keep YYYY-MM-DD only
+  const part = String(dateStr).substring(0, 10);
   return new Date(`${part}T12:00:00.000Z`);
 }
 
@@ -76,7 +69,7 @@ export function createCalendarRouter(prisma) {
         const assigneeIds = parseAssigneeIds(e.assigneeIds);
         const assignees   = assigneeIds.map(id => ({ id, name: assigneeMap[id] || id }));
         if (e.type === 'TIME_OFF' && user.role === 'AGENT' && e.userId !== user.id) {
-          return { ...e, assigneeIds, assignees, title: 'Time Off', user: null, notes: null };
+          return { ...e, assigneeIds, assignees, title: 'Out of Office', user: null, notes: null };
         }
         return { ...e, assigneeIds, assignees };
       });
@@ -89,7 +82,6 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── GET /calendar/orders/search?q= ─────────────────────────────────────────
-  // Searches by customer name and contact name; label shows both.
   router.get('/orders/search', authGuard, async (req, res) => {
     try {
       const { q = '' } = req.query;
@@ -128,6 +120,7 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── POST /calendar/events ───────────────────────────────────────────────────
+  // orderId is optional for INSTALL — allows events not linked to a board order.
   // Email is NEVER sent automatically on create.
   router.post('/events', authGuard, async (req, res) => {
     try {
@@ -166,6 +159,7 @@ export function createCalendarRouter(prisma) {
         },
       });
 
+      // Only sync onsiteInstallationDate when linked to an order
       if (type === 'INSTALL' && orderId) {
         await prisma.order.update({
           where: { id: orderId },
@@ -182,7 +176,6 @@ export function createCalendarRouter(prisma) {
   });
 
   // ── PUT /calendar/events/:id ────────────────────────────────────────────────
-  // Email only fires when resendEmail=true (manual Send/Resend button).
   router.put('/events/:id', authGuard, async (req, res) => {
     try {
       const { id } = req.params;
@@ -277,7 +270,7 @@ export function createCalendarRouter(prisma) {
 
 function buildTitle(type, order, userName) {
   if (type === 'INSTALL'  && order) return `Install \u2014 ${order.account?.name || order.id}`;
-  if (type === 'TIME_OFF')          return `${userName || 'Team Member'} \u2014 Time Off`;
+  if (type === 'TIME_OFF')          return `${userName || 'Team Member'} \u2014 Out of Office`;
   if (type === 'BLOCKED')           return 'Blocked';
   return type;
 }

@@ -14,6 +14,13 @@ const EVENT_COLORS = {
   BLOCKED:  { bg: '#525252', border: '#404040', text: '#e4e4e4' },
 };
 
+// Display labels — DB type values stay unchanged
+const TYPE_LABELS = {
+  INSTALL:  'Install',
+  TIME_OFF: 'Out of Office',
+  BLOCKED:  'Blocked',
+};
+
 const CREATE_PERMISSIONS = {
   INSTALL:  ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
   TIME_OFF: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT', 'AGENT'],
@@ -151,9 +158,9 @@ function ErrBox({ msg }) {
 
 function TypeTabs({ value, onChange, canCreate }) {
   const types = [
-    { key: 'INSTALL',  label: 'Install',  color: '#dc2626' },
-    { key: 'TIME_OFF', label: 'Time Off', color: '#f59e0b' },
-    { key: 'BLOCKED',  label: 'Blocked',  color: '#525252' },
+    { key: 'INSTALL',  color: '#dc2626' },
+    { key: 'TIME_OFF', color: '#f59e0b' },
+    { key: 'BLOCKED',  color: '#525252' },
   ].filter(t => canCreate(t.key));
 
   return (
@@ -176,7 +183,7 @@ function TypeTabs({ value, onChange, canCreate }) {
             display: 'block', width: '10px', height: '10px',
             borderRadius: '50%', background: t.color, margin: '0 auto 6px',
           }} />
-          {t.label}
+          {TYPE_LABELS[t.key]}
         </button>
       ))}
     </div>
@@ -273,7 +280,7 @@ function CreateEditModal({
   canCreate, saving, err,
   onSave, onCancel,
 }) {
-  const typeLabel = { INSTALL: 'Install', TIME_OFF: 'Time Off', BLOCKED: 'Blocked' }[formType];
+  const typeLabel = TYPE_LABELS[formType] || formType;
 
   return (
     <>
@@ -282,8 +289,9 @@ function CreateEditModal({
 
         {mode === 'create' && <TypeTabs value={formType} onChange={setFormType} canCreate={canCreate} />}
 
+        {/* INSTALL: optional order search */}
         {formType === 'INSTALL' && (
-          <Field label="Order">
+          <Field label="Order (Optional)" hint="Link to a board order, or leave blank for jobs not yet on the board.">
             {selectedOrder ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#0f0f0f', border: '1px solid #dc2626', borderRadius: '6px' }}>
                 <span style={{ color: '#e4e4e4', fontSize: '14px', flex: 1 }}>{selectedOrder.label}</span>
@@ -306,6 +314,19 @@ function CreateEditModal({
                 )}
               </div>
             )}
+          </Field>
+        )}
+
+        {/* INSTALL without order: freeform description */}
+        {formType === 'INSTALL' && !selectedOrder && (
+          <Field label="Description" hint="Shown on the calendar tile, e.g. Tech Support, Training Session">
+            <input
+              type="text"
+              placeholder="e.g. Tech Support Visit"
+              value={formTitle}
+              onChange={e => setFormTitle(e.target.value)}
+              style={inputSt}
+            />
           </Field>
         )}
 
@@ -363,10 +384,10 @@ function CreateEditModal({
 }
 
 function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete, onResend, onClose }) {
-  const color    = EVENT_COLORS[event.type] || { bg: '#888' };
-  const canEdit  = isAdmin || event.createdById === user?.id;
-  const isSameDay = toDateStr(event.startDate) === toDateStr(event.endDate);
-  const badgeLabel = { INSTALL: 'Install', TIME_OFF: 'Time Off', BLOCKED: 'Blocked' }[event.type];
+  const color      = EVENT_COLORS[event.type] || { bg: '#888' };
+  const canEdit    = isAdmin || event.createdById === user?.id;
+  const isSameDay  = toDateStr(event.startDate) === toDateStr(event.endDate);
+  const badgeLabel = TYPE_LABELS[event.type] || event.type;
 
   const assignees = (event.assignees || []).map(a => ({
     id: a.id,
@@ -446,7 +467,7 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
       <ModalHead title="Delete Event" onClose={onCancel} />
       <div style={{ padding: '24px' }}>
         <p style={{ color: '#e4e4e4', fontSize: '15px', lineHeight: 1.6, margin: '0 0 16px' }}>Are you sure you want to delete <strong>{event.title}</strong>?</p>
-        {event.type === 'INSTALL' && (
+        {event.type === 'INSTALL' && event.order && (
           <div style={{ padding: '12px 16px', background: '#451a03', border: '1px solid #92400e', borderRadius: '6px', color: '#fcd34d', fontSize: '13px', marginBottom: '20px' }}>
             This will remove the install date from the customer's tracking page.
           </div>
@@ -510,17 +531,25 @@ export default function CalendarPage() {
       const res = await fetch(`/api/calendar/events?${p}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed to load events');
       const data = await res.json();
-      setEvents(data.map(e => ({
-        id:              e.id,
-        title:           e.title,
-        start:           toDateStr(e.startDate),
-        end:             toDateStr(e.endDate),
-        allDay:          true,
-        backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
-        borderColor:     EVENT_COLORS[e.type]?.border || '#666',
-        textColor:       EVENT_COLORS[e.type]?.text   || '#fff',
-        extendedProps:   e,
-      })));
+      setEvents(data.map(e => {
+        // For INSTALL tiles: append assignee first names so you can see who's going
+        let tileTitle = e.title;
+        if (e.type === 'INSTALL' && e.assignees?.length > 0) {
+          const firstNames = e.assignees.map(a => a.name.split(' ')[0]).join(', ');
+          tileTitle = `${e.title} \u00b7 ${firstNames}`;
+        }
+        return {
+          id:              e.id,
+          title:           tileTitle,
+          start:           toDateStr(e.startDate),
+          end:             toDateStr(e.endDate),
+          allDay:          true,
+          backgroundColor: EVENT_COLORS[e.type]?.bg    || '#888',
+          borderColor:     EVENT_COLORS[e.type]?.border || '#666',
+          textColor:       EVENT_COLORS[e.type]?.text   || '#fff',
+          extendedProps:   e,
+        };
+      }));
     } catch (e) {
       console.error('[CALENDAR] fetchEvents error:', e);
     } finally {
@@ -571,12 +600,18 @@ export default function CalendarPage() {
     setFormType(e.type);
     setFormStart(toInputDate(e.startDate));
     setFormEnd(toInputDate(e.endDate));
-    setFormTitle(e.title || '');
     setFormNotes(e.notes || '');
     setFormUserId(e.userId || '');
     setFormOrderId(e.orderId || '');
     setFormAssigneeIds(Array.isArray(e.assigneeIds) ? e.assigneeIds : []);
     const acct = e.order?.account;
+    if (e.type === 'INSTALL' && !e.order) {
+      // Extract description from title: "Install \u2014 Tech Support" => "Tech Support"
+      const prefix = 'Install \u2014 ';
+      setFormTitle(e.title?.startsWith(prefix) ? e.title.slice(prefix.length) : '');
+    } else {
+      setFormTitle(e.title || '');
+    }
     setSelectedOrder(
       e.order
         ? { id: e.order.id, label: acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || e.order.id) }
@@ -590,16 +625,19 @@ export default function CalendarPage() {
 
   async function handleSave() {
     setErr('');
-    if (!formStart)                              { setErr('Start date is required'); return; }
-    if (formType === 'INSTALL'  && !formOrderId) { setErr('Please select an order'); return; }
-    if (formType === 'BLOCKED'  && !formTitle)   { setErr('Title is required'); return; }
+    if (!formStart) { setErr('Start date is required'); return; }
+    if (formType === 'BLOCKED' && !formTitle) { setErr('Title is required'); return; }
 
     let autoTitle = formTitle;
     if (formType === 'INSTALL') {
-      autoTitle = `Install \u2014 ${selectedOrder?.label || formOrderId}`;
+      // With order: "Install \u2014 Customer Name"
+      // Without order: "Install" or "Install \u2014 Description"
+      autoTitle = selectedOrder
+        ? `Install \u2014 ${selectedOrder.label}`
+        : `Install${formTitle ? ` \u2014 ${formTitle}` : ''}`;
     } else if (formType === 'TIME_OFF') {
       const tUser = users.find(u => u.id === formUserId);
-      autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Time Off`;
+      autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Out of Office`;
     }
 
     setSaving(true);
@@ -611,7 +649,7 @@ export default function CalendarPage() {
         endDate:   formEnd || formStart,
         allDay:    true,
         notes:     formNotes || null,
-        ...(formType === 'INSTALL'  && { orderId: formOrderId, assigneeIds: formAssigneeIds }),
+        ...(formType === 'INSTALL'  && { orderId: formOrderId || null, assigneeIds: formAssigneeIds }),
         ...(formType === 'TIME_OFF' && { userId: formUserId || user?.id }),
       };
 
@@ -712,7 +750,7 @@ export default function CalendarPage() {
           {Object.entries(EVENT_COLORS).map(([type, c]) => (
             <span key={type} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#a0a0a0' }}>
               <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: c.bg, flexShrink: 0 }} />
-              {{ INSTALL: 'Install', TIME_OFF: 'Time Off', BLOCKED: 'Blocked' }[type]}
+              {TYPE_LABELS[type]}
             </span>
           ))}
         </div>
