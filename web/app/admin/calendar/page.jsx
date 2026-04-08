@@ -27,9 +27,6 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// All dates are stored as noon UTC on the backend. Always use UTC accessors
-// so a UTC noon timestamp (e.g. 2026-04-08T12:00:00Z) is never shifted to
-// April 7 just because the browser is in a negative UTC offset.
 function formatDisplayDate(dateStr) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -48,7 +45,6 @@ function toInputDate(dateOrStr) {
   ].join('-');
 }
 
-// Return a YYYY-MM-DD string from a stored ISO date, always in UTC.
 function toDateStr(dateOrStr) {
   return toInputDate(dateOrStr);
 }
@@ -189,16 +185,19 @@ function TypeTabs({ value, onChange, canCreate }) {
 
 function AssigneePicker({ users, selected, onChange }) {
   const [search, setSearch] = useState('');
-  const filtered = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = search.length > 0
+    ? users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()))
+    : [];
 
   function toggle(id) {
     onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]);
   }
 
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
+      {/* Selected pills */}
       {selected.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
           {selected.map(id => {
             const u = users.find(u => u.id === id);
             return (
@@ -214,20 +213,54 @@ function AssigneePicker({ users, selected, onChange }) {
           })}
         </div>
       )}
-      <input type="text" placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...inputSt, marginBottom: '8px' }} />
-      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #2d2d2d', borderRadius: '6px', background: '#0f0f0f' }}>
-        {filtered.length === 0 && <div style={{ padding: '12px 14px', color: '#6b7280', fontSize: '13px' }}>No employees found</div>}
-        {filtered.map((u, i) => (
-          <label key={u.id} style={{
-            display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer',
-            borderBottom: i < filtered.length - 1 ? '1px solid #1f1f1f' : 'none',
-            background: selected.includes(u.id) ? '#1a1a1a' : 'transparent',
-          }}>
-            <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} style={{ accentColor: '#dc2626', width: '15px', height: '15px', flexShrink: 0 }} />
-            <span style={{ fontSize: '14px', color: '#e4e4e4' }}>{u.name}</span>
-          </label>
-        ))}
-      </div>
+
+      {/* Search input */}
+      <input
+        type="text"
+        placeholder="Search employees..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={inputSt}
+      />
+
+      {/* Dropdown — only shown when searching */}
+      {search.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0,
+          background: '#252525', border: '1px solid #333', borderTop: 'none',
+          borderRadius: '0 0 6px 6px', zIndex: 20, maxHeight: '200px', overflowY: 'auto',
+        }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: '13px' }}>No employees found</div>
+          ) : (
+            filtered.map(u => (
+              <button
+                key={u.id}
+                onClick={() => { toggle(u.id); setSearch(''); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  width: '100%', textAlign: 'left', padding: '10px 14px',
+                  background: selected.includes(u.id) ? '#1a1a1a' : 'none',
+                  border: 'none', borderBottom: '1px solid #2d2d2d',
+                  color: '#e4e4e4', cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#333'}
+                onMouseLeave={e => e.currentTarget.style.background = selected.includes(u.id) ? '#1a1a1a' : 'none'}
+              >
+                <span style={{
+                  width: '16px', height: '16px', borderRadius: '3px', flexShrink: 0,
+                  background: selected.includes(u.id) ? '#dc2626' : '#333',
+                  border: `1px solid ${selected.includes(u.id) ? '#dc2626' : '#555'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {selected.includes(u.id) && <span style={{ color: '#fff', fontSize: '10px', lineHeight: 1 }}>&#10003;</span>}
+                </span>
+                {u.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -282,7 +315,7 @@ function CreateEditModal({
         )}
 
         {formType === 'INSTALL' && (
-          <Field label="Assigned Employees" hint="Select one or more team members for this install.">
+          <Field label="Assigned Employees" hint="Search and select one or more team members for this install.">
             <AssigneePicker users={users} selected={formAssigneeIds} onChange={setFormAssigneeIds} />
           </Field>
         )}
@@ -482,9 +515,6 @@ export default function CalendarPage() {
       setEvents(data.map(e => ({
         id:              e.id,
         title:           e.title,
-        // Pass date-only strings to FullCalendar for all-day events.
-        // FullCalendar treats bare YYYY-MM-DD strings as local-date all-day
-        // events with no timezone shift, which is exactly what we want.
         start:           toDateStr(e.startDate),
         end:             toDateStr(e.endDate),
         allDay:          true,
