@@ -33,14 +33,6 @@ const digestQueue = new Map();
  * Queue a document upload notification for all active brokers.
  * The actual email is sent after DIGEST_DELAY_MS, batching any additional
  * uploads that arrive within the same window.
- *
- * @param {object} prisma
- * @param {object} params
- * @param {object}  params.item          - orderItem (needs id, productCode, currentStage, order.poNumber, order.account.name)
- * @param {object}  params.document      - created document (fileName, documentType)
- * @param {string}  params.uploadedBy    - display name of uploader
- * @param {string}  params.documentType  - raw documentType key
- * @param {boolean} [params.isShipmentDoc=false]
  */
 export async function queueBrokerDocumentNotification(prisma, {
   item,
@@ -65,11 +57,9 @@ export async function queueBrokerDocumentNotification(prisma, {
     for (const broker of brokers) {
       const existing = digestQueue.get(broker.id);
       if (existing) {
-        // Timer already running — just append to existing batch
         existing.items.push(payload);
         console.log(`[BROKER EMAIL] Queued doc for ${broker.name} (${existing.items.length} pending in digest)`);
       } else {
-        // First upload in this burst — start the 5-minute timer
         const entry = { broker, prisma, items: [payload], timer: null };
         entry.timer = setTimeout(() => flushBrokerQueue(broker.id), DIGEST_DELAY_MS);
         digestQueue.set(broker.id, entry);
@@ -83,7 +73,6 @@ export async function queueBrokerDocumentNotification(prisma, {
 
 /**
  * Flush the queue for a specific broker and send the digest email.
- * Called automatically by setTimeout; can also be called manually for testing.
  */
 async function flushBrokerQueue(brokerId) {
   const entry = digestQueue.get(brokerId);
@@ -104,11 +93,13 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
     const plural    = count === 1 ? '' : 's';
     const countVerb = count === 1 ? 'has' : 'have';
 
-    // Build the HTML document table (one row per upload)
+    // Build the HTML document table — columns: Type | Customer | Item | File Name | Uploaded By | View
     const tableRows = items.map(({ item, document, uploadedBy, documentType, isShipmentDoc }) => {
       const docLabel    = DOCUMENT_TYPE_LABELS[documentType] || documentType;
-      const poNumber    = item.order?.poNumber || item.orderId || 'N/A';
-      const customer    = item.order?.account?.name || '';
+      const acct        = item.order?.account;
+      const customerName = acct?.contactName
+        ? `${acct.name} \u2014 ${acct.contactName}`
+        : (acct?.name || '\u2014');
       const productCode = item.productCode || item.id;
       const itemUrl     = `${PORTAL_URL}/item/${item.id}`;
       const shipNote    = isShipmentDoc
@@ -118,12 +109,9 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
       return (
         '<tr>' +
         `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${docLabel}${shipNote}</td>` +
-        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${document.fileName}</td>` +
-        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${poNumber}</td>` +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${customerName}</td>` +
         `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${productCode}</td>` +
-        (customer
-          ? `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${customer}</td>`
-          : '<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#aaaaaa;font-style:italic;">&mdash;</td>') +
+        `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${document.fileName}</td>` +
         `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;color:#333333;">${uploadedBy}</td>` +
         `<td style="padding:9px 12px;border-bottom:1px solid #eeeeee;font-size:13px;text-align:center;">` +
         `<a href="${itemUrl}" style="color:#dc2626;text-decoration:none;font-weight:600;font-size:13px;">View &rarr;</a>` +
@@ -136,12 +124,11 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
       '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #dddddd;border-radius:4px;overflow:hidden;margin-top:12px;">' +
       '<thead><tr style="background-color:#f5f5f5;">' +
       '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Type</th>' +
-      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">File Name</th>' +
-      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Order / PO</th>' +
-      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Item</th>' +
       '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Customer</th>' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Item</th>' +
+      '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">File Name</th>' +
       '<th style="padding:8px 12px;text-align:left;font-size:12px;color:#666666;font-weight:600;">Uploaded By</th>' +
-      '<th style="padding:8px 12px;text-align:center;font-size:12px;color:#666666;font-weight:600;">Link</th>' +
+      '<th style="padding:8px 12px;text-align:center;font-size:12px;color:#666666;font-weight:600;">View</th>' +
       '</tr></thead>' +
       `<tbody>${tableRows}</tbody>` +
       '</table>';
@@ -221,12 +208,10 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
         '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,sans-serif;">',
         '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f0f0;padding:24px 0;">',
         '<tr><td align="center">',
-        '<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:4px;overflow:hidden;">',
-        // Header
+        '<table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:4px;overflow:hidden;">',
         '<tr><td style="background:#1a1a1a;padding:20px 28px;border-bottom:3px solid #dc2626;">',
         `<span style="color:#ffffff;font-size:20px;font-weight:bold;">${count === 1 ? 'New Document Available' : `${count} New Documents Available`}</span>`,
         '</td></tr>',
-        // Body
         '<tr><td style="padding:28px;">',
         `<p style="color:#333333;font-size:15px;margin:0 0 20px 0;">`,
         `Hello ${broker.name}, ${count} new document${plural} ${countVerb} been uploaded to the broker portal and ${count === 1 ? 'is' : 'are'} ready for your review.`,
@@ -236,7 +221,6 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
         `<a href="${PORTAL_URL}" style="display:inline-block;background:#dc2626;color:#ffffff;padding:12px 28px;text-decoration:none;border-radius:4px;font-weight:bold;font-size:14px;">Open Broker Portal</a>`,
         '</p>',
         '</td></tr>',
-        // Footer
         `<tr><td style="background:#1a1a1a;padding:14px 28px;text-align:center;">`,
         `<span style="color:#999999;font-size:11px;">${companyName} &mdash; Order Tracker</span>`,
         '</td></tr>',
@@ -253,10 +237,11 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
       '',
       ...items.map(({ item, document, documentType, uploadedBy }) => {
         const docLabel    = DOCUMENT_TYPE_LABELS[documentType] || documentType;
-        const poNumber    = item.order?.poNumber || item.orderId || 'N/A';
+        const acct        = item.order?.account;
+        const customerName = acct?.contactName ? `${acct.name} - ${acct.contactName}` : (acct?.name || 'N/A');
         const productCode = item.productCode || item.id;
         const itemUrl     = `${PORTAL_URL}/item/${item.id}`;
-        return `  - ${docLabel}: ${document.fileName} | Order: ${poNumber} | Item: ${productCode} | ${itemUrl}`;
+        return `  - ${docLabel}: ${document.fileName} | Customer: ${customerName} | Item: ${productCode} | ${itemUrl}`;
       }),
       '',
       `Broker Portal: ${PORTAL_URL}`
