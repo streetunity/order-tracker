@@ -29,6 +29,10 @@ const RED    = '#dc2626';
 const LIGHT  = '#f5f5f5';
 const BORDER = '#dddddd';
 const MUTED  = '#666666';
+// DOLLAR prevents ${{placeholder}} from being parsed as JS template interpolation.
+// Inside a template literal, ${ starts an expression. Using ${DOLLAR} interpolates
+// the '$' character safely, leaving {{placeholder}} as a plain string for later replacement.
+const DOLLAR = '$';
 
 function buildHeader(companyName, logoUrl) {
   if (logoUrl) {
@@ -311,7 +315,7 @@ export function getCommissionNotificationTemplate() {
       <p style="margin:0 0 16px 0;color:#333333;">Hello {{agentName}},</p>
       <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f9f9f9" style="margin:20px 0;background-color:#f9f9f9;border:1px solid ${BORDER};border-radius:4px;">
         <tr><td class="info-box-td" style="padding:24px;text-align:center;">
-          <p style="margin:0;font-size:32px;font-weight:700;color:#22c55e;">${{amount}}</p>
+          <p style="margin:0;font-size:32px;font-weight:700;color:#22c55e;">${DOLLAR}{{amount}}</p>
           <p style="margin:8px 0 0 0;font-size:13px;color:${MUTED};">Commission Amount</p>
         </td></tr>
       </table>
@@ -333,7 +337,7 @@ export function getCommissionNotificationTemplate() {
     <tr><td class="footer-td" bgcolor="${LIGHT}" style="background-color:${LIGHT};padding:20px 30px;text-align:center;">
       <p style="margin:0;font-size:12px;color:${MUTED};">{{companyName}} \u2014 Internal Notification</p>
     </td></tr>
-  `, 'Commission {{type}}: ${{amount}}');
+  `, 'Commission {{type}}: ${DOLLAR}{{amount}}');
 }
 
 /**
