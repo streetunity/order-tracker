@@ -22,6 +22,7 @@ const TABS = [
 ];
 
 const EMPTY_USER_FORM = { name: '', email: '', password: '', role: 'AGENT', isEmployee: true, showInSalesRepDropdown: true };
+const EMPTY_MFG_FORM  = { name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' };
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -43,7 +44,7 @@ export default function UsersPage() {
   const [mfgLoaded, setMfgLoaded] = useState(false);
   const [showMfgModal, setShowMfgModal] = useState(false);
   const [editingMfg, setEditingMfg] = useState(null);
-  const [mfgFormData, setMfgFormData] = useState({ name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' });
+  const [mfgFormData, setMfgFormData] = useState(EMPTY_MFG_FORM);
   const [mfgError, setMfgError] = useState('');
   const [showMfgToggleConfirm, setShowMfgToggleConfirm] = useState(false);
   const [pendingMfgToggle, setPendingMfgToggle] = useState(null);
@@ -197,8 +198,29 @@ export default function UsersPage() {
       const url    = editingMfg ? `/api/manufacturers/${editingMfg.id}` : '/api/manufacturers';
       const method = editingMfg ? 'PATCH' : 'POST';
       const body   = { ...mfgFormData };
-      if (editingMfg) { delete body.createUserAccount; delete body.email; delete body.password; }
-      else if (!body.createUserAccount) { delete body.email; delete body.password; }
+
+      if (editingMfg) {
+        const hasExistingUser = !!(editingMfg.userId || editingMfg.user);
+        if (hasExistingUser) {
+          // Update existing user credentials
+          delete body.createUserAccount;
+          if (!body.password) delete body.password;
+          if (!body.email)    delete body.email;
+        } else {
+          // Possibly converting to user account
+          if (!body.createUserAccount) {
+            delete body.email;
+            delete body.password;
+          }
+          delete body.createUserAccount; // backend infers from presence of email+password
+          // Re-add if creating
+          if (mfgFormData.createUserAccount) body.createUserAccount = true;
+        }
+      } else {
+        // New manufacturer
+        if (!body.createUserAccount) { delete body.email; delete body.password; }
+      }
+
       const res  = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save manufacturer');
@@ -220,18 +242,25 @@ export default function UsersPage() {
   }
 
   function openMfgAddModal() {
-    setMfgFormData({ name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' });
+    setMfgFormData(EMPTY_MFG_FORM);
     setEditingMfg(null); setMfgError(''); setShowMfgModal(true);
   }
 
   function openMfgEditModal(mfg) {
-    setMfgFormData({ name: mfg.name, contactInfo: mfg.contactInfo || '', notes: mfg.notes || '', createUserAccount: false, email: '', password: '' });
+    setMfgFormData({
+      name:              mfg.name,
+      contactInfo:       mfg.contactInfo || '',
+      notes:             mfg.notes || '',
+      createUserAccount: false,
+      email:             mfg.user?.email || '',   // pre-fill if user exists
+      password:          '',
+    });
     setEditingMfg(mfg); setMfgError(''); setShowMfgModal(true);
   }
 
   function closeMfgModal() {
     setShowMfgModal(false); setEditingMfg(null);
-    setMfgFormData({ name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' }); setMfgError('');
+    setMfgFormData(EMPTY_MFG_FORM); setMfgError('');
   }
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: '#a0a0a0' }}>Loading...</div>;
@@ -294,7 +323,7 @@ export default function UsersPage() {
           </div>
         </div>
 
-        {isMfgTab && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>Manufacturer entities with their assigned order items. Click Edit to update contact info or notes.</p>}
+        {isMfgTab && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>Manufacturer entities and their portal accounts. Edit to update credentials or convert to a user account.</p>}
         {isBrokerTab && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>Read-only broker portal accounts. Brokers can view assigned shipments and documents.</p>}
 
         {isMfgTab && (mfgLoading ? (
@@ -331,8 +360,8 @@ export default function UsersPage() {
             <div style={{ backgroundColor: '#1f1f1f', border: '1px solid #404040', borderRadius: 8, padding: '2rem', maxWidth: 500, width: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
               <h3 style={{ fontSize: 20, fontWeight: 600, color: '#fff', marginTop: 0, marginBottom: '1rem' }}>Deactivate User</h3>
               <p style={{ fontSize: 14, marginBottom: '1rem', color: '#d1d5db' }}>Are you sure you want to deactivate <strong>{pendingDeactivate.name}</strong>?</p>
-              <div style={{ padding: '1rem', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, marginBottom: '1rem' }}>
-                <p style={{ margin: 0, fontSize: 14, color: '#ef4444' }}><strong>Note:</strong> This user will no longer be able to log in until reactivated.</p>
+              <div style={{ padding: '1rem', backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 6, marginBottom: '1rem' }}>
+                <p style={{ margin: 0, fontSize: 14, color: '#dc2626' }}><strong>Note:</strong> This user will no longer be able to log in until reactivated.</p>
               </div>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                 <button onClick={() => { setShowDeactivateConfirm(false); setPendingDeactivate(null); }} style={{ background: '#2d2d2d', color: '#fff', border: '1px solid #404040', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
@@ -347,12 +376,16 @@ export default function UsersPage() {
             <div style={{ backgroundColor: '#1f1f1f', border: '1px solid #404040', borderRadius: 8, padding: '2rem', maxWidth: 500, width: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
               <h3 style={{ fontSize: 20, fontWeight: 600, color: '#fff', marginTop: 0, marginBottom: '1rem' }}>{pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'} Manufacturer</h3>
               <p style={{ fontSize: 14, marginBottom: '1rem', color: '#d1d5db' }}>Are you sure you want to {pendingMfgToggle.isActive ? 'deactivate' : 'reactivate'} <strong>{pendingMfgToggle.name}</strong>?</p>
-              <div style={{ padding: '1rem', backgroundColor: pendingMfgToggle.isActive ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${pendingMfgToggle.isActive ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}`, borderRadius: 6, marginBottom: '1rem' }}>
-                <p style={{ margin: 0, fontSize: 14, color: pendingMfgToggle.isActive ? '#ef4444' : '#10b981' }}><strong>Note:</strong> {pendingMfgToggle.isActive ? 'This manufacturer will be deactivated and hidden from the list.' : 'This manufacturer will be reactivated and visible again.'}</p>
+              <div style={{ padding: '1rem', backgroundColor: pendingMfgToggle.isActive ? 'rgba(220,38,38,0.1)' : 'rgba(16,185,129,0.1)', border: `1px solid ${pendingMfgToggle.isActive ? 'rgba(220,38,38,0.3)' : 'rgba(16,185,129,0.3)'}`, borderRadius: 6, marginBottom: '1rem' }}>
+                <p style={{ margin: 0, fontSize: 14, color: pendingMfgToggle.isActive ? '#dc2626' : '#10b981' }}>
+                  {pendingMfgToggle.isActive ? 'This manufacturer will be deactivated and hidden from the list.' : 'This manufacturer will be reactivated and visible again.'}
+                </p>
               </div>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                 <button onClick={() => { setShowMfgToggleConfirm(false); setPendingMfgToggle(null); }} style={{ background: '#2d2d2d', color: '#fff', border: '1px solid #404040', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-                <button onClick={executeMfgToggle} style={{ backgroundColor: pendingMfgToggle.isActive ? '#dc2626' : '#10b981', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>{pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'}</button>
+                <button onClick={executeMfgToggle} style={{ backgroundColor: pendingMfgToggle.isActive ? '#dc2626' : '#10b981', color: 'white', border: 'none', padding: '0.5rem 1.5rem', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>
+                  {pendingMfgToggle.isActive ? 'Deactivate' : 'Reactivate'}
+                </button>
               </div>
             </div>
           </div>
