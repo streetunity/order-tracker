@@ -11,6 +11,7 @@ const CATEGORIES = [
   { id: "videos",    label: "Videos",    accept: "video/*",                    icon: "🎬" },
   { id: "manuals",   label: "Manuals",   accept: ".pdf,.doc,.docx",            icon: "📕" },
   { id: "documents", label: "Documents", accept: ".pdf,.doc,.docx,.xls,.xlsx", icon: "📄" },
+  { id: "readme",    label: "Read Me",   accept: "*/*",                        icon: "📖" },
 ];
 
 const CHUNK_SIZE = 10 * 1024 * 1024;
@@ -31,10 +32,10 @@ export default function CustomerFilesPage() {
   const { user, getAuthHeaders } = useAuth();
   const router = useRouter();
 
-  const [files, setFiles]                   = useState({ photos: [], videos: [], manuals: [], documents: [] });
+  const [files, setFiles]                   = useState({ photos: [], videos: [], manuals: [], documents: [], readme: [] });
   const [loading, setLoading]               = useState(true);
-  const [uploadQueue, setUploadQueue]       = useState([]);   // [{ file, id }]
-  const [uploadingIdx, setUploadingIdx]     = useState(null); // index in queue currently uploading
+  const [uploadQueue, setUploadQueue]       = useState([]);
+  const [uploadingIdx, setUploadingIdx]     = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus]     = useState("");
   const [selectedCategory, setSelectedCategory] = useState("photos");
@@ -50,7 +51,6 @@ export default function CustomerFilesPage() {
   const fileInputRef = useRef(null);
   const isUploading  = uploadingIdx !== null;
 
-  // ─── Fetch ────────────────────────────────────────────────────
   const fetchFiles = useCallback(async () => {
     try {
       const res = await fetch(`/api/customer-documents/${orderId}`, { headers: getAuthHeaders() });
@@ -61,7 +61,6 @@ export default function CustomerFilesPage() {
 
   useEffect(() => { if (user) fetchFiles(); }, [user, fetchFiles]);
 
-  // ─── Upload single file ───────────────────────────────────────
   const uploadOne = useCallback(async (file) => {
     let documentId = null, uploadId = null, s3Key = null;
     try {
@@ -108,7 +107,6 @@ export default function CustomerFilesPage() {
     }
   }, [orderId, selectedCategory, getAuthHeaders]);
 
-  // ─── Process queue sequentially ───────────────────────────────
   const processQueue = useCallback(async (queue) => {
     setError("");
     const errors = [];
@@ -125,7 +123,6 @@ export default function CustomerFilesPage() {
     else { setSuccess(`${queue.length} file${queue.length > 1 ? "s" : ""} uploaded successfully.`); setTimeout(() => setSuccess(""), 4000); }
   }, [uploadOne, fetchFiles]);
 
-  // ─── Add files to queue then start ────────────────────────────
   const enqueueFiles = useCallback((fileList) => {
     const newItems = Array.from(fileList).map(f => ({ file: f, id: Math.random().toString(36).slice(2) }));
     if (!newItems.length) return;
@@ -135,7 +132,6 @@ export default function CustomerFilesPage() {
 
   const handleFileInput = (e) => enqueueFiles(e.target.files);
 
-  // ─── Drag-and-drop into upload zone ───────────────────────────
   const handleZoneDragOver  = (e) => { e.preventDefault(); setDragOver(true); };
   const handleZoneDragLeave = ()  => setDragOver(false);
   const handleZoneDrop      = (e) => {
@@ -143,7 +139,6 @@ export default function CustomerFilesPage() {
     if (!isUploading) enqueueFiles(e.dataTransfer.files);
   };
 
-  // ─── Reorder drag-and-drop (within file list) ─────────────────
   const handleFileDragStart = (e, fileId) => {
     setDraggingFileId(fileId);
     e.dataTransfer.effectAllowed = "move";
@@ -163,7 +158,6 @@ export default function CustomerFilesPage() {
     const reordered = [...currentFiles];
     const [moved] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, moved);
-    // Optimistic update
     setFiles(prev => ({ ...prev, [selectedCategory]: reordered }));
     try {
       const res = await fetch(`/api/customer-documents/${orderId}/reorder`, {
@@ -176,7 +170,6 @@ export default function CustomerFilesPage() {
   };
   const handleFileDragEnd = () => { setDraggingFileId(null); setDragOverFileId(null); };
 
-  // ─── Delete ────────────────────────────────────────────────────
   const executeDelete = async () => {
     if (!deleteConfirm) return;
     try {
@@ -186,7 +179,6 @@ export default function CustomerFilesPage() {
     } catch (e) { setError(e.message); }
   };
 
-  // ─── Edit (name, description, category) ───────────────────────
   const saveEdit = async (fileId) => {
     try {
       const res = await fetch(`/api/customer-documents/${orderId}/${fileId}`, {
@@ -199,7 +191,6 @@ export default function CustomerFilesPage() {
     } catch (e) { setError(e.message); }
   };
 
-  // ─── Notify ────────────────────────────────────────────────────
   const handleNotify = async () => {
     setNotifying(true); setError("");
     try {
@@ -220,9 +211,20 @@ export default function CustomerFilesPage() {
     return (bytes / 1073741824).toFixed(2) + " GB";
   };
 
-  const totalCount   = Object.values(files).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
+  // Count excluding global readme files (those aren't "uploaded" by admins to this order)
+  const orderFileCount  = Object.entries(files)
+    .filter(([k]) => ['photos','videos','manuals','documents'].includes(k))
+    .reduce((n, [, arr]) => n + (Array.isArray(arr) ? arr.length : 0), 0)
+    + (Array.isArray(files.readme) ? files.readme.filter(f => !f.isGlobal).length : 0);
+  const totalCount = (files.totalCount != null ? files.totalCount : orderFileCount);
+
   const currentCat   = CATEGORIES.find(c => c.id === selectedCategory);
-  const currentFiles = files[selectedCategory] || [];
+  const currentFiles = Array.isArray(files[selectedCategory]) ? files[selectedCategory] : [];
+  const isReadmeTab  = selectedCategory === 'readme';
+
+  // For readme tab: split into global (read-only) and order-specific (manageable)
+  const globalReadmeFiles = isReadmeTab ? currentFiles.filter(f => f.isGlobal)  : [];
+  const orderReadmeFiles  = isReadmeTab ? currentFiles.filter(f => !f.isGlobal) : [];
 
   if (!user) return null;
   if (loading) return (
@@ -232,6 +234,116 @@ export default function CustomerFilesPage() {
       </div>
     </>
   );
+
+  // Render a single file row
+  const renderFileRow = (file, { draggable: allowDrag = true } = {}) => {
+    const isGlobalReadme = isReadmeTab && file.isGlobal;
+    const canDrag = allowDrag && !isGlobalReadme && !isReadmeTab;
+
+    return (
+      <div
+        key={file.id}
+        draggable={canDrag}
+        onDragStart={canDrag ? e => handleFileDragStart(e, file.id) : undefined}
+        onDragOver={canDrag  ? e => handleFileDragOver(e, file.id)  : undefined}
+        onDrop={canDrag      ? e => handleFileDrop(e, file.id)      : undefined}
+        onDragEnd={canDrag   ? handleFileDragEnd                    : undefined}
+        style={{
+          ...S.row,
+          opacity:    draggingFileId === file.id ? 0.4 : 1,
+          border:     dragOverFileId === file.id ? "1px solid #dc2626" : S.row.border,
+          background: isGlobalReadme ? "#111" : S.row.backgroundColor,
+          transition: "opacity 0.15s, border-color 0.1s",
+        }}
+      >
+        {/* Drag handle — only for non-readme tabs */}
+        {canDrag && (
+          <div style={{ color:"#374151", fontSize:18, cursor:"grab", flexShrink:0, userSelect:"none", lineHeight:1 }} title="Drag to reorder">⠿</div>
+        )}
+
+        {/* Global badge */}
+        {isGlobalReadme && (
+          <span style={{ flexShrink:0, fontSize:10, background:"rgba(37,99,235,0.15)", color:"#60a5fa", border:"1px solid rgba(37,99,235,0.3)", borderRadius:4, padding:"2px 7px", fontWeight:700, whiteSpace:"nowrap" }}>GLOBAL</span>
+        )}
+
+        {/* Thumbnail / icon */}
+        <div style={{ width:44, height:44, flexShrink:0, borderRadius:6, overflow:"hidden", background:"#1f1f1f", border:"1px solid #2d2d2d", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {file.mimeType?.startsWith("image/") ? (
+            <img src={file.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+          ) : (
+            <span style={{ fontSize:20 }}>{currentCat.icon}</span>
+          )}
+        </div>
+
+        {/* Info / edit form */}
+        <div style={{ flex:1, minWidth:0 }}>
+          {editingId === file.id ? (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              <input
+                type="text" value={editForm.displayName}
+                onChange={e => setEditForm({ ...editForm, displayName: e.target.value })}
+                placeholder="Display name"
+                style={S.input}
+              />
+              <input
+                type="text" value={editForm.description}
+                onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                placeholder="Description (optional)"
+                style={S.input}
+              />
+              <select
+                value={editForm.category}
+                onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                style={S.select}
+              >
+                {CATEGORIES.map(c => (
+                  <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <>
+              <p style={{ margin:0, fontSize:14, fontWeight:500, color:"#e4e4e4", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {file.displayName || file.fileName}
+              </p>
+              {file.description && (
+                <p style={{ margin:"2px 0 0", fontSize:12, color:"#6b7280", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{file.description}</p>
+              )}
+              <p style={{ margin:"2px 0 0", fontSize:11, color:"#374151" }}>
+                {fmt(file.fileSize)}{file.uploadedBy?.name ? ` · ${file.uploadedBy.name}` : ""}
+                {isGlobalReadme && <span style={{ color:"#4b5563", marginLeft:6 }}>· All orders</span>}
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+          {isGlobalReadme ? (
+            // Global readme — view only from here, manage in settings
+            <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download"
+              style={{ ...S.iconBtn, textDecoration:"none" }}>↗</a>
+          ) : editingId === file.id ? (
+            <>
+              <button onClick={() => saveEdit(file.id)} title="Save" style={{ ...S.iconBtn, color:"#10b981", borderColor:"rgba(16,185,129,0.3)" }}>✓</button>
+              <button onClick={() => setEditingId(null)} title="Cancel" style={S.iconBtn}>✕</button>
+            </>
+          ) : (
+            <>
+              <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download"
+                style={{ ...S.iconBtn, textDecoration:"none" }}>↗</a>
+              <button
+                onClick={() => { setEditingId(file.id); setEditForm({ displayName: file.displayName || file.fileName, description: file.description || "", category: file.category || selectedCategory }); }}
+                title="Edit" style={S.iconBtn}>✎</button>
+              <button
+                onClick={() => setDeleteConfirm({ id: file.id, name: file.displayName || file.fileName })}
+                title="Delete" style={{ ...S.iconBtn, color:"#dc2626", borderColor:"rgba(220,38,38,0.25)" }}>🗑</button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -245,17 +357,26 @@ export default function CustomerFilesPage() {
             <div>
               <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#fff" }}>Customer Files</h1>
               <p style={{ margin:"3px 0 0", fontSize:13, color:"#6b7280" }}>
-                {totalCount === 0 ? "No files uploaded yet" : `${totalCount} file${totalCount !== 1 ? "s" : ""} uploaded`}
+                {totalCount === 0 ? "No files uploaded yet" : `${totalCount} file${totalCount !== 1 ? "s" : ""} total`}
               </p>
             </div>
           </div>
-          <button
-            onClick={handleNotify}
-            disabled={notifying || totalCount === 0}
-            style={{ ...S.btnGray, opacity: (notifying || totalCount === 0) ? 0.4 : 1, cursor: (notifying || totalCount === 0) ? "not-allowed" : "pointer" }}
-          >
-            🔔 {notifying ? "Sending…" : "Notify Customer"}
-          </button>
+          <div style={{ display:"flex", gap:8 }}>
+            {isReadmeTab && (
+              <a href="/admin/readme-files"
+                style={{ ...S.btnGray, textDecoration:"none" }}
+                title="Manage global Read Me files">
+                ⚙ Global Files
+              </a>
+            )}
+            <button
+              onClick={handleNotify}
+              disabled={notifying || orderFileCount === 0}
+              style={{ ...S.btnGray, opacity: (notifying || orderFileCount === 0) ? 0.4 : 1, cursor: (notifying || orderFileCount === 0) ? "not-allowed" : "pointer" }}
+            >
+              🔔 {notifying ? "Sending…" : "Notify Customer"}
+            </button>
+          </div>
         </div>
 
         {/* Alerts */}
@@ -271,7 +392,7 @@ export default function CustomerFilesPage() {
           </div>
         )}
 
-        {/* Upload queue progress (multiple files) */}
+        {/* Multi-file upload progress */}
         {isUploading && uploadQueue.length > 1 && (
           <div style={{ marginBottom:16, padding:"12px 16px", background:"#141414", border:"1px solid #2d2d2d", borderRadius:8 }}>
             <p style={{ margin:"0 0 8px", fontSize:13, color:"#9ca3af" }}>
@@ -303,7 +424,7 @@ export default function CustomerFilesPage() {
           {/* Category tabs */}
           <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:"1px solid #2d2d2d" }}>
             {CATEGORIES.map(cat => {
-              const count  = files[cat.id]?.length || 0;
+              const count  = Array.isArray(files[cat.id]) ? files[cat.id].length : 0;
               const active = selectedCategory === cat.id;
               return (
                 <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} style={{
@@ -326,7 +447,7 @@ export default function CustomerFilesPage() {
             })}
           </div>
 
-          {/* Drop zone — click or drag-and-drop, accepts multiple files */}
+          {/* Upload zone */}
           <div style={{ marginBottom:20 }}>
             <input
               ref={fileInputRef}
@@ -368,119 +489,70 @@ export default function CustomerFilesPage() {
                 <>
                   <span style={{ fontSize:28 }}>⬆</span>
                   <p style={{ margin:0, fontSize:14, fontWeight:500, color:"#e4e4e4" }}>
-                    Drag & drop or click to upload {currentCat.label.toLowerCase()}
+                    {isReadmeTab
+                      ? "Drag & drop or click to upload order-specific Read Me files"
+                      : `Drag & drop or click to upload ${currentCat.label.toLowerCase()}`
+                    }
                   </p>
-                  <p style={{ margin:0, fontSize:12, color:"#4b5563" }}>Multiple files supported · {currentCat.accept}</p>
+                  <p style={{ margin:0, fontSize:12, color:"#4b5563" }}>
+                    {isReadmeTab
+                      ? "Any file type · Global files appear automatically for all orders"
+                      : `Multiple files supported · ${currentCat.accept}`
+                    }
+                  </p>
                 </>
               )}
             </div>
           </div>
 
-          {/* File list — draggable to reorder */}
-          {currentFiles.length === 0 ? (
-            <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}>
-              <div style={{ fontSize:40, marginBottom:10 }}>{currentCat.icon}</div>
-              <p style={{ margin:0, fontSize:14 }}>No {currentCat.label.toLowerCase()} uploaded yet</p>
+          {/* File list */}
+          {isReadmeTab ? (
+            // README TAB — global files (read-only) + order-specific files
+            <div>
+              {/* Global files section */}
+              {globalReadmeFiles.length > 0 && (
+                <div style={{ marginBottom: orderReadmeFiles.length > 0 ? 20 : 0 }}>
+                  <p style={{ margin:"0 0 10px", fontSize:11, color:"#4b5563", textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                    🌐 Global — appears in all orders
+                    <a href="/admin/readme-files" style={{ marginLeft:10, color:"#dc2626", textDecoration:"none", fontWeight:600 }}>Manage ↗</a>
+                  </p>
+                  {globalReadmeFiles.map(file => renderFileRow(file))}
+                </div>
+              )}
+
+              {/* Order-specific readme files */}
+              {orderReadmeFiles.length > 0 && (
+                <div>
+                  <p style={{ margin:"0 0 10px", fontSize:11, color:"#4b5563", textTransform:"uppercase", letterSpacing:"0.05em" }}>This Order Only</p>
+                  {orderReadmeFiles.map(file => renderFileRow(file))}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {currentFiles.length === 0 && (
+                <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}>
+                  <div style={{ fontSize:40, marginBottom:10 }}>📖</div>
+                  <p style={{ margin:0, fontSize:14 }}>No Read Me files yet</p>
+                  <p style={{ margin:"8px 0 0", fontSize:12, color:"#4b5563" }}>
+                    Upload order-specific files above, or{" "}
+                    <a href="/admin/readme-files" style={{ color:"#dc2626" }}>manage global files</a>
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
-            <div>
-              <p style={{ margin:"0 0 10px", fontSize:11, color:"#4b5563" }}>Drag ⠿ to reorder</p>
-              {currentFiles.map(file => (
-                <div
-                  key={file.id}
-                  draggable
-                  onDragStart={e => handleFileDragStart(e, file.id)}
-                  onDragOver={e  => handleFileDragOver(e, file.id)}
-                  onDrop={e      => handleFileDrop(e, file.id)}
-                  onDragEnd={handleFileDragEnd}
-                  style={{
-                    ...S.row,
-                    opacity:    draggingFileId === file.id ? 0.4 : 1,
-                    border:     dragOverFileId === file.id ? "1px solid #dc2626" : S.row.border,
-                    transition: "opacity 0.15s, border-color 0.1s",
-                  }}
-                >
-                  {/* Drag handle */}
-                  <div
-                    style={{ color:"#374151", fontSize:18, cursor:"grab", flexShrink:0, userSelect:"none", lineHeight:1 }}
-                    title="Drag to reorder"
-                  >
-                    ⠿
-                  </div>
-
-                  {/* Thumbnail / icon */}
-                  <div style={{ width:48, height:48, flexShrink:0, borderRadius:6, overflow:"hidden", background:"#1f1f1f", border:"1px solid #2d2d2d", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    {file.mimeType?.startsWith("image/") ? (
-                      <img src={file.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                    ) : (
-                      <span style={{ fontSize:22 }}>{currentCat.icon}</span>
-                    )}
-                  </div>
-
-                  {/* Info / edit form */}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    {editingId === file.id ? (
-                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                        <input
-                          type="text" value={editForm.displayName}
-                          onChange={e => setEditForm({ ...editForm, displayName: e.target.value })}
-                          placeholder="Display name"
-                          style={S.input}
-                        />
-                        <input
-                          type="text" value={editForm.description}
-                          onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                          placeholder="Description (optional)"
-                          style={S.input}
-                        />
-                        <select
-                          value={editForm.category}
-                          onChange={e => setEditForm({ ...editForm, category: e.target.value })}
-                          style={S.select}
-                        >
-                          {CATEGORIES.map(c => (
-                            <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    ) : (
-                      <>
-                        <p style={{ margin:0, fontSize:14, fontWeight:500, color:"#e4e4e4", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                          {file.displayName || file.fileName}
-                        </p>
-                        {file.description && (
-                          <p style={{ margin:"2px 0 0", fontSize:12, color:"#6b7280", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{file.description}</p>
-                        )}
-                        <p style={{ margin:"2px 0 0", fontSize:11, color:"#374151" }}>
-                          {fmt(file.fileSize)}{file.uploadedBy?.name ? ` · ${file.uploadedBy.name}` : ""}
-                        </p>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                    {editingId === file.id ? (
-                      <>
-                        <button onClick={() => saveEdit(file.id)} title="Save" style={{ ...S.iconBtn, color:"#10b981", borderColor:"rgba(16,185,129,0.3)" }}>✓</button>
-                        <button onClick={() => setEditingId(null)} title="Cancel" style={S.iconBtn}>✕</button>
-                      </>
-                    ) : (
-                      <>
-                        <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download"
-                          style={{ ...S.iconBtn, textDecoration:"none" }}>↗</a>
-                        <button
-                          onClick={() => { setEditingId(file.id); setEditForm({ displayName: file.displayName || file.fileName, description: file.description || "", category: file.category || selectedCategory }); }}
-                          title="Edit" style={S.iconBtn}>✎</button>
-                        <button
-                          onClick={() => setDeleteConfirm({ id: file.id, name: file.displayName || file.fileName })}
-                          title="Delete" style={{ ...S.iconBtn, color:"#dc2626", borderColor:"rgba(220,38,38,0.25)" }}>🗑</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            // STANDARD TABS
+            currentFiles.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}>
+                <div style={{ fontSize:40, marginBottom:10 }}>{currentCat.icon}</div>
+                <p style={{ margin:0, fontSize:14 }}>No {currentCat.label.toLowerCase()} uploaded yet</p>
+              </div>
+            ) : (
+              <div>
+                <p style={{ margin:"0 0 10px", fontSize:11, color:"#4b5563" }}>Drag ⠿ to reorder</p>
+                {currentFiles.map(file => renderFileRow(file))}
+              </div>
+            )
           )}
 
           {/* Legacy Dropbox link */}

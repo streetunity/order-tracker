@@ -33,6 +33,7 @@ import { createBrokerRouter } from './routes/broker.js';
 import documentsRouter from './routes/documents.js';
 import itemDocumentsRouter from './routes/itemDocuments.js';
 import customerDocumentsRouter from './routes/customerDocuments.js';
+import globalDocumentsRouter from './routes/globalDocuments.js';
 import publicCustomerDocumentsRouter from './routes/publicCustomerDocuments.js';
 import shipmentsRouter from './routes/shipments.js';
 import { createLeadsRouter } from './routes/leads.js';
@@ -196,11 +197,6 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Internal employees for calendar assignee picker.
-// Uses raw SQL because the isEmployee column was added via db push — pre-existing
-// rows have SQLite NULL even though the Prisma schema declares it non-nullable.
-// Prisma ORM rejects { isEmployee: null } queries on non-nullable fields, so
-// $queryRawUnsafe is the only way to correctly match NULL OR 1 here.
 app.get('/users/internal', authGuard, async (req, res) => {
   try {
     const users = await prisma.$queryRawUnsafe(`
@@ -267,6 +263,7 @@ app.use('/shipments', shipmentsRouter);
 app.use(documentsRouter);
 app.use(itemDocumentsRouter);
 app.use('/customer-documents', customerDocumentsRouter);
+app.use('/global-documents', authGuard, globalDocumentsRouter);
 
 app.use('/leads', authGuard, leadsRouter);
 app.use('/customers', authGuard, customersRouter);

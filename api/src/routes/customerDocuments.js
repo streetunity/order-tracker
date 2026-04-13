@@ -2,9 +2,10 @@
  * Customer Documents Routes
  *
  * Handles file uploads for customer-viewable content.
- * Supports categories: photos, videos, manuals, documents.
+ * Supports categories: photos, videos, manuals, documents, readme.
+ * The 'readme' category merges global (settings-managed) files with
+ * order-specific readme files in the GET response.
  * Uses S3 multipart upload for reliable large-file transfers.
- * Files are grouped by category and displayed on the public tracking page.
  */
 
 import express from 'express';
@@ -30,7 +31,7 @@ const CHUNK_SIZE = 10 * 1024 * 1024;
 const URL_EXPIRY = 3600;
 const RETENTION_DAYS = 365;
 
-const VALID_CATEGORIES = ['photos', 'videos', 'manuals', 'documents'];
+const VALID_CATEGORIES = ['photos', 'videos', 'manuals', 'documents', 'readme'];
 
 function sanitizeFileName(originalName) {
   if (!originalName) return `file-${Date.now()}`;
@@ -78,7 +79,7 @@ async function generateDownloadUrl(s3Key, displayName) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// GET /:orderId
+// GET /:orderId — returns order-specific docs + global readme files
 // ─────────────────────────────────────────────────────────────
 router.get('/:orderId', authGuard, async (req, res) => {
   try {
@@ -89,11 +90,19 @@ router.get('/:orderId', authGuard, async (req, res) => {
     });
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const docs = await prisma.customerDocument.findMany({
-      where: { orderId, isComplete: true },
-      include: { uploadedBy: { select: { id: true, name: true } } },
-      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { uploadedAt: 'desc' }],
-    });
+    // Fetch order-specific docs and global readme docs in parallel
+    const [docs, globalDocs] = await Promise.all([
+      prisma.customerDocument.findMany({
+        where: { orderId, isComplete: true },
+        include: { uploadedBy: { select: { id: true, name: true } } },
+        orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { uploadedAt: 'desc' }],
+      }),
+      prisma.globalCustomerDocument.findMany({
+        where: { isComplete: true, isActive: true },
+        include: { uploadedBy: { select: { id: true, name: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { uploadedAt: 'asc' }],
+      }),
+    ]);
 
     const withUrls = await Promise.all(
       docs.map(async (doc) => {
@@ -112,17 +121,44 @@ router.get('/:orderId', authGuard, async (req, res) => {
           uploadedAt: doc.uploadedAt,
           expiresAt: doc.expiresAt,
           url,
+          isGlobal: false,
         };
       })
     );
+
+    const globalWithUrls = await Promise.all(
+      globalDocs.map(async (doc) => {
+        const url = await generateInlineUrl(doc.s3Key);
+        return {
+          id: doc.id,
+          fileName: doc.fileName,
+          displayName: doc.displayName || doc.fileName,
+          fileSize: Number(doc.fileSize),
+          fileSizeFormatted: formatFileSize(doc.fileSize),
+          mimeType: doc.mimeType,
+          category: 'readme',
+          sortOrder: doc.sortOrder,
+          description: doc.description,
+          uploadedBy: doc.uploadedBy,
+          uploadedAt: doc.uploadedAt,
+          expiresAt: null,
+          url,
+          isGlobal: true,
+        };
+      })
+    );
+
+    // readme = global files first, then order-specific readme files
+    const orderReadme = withUrls.filter(f => f.category === 'readme');
 
     res.json({
       photos:            withUrls.filter(f => f.category === 'photos'),
       videos:            withUrls.filter(f => f.category === 'videos'),
       manuals:           withUrls.filter(f => f.category === 'manuals'),
       documents:         withUrls.filter(f => f.category === 'documents'),
+      readme:            [...globalWithUrls, ...orderReadme],
       legacyDropboxLink: order.customerDocsLink || null,
-      totalCount:        withUrls.length,
+      totalCount:        withUrls.length + globalWithUrls.length,
     });
   } catch (error) {
     console.error('Error listing customer documents:', error);
@@ -408,7 +444,6 @@ router.patch('/:orderId/:documentId', authGuard, async (req, res) => {
       if (!VALID_CATEGORIES.includes(category))
         return res.status(400).json({ error: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}` });
       data.category = category;
-      // Move to end of new category
       const maxSort = await prisma.customerDocument.aggregate({ where: { orderId, category }, _max: { sortOrder: true } });
       data.sortOrder = (maxSort._max.sortOrder ?? 0) + 1;
     }
