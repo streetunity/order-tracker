@@ -448,6 +448,7 @@ model User {
   manufacturer           Manufacturer?
   brokerActivityLogs     BrokerActivityLog[]
   customerDocuments      CustomerDocument[]
+  globalDocuments        GlobalCustomerDocument[]
 
   calendarEventsAsSubject CalendarEvent[] @relation("CalendarEventUser")
   calendarEventsCreated   CalendarEvent[] @relation("CalendarEventCreatedBy")
@@ -642,12 +643,45 @@ model CustomerDocument {
 }
 
 // ============================================
+// GLOBAL CUSTOMER DOCUMENTS (Read Me Files)
+// Uploaded once in settings, appear in every customer order's files page.
+// ============================================
+
+model GlobalCustomerDocument {
+  id          String   @id @default(cuid())
+  fileName    String
+  displayName String?
+  fileSize    BigInt
+  mimeType    String
+  s3Bucket    String
+  s3Key       String
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedAt   DateTime @default(now())
+
+  uploadId   String?
+  isComplete Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([isComplete])
+  @@index([uploadedById])
+  @@map("global_customer_documents")
+}
+
+// ============================================
 // CALENDAR EVENTS
 // ============================================
 
 model CalendarEvent {
   id        String   @id @default(cuid())
-  type      String   // INSTALL | TIME_OFF | BLOCKED
+  type      String   // INSTALL | TIME_OFF | BLOCKED | OTHER
   title     String
   startDate DateTime
   endDate   DateTime
