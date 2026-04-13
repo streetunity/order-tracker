@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 
 const STAGES = [
@@ -29,6 +29,11 @@ export default function PublicTrackingPage() {
   const [error,         setError]         = useState("");
   const [customerFiles, setCustomerFiles] = useState(null);
   const [activeTab,     setActiveTab]     = useState("overview");
+
+  // Lightbox state
+  const [lightbox, setLightbox]   = useState({ open: false, index: 0 });
+  const touchStartX               = useRef(null);
+  const videoRef                  = useRef(null);
 
   useEffect(() => {
     async function loadOrder() {
@@ -67,7 +72,55 @@ export default function PublicTrackingPage() {
     loadFiles();
   }, [params.token]);
 
-  const formatDate = (s) => {
+  // Combined media array for lightbox navigation
+  const allMedia = [
+    ...(customerFiles?.photos || []).map(f => ({ ...f, mediaType: "image" })),
+    ...(customerFiles?.videos || []).map(f => ({ ...f, mediaType: "video" })),
+  ];
+
+  const openLightbox = (index) => {
+    setLightbox({ open: true, index });
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeLightbox = useCallback(() => {
+    setLightbox({ open: false, index: 0 });
+    document.body.style.overflow = "";
+    if (videoRef.current) videoRef.current.pause();
+  }, []);
+
+  const lightboxPrev = useCallback(() => {
+    if (videoRef.current) videoRef.current.pause();
+    setLightbox(lb => ({ ...lb, index: (lb.index - 1 + allMedia.length) % allMedia.length }));
+  }, [allMedia.length]);
+
+  const lightboxNext = useCallback(() => {
+    if (videoRef.current) videoRef.current.pause();
+    setLightbox(lb => ({ ...lb, index: (lb.index + 1) % allMedia.length }));
+  }, [allMedia.length]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!lightbox.open) return;
+    const handler = (e) => {
+      if (e.key === "Escape")      closeLightbox();
+      if (e.key === "ArrowLeft")   lightboxPrev();
+      if (e.key === "ArrowRight")  lightboxNext();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [lightbox.open, closeLightbox, lightboxPrev, lightboxNext]);
+
+  // Swipe handlers
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd   = (e) => {
+    if (touchStartX.current === null) return;
+    const diff = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) diff > 0 ? lightboxNext() : lightboxPrev();
+    touchStartX.current = null;
+  };
+
+  const formatDate     = (s) => {
     try {
       const d = new Date(s);
       return d.toLocaleDateString() + " at " + d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
@@ -137,71 +190,109 @@ export default function PublicTrackingPage() {
     </div>
   );
 
+  const currentMedia = allMedia[lightbox.index];
+
   return (
     <main style={{ maxWidth:"1100px", margin:"0 auto", padding:"24px 16px 60px" }}>
 
       <style>{`
-        .tracking-header {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 28px;
-        }
-        .tracking-logo {
-          flex-shrink: 0;
-          width: 90px;
-          height: 90px;
-        }
-        .tracking-tabs {
-          display: flex;
-          gap: 4px;
-          padding: 6px;
-          background: #1a1a1a;
-          border-radius: 8px;
-          margin-bottom: 24px;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
-        }
-        .tracking-tabs::-webkit-scrollbar { display: none; }
-        .info-grid-2 {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 18px 32px;
-        }
-        .item-header-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 18px;
-          gap: 16px;
-        }
-        .stage-pills-wrap {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 4px;
-          margin-bottom: 14px;
-        }
-        .stage-pill {
-          flex: 1 1 80px;
-          padding: 6px 4px;
-          border-radius: 5px;
-          text-align: center;
-          font-size: 9px;
-          font-weight: 500;
-          line-height: 1.3;
-          box-sizing: border-box;
-        }
-        @media (max-width: 640px) {
-          .tracking-header { flex-direction: column; align-items: flex-start; gap: 14px; }
-          .tracking-logo { width: 64px; height: 64px; }
-          .tracking-header h1 { font-size: 22px !important; }
-          .info-grid-2 { grid-template-columns: 1fr; gap: 14px; }
-          .item-header-row { flex-direction: column; gap: 10px; }
-          .item-header-row > div:last-child { text-align: left !important; }
-          .stage-pill { flex: 1 1 60px; font-size: 8px; }
+        .tracking-header { display:flex; align-items:center; gap:20px; margin-bottom:28px; }
+        .tracking-logo { flex-shrink:0; width:90px; height:90px; }
+        .tracking-tabs { display:flex; gap:4px; padding:6px; background:#1a1a1a; border-radius:8px; margin-bottom:24px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+        .tracking-tabs::-webkit-scrollbar { display:none; }
+        .info-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px 32px; }
+        .item-header-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; gap:16px; }
+        .stage-pills-wrap { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:14px; }
+        .stage-pill { flex:1 1 80px; padding:6px 4px; border-radius:5px; text-align:center; font-size:9px; font-weight:500; line-height:1.3; box-sizing:border-box; }
+        .media-thumb { cursor:pointer; transition:transform 0.15s, opacity 0.15s; }
+        .media-thumb:hover { transform:scale(1.03); opacity:0.9; }
+        .lb-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); border-radius:50%; width:48px; height:48px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:20px; cursor:pointer; transition:background 0.15s; user-select:none; }
+        .lb-arrow:hover { background:rgba(220,38,38,0.7); }
+        @media (max-width:640px) {
+          .tracking-header { flex-direction:column; align-items:flex-start; gap:14px; }
+          .tracking-logo { width:64px; height:64px; }
+          .tracking-header h1 { font-size:22px !important; }
+          .info-grid-2 { grid-template-columns:1fr; gap:14px; }
+          .item-header-row { flex-direction:column; gap:10px; }
+          .item-header-row > div:last-child { text-align:left !important; }
+          .stage-pill { flex:1 1 60px; font-size:8px; }
+          .lb-arrow { width:40px; height:40px; font-size:16px; }
         }
       `}</style>
+
+      {/* ── LIGHTBOX ── */}
+      {lightbox.open && currentMedia && (
+        <div
+          onClick={closeLightbox}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={{
+            position:"fixed", inset:0, zIndex:9999,
+            background:"rgba(0,0,0,0.95)",
+            display:"flex", flexDirection:"column",
+            alignItems:"center", justifyContent:"center",
+          }}
+        >
+          {/* Close */}
+          <button
+            onClick={closeLightbox}
+            style={{ position:"absolute", top:16, right:16, background:"rgba(0,0,0,0.5)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"50%", width:40, height:40, color:"#fff", fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:10 }}
+          >✕</button>
+
+          {/* Counter */}
+          <div style={{ position:"absolute", top:20, left:"50%", transform:"translateX(-50%)", color:"rgba(255,255,255,0.7)", fontSize:13, fontWeight:500, background:"rgba(0,0,0,0.4)", padding:"4px 12px", borderRadius:99 }}>
+            {lightbox.index + 1} / {allMedia.length}
+          </div>
+
+          {/* Prev arrow */}
+          {allMedia.length > 1 && (
+            <button
+              className="lb-arrow"
+              onClick={e => { e.stopPropagation(); lightboxPrev(); }}
+              style={{ left:12 }}
+            >‹</button>
+          )}
+
+          {/* Media */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth:"90vw", maxHeight:"80vh", display:"flex", alignItems:"center", justifyContent:"center" }}
+          >
+            {currentMedia.mediaType === "image" ? (
+              <img
+                src={currentMedia.url}
+                alt={currentMedia.fileName}
+                style={{ maxWidth:"90vw", maxHeight:"80vh", objectFit:"contain", borderRadius:6, boxShadow:"0 8px 40px rgba(0,0,0,0.6)" }}
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                controls
+                autoPlay
+                style={{ maxWidth:"90vw", maxHeight:"80vh", borderRadius:6, boxShadow:"0 8px 40px rgba(0,0,0,0.6)" }}
+              >
+                <source src={currentMedia.url} type={currentMedia.mimeType} />
+              </video>
+            )}
+          </div>
+
+          {/* Next arrow */}
+          {allMedia.length > 1 && (
+            <button
+              className="lb-arrow"
+              onClick={e => { e.stopPropagation(); lightboxNext(); }}
+              style={{ right:12 }}
+            >›</button>
+          )}
+
+          {/* Caption */}
+          {currentMedia.fileName && (
+            <div style={{ position:"absolute", bottom:20, left:"50%", transform:"translateX(-50%)", color:"rgba(255,255,255,0.5)", fontSize:12, maxWidth:"80vw", textAlign:"center", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {currentMedia.fileName}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Header */}
       <div className="tracking-header">
@@ -355,7 +446,7 @@ export default function PublicTrackingPage() {
             </div>
           ) : (
             <>
-              {/* Read Me files */}
+              {/* Read Me */}
               {customerFiles.readme?.length > 0 && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
@@ -378,38 +469,50 @@ export default function PublicTrackingPage() {
                 </div>
               )}
 
-              {/* Photos */}
+              {/* Photos — open lightbox on click */}
               {customerFiles.photos?.length > 0 && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
                     📷 Photos <span style={{ fontSize:"13px", color:"#6b7280", fontWeight:400 }}>({customerFiles.photos.length})</span>
                   </h3>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:"10px" }}>
-                    {customerFiles.photos.map((f) => (
-                      <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display:"block", borderRadius:"8px", overflow:"hidden", border:"1px solid #404040", aspectRatio:"1", background:"#2d2d2d" }}>
+                    {customerFiles.photos.map((f, i) => (
+                      <div
+                        key={f.id}
+                        className="media-thumb"
+                        onClick={() => openLightbox(i)}
+                        style={{ borderRadius:"8px", overflow:"hidden", border:"1px solid #404040", aspectRatio:"1", background:"#2d2d2d", cursor:"pointer" }}
+                      >
                         <img src={f.url} alt={f.fileName} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-                      </a>
+                      </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Videos */}
+              {/* Videos — open lightbox on click */}
               {customerFiles.videos?.length > 0 && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
                     🎬 Videos <span style={{ fontSize:"13px", color:"#6b7280", fontWeight:400 }}>({customerFiles.videos.length})</span>
                   </h3>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:"14px" }}>
-                    {customerFiles.videos.map((f) => (
-                      <div key={f.id} style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"8px", overflow:"hidden" }}>
-                        <video controls style={{ width:"100%", display:"block" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:"10px" }}>
+                    {customerFiles.videos.map((f, i) => (
+                      <div
+                        key={f.id}
+                        className="media-thumb"
+                        onClick={() => openLightbox(customerFiles.photos.length + i)}
+                        style={{ borderRadius:"8px", overflow:"hidden", border:"1px solid #404040", background:"#2d2d2d", cursor:"pointer", position:"relative" }}
+                      >
+                        <video style={{ width:"100%", display:"block", pointerEvents:"none" }} preload="metadata">
                           <source src={f.url} type={f.mimeType} />
-                          Your browser does not support video playback.
                         </video>
+                        {/* Play overlay */}
+                        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.3)" }}>
+                          <div style={{ width:52, height:52, borderRadius:"50%", background:"rgba(220,38,38,0.85)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, color:"#fff", paddingLeft:4 }}>▶</div>
+                        </div>
                         <div style={{ padding:"8px 12px", fontSize:"13px", color:"#a0a0a0" }}>
-                          {f.fileName}{f.fileSizeFormatted && <span style={{ marginLeft:"8px" }}>· {f.fileSizeFormatted}</span>}
+                          {f.fileName}
                         </div>
                       </div>
                     ))}
