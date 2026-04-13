@@ -56,8 +56,7 @@ export default function PublicTrackingPage() {
         const res = await fetch(`/api/public/track/${params.token}/customer-documents`, { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
-          const hasFiles = data.totalCount > 0 || data.legacyDropboxLink;
-          setCustomerFiles(hasFiles ? data : {});
+          setCustomerFiles(data);
         }
       } catch { /* silent */ }
     }
@@ -97,6 +96,13 @@ export default function PublicTrackingPage() {
 
   const showShipping = order.etaDate || order.shippingCarrier || order.trackingNumber || order.onsiteInstallationDate;
   const hasTimeline  = (order.statusEvents?.length > 0) || order.items?.some(i => i.statusEvents?.length > 0);
+
+  // Determine if there are any files to show on the Files tab
+  const hasAnyFiles = customerFiles && (
+    customerFiles.totalCount > 0 ||
+    customerFiles.legacyDropboxLink ||
+    customerFiles.readme?.length > 0
+  );
 
   const tabStyle = (id) => ({
     padding: "10px 18px",
@@ -167,7 +173,6 @@ export default function PublicTrackingPage() {
           margin-bottom: 18px;
           gap: 16px;
         }
-        /* Pills wrap to fill available width — no scrolling, no overflow */
         .stage-pills-wrap {
           display: flex;
           flex-wrap: wrap;
@@ -175,8 +180,6 @@ export default function PublicTrackingPage() {
           margin-bottom: 14px;
         }
         .stage-pill {
-          /* Each pill takes an equal share; on desktop 10 fit in a row,
-             on mobile they wrap into 2–3 rows naturally */
           flex: 1 1 80px;
           padding: 6px 4px;
           border-radius: 5px;
@@ -187,34 +190,13 @@ export default function PublicTrackingPage() {
           box-sizing: border-box;
         }
         @media (max-width: 640px) {
-          .tracking-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 14px;
-          }
-          .tracking-logo {
-            width: 64px;
-            height: 64px;
-          }
-          .tracking-header h1 {
-            font-size: 22px !important;
-          }
-          .info-grid-2 {
-            grid-template-columns: 1fr;
-            gap: 14px;
-          }
-          .item-header-row {
-            flex-direction: column;
-            gap: 10px;
-          }
-          .item-header-row > div:last-child {
-            text-align: left !important;
-          }
-          /* 5 pills per row on small phones */
-          .stage-pill {
-            flex: 1 1 60px;
-            font-size: 8px;
-          }
+          .tracking-header { flex-direction: column; align-items: flex-start; gap: 14px; }
+          .tracking-logo { width: 64px; height: 64px; }
+          .tracking-header h1 { font-size: 22px !important; }
+          .info-grid-2 { grid-template-columns: 1fr; gap: 14px; }
+          .item-header-row { flex-direction: column; gap: 10px; }
+          .item-header-row > div:last-child { text-align: left !important; }
+          .stage-pill { flex: 1 1 60px; font-size: 8px; }
         }
       `}</style>
 
@@ -255,7 +237,7 @@ export default function PublicTrackingPage() {
         )}
       </div>
 
-      {/* ── OVERVIEW ── */}
+      {/* OVERVIEW */}
       {activeTab === "overview" && (
         <>
           <div style={cardStyle}>
@@ -274,10 +256,10 @@ export default function PublicTrackingPage() {
             <div style={cardStyle}>
               <h2 style={{ fontSize:"14px", fontWeight:600, color:"#e4e4e4", margin:"0 0 18px", textTransform:"uppercase", letterSpacing:"0.06em" }}>Shipping Information</h2>
               <div className="info-grid-2">
-                {order.etaDate          && infoBlock("ETA", formatDateOnly(order.etaDate))}
+                {order.etaDate         && infoBlock("ETA", formatDateOnly(order.etaDate))}
                 {order.onsiteInstallationDate !== undefined && infoBlock("Onsite Installation Date", order.onsiteInstallationDate ? formatDateOnly(order.onsiteInstallationDate) : "TBD")}
-                {order.shippingCarrier  && infoBlock("Carrier",  order.shippingCarrier)}
-                {order.trackingNumber   && infoBlock("Tracking", order.trackingNumber)}
+                {order.shippingCarrier && infoBlock("Carrier",  order.shippingCarrier)}
+                {order.trackingNumber  && infoBlock("Tracking", order.trackingNumber)}
               </div>
             </div>
           )}
@@ -297,8 +279,6 @@ export default function PublicTrackingPage() {
                   const done     = stage === "FOLLOW_UP";
                   return (
                     <div key={item.id} style={cardStyle}>
-
-                      {/* Item header */}
                       <div className="item-header-row">
                         <div>
                           <div style={{ fontSize:"19px", fontWeight:600, color:"#e4e4e4", marginBottom:"8px" }}>{item.productCode || "Unknown Item"}</div>
@@ -326,8 +306,6 @@ export default function PublicTrackingPage() {
                           <div style={{ fontSize:"12px", color:"#6b7280", marginTop:"4px" }}>Stage {stageIdx + 1} of {STAGES.length}</div>
                         </div>
                       </div>
-
-                      {/* Stage pills — wrap to fit any viewport, no horizontal scroll */}
                       <div className="stage-pills-wrap">
                         {STAGES.map((s, i) => {
                           const isCur  = stage === s;
@@ -345,8 +323,6 @@ export default function PublicTrackingPage() {
                           );
                         })}
                       </div>
-
-                      {/* Progress bar */}
                       <div style={{ height:"6px", background:"#333", borderRadius:"99px", overflow:"hidden", marginBottom:"6px" }}>
                         <div style={{ height:"100%", width:`${((stageIdx+1)/STAGES.length)*100}%`, background: done ? "#10b981" : "#dc2626", borderRadius:"99px", transition:"width 0.3s" }} />
                       </div>
@@ -360,7 +336,7 @@ export default function PublicTrackingPage() {
         </>
       )}
 
-      {/* ── YOUR FILES ── */}
+      {/* YOUR FILES */}
       {activeTab === "files" && (
         <div>
           {!customerFiles ? (
@@ -368,11 +344,7 @@ export default function PublicTrackingPage() {
               <div style={{ fontSize:"40px", marginBottom:"12px" }}>📁</div>
               <p style={{ fontSize:"16px" }}>Loading your files…</p>
             </div>
-          ) : (customerFiles.photos?.length === 0 || !customerFiles.photos) &&
-             (customerFiles.videos?.length === 0 || !customerFiles.videos) &&
-             (customerFiles.manuals?.length === 0 || !customerFiles.manuals) &&
-             (customerFiles.documents?.length === 0 || !customerFiles.documents) &&
-             !customerFiles.legacyDropboxLink ? (
+          ) : !hasAnyFiles ? (
             <div style={{ textAlign:"center", padding:"60px 20px", color:"#6b7280" }}>
               <div style={{ fontSize:"40px", marginBottom:"12px" }}>📁</div>
               <p style={{ fontSize:"16px" }}>No files have been uploaded yet.</p>
@@ -380,6 +352,30 @@ export default function PublicTrackingPage() {
             </div>
           ) : (
             <>
+              {/* Read Me files */}
+              {customerFiles.readme?.length > 0 && (
+                <div style={{ marginBottom:"28px" }}>
+                  <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
+                    📖 Read Me <span style={{ fontSize:"13px", color:"#6b7280", fontWeight:400 }}>({customerFiles.readme.length})</span>
+                  </h3>
+                  <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+                    {customerFiles.readme.map((f) => (
+                      <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
+                        style={{ display:"flex", alignItems:"center", gap:"12px", padding:"14px 16px", background:"#2d2d2d", border:"1px solid #404040", borderRadius:"8px", textDecoration:"none", color:"inherit" }}>
+                        <span style={{ fontSize:"22px", flexShrink:0 }}>📖</span>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontWeight:500, color:"#e4e4e4", fontSize:"15px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.fileName}</div>
+                          {f.description && <div style={{ fontSize:"13px", color:"#a0a0a0", marginTop:"2px" }}>{f.description}</div>}
+                          {f.fileSizeFormatted && <div style={{ fontSize:"12px", color:"#6b7280", marginTop:"2px" }}>{f.fileSizeFormatted}</div>}
+                        </div>
+                        <span style={{ color:"#dc2626", fontSize:"18px", flexShrink:0 }}>↓</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Photos */}
               {customerFiles.photos?.length > 0 && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
@@ -396,6 +392,7 @@ export default function PublicTrackingPage() {
                 </div>
               )}
 
+              {/* Videos */}
               {customerFiles.videos?.length > 0 && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
@@ -417,6 +414,7 @@ export default function PublicTrackingPage() {
                 </div>
               )}
 
+              {/* Documents & Manuals */}
               {([...(customerFiles.manuals||[]), ...(customerFiles.documents||[])].length > 0) && (
                 <div style={{ marginBottom:"28px" }}>
                   <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px", display:"flex", alignItems:"center", gap:"8px" }}>
@@ -439,12 +437,23 @@ export default function PublicTrackingPage() {
                   </div>
                 </div>
               )}
+
+              {/* Legacy Dropbox */}
+              {customerFiles.legacyDropboxLink && (
+                <div style={{ padding:"16px", background:"#2d2d2d", border:"1px solid #404040", borderRadius:"8px" }}>
+                  <p style={{ margin:"0 0 8px", fontSize:"13px", color:"#a0a0a0" }}>Additional files available via Dropbox:</p>
+                  <a href={customerFiles.legacyDropboxLink} target="_blank" rel="noopener noreferrer"
+                    style={{ color:"#dc2626", fontSize:"14px", wordBreak:"break-all" }}>
+                    {customerFiles.legacyDropboxLink} ↗
+                  </a>
+                </div>
+              )}
             </>
           )}
         </div>
       )}
 
-      {/* ── TIMELINE ── */}
+      {/* TIMELINE */}
       {activeTab === "timeline" && (
         <div>
           {order.items?.filter(i => i.statusEvents?.length > 0).map((item) => (
@@ -463,7 +472,6 @@ export default function PublicTrackingPage() {
               </div>
             </div>
           ))}
-
           {order.statusEvents?.length > 0 && (
             <div>
               <h3 style={{ fontSize:"16px", fontWeight:600, color:"#e4e4e4", margin:"0 0 12px" }}>Order Events</h3>
