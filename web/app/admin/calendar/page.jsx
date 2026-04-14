@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import TopNav from '@/components/TopNav';
 import InvoicingNav from '@/components/InvoicingNav';
@@ -32,7 +33,6 @@ const CREATE_PERMISSIONS = {
 };
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'];
-const NAV_KEY = 'calendarNavContext';
 const NAV_HEIGHT = 64;
 
 function getAuthHeaders() {
@@ -88,7 +88,6 @@ function buildEventTitle(event) {
     if (name) return `${name} \u2014 Out of Office`;
     return event.title.replace(/\u2014 Time Off$/, '\u2014 Out of Office');
   }
-  // BLOCKED and OTHER use the stored title directly (it is the custom label)
   return event.title;
 }
 
@@ -246,7 +245,6 @@ function CreateEditModal({
       <div style={{ padding: '24px' }}>
         {mode === 'create' && <TypeTabs value={formType} onChange={t => { setFormType(t); if (t === 'TIME_OFF') setFormAllDay(true); }} canCreate={canCreate} />}
 
-        {/* INSTALL: optional order link */}
         {formType === 'INSTALL' && (
           <Field label="Order (Optional)" hint="Link to a board order, or leave blank for jobs not yet on the board.">
             {selectedOrder ? (
@@ -286,7 +284,6 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* TIME_OFF: team member picker */}
         {formType === 'TIME_OFF' && (
           <Field label="Team Member">
             {isAdmin
@@ -296,28 +293,18 @@ function CreateEditModal({
           </Field>
         )}
 
-        {/* BLOCKED: free-form title */}
         {formType === 'BLOCKED' && (
           <Field label="Title">
             <input type="text" placeholder="e.g. Company Holiday, Shop Closed..." value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} />
           </Field>
         )}
 
-        {/* OTHER: custom event label */}
         {formType === 'OTHER' && (
           <Field label="Event Label" hint="Describe the event, e.g. On Site Demo, Customer Visit, Product Meeting">
-            <input
-              type="text"
-              placeholder="e.g. On Site Demo"
-              value={formTitle}
-              onChange={e => setFormTitle(e.target.value)}
-              style={inputSt}
-              autoFocus
-            />
+            <input type="text" placeholder="e.g. On Site Demo" value={formTitle} onChange={e => setFormTitle(e.target.value)} style={inputSt} autoFocus />
           </Field>
         )}
 
-        {/* All-day toggle for types that support timed scheduling */}
         {supportsTime && (
           <div style={{ marginBottom: '18px' }}>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -340,7 +327,6 @@ function CreateEditModal({
           </div>
         )}
 
-        {/* Notes for INSTALL and OTHER */}
         {(formType === 'INSTALL' || formType === 'OTHER') && (
           <Field label="Notes (Optional)">
             <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="Additional details..." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
@@ -453,17 +439,8 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
 export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
   const calendarRef = useRef(null);
-
-  const [navContext, setNavContext] = useState('board');
-  useEffect(() => {
-    const referrer = typeof document !== 'undefined' ? document.referrer : '';
-    if (referrer && referrer.includes('/invoicing')) {
-      sessionStorage.setItem(NAV_KEY, 'invoicing'); setNavContext('invoicing');
-    } else {
-      const stored = sessionStorage.getItem(NAV_KEY);
-      if (stored === 'invoicing' || stored === 'board') setNavContext(stored);
-    }
-  }, []);
+  const searchParams = useSearchParams();
+  const fromInvoicing = searchParams.get('from') === 'invoicing';
 
   const [events,  setEvents]  = useState([]);
   const [loading, setLoading] = useState(true);
@@ -597,7 +574,6 @@ export default function CalendarPage() {
       const prefix = 'Install \u2014 ';
       setFormTitle(e.title?.startsWith(prefix) ? e.title.slice(prefix.length) : '');
     } else {
-      // For OTHER and BLOCKED the stored title IS the label
       setFormTitle(e.title || '');
     }
     setSelectedOrder(e.order ? { id: e.order.id, label: acct?.contactName ? `${acct.name} \u2014 ${acct.contactName}` : (acct?.name || e.order.id) } : null);
@@ -625,7 +601,6 @@ export default function CalendarPage() {
       const tUser = users.find(u => u.id === formUserId);
       autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Out of Office`;
     }
-    // BLOCKED and OTHER: autoTitle is already formTitle.trim()
 
     const startDate = isAllDay ? formStart : `${formStart}T${formStartTime}:00`;
     const endDate   = isAllDay ? (formEnd || formStart) : `${formStart}T${formEndTime}:00`;
@@ -689,7 +664,7 @@ export default function CalendarPage() {
 
   return (
     <>
-      {navContext === 'invoicing' ? <InvoicingNav /> : <TopNav />}
+      {fromInvoicing ? <InvoicingNav /> : <TopNav />}
 
       <div style={{
         height: `calc(100vh - ${NAV_HEIGHT}px)`,
@@ -743,7 +718,6 @@ export default function CalendarPage() {
           .cal-wrap .fc, .cal-wrap .fc-view-harness { height: 100% !important; }
         `}</style>
 
-        {/* Header with legend */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 32px 14px', flexShrink: 0 }}>
           <div>
             <h1 style={{ color: '#f0f0f0', fontSize: '24px', fontWeight: 700, margin: 0, letterSpacing: '-0.5px' }}>Calendar</h1>
@@ -764,7 +738,6 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Calendar */}
         <div
           className="cal-wrap"
           style={{
