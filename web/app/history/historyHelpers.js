@@ -2,12 +2,12 @@
 
 // Tab configuration
 export const TABS = [
-  { id: 'recent', label: 'Recent', icon: '🕐', color: '#6b7280' },
-  { id: 'orders', label: 'Orders', icon: '📦', color: '#3b82f6' },
-  { id: 'customers', label: 'Customers', icon: '👥', color: '#22c55e' },
-  { id: 'users', label: 'Users', icon: '👤', color: '#a855f7' },
-  { id: 'commissions', label: 'Commissions', icon: '💰', color: '#eab308' },
-  { id: 'documents', label: 'Documents', icon: '📄', color: '#ef4444' },
+  { id: 'recent', label: 'Recent', icon: '\ud83d\udd50', color: '#6b7280' },
+  { id: 'orders', label: 'Orders', icon: '\ud83d\udce6', color: '#3b82f6' },
+  { id: 'customers', label: 'Customers', icon: '\ud83d\udc65', color: '#22c55e' },
+  { id: 'users', label: 'Users', icon: '\ud83d\udc64', color: '#a855f7' },
+  { id: 'commissions', label: 'Commissions', icon: '\ud83d\udcb0', color: '#eab308' },
+  { id: 'documents', label: 'Documents', icon: '\ud83d\udcc4', color: '#ef4444' },
 ];
 
 // Date preset options
@@ -73,6 +73,8 @@ const ACTION_LABELS = {
   'PAYOUT_PAID': 'Payout Paid',
   'DOCUMENT_UPLOADED': 'Document Uploaded',
   'DOCUMENT_DELETED': 'Document Deleted',
+  'UPLOADED': 'File Uploaded',
+  'DELETED': 'File Deleted',
 };
 
 // Field labels for changes display
@@ -186,7 +188,7 @@ export function getItemHeaderInfo(log) {
   }
 
   if (productCode && modelNumber && modelNumber !== 'null' && modelNumber !== '') {
-    return `${productCode} • Model: ${modelNumber}`;
+    return `${productCode} \u2022 Model: ${modelNumber}`;
   } else if (productCode) {
     return productCode;
   }
@@ -265,7 +267,7 @@ export function getEntityInfo(log, orders, accounts) {
       if (roleChange) {
         const oldRole = ROLE_LABELS[roleChange.oldValue] || roleChange.oldValue;
         const newRole = ROLE_LABELS[roleChange.newValue] || roleChange.newValue;
-        info.details.push(`Role: ${oldRole} → ${newRole}`);
+        info.details.push(`Role: ${oldRole} \u2192 ${newRole}`);
       }
     }
   }
@@ -282,7 +284,7 @@ export function getEntityInfo(log, orders, accounts) {
     if (meta.customerName) orderInfo.push(meta.customerName);
     if (meta.itemName) orderInfo.push(meta.itemName);
     if (orderInfo.length > 0) {
-      info.subtitle = orderInfo.join(' • ');
+      info.subtitle = orderInfo.join(' \u2022 ');
     }
 
     if (meta.stage) {
@@ -309,10 +311,21 @@ export function getEntityInfo(log, orders, accounts) {
     if (log.metadata.documentTypeLabel || log.metadata.documentType) {
       subtitleParts.push(log.metadata.documentTypeLabel || log.metadata.documentType);
     }
-    if (log.metadata.customerName) {
-      subtitleParts.push(log.metadata.customerName);
+    if (log.metadata.category) {
+      // Capitalise the category (e.g. "photos" -> "Photos")
+      const cat = log.metadata.category;
+      subtitleParts.push(cat.charAt(0).toUpperCase() + cat.slice(1));
     }
-    info.subtitle = subtitleParts.join(' • ');
+
+    // Customer name: prefer stored in metadata, fall back to order lookup via parentEntityId
+    let customerName = log.metadata.customerName || null;
+    if (!customerName && log.parentEntityId) {
+      const order = orders.find(o => o.id === log.parentEntityId);
+      if (order) customerName = order.account?.name || null;
+    }
+    if (customerName) subtitleParts.push(customerName);
+
+    info.subtitle = subtitleParts.join(' \u2022 ');
 
     if (log.metadata.productCode) {
       info.details.push(`Item: ${log.metadata.productCode}`);

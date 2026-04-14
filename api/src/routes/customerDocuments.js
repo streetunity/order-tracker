@@ -84,6 +84,17 @@ async function generateDownloadUrl(s3Key, displayName) {
   return getSignedUrl(s3Client, command, { expiresIn: URL_EXPIRY });
 }
 
+/** Resolve customer name for a given orderId (used in audit logs). */
+async function getCustomerName(orderId) {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { account: { select: { name: true } } },
+    });
+    return order?.account?.name || null;
+  } catch { return null; }
+}
+
 /**
  * Fire-and-forget: notify assigned agent + all SUPER_ADMINs when a
  * manufacturer uploads a customer file.
@@ -99,11 +110,9 @@ async function notifyManufacturerUpload(orderId, uploaderName, fileName, categor
     const accountName = order.account?.name || 'Unknown Account';
     const orderRef    = order.poNumber || orderId.slice(-8).toUpperCase();
     const title       = `Manufacturer uploaded ${category}`;
-    const message     = `${uploaderName} uploaded "${fileName}" (${category}) to order ${orderRef} — ${accountName}.`;
+    const message     = `${uploaderName} uploaded "${fileName}" (${category}) to order ${orderRef} \u2014 ${accountName}.`;
 
-    // Collect recipients: assigned agent (by name in sku field) + all SUPER_ADMINs
     const recipients = [];
-
     if (order.sku) {
       const agent = await prisma.user.findFirst({
         where: { name: order.sku, isActive: true, role: { not: 'MANUFACTURER' } },
@@ -111,7 +120,6 @@ async function notifyManufacturerUpload(orderId, uploaderName, fileName, categor
       });
       if (agent) recipients.push(agent);
     }
-
     const superAdmins = await prisma.user.findMany({
       where: { role: 'SUPER_ADMIN', isActive: true },
       select: { id: true, email: true, name: true },
@@ -119,10 +127,8 @@ async function notifyManufacturerUpload(orderId, uploaderName, fileName, categor
     for (const sa of superAdmins) {
       if (!recipients.find(r => r.id === sa.id)) recipients.push(sa);
     }
-
     if (!recipients.length) return;
 
-    // Create in-app notifications
     await prisma.notification.createMany({
       data: recipients.map(r => ({
         userId:         r.id,
@@ -136,7 +142,6 @@ async function notifyManufacturerUpload(orderId, uploaderName, fileName, categor
       skipDuplicates: true,
     });
 
-    // Send emails
     const emailServiceModule = await import('../services/emailService.js');
     const emailService = emailServiceModule.default || emailServiceModule;
     const company     = await prisma.companySettings.findFirst();
@@ -172,7 +177,7 @@ async function notifyManufacturerUpload(orderId, uploaderName, fileName, categor
         .map(r => emailService.sendEmail({
           to: r.email, from: fromEmail, fromName: companyName,
           replyTo: fromEmail,
-          subject: `[SMT] Manufacturer uploaded ${category} — Order ${orderRef}`,
+          subject: `[SMT] Manufacturer uploaded ${category} \u2014 Order ${orderRef}`,
           html,
         }))
     );
@@ -182,8 +187,7 @@ async function notifyManufacturerUpload(orderId, uploaderName, fileName, categor
 }
 
 // ─────────────────────────────────────────────────────────────
-// GET /:orderId — returns order-specific docs + global readme files
-// MANUFACTURER: only returns their own uploads (photos/videos)
+// GET /:orderId
 // ─────────────────────────────────────────────────────────────
 router.get('/:orderId', authGuard, async (req, res) => {
   try {
@@ -196,7 +200,6 @@ router.get('/:orderId', authGuard, async (req, res) => {
     });
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    // Build where clause — manufacturers only see their own uploads
     const docsWhere = { orderId, isComplete: true };
     if (isManufacturer) {
       docsWhere.uploadedById = req.user.id;
@@ -209,7 +212,6 @@ router.get('/:orderId', authGuard, async (req, res) => {
         include: { uploadedBy: { select: { id: true, name: true } } },
         orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { uploadedAt: 'desc' }],
       }),
-      // Manufacturers still see global readme files
       isManufacturer ? Promise.resolve([]) : prisma.globalCustomerDocument.findMany({
         where: { isComplete: true, isActive: true },
         include: { uploadedBy: { select: { id: true, name: true } } },
@@ -262,7 +264,6 @@ router.get('/:orderId', authGuard, async (req, res) => {
     );
 
     const orderReadme = withUrls.filter(f => f.category === 'readme');
-
     res.json({
       photos:            withUrls.filter(f => f.category === 'photos'),
       videos:            withUrls.filter(f => f.category === 'videos'),
@@ -280,7 +281,6 @@ router.get('/:orderId', authGuard, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /:orderId/initiate
-// MANUFACTURER: restricted to photos/videos only
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/initiate', authGuard, async (req, res) => {
   try {
@@ -292,7 +292,6 @@ router.post('/:orderId/initiate', authGuard, async (req, res) => {
     if (!fileName || !fileSize || !mimeType)
       return res.status(400).json({ error: 'fileName, fileSize, and mimeType are required' });
 
-    // Enforce category restrictions
     const allowedCategories = isManufacturer ? MANUFACTURER_CATEGORIES : VALID_CATEGORIES;
     if (!allowedCategories.includes(category))
       return res.status(400).json({ error: `Invalid category. Must be one of: ${allowedCategories.join(', ')}` });
@@ -367,7 +366,6 @@ router.post('/:orderId/sign-part', authGuard, async (req, res) => {
     const doc = await prisma.customerDocument.findUnique({ where: { id: documentId } });
     if (!doc || doc.isComplete) return res.status(400).json({ error: 'Invalid or completed upload' });
 
-    // Manufacturers can only sign their own uploads
     if (req.user.role === 'MANUFACTURER' && doc.uploadedById !== req.user.id)
       return res.status(403).json({ error: 'Forbidden' });
 
@@ -385,7 +383,6 @@ router.post('/:orderId/sign-part', authGuard, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /:orderId/complete
-// MANUFACTURER: fires async notifications on success
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/complete', authGuard, async (req, res) => {
   try {
@@ -398,7 +395,6 @@ router.post('/:orderId/complete', authGuard, async (req, res) => {
     if (!doc)           return res.status(404).json({ error: 'Document not found' });
     if (doc.isComplete) return res.status(400).json({ error: 'Upload already completed' });
 
-    // Manufacturers can only complete their own uploads
     if (req.user.role === 'MANUFACTURER' && doc.uploadedById !== req.user.id)
       return res.status(403).json({ error: 'Forbidden' });
 
@@ -416,19 +412,27 @@ router.post('/:orderId/complete', authGuard, async (req, res) => {
       data: { isComplete: true, uploadId: null },
     });
 
+    // Fetch customer name for audit log
+    const customerName = await getCustomerName(doc.orderId);
+
     await prisma.auditLog.create({
       data: {
         entityType: 'CustomerDocument',
         entityId: documentId,
         parentEntityId: doc.orderId,
         action: 'UPLOADED',
-        metadata: JSON.stringify({ fileName: doc.fileName, category: doc.category, fileSize: Number(doc.fileSize), mimeType: doc.mimeType }),
+        metadata: JSON.stringify({
+          fileName: doc.fileName,
+          category: doc.category,
+          fileSize: Number(doc.fileSize),
+          mimeType: doc.mimeType,
+          ...(customerName && { customerName }),
+        }),
         performedByUserId: req.user.id,
         performedByName: req.user.name,
       },
     });
 
-    // Notify agent + super admins async (fire-and-forget)
     if (req.user.role === 'MANUFACTURER') {
       setImmediate(() => notifyManufacturerUpload(
         orderId, req.user.name, doc.fileName, doc.category
@@ -461,7 +465,7 @@ router.post('/:orderId/abort', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// POST /:orderId/notify  (admin only — not available to manufacturers)
+// POST /:orderId/notify  (admin only)
 // ─────────────────────────────────────────────────────────────
 router.post('/:orderId/notify', authGuard, async (req, res) => {
   if (req.user.role === 'MANUFACTURER') return res.status(403).json({ error: 'Forbidden' });
@@ -529,7 +533,7 @@ router.post('/:orderId/notify', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// PATCH /:orderId/reorder (not available to manufacturers)
+// PATCH /:orderId/reorder
 // ─────────────────────────────────────────────────────────────
 router.patch('/:orderId/reorder', authGuard, async (req, res) => {
   if (req.user.role === 'MANUFACTURER') return res.status(403).json({ error: 'Forbidden' });
@@ -557,7 +561,6 @@ router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
     const { documentId } = req.params;
     const doc = await prisma.customerDocument.findUnique({ where: { id: documentId } });
     if (!doc || !doc.isComplete) return res.status(404).json({ error: 'Document not found' });
-    // Manufacturers can only download their own files
     if (req.user.role === 'MANUFACTURER' && doc.uploadedById !== req.user.id)
       return res.status(403).json({ error: 'Forbidden' });
     const name = doc.displayName || doc.fileName;
@@ -570,8 +573,7 @@ router.get('/:orderId/:documentId/download', authGuard, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// PATCH /:orderId/:documentId  — rename / description / re-categorize
-// Manufacturers can only edit their own files, within allowed categories
+// PATCH /:orderId/:documentId
 // ─────────────────────────────────────────────────────────────
 router.patch('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
@@ -605,7 +607,6 @@ router.patch('/:orderId/:documentId', authGuard, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // DELETE /:orderId/:documentId
-// Manufacturers can only delete their own files
 // ─────────────────────────────────────────────────────────────
 router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
   try {
@@ -618,6 +619,10 @@ router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
     try {
       await s3Client.send(new DeleteObjectCommand({ Bucket: doc.s3Bucket, Key: doc.s3Key }));
     } catch (e) { console.warn('S3 delete error:', e.message); }
+
+    // Fetch customer name before deleting the document
+    const customerName = await getCustomerName(doc.orderId);
+
     await prisma.customerDocument.delete({ where: { id: documentId } });
     await prisma.auditLog.create({
       data: {
@@ -625,7 +630,11 @@ router.delete('/:orderId/:documentId', authGuard, async (req, res) => {
         entityId: documentId,
         parentEntityId: doc.orderId,
         action: 'DELETED',
-        metadata: JSON.stringify({ fileName: doc.fileName, category: doc.category }),
+        metadata: JSON.stringify({
+          fileName: doc.fileName,
+          category: doc.category,
+          ...(customerName && { customerName }),
+        }),
         performedByUserId: user.id,
         performedByName: user.name,
       },
