@@ -87,23 +87,23 @@ export default function LoginPage() {
         .show-pw-btn:hover { color: rgba(255,255,255,0.7); }
       `}</style>
 
-      {/* Full-screen gradient that fades left-to-right */}
+      {/* Full-screen gradient — subtle left-to-right bleed */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'linear-gradient(110deg, rgba(180,10,10,0.18) 0%, rgba(220,38,38,0.10) 25%, rgba(15,15,15,0) 60%)',
+        background: 'linear-gradient(110deg, rgba(140,10,10,0.10) 0%, rgba(220,38,38,0.05) 30%, transparent 65%)',
       }} />
       {/* Radial glow anchored top-left */}
       <div style={{
         position: 'absolute', top: -160, left: -160, width: 600, height: 600,
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(220,38,38,0.13) 0%, transparent 65%)',
+        background: 'radial-gradient(circle, rgba(220,38,38,0.08) 0%, transparent 65%)',
         pointerEvents: 'none',
       }} />
       {/* Subtle bottom-left fill */}
       <div style={{
         position: 'absolute', bottom: -80, left: -80, width: 400, height: 400,
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(220,38,38,0.07) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(220,38,38,0.04) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 
@@ -119,12 +119,12 @@ export default function LoginPage() {
         zIndex: 1,
       }}>
 
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <img src="/smt-logo.png" alt="SMT Logo" style={{ width: 52, height: 52, objectFit: 'contain' }} />
+        {/* Logo — doubled */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <img src="/smt-logo.png" alt="SMT Logo" style={{ width: 80, height: 80, objectFit: 'contain' }} />
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', letterSpacing: '0.2px' }}>Stealth Machine Tools</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Order Management Platform</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#fff', letterSpacing: '0.2px' }}>Stealth Machine Tools</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', textTransform: 'uppercase', marginTop: 3 }}>Order Management Platform</div>
           </div>
         </div>
 
@@ -218,12 +218,8 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Bottom-right attribution */}
           <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', lineHeight: 1.6 }}>
-              Designed, Built, and Maintained By<br />
-              <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>Maronde Enterprises</span>
-            </span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>&#169; {new Date().getFullYear()} Stealth Machine Tools</span>
           </div>
         </div>
       </div>
