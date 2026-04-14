@@ -326,9 +326,9 @@ function CreateEditModal({
           </div>
         )}
 
-        {(formType === 'INSTALL' || formType === 'OTHER') && (
-          <Field label="Notes (Optional)">
-            <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="Additional details..." rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
+        {(formType === 'INSTALL' || formType === 'TIME_OFF' || formType === 'OTHER') && (
+          <Field label={formType === 'TIME_OFF' ? 'Reason (Optional)' : 'Notes (Optional)'}>
+            <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder={formType === 'TIME_OFF' ? 'e.g. Vacation, Medical leave...' : 'Additional details...'} rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.5 }} />
           </Field>
         )}
 
@@ -380,7 +380,7 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         )}
 
         {event.type === 'TIME_OFF' && event.user && <InfoRow label="Team Member">{event.user.name}</InfoRow>}
-        {event.notes && <InfoRow label="Notes">{event.notes}</InfoRow>}
+        {event.notes && <InfoRow label={event.type === 'TIME_OFF' ? 'Reason' : 'Notes'}>{event.notes}</InfoRow>}
 
         {event.type === 'INSTALL' && (
           <InfoRow label="Customer Notification">
@@ -440,7 +440,6 @@ export default function CalendarPage() {
   const calendarRef = useRef(null);
   const [fromInvoicing, setFromInvoicing] = useState(false);
 
-  // Read ?from=invoicing from URL on mount (avoids useSearchParams Suspense requirement)
   useEffect(() => {
     setFromInvoicing(new URLSearchParams(window.location.search).get('from') === 'invoicing');
   }, []);
