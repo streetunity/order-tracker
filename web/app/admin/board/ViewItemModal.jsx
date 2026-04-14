@@ -12,22 +12,19 @@ import ShippingTab        from "./components/ShippingTab";
 export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const { user, getAuthHeaders, isAdmin } = useAuth();
 
-  // ── Core item state ──────────────────────────────────────────
   const [editedItem, setEditedItem] = useState({});
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState("");
   const [localItem,  setLocalItem]  = useState(item);
   const [activeTab,  setActiveTab]  = useState("details");
 
-  // ── Lock / unlock ────────────────────────────────────────────
-  const [showLockConfirm,   setShowLockConfirm]   = useState(false);
-  const [showUnlockDialog,  setShowUnlockDialog]  = useState(false);
-  const [unlockReason,      setUnlockReason]      = useState("");
-  const [lockingOrder,      setLockingOrder]      = useState(false);
-  const [showAdminOnlyAlert,setShowAdminOnlyAlert] = useState(false);
-  const [showUnlockError,   setShowUnlockError]   = useState(false);
+  const [showLockConfirm,    setShowLockConfirm]    = useState(false);
+  const [showUnlockDialog,   setShowUnlockDialog]   = useState(false);
+  const [unlockReason,       setUnlockReason]       = useState("");
+  const [lockingOrder,       setLockingOrder]       = useState(false);
+  const [showAdminOnlyAlert, setShowAdminOnlyAlert] = useState(false);
+  const [showUnlockError,    setShowUnlockError]    = useState(false);
 
-  // ── Broker documents (delete confirm lives here so dialogs stack correctly) ──
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   const isManufacturer = user?.role === "MANUFACTURER";
@@ -64,7 +61,6 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
   const handleInputChange = (field, value) =>
     setEditedItem(prev => ({ ...prev, [field]: value }));
 
-  // ── Save item ────────────────────────────────────────────────
   const handleSave = async () => {
     try {
       setSaving(true); setError("");
@@ -80,7 +76,6 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     } catch (e) { setError(e.message || "Failed to save"); setSaving(false); }
   };
 
-  // ── Mark ordered ─────────────────────────────────────────────
   const handleMarkOrdered = async () => {
     try {
       setSaving(true); setError("");
@@ -95,7 +90,6 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
     } catch (e) { setError(e.message || "Failed to mark as ordered"); setSaving(false); }
   };
 
-  // ── Lock / unlock ─────────────────────────────────────────────
   const handleLockToggle = () => {
     if (isOrderLocked) {
       if (!isAdmin) { setShowAdminOnlyAlert(true); setTimeout(() => setShowAdminOnlyAlert(false), 3000); return; }
@@ -148,7 +142,6 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
 
   if (!item) return null;
 
-  // ── Tab button helper ─────────────────────────────────────────
   const Tab = ({ id, label, extra }) => (
     <button
       onClick={() => setActiveTab(id)}
@@ -179,7 +172,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
           {/* Banners */}
           {error && <div style={{ padding: "12px", margin: "0 1.5rem", marginTop: "1rem", backgroundColor: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "6px", color: "#dc2626", fontSize: "14px" }}>{error}</div>}
           {isOrderLocked && !isManufacturer && <div style={{ padding: "12px", margin: "0 1.5rem", marginTop: "1rem", backgroundColor: "#fef3c7", border: "1px solid #fbbf24", borderRadius: "6px", color: "#92400e", fontSize: "13px" }}>🔒 <strong>Order is locked.</strong> Only serial number can be edited.</div>}
-          {isManufacturer && <div style={{ padding: "12px", margin: "0 1.5rem", marginTop: "1rem", backgroundColor: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "6px", color: "#dc2626", fontSize: "13px" }}>ℹ️ <strong>Manufacturer view.</strong> You can edit the serial number and upload customer files.</div>}
+          {isManufacturer && <div style={{ padding: "12px", margin: "0 1.5rem", marginTop: "1rem", backgroundColor: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "6px", color: "#dc2626", fontSize: "13px" }}>ℹ️ <strong>Manufacturer view.</strong> You can edit the serial number, upload broker documents, and upload customer images &amp; videos.</div>}
           {isBroker && <div style={{ padding: "12px", margin: "0 1.5rem", marginTop: "1rem", backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "6px", color: "#e4e4e4", fontSize: "13px" }}>ℹ️ <strong>Broker view.</strong> Read-only access.</div>}
 
           {/* Tabs */}
@@ -310,11 +303,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
             )}
             <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
               <button onClick={() => setShowDeleteConfirm(null)} style={{ background: "#2d2d2d", color: "#fff", border: "1px solid #404040", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}>Cancel</button>
-              <button onClick={() => {
-                // handled inside BrokerDocumentsTab via onDeleteConfirmed callback
-                // but we pass the id back down through onSetDeleteConfirm null reset
-                setShowDeleteConfirm(null);
-              }} style={{ backgroundColor: "#dc2626", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}>Delete</button>
+              <button onClick={() => { setShowDeleteConfirm(null); }} style={{ backgroundColor: "#dc2626", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}>Delete</button>
             </div>
           </div>
         </div>

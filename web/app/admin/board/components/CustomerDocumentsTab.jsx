@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const CATEGORIES = [
+const ALL_CATEGORIES = [
   { id: "photos",    label: "Photos",    icon: "🖼",  accept: "image/*" },
   { id: "videos",    label: "Videos",    icon: "🎬",  accept: "video/*" },
   { id: "manuals",   label: "Manuals",   icon: "📕",  accept: ".pdf,.doc,.docx" },
   { id: "documents", label: "Documents", icon: "📄",  accept: ".pdf,.doc,.docx,.xls,.xlsx" },
 ];
+
+// Manufacturers can only upload photos and videos
+const MANUFACTURER_CATEGORIES = ALL_CATEGORIES.filter(c => c.id === "photos" || c.id === "videos");
 
 const CHUNK_SIZE = 10 * 1024 * 1024;
 
@@ -19,6 +22,8 @@ const fmt = (bytes) => {
 };
 
 export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHeaders }) {
+  const UPLOAD_CATEGORIES = isManufacturer ? MANUFACTURER_CATEGORIES : ALL_CATEGORIES;
+
   const [files,         setFiles]         = useState({ photos: [], videos: [], manuals: [], documents: [] });
   const [loading,       setLoading]       = useState(false);
   const [category,      setCategory]      = useState("photos");
@@ -32,6 +37,8 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
   const fileInputRef = useRef(null);
   const isUploading = uploadingIdx !== null;
 
+  const currentCat = UPLOAD_CATEGORIES.find(c => c.id === category) || UPLOAD_CATEGORIES[0];
+
   // ── Fetch ──────────────────────────────────────────────────────
   const loadFiles = useCallback(async () => {
     if (!order?.id) return;
@@ -39,6 +46,7 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
       setLoading(true);
       const res = await fetch(`/api/customer-documents/${order.id}`, { headers: getAuthHeaders() });
       if (res.ok) setFiles(await res.json());
+      else setFiles({ photos: [], videos: [], manuals: [], documents: [] });
     } catch (e) { console.error("Failed to load customer files:", e); }
     finally { setLoading(false); }
   }, [order?.id, getAuthHeaders]);
@@ -106,10 +114,14 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
     await loadFiles();
     if (errors.length) setUploadError(errors.join(" | "));
     else {
-      setUploadSuccess(`${queue.length} file${queue.length > 1 ? "s" : ""} uploaded.`);
-      setTimeout(() => setUploadSuccess(""), 4000);
+      setUploadSuccess(
+        isManufacturer
+          ? `${queue.length} file${queue.length > 1 ? "s" : ""} uploaded. The assigned agent has been notified.`
+          : `${queue.length} file${queue.length > 1 ? "s" : ""} uploaded.`
+      );
+      setTimeout(() => setUploadSuccess(""), 5000);
     }
-  }, [uploadOne, loadFiles]);
+  }, [uploadOne, loadFiles, isManufacturer]);
 
   // ── Enqueue and kick off ──────────────────────────────────────
   const enqueueFiles = useCallback((fileList) => {
@@ -120,17 +132,16 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
   }, [processQueue]);
 
   const handleFileInput = (e) => enqueueFiles(e.target.files);
-
-  // ── Drag-and-drop ─────────────────────────────────────────────
   const handleDragOver  = (e) => { e.preventDefault(); setDragOver(true); };
   const handleDragLeave = ()  => setDragOver(false);
-  const handleDrop      = (e) => {
-    e.preventDefault(); setDragOver(false);
-    if (!isUploading) enqueueFiles(e.dataTransfer.files);
-  };
+  const handleDrop      = (e) => { e.preventDefault(); setDragOver(false); if (!isUploading) enqueueFiles(e.dataTransfer.files); };
 
-  const currentCat = CATEGORIES.find(c => c.id === category);
-  const totalCount = CATEGORIES.reduce((n, cat) => n + (files[cat.id]?.length || 0), 0);
+  const totalCount = ALL_CATEGORIES.reduce((n, cat) => n + (files[cat.id]?.length || 0), 0);
+
+  // Files visible to manufacturer (only their own uploads)
+  const myFiles = isManufacturer
+    ? { photos: (files.photos || []), videos: (files.videos || []) }
+    : files;
 
   return (
     <div style={{ padding: "1.5rem", maxHeight: "60vh", overflowY: "auto" }}>
@@ -138,7 +149,10 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <span style={{ fontSize: "13px", color: "#9ca3af" }}>
-          {totalCount === 0 ? "No files uploaded yet" : `${totalCount} file${totalCount !== 1 ? "s" : ""} uploaded`}
+          {isManufacturer
+            ? "Upload photos and videos. The assigned agent will be notified automatically."
+            : totalCount === 0 ? "No files uploaded yet" : `${totalCount} file${totalCount !== 1 ? "s" : ""} uploaded`
+          }
         </span>
         {!isManufacturer && (
           <a href={`/admin/orders/${order?.id}/customer-files`} target="_blank" rel="noopener noreferrer"
@@ -148,112 +162,105 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
         )}
       </div>
 
-      {/* Upload panel */}
-      {!isManufacturer && (
-        <div style={{ background: "#1a1a1a", border: "1px solid #2d2d2d", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
-          <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Upload File</h4>
+      {/* Upload panel — visible to all (manufacturers get photos/videos only) */}
+      <div style={{ background: "#1a1a1a", border: "1px solid #2d2d2d", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
+        <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>Upload File</h4>
 
-          {uploadError   && <div style={{ padding: "10px 12px", background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: "6px", color: "#fca5a5", fontSize: "13px", marginBottom: "10px" }}>⚠ {uploadError}</div>}
-          {uploadSuccess && <div style={{ padding: "10px 12px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: "6px", color: "#6ee7b7", fontSize: "13px", marginBottom: "10px" }}>✓ {uploadSuccess}</div>}
+        {uploadError   && <div style={{ padding: "10px 12px", background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: "6px", color: "#fca5a5", fontSize: "13px", marginBottom: "10px" }}>⚠ {uploadError}</div>}
+        {uploadSuccess && <div style={{ padding: "10px 12px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: "6px", color: "#6ee7b7", fontSize: "13px", marginBottom: "10px" }}>✓ {uploadSuccess}</div>}
 
-          {/* Category selector */}
-          <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
-            {CATEGORIES.map(cat => (
-              <button key={cat.id} onClick={() => setCategory(cat.id)} style={{
-                padding: "5px 12px", fontSize: "12px",
-                background: category === cat.id ? "#dc2626" : "#252525",
-                color: category === cat.id ? "#fff" : "#9ca3af",
-                border: category === cat.id ? "none" : "1px solid #2d2d2d",
-                borderRadius: "5px", cursor: "pointer",
-              }}>
-                {cat.icon} {cat.label}
-              </button>
+        {/* Category selector */}
+        <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
+          {UPLOAD_CATEGORIES.map(cat => (
+            <button key={cat.id} onClick={() => setCategory(cat.id)} style={{
+              padding: "5px 12px", fontSize: "12px",
+              background: category === cat.id ? "#dc2626" : "#252525",
+              color: category === cat.id ? "#fff" : "#9ca3af",
+              border: category === cat.id ? "none" : "1px solid #2d2d2d",
+              borderRadius: "5px", cursor: "pointer",
+            }}>
+              {cat.icon} {cat.label}
+            </button>
+          ))}
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={currentCat?.accept}
+          multiple
+          onChange={handleFileInput}
+          disabled={isUploading}
+          style={{ display: "none" }}
+        />
+
+        {/* Multi-file queue progress */}
+        {isUploading && uploadQueue.length > 1 && (
+          <div style={{ padding: "10px 12px", background: "#0f0f0f", border: "1px solid #2d2d2d", borderRadius: "6px", marginBottom: "10px" }}>
+            <p style={{ margin: "0 0 6px", fontSize: "12px", color: "#9ca3af" }}>Uploading {uploadingIdx + 1} of {uploadQueue.length} files…</p>
+            {uploadQueue.map((item, i) => (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", marginBottom: "3px" }}>
+                <span style={{ color: i < uploadingIdx ? "#10b981" : i === uploadingIdx ? "#e4e4e4" : "#4b5563", minWidth: 12 }}>
+                  {i < uploadingIdx ? "✓" : i === uploadingIdx ? "▶" : "○"}
+                </span>
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: i < uploadingIdx ? "#6b7280" : "#e4e4e4" }}>{item.file.name}</span>
+                <span style={{ color: "#4b5563", flexShrink: 0 }}>{fmt(item.file.size)}</span>
+                {i === uploadingIdx && (
+                  <div style={{ width: 60, background: "#1f1f1f", borderRadius: 99, height: 3, overflow: "hidden", flexShrink: 0 }}>
+                    <div style={{ height: "100%", width: `${progress}%`, background: "#dc2626", borderRadius: 99, transition: "width 0.2s" }} />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
+        )}
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={currentCat?.accept}
-            multiple
-            onChange={handleFileInput}
-            disabled={isUploading}
-            style={{ display: "none" }}
-          />
-
-          {/* Multi-file queue progress */}
-          {isUploading && uploadQueue.length > 1 && (
-            <div style={{ padding: "10px 12px", background: "#0f0f0f", border: "1px solid #2d2d2d", borderRadius: "6px", marginBottom: "10px" }}>
-              <p style={{ margin: "0 0 6px", fontSize: "12px", color: "#9ca3af" }}>
-                Uploading {uploadingIdx + 1} of {uploadQueue.length} files…
-              </p>
-              {uploadQueue.map((item, i) => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11px", marginBottom: "3px" }}>
-                  <span style={{ color: i < uploadingIdx ? "#10b981" : i === uploadingIdx ? "#e4e4e4" : "#4b5563", minWidth: 12 }}>
-                    {i < uploadingIdx ? "✓" : i === uploadingIdx ? "▶" : "○"}
-                  </span>
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: i < uploadingIdx ? "#6b7280" : "#e4e4e4" }}>
-                    {item.file.name}
-                  </span>
-                  <span style={{ color: "#4b5563", flexShrink: 0 }}>{fmt(item.file.size)}</span>
-                  {i === uploadingIdx && (
-                    <div style={{ width: 60, background: "#1f1f1f", borderRadius: 99, height: 3, overflow: "hidden", flexShrink: 0 }}>
-                      <div style={{ height: "100%", width: `${progress}%`, background: "#dc2626", borderRadius: 99, transition: "width 0.2s" }} />
-                    </div>
-                  )}
-                </div>
-              ))}
+        {/* Drop zone */}
+        {isUploading && uploadQueue.length === 1 ? (
+          <div style={{ padding: "16px", background: "#0f0f0f", borderRadius: "6px", border: "1px solid #2d2d2d" }}>
+            <div style={{ width: "100%", background: "#1f1f1f", borderRadius: "99px", height: "6px", overflow: "hidden", marginBottom: "8px" }}>
+              <div style={{ height: "100%", width: `${progress}%`, background: "#dc2626", borderRadius: "99px", transition: "width 0.2s" }} />
             </div>
-          )}
-
-          {/* Drop zone */}
-          {isUploading && uploadQueue.length === 1 ? (
-            <div style={{ padding: "16px", background: "#0f0f0f", borderRadius: "6px", border: "1px solid #2d2d2d" }}>
-              <div style={{ width: "100%", background: "#1f1f1f", borderRadius: "99px", height: "6px", overflow: "hidden", marginBottom: "8px" }}>
-                <div style={{ height: "100%", width: `${progress}%`, background: "#dc2626", borderRadius: "99px", transition: "width 0.2s" }} />
-              </div>
-              <p style={{ margin: 0, fontSize: "12px", color: "#9ca3af", textAlign: "center" }}>{status} — {progress}%</p>
-            </div>
-          ) : (
-            <div
-              onClick={() => !isUploading && fileInputRef.current?.click()}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
-                padding: "20px",
-                border: `2px dashed ${isUploading ? "#2d2d2d" : dragOver ? "#dc2626" : "#374151"}`,
-                borderRadius: "6px",
-                cursor: isUploading ? "not-allowed" : "pointer",
-                background: dragOver ? "rgba(220,38,38,0.05)" : "#0f0f0f",
-                transition: "border-color 0.15s, background 0.15s",
-              }}
-            >
-              {dragOver ? (
-                <>
-                  <span style={{ fontSize: "24px" }}>📂</span>
-                  <span style={{ fontSize: "13px", color: "#dc2626", fontWeight: 500 }}>Drop files here</span>
-                </>
-              ) : (
-                <>
-                  <span style={{ fontSize: "22px" }}>⬆</span>
-                  <span style={{ fontSize: "13px", color: "#e4e4e4" }}>Drag & drop or click to upload {currentCat?.label.toLowerCase()}</span>
-                  <span style={{ fontSize: "11px", color: "#4b5563" }}>Multiple files supported · {currentCat?.accept}</span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+            <p style={{ margin: 0, fontSize: "12px", color: "#9ca3af", textAlign: "center" }}>{status} — {progress}%</p>
+          </div>
+        ) : (
+          <div
+            onClick={() => !isUploading && fileInputRef.current?.click()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
+              padding: "20px",
+              border: `2px dashed ${isUploading ? "#2d2d2d" : dragOver ? "#dc2626" : "#374151"}`,
+              borderRadius: "6px",
+              cursor: isUploading ? "not-allowed" : "pointer",
+              background: dragOver ? "rgba(220,38,38,0.05)" : "#0f0f0f",
+              transition: "border-color 0.15s, background 0.15s",
+            }}
+          >
+            {dragOver ? (
+              <><span style={{ fontSize: "24px" }}>📂</span><span style={{ fontSize: "13px", color: "#dc2626", fontWeight: 500 }}>Drop files here</span></>
+            ) : (
+              <>
+                <span style={{ fontSize: "22px" }}>⬆</span>
+                <span style={{ fontSize: "13px", color: "#e4e4e4" }}>Drag & drop or click to upload {currentCat?.label.toLowerCase()}</span>
+                <span style={{ fontSize: "11px", color: "#4b5563" }}>Multiple files supported · {currentCat?.accept}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* File display */}
       {loading ? (
         <div style={{ textAlign: "center", color: "#9ca3af", padding: "2rem" }}>Loading files...</div>
       ) : (
         <>
-          {CATEGORIES.map((cat) => {
-            const catFiles = files[cat.id] || [];
+          {ALL_CATEGORIES.map((cat) => {
+            // Manufacturers only see photos/videos
+            if (isManufacturer && cat.id !== "photos" && cat.id !== "videos") return null;
+            const catFiles = (myFiles[cat.id] || []);
             if (catFiles.length === 0) return null;
             return (
               <div key={cat.id} style={{ marginBottom: "20px" }}>
@@ -291,6 +298,16 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
               </div>
             );
           })}
+
+          {/* Empty state */}
+          {ALL_CATEGORIES.every(cat => {
+            if (isManufacturer && cat.id !== "photos" && cat.id !== "videos") return true;
+            return (myFiles[cat.id] || []).length === 0;
+          }) && (
+            <div style={{ textAlign: "center", color: "#4b5563", padding: "2rem" }}>
+              {isManufacturer ? "No photos or videos uploaded yet. Use the upload zone above." : "No files uploaded yet."}
+            </div>
+          )}
         </>
       )}
     </div>
