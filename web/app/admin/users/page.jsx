@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import TopNav from "@/components/TopNav";
+import InvoicingNav from "@/components/InvoicingNav";
 import { UserTable } from "./UserTable";
 import { UserModal } from "./UserModal";
 import { ManufacturerTable } from "../manufacturers/ManufacturerTable";
@@ -48,7 +49,13 @@ export default function UsersPage() {
   const [mfgError, setMfgError] = useState('');
   const [showMfgToggleConfirm, setShowMfgToggleConfirm] = useState(false);
   const [pendingMfgToggle, setPendingMfgToggle] = useState(null);
+  const [fromInvoicing, setFromInvoicing] = useState(false);
   const router = useRouter();
+
+  // Read ?from=invoicing from URL on mount (avoids useSearchParams Suspense requirement)
+  useEffect(() => {
+    setFromInvoicing(new URLSearchParams(window.location.search).get('from') === 'invoicing');
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -202,22 +209,18 @@ export default function UsersPage() {
       if (editingMfg) {
         const hasExistingUser = !!(editingMfg.userId || editingMfg.user);
         if (hasExistingUser) {
-          // Update existing user credentials
           delete body.createUserAccount;
           if (!body.password) delete body.password;
           if (!body.email)    delete body.email;
         } else {
-          // Possibly converting to user account
           if (!body.createUserAccount) {
             delete body.email;
             delete body.password;
           }
-          delete body.createUserAccount; // backend infers from presence of email+password
-          // Re-add if creating
+          delete body.createUserAccount;
           if (mfgFormData.createUserAccount) body.createUserAccount = true;
         }
       } else {
-        // New manufacturer
         if (!body.createUserAccount) { delete body.email; delete body.password; }
       }
 
@@ -252,7 +255,7 @@ export default function UsersPage() {
       contactInfo:       mfg.contactInfo || '',
       notes:             mfg.notes || '',
       createUserAccount: false,
-      email:             mfg.user?.email || '',   // pre-fill if user exists
+      email:             mfg.user?.email || '',
       password:          '',
     });
     setEditingMfg(mfg); setMfgError(''); setShowMfgModal(true);
@@ -283,7 +286,7 @@ export default function UsersPage() {
 
   return (
     <>
-      <TopNav />
+      {fromInvoicing ? <InvoicingNav /> : <TopNav />}
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 16px 40px' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
