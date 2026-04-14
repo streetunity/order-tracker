@@ -41,12 +41,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: '#0f0f0f' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: '#0f0f0f', position: 'relative', overflow: 'hidden' }}>
       <style>{`
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(16px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
         .login-card { animation: fadeUp 0.4s ease both; }
         .login-input {
           width: 100%;
@@ -86,46 +87,49 @@ export default function LoginPage() {
         .show-pw-btn:hover { color: rgba(255,255,255,0.7); }
       `}</style>
 
+      {/* Full-screen gradient that fades left-to-right */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'linear-gradient(110deg, rgba(180,10,10,0.18) 0%, rgba(220,38,38,0.10) 25%, rgba(15,15,15,0) 60%)',
+      }} />
+      {/* Radial glow anchored top-left */}
+      <div style={{
+        position: 'absolute', top: -160, left: -160, width: 600, height: 600,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(220,38,38,0.13) 0%, transparent 65%)',
+        pointerEvents: 'none',
+      }} />
+      {/* Subtle bottom-left fill */}
+      <div style={{
+        position: 'absolute', bottom: -80, left: -80, width: 400, height: 400,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(220,38,38,0.07) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
       {/* ── Left branding panel ── */}
       <div style={{
         width: '45%',
         flexShrink: 0,
-        background: 'linear-gradient(160deg, #1a0505 0%, #0f0f0f 50%, #0a0a0a 100%)',
-        borderRight: '1px solid rgba(255,255,255,0.05)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: '48px 52px',
+        padding: '52px 56px',
         position: 'relative',
-        overflow: 'hidden',
+        zIndex: 1,
       }}>
-        {/* Subtle background glow */}
-        <div style={{
-          position: 'absolute', top: -120, left: -120,
-          width: 400, height: 400,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(220,38,38,0.12) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: -80, right: -80,
-          width: 300, height: 300,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(220,38,38,0.07) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
 
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, zIndex: 1 }}>
-          <img src="/smt-logo.png" alt="SMT Logo" style={{ width: 40, height: 40, objectFit: 'contain' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <img src="/smt-logo.png" alt="SMT Logo" style={{ width: 52, height: 52, objectFit: 'contain' }} />
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '0.2px' }}>Stealth Machine Tools</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', letterSpacing: '0.2px' }}>Stealth Machine Tools</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Order Management Platform</div>
           </div>
         </div>
 
         {/* Centre copy */}
-        <div style={{ zIndex: 1 }}>
+        <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: 16 }}>Welcome back</div>
           <h2 style={{ fontSize: 34, fontWeight: 700, color: '#fff', margin: '0 0 16px', lineHeight: 1.15, letterSpacing: '-0.5px' }}>
             Your orders,<br />your pipeline,<br />your way.
@@ -135,23 +139,15 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Bottom stat strip */}
-        <div style={{ display: 'flex', gap: 32, zIndex: 1 }}>
-          {[
-            { label: 'Order Stages', value: '10' },
-            { label: 'Role-based Access', value: '6' },
-            { label: 'Pipeline Tracking', value: '100%' },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#dc2626' }}>{value}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{label}</div>
-            </div>
-          ))}
+        {/* Bottom-left: attribution */}
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', lineHeight: 1.6 }}>
+          Designed, Built, and Maintained By<br />
+          <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>Maronde Enterprises</span>
         </div>
       </div>
 
       {/* ── Right form panel ── */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 40px' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 40px', position: 'relative', zIndex: 1 }}>
         <div className="login-card" style={{ width: '100%', maxWidth: 380 }}>
 
           <div style={{ marginBottom: 36 }}>
@@ -191,7 +187,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+                  placeholder="••••••••"
                   autoComplete="current-password"
                   style={{ paddingRight: 44 }}
                 />
@@ -222,13 +218,15 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'center' }}>
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>&#169; {new Date().getFullYear()} Stealth Machine Tools</span>
+          {/* Bottom-right attribution */}
+          <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', lineHeight: 1.6 }}>
+              Designed, Built, and Maintained By<br />
+              <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>Maronde Enterprises</span>
+            </span>
           </div>
         </div>
       </div>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
