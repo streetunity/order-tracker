@@ -2,7 +2,6 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import TopNav from '@/components/TopNav';
 import InvoicingNav from '@/components/InvoicingNav';
@@ -439,8 +438,12 @@ function ConfirmDeleteModal({ event, saving, err, onConfirm, onCancel }) {
 export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
   const calendarRef = useRef(null);
-  const searchParams = useSearchParams();
-  const fromInvoicing = searchParams.get('from') === 'invoicing';
+  const [fromInvoicing, setFromInvoicing] = useState(false);
+
+  // Read ?from=invoicing from URL on mount (avoids useSearchParams Suspense requirement)
+  useEffect(() => {
+    setFromInvoicing(new URLSearchParams(window.location.search).get('from') === 'invoicing');
+  }, []);
 
   const [events,  setEvents]  = useState([]);
   const [loading, setLoading] = useState(true);

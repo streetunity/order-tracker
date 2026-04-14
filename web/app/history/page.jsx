@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import TopNav from '@/components/TopNav';
 import InvoicingNav from '@/components/InvoicingNav';
@@ -54,13 +54,17 @@ export default function AuditHistoryViewer() {
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [pendingRestore, setPendingRestore] = useState(null);
   const [performingRestore, setPerformingRestore] = useState(false);
+  const [fromInvoicing, setFromInvoicing] = useState(false);
 
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const fromInvoicing = searchParams.get('from') === 'invoicing';
   const { user, getAuthHeaders, isAdmin } = useAuth();
 
   const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // Read ?from=invoicing from URL on mount (avoids useSearchParams Suspense requirement)
+  useEffect(() => {
+    setFromInvoicing(new URLSearchParams(window.location.search).get('from') === 'invoicing');
+  }, []);
 
   useEffect(() => {
     if (!user) {
