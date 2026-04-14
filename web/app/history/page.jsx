@@ -2,9 +2,10 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import TopNav from '@/components/TopNav';
+import InvoicingNav from '@/components/InvoicingNav';
 import HistoryFilters from './HistoryFilters';
 import HistoryRestoreDialog from './HistoryRestoreDialog';
 import {
@@ -25,7 +26,6 @@ import './history.css';
 
 const DEFAULT_PAGINATION = { page: 1, limit: 50, totalCount: 0, totalPages: 0, hasMore: false };
 
-// Debounce hook
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -36,7 +36,6 @@ function useDebounce(value, delay) {
 }
 
 export default function AuditHistoryViewer() {
-  // State
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -46,27 +45,23 @@ export default function AuditHistoryViewer() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
-  
-  // Orders/Customers sidebar state (for legacy tabs)
   const [orders, setOrders] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [entityLogs, setEntityLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
-
-  // Restore confirmation modal
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [pendingRestore, setPendingRestore] = useState(null);
   const [performingRestore, setPerformingRestore] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromInvoicing = searchParams.get('from') === 'invoicing';
   const { user, getAuthHeaders, isAdmin } = useAuth();
 
-  // Debounced search - for API calls only
   const debouncedSearch = useDebounce(searchQuery, 300);
 
-  // Redirect to login if not authenticated or not admin
   useEffect(() => {
     if (!user) {
       router.push('/login');
@@ -75,42 +70,22 @@ export default function AuditHistoryViewer() {
     }
   }, [user, isAdmin, router]);
 
-  // Load logs from search endpoint
   const loadLogs = useCallback(async (page = 1, append = false) => {
     if (!user || !isAdmin) return;
-
-    if (page === 1) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-
+    if (page === 1) setLoading(true);
+    else setLoadingMore(true);
     try {
       const { startDate, endDate } = getDateRange(datePreset, customStartDate, customEndDate);
-      const params = new URLSearchParams({
-        tab: activeTab,
-        page: page.toString(),
-        limit: '50'
-      });
-
+      const params = new URLSearchParams({ tab: activeTab, page: page.toString(), limit: '50' });
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       if (debouncedSearch) params.append('search', debouncedSearch);
-
       const endpoint = debouncedSearch ? '/api/audit/search-raw' : '/api/audit/search';
-      
-      const res = await fetch(`${endpoint}?${params.toString()}`, {
-        headers: getAuthHeaders(),
-        cache: 'no-store',
-      });
-
+      const res = await fetch(`${endpoint}?${params.toString()}`, { headers: getAuthHeaders(), cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        if (append) {
-          setLogs(prev => [...prev, ...(data.logs || [])]);
-        } else {
-          setLogs(data.logs || []);
-        }
+        if (append) setLogs(prev => [...prev, ...(data.logs || [])]);
+        else setLogs(data.logs || []);
         setPagination(data.pagination || DEFAULT_PAGINATION);
       }
     } catch (e) {
@@ -121,94 +96,38 @@ export default function AuditHistoryViewer() {
     }
   }, [user, isAdmin, activeTab, debouncedSearch, datePreset, customStartDate, customEndDate, getAuthHeaders]);
 
-  // Load sidebar data for Orders/Customers tabs
   const loadSidebarData = useCallback(async () => {
     if (!user || !isAdmin) return;
-
     try {
       const [ordersRes, accountsRes] = await Promise.all([
         fetch('/api/orders', { headers: getAuthHeaders(), cache: 'no-store' }),
         fetch('/api/accounts', { headers: getAuthHeaders(), cache: 'no-store' })
       ]);
-
-      if (ordersRes.ok) {
-        const ordersData = await ordersRes.json();
-        setOrders(Array.isArray(ordersData) ? ordersData : []);
-      }
-      if (accountsRes.ok) {
-        const accountsData = await accountsRes.json();
-        setAccounts(Array.isArray(accountsData) ? accountsData : []);
-      }
-    } catch (e) {
-      console.error('Failed to load sidebar data:', e);
-    }
+      if (ordersRes.ok) { const d = await ordersRes.json(); setOrders(Array.isArray(d) ? d : []); }
+      if (accountsRes.ok) { const d = await accountsRes.json(); setAccounts(Array.isArray(d) ? d : []); }
+    } catch (e) { console.error('Failed to load sidebar data:', e); }
   }, [user, isAdmin, getAuthHeaders]);
 
-  // Load logs for selected entity (legacy)
   const loadEntityLogs = useCallback(async (entityId) => {
     if (!user || !isAdmin) return;
-
     setLogsLoading(true);
     try {
-      const res = await fetch(`/api/audit/${entityId}`, {
-        headers: getAuthHeaders(),
-        cache: 'no-store',
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setEntityLogs(Array.isArray(data) ? data : []);
-      }
-    } catch (e) {
-      console.error('Failed to load entity logs:', e);
-    } finally {
-      setLogsLoading(false);
-    }
+      const res = await fetch(`/api/audit/${entityId}`, { headers: getAuthHeaders(), cache: 'no-store' });
+      if (res.ok) { const data = await res.json(); setEntityLogs(Array.isArray(data) ? data : []); }
+    } catch (e) { console.error('Failed to load entity logs:', e); }
+    finally { setLogsLoading(false); }
   }, [user, isAdmin, getAuthHeaders]);
 
-  // Initial load
-  useEffect(() => {
-    if (user && isAdmin) {
-      loadLogs(1);
-      loadSidebarData();
-    }
-  }, [user, isAdmin]);
+  useEffect(() => { if (user && isAdmin) { loadLogs(1); loadSidebarData(); } }, [user, isAdmin]);
+  useEffect(() => { if (user && isAdmin) { setSelectedEntity(null); loadLogs(1); } }, [activeTab, debouncedSearch, datePreset, customStartDate, customEndDate]);
+  useEffect(() => { if (selectedEntity && user && isAdmin) loadEntityLogs(selectedEntity.id); }, [selectedEntity, user, isAdmin, loadEntityLogs]);
 
-  // Reload when tab, search, or date changes
-  useEffect(() => {
-    if (user && isAdmin) {
-      setSelectedEntity(null);
-      loadLogs(1);
-    }
-  }, [activeTab, debouncedSearch, datePreset, customStartDate, customEndDate]);
+  const handleLoadMore = () => { if (pagination.hasMore && !loadingMore) loadLogs(pagination.page + 1, true); };
 
-  // Load entity logs when entity selected
-  useEffect(() => {
-    if (selectedEntity && user && isAdmin) {
-      loadEntityLogs(selectedEntity.id);
-    }
-  }, [selectedEntity, user, isAdmin, loadEntityLogs]);
-
-  // Handle load more
-  const handleLoadMore = () => {
-    if (pagination.hasMore && !loadingMore) {
-      loadLogs(pagination.page + 1, true);
-    }
-  };
-
-  // Restore handlers
   function handleRestoreClick(log) {
     const archiveChange = log.changes?.find(c => c.field === 'archivedAt');
-    if (!archiveChange || archiveChange.newValue === 'null' || log.entityType !== 'OrderItem') {
-      return;
-    }
-    const itemName = getItemName(log);
-    setPendingRestore({
-      log,
-      itemId: log.entityId,
-      orderId: log.parentEntityId,
-      itemName
-    });
+    if (!archiveChange || archiveChange.newValue === 'null' || log.entityType !== 'OrderItem') return;
+    setPendingRestore({ log, itemId: log.entityId, orderId: log.parentEntityId, itemName: getItemName(log) });
     setShowRestoreConfirm(true);
   }
 
@@ -221,35 +140,18 @@ export default function AuditHistoryViewer() {
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ archivedAt: null })
       });
-
-      if (res.ok) {
-        loadLogs(1);
-        setShowRestoreConfirm(false);
-        setPendingRestore(null);
-      } else {
-        const error = await res.json();
-        alert(`Failed to restore: ${error.error || 'Unknown error'}`);
-      }
-    } catch (e) {
-      console.error('Restore error:', e);
-      alert('Failed to restore item');
-    } finally {
-      setPerformingRestore(false);
-    }
+      if (res.ok) { loadLogs(1); setShowRestoreConfirm(false); setPendingRestore(null); }
+      else { const error = await res.json(); alert(`Failed to restore: ${error.error || 'Unknown error'}`); }
+    } catch (e) { console.error('Restore error:', e); alert('Failed to restore item'); }
+    finally { setPerformingRestore(false); }
   }
 
-  function cancelRestore() {
-    setShowRestoreConfirm(false);
-    setPendingRestore(null);
-  }
+  function cancelRestore() { setShowRestoreConfirm(false); setPendingRestore(null); }
 
-  // Safely parse changes — the API may return a JSON string or a parsed array
   function parseChanges(changes) {
     if (!changes) return [];
     if (Array.isArray(changes)) return changes;
-    if (typeof changes === 'string') {
-      try { return JSON.parse(changes); } catch { return []; }
-    }
+    if (typeof changes === 'string') { try { return JSON.parse(changes); } catch { return []; } }
     return [];
   }
 
@@ -274,78 +176,50 @@ export default function AuditHistoryViewer() {
     const showRestore = isArchiveAction(log);
     const entityInfo = getEntityInfo(log, orders, accounts);
     const itemHeaderInfo = getItemHeaderInfo(log);
-
     return (
       <div key={log.id} className="log-entry">
         <div className="log-header">
           <div className="log-meta">
-            <span className={`log-badge ${getActionBadgeClass(log.action)}`}>
-              {getActionLabel(log.action)}
-            </span>
-            {itemHeaderInfo && (
-              <span className="log-item-info">{itemHeaderInfo}</span>
-            )}
+            <span className={`log-badge ${getActionBadgeClass(log.action)}`}>{getActionLabel(log.action)}</span>
+            {itemHeaderInfo && <span className="log-item-info">{itemHeaderInfo}</span>}
             <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>
           </div>
-          <div className="log-user">
-            {log.performedByName || 'System'}
-          </div>
+          <div className="log-user">{log.performedByName || 'System'}</div>
         </div>
-
         {(entityInfo.title || entityInfo.subtitle || entityInfo.details.length > 0) && (
           <div className="log-entity-info">
             {entityInfo.title && <div className="entity-info-title">{entityInfo.title}</div>}
             {entityInfo.subtitle && <div className="entity-info-subtitle">{entityInfo.subtitle}</div>}
             {entityInfo.details.length > 0 && (
               <div className="entity-info-details">
-                {entityInfo.details.map((detail, idx) => (
-                  <span key={idx} className="entity-detail-item">{detail}</span>
-                ))}
+                {entityInfo.details.map((detail, idx) => <span key={idx} className="entity-detail-item">{detail}</span>)}
               </div>
             )}
           </div>
         )}
-
         {renderChanges(log.changes)}
-
-        {log.metadata?.message && (
-          <div className="log-metadata">{log.metadata.message}</div>
-        )}
-
+        {log.metadata?.message && <div className="log-metadata">{log.metadata.message}</div>}
         {showRestore && (
           <div className="log-actions">
-            <button className="btn-restore" onClick={() => handleRestoreClick(log)}>
-              🔄 Restore Item
-            </button>
+            <button className="btn-restore" onClick={() => handleRestoreClick(log)}>🔄 Restore Item</button>
           </div>
         )}
       </div>
     );
   }
 
-  // Filter and sort sidebar entities alphabetically
   const filteredAccounts = accounts
-    .filter(acc =>
-      acc.name?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
-      acc.email?.toLowerCase().includes(sidebarSearch.toLowerCase())
-    )
+    .filter(acc => acc.name?.toLowerCase().includes(sidebarSearch.toLowerCase()) || acc.email?.toLowerCase().includes(sidebarSearch.toLowerCase()))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 
   const filteredOrders = orders
-    .filter(order =>
-      order.poNumber?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
-      order.account?.name?.toLowerCase().includes(sidebarSearch.toLowerCase())
-    )
+    .filter(order => order.poNumber?.toLowerCase().includes(sidebarSearch.toLowerCase()) || order.account?.name?.toLowerCase().includes(sidebarSearch.toLowerCase()))
     .sort((a, b) => (a.account?.name || '').localeCompare(b.account?.name || '', undefined, { sensitivity: 'base' }));
 
   if (!user || !isAdmin) return null;
 
   if (loading && logs.length === 0) {
-    return (
-      <div className="history-loading">
-        <div>Loading audit history...</div>
-      </div>
-    );
+    return <div className="history-loading"><div>Loading audit history...</div></div>;
   }
 
   const isSearchActive = searchQuery && searchQuery.trim().length > 0;
@@ -353,25 +227,19 @@ export default function AuditHistoryViewer() {
 
   return (
     <>
-      <TopNav />
+      {fromInvoicing ? <InvoicingNav /> : <TopNav />}
       <div className="history-container">
         <div className="history-content">
           <div className="history-header">
             <h1>Audit History</h1>
-            <p className="history-subtitle">
-              Track all changes and actions across the system
-            </p>
+            <p className="history-subtitle">Track all changes and actions across the system</p>
           </div>
 
-          {/* Tabs */}
           <div className="history-tabs">
             {TABS.map(tab => (
-              <button
-                key={tab.id}
-                className={`tab ${activeTab === tab.id ? 'active' : ''}`}
+              <button key={tab.id} className={`tab ${activeTab === tab.id ? 'active' : ''}`}
                 onClick={() => { setActiveTab(tab.id); setSelectedEntity(null); }}
-                style={{ '--tab-color': tab.color }}
-              >
+                style={{ '--tab-color': tab.color }}>
                 <span className="tab-icon">{tab.icon}</span>
                 {tab.label}
               </button>
@@ -379,90 +247,55 @@ export default function AuditHistoryViewer() {
           </div>
 
           <HistoryFilters
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            datePreset={datePreset}
-            setDatePreset={setDatePreset}
-            customStartDate={customStartDate}
-            setCustomStartDate={setCustomStartDate}
-            customEndDate={customEndDate}
-            setCustomEndDate={setCustomEndDate}
+            searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+            datePreset={datePreset} setDatePreset={setDatePreset}
+            customStartDate={customStartDate} setCustomStartDate={setCustomStartDate}
+            customEndDate={customEndDate} setCustomEndDate={setCustomEndDate}
             totalCount={pagination.totalCount}
           />
 
-          {/* Main Content */}
           {showSidebarView ? (
             <div className="history-grid">
               <div className="entity-list-sidebar">
                 <div className="entity-search">
-                  <input
-                    type="text"
-                    placeholder={`Filter ${activeTab}...`}
-                    value={sidebarSearch}
-                    onChange={(e) => setSidebarSearch(e.target.value)}
-                  />
+                  <input type="text" placeholder={`Filter ${activeTab}...`} value={sidebarSearch} onChange={(e) => setSidebarSearch(e.target.value)} />
                 </div>
                 <div className="entity-list">
                   {(activeTab === 'orders' ? filteredOrders : filteredAccounts).length === 0 ? (
-                    <div style={{ textAlign: 'center', color: '#a0a0a0', padding: '20px' }}>
-                      No {activeTab} found
-                    </div>
+                    <div style={{ textAlign: 'center', color: '#a0a0a0', padding: '20px' }}>No {activeTab} found</div>
                   ) : (
                     (activeTab === 'orders' ? filteredOrders : filteredAccounts).map(entity => (
-                      <div
-                        key={entity.id}
-                        className={`entity-card ${selectedEntity?.id === entity.id ? 'selected' : ''}`}
-                        onClick={() => setSelectedEntity(entity)}
-                      >
+                      <div key={entity.id} className={`entity-card ${selectedEntity?.id === entity.id ? 'selected' : ''}`} onClick={() => setSelectedEntity(entity)}>
                         <div className="entity-name">
-                          {activeTab === 'orders'
-                            ? entity.account?.name || 'Unknown Customer'
-                            : entity.name
-                          }
+                          {activeTab === 'orders' ? entity.account?.name || 'Unknown Customer' : entity.name}
                         </div>
                         <div className="entity-details">
-                          {activeTab === 'orders'
-                            ? entity.sku || 'No sales rep'
-                            : (() => {
-                              const customerOrders = orders.filter(o => o.accountId === entity.id);
-                              return customerOrders.length > 0 && customerOrders[0].sku
-                                ? customerOrders[0].sku
-                                : 'No sales rep';
-                            })()
-                          }
+                          {activeTab === 'orders' ? entity.sku || 'No sales rep' : (() => {
+                            const customerOrders = orders.filter(o => o.accountId === entity.id);
+                            return customerOrders.length > 0 && customerOrders[0].sku ? customerOrders[0].sku : 'No sales rep';
+                          })()}
                         </div>
                       </div>
                     ))
                   )}
                 </div>
               </div>
-
               <div className="audit-log-panel">
                 {!selectedEntity ? (
                   <div className="no-selection">
                     <p>Select {activeTab === 'orders' ? 'an order' : 'a customer'} to view audit history</p>
-                    <p style={{ marginTop: '1rem', color: '#666', fontSize: '14px' }}>
-                      Or use the search bar above to search all {activeTab} logs
-                    </p>
+                    <p style={{ marginTop: '1rem', color: '#666', fontSize: '14px' }}>Or use the search bar above to search all {activeTab} logs</p>
                   </div>
                 ) : logsLoading ? (
                   <div className="logs-loading">Loading logs...</div>
                 ) : entityLogs.length === 0 ? (
-                  <div className="no-logs">
-                    <p>No audit logs found for this {activeTab === 'orders' ? 'order' : 'customer'}.</p>
-                  </div>
+                  <div className="no-logs"><p>No audit logs found for this {activeTab === 'orders' ? 'order' : 'customer'}.</p></div>
                 ) : (
                   <>
                     <div className="audit-header">
-                      <h2>
-                        {activeTab === 'orders'
-                          ? selectedEntity.account?.name || 'Unknown Customer'
-                          : selectedEntity.name
-                        }
-                      </h2>
+                      <h2>{activeTab === 'orders' ? selectedEntity.account?.name || 'Unknown Customer' : selectedEntity.name}</h2>
                       <p style={{ fontSize: '14px', color: '#ef4444', margin: '5px 0 0 0', fontWeight: '500' }}>
-                        {activeTab === 'orders' && selectedEntity.sku
-                          ? selectedEntity.sku
+                        {activeTab === 'orders' && selectedEntity.sku ? selectedEntity.sku
                           : activeTab === 'customers' && (() => {
                             const customerOrders = orders.filter(o => o.accountId === selectedEntity.id);
                             return customerOrders.length > 0 && customerOrders[0].sku ? customerOrders[0].sku : '';
@@ -487,14 +320,9 @@ export default function AuditHistoryViewer() {
               ) : (
                 <>
                   {logs.map(log => renderLogEntry(log))}
-                  
                   {pagination.hasMore && (
                     <div className="load-more-container">
-                      <button
-                        className="btn-load-more"
-                        onClick={handleLoadMore}
-                        disabled={loadingMore}
-                      >
+                      <button className="btn-load-more" onClick={handleLoadMore} disabled={loadingMore}>
                         {loadingMore ? 'Loading...' : `Load More (${pagination.totalCount - logs.length} remaining)`}
                       </button>
                     </div>
@@ -505,14 +333,7 @@ export default function AuditHistoryViewer() {
           )}
         </div>
       </div>
-
-      <HistoryRestoreDialog
-        show={showRestoreConfirm}
-        pendingRestore={pendingRestore}
-        performingRestore={performingRestore}
-        onCancel={cancelRestore}
-        onConfirm={executeRestore}
-      />
+      <HistoryRestoreDialog show={showRestoreConfirm} pendingRestore={pendingRestore} performingRestore={performingRestore} onCancel={cancelRestore} onConfirm={executeRestore} />
     </>
   );
 }
