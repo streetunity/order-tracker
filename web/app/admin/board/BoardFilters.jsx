@@ -47,6 +47,7 @@ export default function BoardFilters({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") onApply(); }}
           placeholder="Search Sales Person / Account / Contact / Item / Serial # / Manufacturer"
           style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6, minWidth: "350px" }}
         />
