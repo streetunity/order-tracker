@@ -37,6 +37,7 @@ export default function BoardFilters({
   setSalesRepFilter,
   salesReps,
   onApply,
+  onClear,
   loading,
   err,
   hasResults
@@ -51,7 +52,9 @@ export default function BoardFilters({
           placeholder="Search Sales Person / Account / Contact / Item / Serial # / Manufacturer"
           style={{ padding: "6px 12px", border: "1px solid var(--border)", borderRadius: 6, minWidth: "350px" }}
         />
-        <button className="btn" onClick={onApply}>Apply</button>
+        {search && (
+          <button className="btn" onClick={onClear}>Clear</button>
+        )}
       </div>
       <div className="tool">
         <select

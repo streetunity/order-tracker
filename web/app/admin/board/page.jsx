@@ -108,13 +108,15 @@ export default function AdminBoardPage() {
     if (!user) router.push("/login");
   }, [user, router]);
 
-  async function load() {
+  // Accept optional searchOverride so clearSearch can pass "" before state updates
+  async function load(searchOverride) {
     if (!user) return;
     try {
       setLoading(true);
       setErr("");
       const params = new URLSearchParams();
-      if (search) params.set("search", search);
+      const searchTerm = searchOverride !== undefined ? searchOverride : search;
+      if (searchTerm) params.set("search", searchTerm);
       const res = await fetch(`/api/orders?${params.toString()}`, {
         headers: getAuthHeaders(),
         cache: "no-store",
@@ -132,6 +134,11 @@ export default function AdminBoardPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleClear() {
+    setSearch("");
+    load("");
   }
 
   useEffect(() => {
@@ -288,13 +295,13 @@ export default function AdminBoardPage() {
     }
   };
 
-  // ── Stage change: request confirmation ──────────────────────
+  // Stage change: request confirmation
   const requestStageChange = (orderId, itemId, itemName, nextStage, opts = {}) => {
     setPendingStageChange({ orderId, itemId, itemName, nextStage, opts });
     setShowStageConfirm(true);
   };
 
-  // ── Stage change: execute after confirmation ─────────────────
+  // Stage change: execute after confirmation
   const confirmStageChange = async () => {
     if (!pendingStageChange) return;
     try {
@@ -381,6 +388,7 @@ export default function AdminBoardPage() {
           setSalesRepFilter={setSalesRepFilter}
           salesReps={salesReps}
           onApply={load}
+          onClear={handleClear}
           loading={loading}
           err={err}
           hasResults={grouped.length > 0}
