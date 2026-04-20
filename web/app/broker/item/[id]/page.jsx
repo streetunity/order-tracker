@@ -663,9 +663,7 @@ export default function BrokerItemDetail() {
                       {docStats?.uploadedRequired} of {docStats?.totalRequired} required documents uploaded
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {Object.entries(docChecklist)
-                        .filter(([type]) => type !== 'ISF_REPORT') // treated as duplicate of ISF in the checklist
-                        .map(([type, data]) => {
+                      {Object.entries(docChecklist).map(([type, data]) => {
                         const isRequired = REQUIRED_TYPES.includes(type);
                         const firstDoc = getFirstDocOfType(type);
                         return (
