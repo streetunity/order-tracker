@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl, validateFile } from '../services/fileUploadService.js';
 import {
-  DOCUMENT_TYPE_LABELS, BROKER_DOCUMENT_TYPES,
+  DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS,
   getDocumentsForItem, resolveDocumentById, deleteResolvedDocument
 } from '../services/documentService.js';
 import { queueBrokerDocumentNotification } from '../services/brokerEmailService.js';
@@ -325,8 +325,8 @@ export function createBrokerRouter() {
       const file = req.file;
       const username = req.user.name;
 
-      if (!documentType || !BROKER_DOCUMENT_TYPES.includes(documentType)) {
-        return res.status(400).json({ error: 'Invalid document type. Allowed types: ISF Report, Entry Summary, Delivery Order, Broker Invoice, Other' });
+      if (!documentType || !DOCUMENT_TYPES[documentType]) {
+        return res.status(400).json({ error: 'Invalid document type' });
       }
 
       const validationErrors = validateFile(file);

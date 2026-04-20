@@ -31,8 +31,22 @@ const DOCUMENT_TYPE_LABELS = {
   OTHER: 'Other'
 };
 
-// Broker-specific document types for upload dropdown
-const BROKER_DOCUMENT_TYPES = ['ISF_REPORT', 'ENTRY_SUMMARY', 'DELIVERY_ORDER', 'BROKER_INVOICE', 'OTHER'];
+// All document types available for upload (ordered to match checklist display).
+// Brokers and SUPER_ADMINs can upload any of the 10 types from this page so that
+// missing vendor documents (ISF, Arrival Notice, Bill of Lading, Commercial Invoice,
+// Packing List, Delivery Order) can be supplied directly from the broker portal.
+const ALL_DOCUMENT_TYPES = [
+  'ISF',
+  'ARRIVAL_NOTICE',
+  'BILL_OF_LADING',
+  'COMMERCIAL_INVOICE',
+  'PACKING_LIST',
+  'DELIVERY_ORDER',
+  'ISF_REPORT',
+  'ENTRY_SUMMARY',
+  'BROKER_INVOICE',
+  'OTHER'
+];
 
 // Required documents from vendor/manufacturer (for checklist display)
 const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER'];
@@ -730,7 +744,7 @@ export default function BrokerItemDetail() {
                         cursor: 'pointer'
                       }}
                     >
-                      {BROKER_DOCUMENT_TYPES.map(type => (
+                      {ALL_DOCUMENT_TYPES.map(type => (
                         <option key={type} value={type}>
                           {DOCUMENT_TYPE_LABELS[type]}
                         </option>
