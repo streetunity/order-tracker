@@ -26,7 +26,6 @@ export default function NewOrderPage() {
     accountId: "",
     poNumber: "",
     salesPerson: "",
-    customerDocsLink: "",
     orderDate: new Date().toISOString().split('T')[0],
     discount: ""
   });

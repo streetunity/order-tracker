@@ -1,5 +1,5 @@
 // Order Details Section Component
-// Handles customer selection, order date, PO number, sales person, and documents link
+// Handles customer selection, order date, PO number, and sales person
 
 import Link from 'next/link';
 import SearchableSelect from './SearchableSelect';
@@ -130,29 +130,6 @@ export default function OrderDetailsSection({
           </select>
         </div>
 
-        <div style={{ gridColumn: "1 / -1" }}>
-          <label style={{
-            display: "block",
-            fontSize: "14px",
-            fontWeight: "500",
-            marginBottom: "8px",
-            color: "#e4e4e4"
-          }}>
-            Customer Documents Link *
-          </label>
-          <input
-            type="url"
-            className="input"
-            value={formData.customerDocsLink}
-            onChange={(e) => setFormData({ ...formData, customerDocsLink: e.target.value })}
-            placeholder="https://www.dropbox.com/..."
-            required
-            style={{ width: "100%" }}
-          />
-          <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
-            Dropbox or other document link for customer files (visible to customer on tracking page)
-          </div>
-        </div>
       </div>
     </div>
   );

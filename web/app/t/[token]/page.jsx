@@ -156,7 +156,6 @@ export default function PublicTrackingPage() {
 
   const hasAnyFiles = customerFiles && (
     customerFiles.totalCount > 0 ||
-    customerFiles.legacyDropboxLink ||
     customerFiles.readme?.length > 0
   );
 
@@ -541,17 +540,6 @@ export default function PublicTrackingPage() {
                       </a>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Legacy Dropbox */}
-              {customerFiles.legacyDropboxLink && (
-                <div style={{ padding:"16px", background:"#2d2d2d", border:"1px solid #404040", borderRadius:"8px" }}>
-                  <p style={{ margin:"0 0 8px", fontSize:"13px", color:"#a0a0a0" }}>Additional files available via Dropbox:</p>
-                  <a href={customerFiles.legacyDropboxLink} target="_blank" rel="noopener noreferrer"
-                    style={{ color:"#dc2626", fontSize:"14px", wordBreak:"break-all" }}>
-                    {customerFiles.legacyDropboxLink} ↗
-                  </a>
                 </div>
               )}
             </>

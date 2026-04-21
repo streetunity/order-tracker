@@ -51,7 +51,6 @@ export const orderApi = {
         accountId: orderData.accountId,
         poNumber: orderData.poNumber?.trim() || null,
         sku: orderData.salesPerson, // Sales person stored in sku field
-        customerDocsLink: orderData.customerDocsLink?.trim(),
         orderDate: orderData.orderDate,
         discount: orderData.discount && orderData.discount.trim() ? parseFloat(orderData.discount.trim()) : 0
       })
@@ -125,4 +124,4 @@ export const orderApi = {
       failedItems
     };
   }
-};
+}

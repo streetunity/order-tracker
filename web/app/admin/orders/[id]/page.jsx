@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
@@ -47,12 +46,6 @@ export default function EditOrderPage({ params }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState(null);
   const [pendingDeleteItemName, setPendingDeleteItemName] = useState("");
-
-  const [customerDocsLink, setCustomerDocsLink] = useState("");
-  const [isSavingDocsLink, setIsSavingDocsLink] = useState(false);
-
-  const [brokerDocsLink, setBrokerDocsLink] = useState("");
-  const [isSavingBrokerDocsLink, setIsSavingBrokerDocsLink] = useState(false);
 
   const [orderDate, setOrderDate] = useState("");
   const [isSavingOrderDate, setIsSavingOrderDate] = useState(false);
@@ -124,8 +117,6 @@ export default function EditOrderPage({ params }) {
       setLoading(true);
       const orderData = await orderApi.getOrder(id, getAuthHeaders);
       setOrder(orderData);
-      setCustomerDocsLink(orderData.customerDocsLink || "");
-      setBrokerDocsLink(orderData.brokerDocsLink || "");
       setInternalNotes(orderData.internalNotes || "");
       setInternalNotesChanged(false);
       setItemEdits({});
@@ -301,37 +292,6 @@ export default function EditOrderPage({ params }) {
       setDiscount(currentDiscount);
     } finally {
       setIsSavingDiscount(false);
-    }
-  }
-
-  async function saveCustomerDocsLink() {
-    if (customerDocsLink === (order?.customerDocsLink || "")) return;
-
-    try {
-      setIsSavingDocsLink(true);
-      await orderApi.updateOrder(id, { customerDocsLink }, getAuthHeaders);
-      setOrder(prev => ({ ...prev, customerDocsLink: customerDocsLink }));
-    } catch (err) {
-      showNotif("Failed to update documents link");
-      setCustomerDocsLink(order?.customerDocsLink || "");
-    } finally {
-      setIsSavingDocsLink(false);
-    }
-  }
-
-  async function saveBrokerDocsLink() {
-    if (brokerDocsLink === (order?.brokerDocsLink || "")) return;
-
-    try {
-      setIsSavingBrokerDocsLink(true);
-      await orderApi.updateOrder(id, { brokerDocsLink }, getAuthHeaders);
-      setOrder(prev => ({ ...prev, brokerDocsLink: brokerDocsLink }));
-      showNotif("Broker documents link updated");
-    } catch (err) {
-      showNotif("Failed to update broker documents link");
-      setBrokerDocsLink(order?.brokerDocsLink || "");
-    } finally {
-      setIsSavingBrokerDocsLink(false);
     }
   }
 
@@ -561,9 +521,9 @@ export default function EditOrderPage({ params }) {
             let dimensionStr = "-";
             if (container.length || container.width || container.height) {
               const parts = [];
-              if (container.length) parts.push(`L: ${container.length}"`);
-              if (container.width) parts.push(`W: ${container.width}"`);
-              if (container.height) parts.push(`H: ${container.height}"`);
+              if (container.length) parts.push(`L: ${container.length}\"`);
+              if (container.width) parts.push(`W: ${container.width}\"`);
+              if (container.height) parts.push(`H: ${container.height}\"`);
               dimensionStr = parts.join(", ");
             }
             const weightStr = container.weight ? `${container.weight}` : "-";
@@ -811,18 +771,6 @@ export default function EditOrderPage({ params }) {
                 {order.createdBy && (
                   <span><strong>Created by:</strong> {order.createdBy.name}</span>
                 )}
-                {order.customerDocsLink && (
-                  <span>
-                    <strong>Legacy docs:</strong>{" "}
-                    <a className="link" href={order.customerDocsLink} target="_blank" rel="noreferrer">View Files ↗</a>
-                  </span>
-                )}
-                <Link
-                  href={`/admin/orders/${id}/customer-files`}
-                  style={{ color: "#dc2626", fontWeight: "600", textDecoration: "none" }}
-                >
-                  📁 Manage Customer Files →
-                </Link>
               </div>
             </section>
 
@@ -843,69 +791,6 @@ export default function EditOrderPage({ params }) {
               isSavingInstallationDate={isSavingInstallationDate}
               hasExtendedShipping={hasExtendedShipping}
             />
-
-            <section style={{ marginTop: 16, marginBottom: 16 }}>
-              <h3 style={{ margin: "0 0 12px", fontSize: 14 }}>Document Links</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                {/* Customer Documents (legacy Dropbox) */}
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#e4e4e4" }}>
-                    Legacy Dropbox Link
-                  </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: "4px" }}>
-                    <input
-                      className="input"
-                      type="url"
-                      value={customerDocsLink}
-                      onChange={(e) => setCustomerDocsLink(e.target.value)}
-                      onBlur={saveCustomerDocsLink}
-                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                      placeholder="https://www.dropbox.com/..."
-                      style={{ flex: 1 }}
-                      disabled={isSavingDocsLink}
-                    />
-                    {isSavingDocsLink && (<span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>)}
-                  </div>
-                  {order.customerDocsLink && (
-                    <a className="btn" href={order.customerDocsLink} target="_blank" rel="noreferrer" style={{ fontSize: "12px", padding: "4px 12px" }}>
-                      Open Link ↗
-                    </a>
-                  )}
-                  <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px" }}>
-                    Old Dropbox link (use Customer Files tab for new uploads)
-                  </div>
-                </div>
-
-                {/* Broker Documents - Only for SUPER_ADMIN */}
-                {user?.role === "SUPER_ADMIN" && (
-                  <div>
-                    <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#e4e4e4" }}>
-                      Broker Documents
-                    </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: "4px" }}>
-                      <input
-                        className="input"
-                        type="url"
-                        value={brokerDocsLink}
-                        onChange={(e) => setBrokerDocsLink(e.target.value)}
-                        onBlur={saveBrokerDocsLink}
-                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                        placeholder="https://www.dropbox.com/..."
-                        style={{ flex: 1 }}
-                        disabled={isSavingBrokerDocsLink}
-                      />
-                      {isSavingBrokerDocsLink && (<span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>)}
-                    </div>
-                    {order.brokerDocsLink && (
-                      <a className="btn" href={order.brokerDocsLink} target="_blank" rel="noreferrer" style={{ fontSize: "12px", padding: "4px 12px" }}>
-                        Open Link ↗
-                      </a>
-                    )}
-                    <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px" }}>Broker files (Super Admin only)</div>
-                  </div>
-                )}
-              </div>
-            </section>
 
             <ItemsTable
               order={order}

@@ -11,10 +11,6 @@ export function validateOrderForm(formData, items) {
     return { isValid: false, error: "Please select a sales person" };
   }
 
-  if (!formData.customerDocsLink) {
-    return { isValid: false, error: "Please enter a customer documents link" };
-  }
-
   if (!formData.orderDate) {
     return { isValid: false, error: "Please enter an order date" };
   }
