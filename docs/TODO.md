@@ -1,9 +1,22 @@
 # Order Tracker — Outstanding Work
 
-**Last updated:** April 2026  
+**Last updated:** April 26, 2026  
 **Branch:** `feature/invoicing-port`
 
 Consolidated punch list of everything still to do. Cross-referenced against the `feature/invoicing-port` branch as of this date. See `docs/ROADMAP.md` for full specifications and `docs/future-considerations.md` for back-burnered items.
+
+---
+
+## ✅ Recently Completed
+
+### SQLite → PostgreSQL Migration (April 26, 2026)
+
+Production database migrated from SQLite to PostgreSQL 16.13 on the same EC2 instance. All 6,062 rows migrated and verified across 60 models. ~10 minutes of downtime. Cutover commit: `6518f6b`. Pre-cutover snapshot preserved at `s3://order-tracker-backups-2025/pre-postgres-cutover/dev.db.pre-postgres-cutover.20260426-210312` (keep until ~July 2026). Backup chain restored with `pg_dump -Fc`. See `docs/POSTGRES_MIGRATION.md` for the full runbook and lessons learned.
+
+**Outstanding follow-ups from the migration:**
+- May 26, 2026: retire the live SQLite file at `/var/www/order-tracker/api/prisma/dev.db` by renaming to `dev.db.retired-YYYYMMDD`
+- The hourly local backup runs 11x/day with 30-backup retention (only 2.7 days of history). Consider trimming to 4 hours.
+- Pre-existing bug at `api/src/index.js:302` (`app.close is not a function` on shutdown). Should be `server.close()`. Harmless but ugly.
 
 ---
 
@@ -66,8 +79,8 @@ Still in sandbox mode. Support case has the reply requesting re-evaluation under
 ### S3 Versioning on `stealth-customer-files`
 Not enabled. One-click in AWS console (Properties → Bucket Versioning → Enable). Cheap insurance against accidental deletes / overwrites. Distinct from the nightly database backup (`order-tracker-backups-2025`) which is already running.
 
-### SQLite → PostgreSQL Migration
-Punted until scale demands it. Dual `Customer` / `Account` model stays as-is. Roughly 1–2 days of work per `docs/future-considerations.md` whenever it's needed.
+### Notifications cron contains long-lived JWT in plaintext
+The `* * * * * curl -X POST .../notifications/generate-operational` cron entry has a hardcoded Bearer token that expires October 2026. Should move to env-var-driven auth or a proper service account flow eventually.
 
 ---
 

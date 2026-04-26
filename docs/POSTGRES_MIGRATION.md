@@ -1,5 +1,32 @@
 # SQLite → PostgreSQL Migration Runbook
 
+> ## ✅ MIGRATION COMPLETED — April 26, 2026
+>
+> The migration described in this runbook was executed successfully. **Production now runs on PostgreSQL 16.13 on the EC2 box.** This document is preserved as historical reference.
+>
+> **Outcome summary:**
+> - All 6,062 rows migrated and row-count verified across 60 models
+> - 14 route files patched with `mode: 'insensitive'` for case-insensitive search compatibility
+> - Total downtime: ~10 minutes (21:00 UTC to 21:10 UTC)
+> - Cutover commit: `6518f6b`
+> - Pre-cutover SQLite snapshot preserved at `s3://order-tracker-backups-2025/pre-postgres-cutover/dev.db.pre-postgres-cutover.20260426-210312` and locally at `/var/www/order-tracker/api/prisma/dev.db.pre-postgres-cutover.20260426-210312` (keep for 90 days)
+> - All 6 smoke tests passed (login, board, order detail, calendar, invoicing, commissions, customer tracking)
+> - Backup chain restored: hourly + daily local `pg_dump`, daily S3 `pg_dump` with 30-day retention
+>
+> **Lessons learned that differ from the runbook below:**
+> - The live SQLite path is `/var/www/order-tracker/api/prisma/dev.db` (Prisma resolves SQLite paths relative to `schema.prisma` location, NOT the process working directory). The runbook's references to `api/dev.db` are wrong — the file at that path was a stale 144 KB artifact from October 2025.
+> - The pre-existing backup scripts had been silently backing up that stale file. Watch for this pattern on future installs.
+> - Strategy adjustment: Mr B chose to skip the separate `feature/postgres-migration` branch and edited `schema.prisma` directly on `feature/invoicing-port` without committing until cutover ("Option A" approach). Worked fine.
+> - Migration script `scripts/migrate-to-postgres/` needed a symlink to the api directory's generated Prisma client because it doesn't have its own `schema.prisma` file. See script README for details.
+>
+> **Outstanding follow-ups (not blocking):**
+> 1. May 26, 2026 (~30 days post-cutover): retire the live SQLite file by renaming `dev.db` to `dev.db.retired-YYYYMMDD`
+> 2. The hourly backup runs 11x/day with 30-backup retention — only 2.7 days of history. Consider trimming to fewer hours.
+> 3. The notifications cron contains a long-lived JWT in plaintext. Move to env-var auth eventually.
+> 4. Pre-existing bug at `api/src/index.js:302` — `app.close is not a function` on shutdown. Should be `server.close()`. Harmless but ugly.
+
+---
+
 **Target:** Same EC2 instance, Postgres 16 installed locally alongside the existing SQLite file. App and DB stay on one box.
 
 **Estimated total time:** ~6 hours including dry runs. Actual maintenance window: ~30 minutes.
@@ -53,7 +80,7 @@ sudo systemctl enable postgresql
 sudo -u postgres psql
 ```
 
-Inside the `psql` prompt, run these one at a time. **Replace `CHANGE_ME_STRONG_PASSWORD` with a real password** — I recommend 24+ random characters. You'll save this in `.env` later.
+Inside the `psql` prompt, run these one at a time. **Replace `CHANGE_ME_STRONG_PASSWORD` with a real password** — I recommend 24+ random characters, URL-safe (no `/`, `=`, or other URL-special chars). You'll save this in `.env` later. **Generate with:** `openssl rand -hex 32`
 
 ```sql
 CREATE DATABASE smt_orders;
@@ -138,39 +165,18 @@ datasource db {
 
 Save and exit. **Do NOT commit and push yet** — the live app on `feature/invoicing-port` is still pointing at `DATABASE_URL` in `.env` which still points at SQLite. Branch isolation protects us.
 
-### Set up a temporary Postgres-pointing env for testing
-
-Create a separate env file you'll use only for the migration tooling so the live `.env` is never touched until cutover:
-
-```bash
-cp api/.env api/.env.postgres
-nano api/.env.postgres
-```
-
-Replace the `DATABASE_URL` line with:
-
-```
-DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public"
-```
-
-Use the password you set in Phase 1. Save and exit.
-
 ### Push the schema to the empty Postgres DB
 
 ```bash
 cd /var/www/order-tracker/api
 
-# Use the postgres env file just for this command
-DOTENV_CONFIG_PATH=.env.postgres npx dotenv -e .env.postgres -- npx prisma db push
+# Inline DATABASE_URL keeps the live .env untouched
+DATABASE_URL="postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public" npx prisma db push --skip-generate
 ```
 
-If the `dotenv` CLI isn't installed, the simpler approach is to temporarily export the var inline:
+**Critical:** `--skip-generate` prevents the Prisma client from being regenerated, so the live app keeps using its existing SQLite-targeted client.
 
-```bash
-DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public" npx prisma db push
-```
-
-Expected output: a list of all 74 models being created, then `Your database is now in sync with your Prisma schema.`
+Expected output: a list of tables being created, then `🚀  Your database is now in sync with your Prisma schema.`
 
 ### Verify the schema landed
 
@@ -178,12 +184,7 @@ Expected output: a list of all 74 models being created, then `Your database is n
 psql -h localhost -U smt_app -d smt_orders -c "\dt"
 ```
 
-You should see all the model tables (`Account`, `Order`, `OrderItem`, etc., plus `order_documents`, `customer_documents`, etc. for the `@@map`-renamed ones).
-
-```bash
-# Generate the Prisma client against Postgres just for the migration script's use
-DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public" npx prisma generate
-```
+You should see all the model tables. Total table count = number of `model` declarations in `schema.prisma` (was 57 in April 2026: 51 PascalCase + 6 `@@map`-renamed).
 
 ---
 
@@ -191,113 +192,126 @@ DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_
 
 The migration script (`scripts/migrate-to-postgres/migrate.js`) is committed alongside this runbook. It:
 
-- Opens a SQLite Prisma client and a Postgres Prisma client side by side
-- Walks the 74 models in foreign-key dependency order
+- Reads from SQLite via `better-sqlite3` (no Prisma client on source side)
+- Writes to Postgres via Prisma client
+- Walks all models in foreign-key dependency order
 - For each model: pages through SQLite in batches of 500, writes to Postgres
 - Verifies row counts after each table
 - Logs progress and any errors to stdout
 - Is **read-only against SQLite** — the source DB cannot be corrupted
-- Truncates the Postgres tables before each run so re-runs are idempotent
+
+### Generate Prisma client for Postgres in the api directory
+
+The migration script needs a Postgres-targeted Prisma client. Generate it in `api/`:
+
+```bash
+cd /var/www/order-tracker/api
+DATABASE_URL="postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public" npx prisma generate
+```
+
+**This does NOT affect the running app** — PM2 has the old client loaded in memory and won't re-read until restarted.
+
+### Symlink the generated client into the migration script
+
+The migration script directory has its own `node_modules` from `npm install`, but its Prisma client was never generated (no `schema.prisma` there). Symlink to the api's generated client:
+
+```bash
+cd /var/www/order-tracker/scripts/migrate-to-postgres
+npm install
+rm -rf node_modules/.prisma node_modules/@prisma/client
+ln -s /var/www/order-tracker/api/node_modules/.prisma node_modules/.prisma
+ln -s /var/www/order-tracker/api/node_modules/@prisma/client node_modules/@prisma/client
+```
 
 ### Make a working copy of the live SQLite DB for dry runs
 
-Never run the migration script against the live SQLite file. Always work from a copy.
+Never run the migration script against the live SQLite file. **The live DB is at `/var/www/order-tracker/api/prisma/dev.db`** (NOT `api/dev.db`).
 
 ```bash
-cd /var/www/order-tracker
-
-# Make sure no one is mid-write
-date
-
-# Copy the live SQLite DB to a dry-run location
-cp api/dev.db /tmp/dev-dryrun-$(date +%Y%m%d-%H%M%S).db
+cp /var/www/order-tracker/api/prisma/dev.db /tmp/dev-dryrun-$(date +%Y%m%d-%H%M%S).db
 ls -lh /tmp/dev-dryrun-*.db
-
-# Symlink it as the dry-run source the script expects
-ln -sf /tmp/dev-dryrun-*.db /tmp/dryrun.db
 ```
 
 ### Run the migration script in dry-run mode
 
 ```bash
 cd /var/www/order-tracker/scripts/migrate-to-postgres
-
-# Install deps if not already (sqlite3 is needed for the script)
-npm install
-
-# Run the dry run — reads from /tmp/dryrun.db, writes to Postgres
 node migrate.js \
-  --source="file:/tmp/dryrun.db" \
-  --target="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public"
+  --source="file:/tmp/dev-dryrun-YYYYMMDD-HHMMSS.db" \
+  --target="postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public"
 ```
 
-Watch the output. The script logs `Migrated X rows for Model` for each of the 74 models, then a final `Verification: all tables match. Total rows: N`.
+Watch for `Verification: all tables match. Total rows: N`.
 
-**If the script throws an error**, read the error, fix the script or the data, truncate Postgres, and re-run:
+If the script throws an error:
 
 ```bash
 # Reset Postgres for another dry run
-DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public" \
+cd /var/www/order-tracker/api
+DATABASE_URL="postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public" \
   npx prisma db push --force-reset --skip-generate
 ```
 
-### Smoke test the Postgres-backed app (still on the dry run data)
-
-We want to confirm the *application* works against Postgres before doing the real cutover. Spin up a parallel Node process pointing at Postgres, on a different port, while the production app keeps running on its own port.
+### Smoke test the Postgres-backed app on a different port
 
 ```bash
-# Run the backend pointed at Postgres on port 4001 (production stays on 4000)
 cd /var/www/order-tracker/api
-
-DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public" \
+DATABASE_URL="postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public" \
   PORT=4001 \
   node src/index.js &
-
-# Tail it for a few seconds, look for "Server running on port 4001" and no errors
-# Then kill it
+# Watch logs for "Server running on port 4001" with no errors, then:
 kill %1
-```
-
-If the backend starts cleanly against Postgres, you have working app + working data on Postgres. The dry run is successful.
-
-For a more thorough check, you can hit a few endpoints:
-
-```bash
-# In another terminal session while the test backend is running:
-curl http://localhost:4001/api/health
-curl http://localhost:4001/api/orders -H "Authorization: Bearer YOUR_TEST_TOKEN"
 ```
 
 ---
 
 ## Phase 4 — Code Audit for SQLite-isms
 
-This is the part most people skip and regret. The Prisma queries that use `contains:`, `startsWith:`, `endsWith:` behave **case-insensitively on SQLite and case-sensitively on Postgres**. Every one of those will silently change behavior unless you add `mode: 'insensitive'`.
+Production Prisma queries that use `contains:`, `startsWith:`, `endsWith:` behave **case-insensitively on SQLite and case-sensitively on Postgres**. Each one will silently change behavior unless you add `mode: 'insensitive'`.
 
 ### Find every offending call site
 
 ```bash
 cd /var/www/order-tracker/api
-
-# These greps surface every place that needs review
 grep -rn "contains:" src/ --include="*.js" | grep -v node_modules
-grep -rn "startsWith:" src/ --include="*.js" | grep -v node_modules
-grep -rn "endsWith:" src/ --include="*.js" | grep -v node_modules
+grep -rn "startsWith:\|endsWith:" src/ --include="*.js" | grep -v node_modules
 ```
 
-For each result, decide: should this be case-insensitive (almost always yes for user-facing search) or case-sensitive (rarely — typically only for tokens, IDs, and emails-as-keys)?
+### Apply scripted fix
 
-For case-insensitive, change:
+For `contains:` patterns, this `sed` command adds `mode: 'insensitive'` inside each clause:
 
-```js
-where: { name: { contains: query } }
+```bash
+cd /var/www/order-tracker/api
+FILES=(
+  "src/index.js"
+  "src/routes/customers.js"
+  "src/routes/orders.js"
+  "src/routes/comments.js"
+  "src/routes/estimateTemplates.js"
+  "src/routes/estimates.js"
+  "src/routes/users.js"
+  "src/routes/leads.js"
+  "src/routes/calendar.js"
+  "src/routes/products.js"
+  "src/routes/bundles.js"
+  "src/routes/auditSearch.js"
+  "src/routes/invoices.js"
+  "src/routes/shipments.js"
+)
+for f in "${FILES[@]}"; do
+  sed -i -E "s/(\{[[:space:]]*contains:[[:space:]]*[^}]+)([[:space:]]*\})/\1, mode: 'insensitive'\2/g" "$f"
+  echo "Updated: $f"
+done
 ```
 
-To:
+**Skip these files:**
+- `auditBackfill.js` — contains a literal `'salesPerson'` JSON-key search that should stay case-sensitive
+- `numberGenerators.js` — `startsWith: 'INV'`, etc. for invoice number generation, deterministic prefixes
+- `orders.js` line ~104 — `startsWith: 'stage_threshold_'` for SystemSetting keys
+- `estimates.js` lines ~942, ~995 — versioned estimate number lookups (e.g. `EST-2026-0042-v2`)
 
-```js
-where: { name: { contains: query, mode: 'insensitive' } }
-```
+For `comments.js` `startsWith: username` (the @mention email lookup), apply manually or with a targeted sed.
 
 ### Find raw SQL
 
@@ -305,120 +319,65 @@ where: { name: { contains: query, mode: 'insensitive' } }
 grep -rn '\$queryRaw\|\$executeRaw' src/ --include="*.js" | grep -v node_modules
 ```
 
-If any results exist, validate each. Common gotchas:
-
-- `IFNULL` (SQLite) → `COALESCE` (Postgres)
-- `strftime('%Y', dt)` (SQLite) → `to_char(dt, 'YYYY')` (Postgres)
-- String concatenation `||` works in both, but `+` is Postgres-only for numerics
-- Boolean comparisons: SQLite uses `0`/`1`, Postgres uses `true`/`false`
-
-### Find places that pass empty strings to required fields
-
-Less critical, but Postgres is stricter than SQLite. If your code does `firstName: req.body.firstName || ""` and `firstName` is required, that worked on SQLite and will work on Postgres too — but if the column is non-null and your code passes `null`, SQLite tolerated it where Postgres won't. Watch for it during dry-run errors.
-
-### Commit the audit fixes
-
-After making changes:
-
-```bash
-cd /var/www/order-tracker
-git add -A
-git commit -m "chore: case-insensitive search filters for postgres compatibility"
-# Don't push yet — stays on local branch until cutover
-```
+If any results exist, validate each. Common gotchas: `IFNULL` → `COALESCE`, `strftime('%Y',dt)` → `to_char(dt,'YYYY')`, boolean comparisons.
 
 ---
 
 ## Phase 5 — Production Cutover (Maintenance Window)
 
-**Announce 30–60 minutes of downtime.** Pick a low-traffic time. Send a heads-up to anyone who might be using the system.
+**Announce 30–60 minutes of downtime.** Pick a low-traffic time.
 
 ### 5.1 — Stop the app
 
 ```bash
 cd /var/www/order-tracker
-
-# Stop both processes
 pm2 stop all
-
-# Verify both are stopped
-pm2 status
+pm2 status   # both should show "stopped"
 ```
-
-Both `order-tracker-backend` and `order-tracker-frontend` should be in `stopped` state.
 
 ### 5.2 — Take a labeled snapshot of the live SQLite DB
 
 ```bash
 TS=$(date +%Y%m%d-%H%M%S)
-cp api/dev.db api/dev.db.pre-postgres-cutover.$TS
-ls -lh api/dev.db*
+cp /var/www/order-tracker/api/prisma/dev.db /var/www/order-tracker/api/prisma/dev.db.pre-postgres-cutover.$TS
+ls -lh /var/www/order-tracker/api/prisma/dev.db*
 
-# Also push it to S3 for off-box safety
-aws s3 cp api/dev.db.pre-postgres-cutover.$TS \
+# Off-box safety
+aws s3 cp /var/www/order-tracker/api/prisma/dev.db.pre-postgres-cutover.$TS \
   s3://order-tracker-backups-2025/pre-postgres-cutover/
 ```
 
-**This file is your rollback insurance. Keep it for at least 90 days.**
+**Keep this file for at least 90 days. It is your rollback insurance.**
 
-### 5.3 — Truncate Postgres (any leftover dry-run data) and run the real migration
+### 5.3 — Reset Postgres and run the real migration
 
 ```bash
 cd /var/www/order-tracker/api
-
-# Reset Postgres to a clean schema
-DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public" \
+DATABASE_URL="postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public" \
   npx prisma db push --force-reset --skip-generate
 
-# Run the migration against the live, just-stopped SQLite DB
 cd /var/www/order-tracker/scripts/migrate-to-postgres
 node migrate.js \
-  --source="file:/var/www/order-tracker/api/dev.db" \
-  --target="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public"
+  --source="file:/var/www/order-tracker/api/prisma/dev.db" \
+  --target="postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public"
 ```
 
-Watch for the final `Verification: all tables match. Total rows: N` line.
+Wait for `Verification: all tables match. Total rows: N`.
 
 ### 5.4 — Swap `.env` to point at Postgres
 
 ```bash
 cd /var/www/order-tracker/api
-
-# Back up the current .env first
 cp .env .env.pre-postgres-cutover.$TS
-
-# Edit .env
 nano .env
 ```
 
-Find the `DATABASE_URL=` line. Comment it out and add the new one:
+Replace `DATABASE_URL=file:./dev.db` with `DATABASE_URL=postgresql://smt_app:YOUR_PASSWORD@localhost:5432/smt_orders?schema=public`. Save and exit.
 
-```
-# DATABASE_URL="file:./dev.db"
-DATABASE_URL="postgresql://smt_app:CHANGE_ME_STRONG_PASSWORD@localhost:5432/smt_orders?schema=public"
-```
-
-Save and exit.
-
-### 5.5 — Switch the codebase to the migration branch and rebuild
-
-This is where the schema-provider change goes live:
+### 5.5 — Rebuild frontend
 
 ```bash
-cd /var/www/order-tracker
-
-# Push the migration branch to GitHub first so it's recoverable
-git push origin feature/postgres-migration
-
-# Switch to it
-git checkout feature/postgres-migration
-
-# Regenerate Prisma client against Postgres
-cd api
-npx prisma generate
-
-# Rebuild the frontend (clears the old prerender cache)
-cd ../web
+cd /var/www/order-tracker/web
 rm -rf .next
 npm run build
 ```
@@ -429,128 +388,84 @@ npm run build
 cd /var/www/order-tracker
 pm2 restart all --update-env
 pm2 status
-pm2 logs --lines 50
+pm2 logs order-tracker-backend --lines 40 --nostream
 ```
 
-Look for:
-- Both processes in `online` status
-- No `PrismaClientInitializationError`
-- No `connect ECONNREFUSED` errors
-- The expected `Server running on port 4000` line
+Look for `API server running` and **no** `PrismaClientInitializationError` or `connect ECONNREFUSED`.
 
 ### 5.7 — Smoke test
 
-In a browser, log into `https://smt-orders.com` as a known admin and run through these checks:
+- [ ] Login as known admin
+- [ ] Board page loads with all orders
+- [ ] Click into one order, view tabs
+- [ ] Calendar page loads
+- [ ] Invoicing page loads
+- [ ] Commissions page loads
+- [ ] Customer tracking link `/t/[token]` loads
 
-- [ ] Login works (validates User table + password hash compatibility)
-- [ ] Board page loads and shows orders (validates the big polymorphic queries)
-- [ ] Click into one order, view items, view documents
-- [ ] Calendar page loads with events
-- [ ] Invoices page loads, click into one
-- [ ] Estimates page loads
-- [ ] Commission dashboard widget on /admin loads
-- [ ] Try the existing customer-facing tracking link `/t/[token]` for a known order
-- [ ] Notifications dropdown opens
-
-If all eight pass, the cutover is successful.
-
-### 5.8 — If anything is broken: ROLLBACK
-
-The rollback is fast because we never touched the SQLite file:
+### 5.8 — Commit the migration
 
 ```bash
-cd /var/www/order-tracker/api
-
-# Restore the previous .env
-cp .env.pre-postgres-cutover.$TS .env
-
-# Switch back to the production branch
 cd /var/www/order-tracker
-git checkout feature/invoicing-port
-
-# Regenerate Prisma client against SQLite
-cd api
-npx prisma generate
-
-# Rebuild frontend
-cd ../web
-rm -rf .next
-npm run build
-
-# Restart
-cd /var/www/order-tracker
-pm2 restart all --update-env
-pm2 status
+git add api/prisma/schema.prisma api/src/
+git commit -m "feat: migrate from SQLite to PostgreSQL"
+git push origin feature/invoicing-port
 ```
 
-Total rollback time: ~5 minutes. Zero data loss because the app was stopped during the entire cutover — no Postgres writes happened that aren't in SQLite.
+### 5.9 — Rollback (only if smoke tests fail)
 
-Then investigate the failure mode in staging without time pressure.
+```bash
+cp /var/www/order-tracker/api/.env.pre-postgres-cutover.$TS /var/www/order-tracker/api/.env
+cd /var/www/order-tracker
+git checkout api/prisma/schema.prisma api/src/
+cd api && npx prisma generate
+cd ../web && rm -rf .next && npm run build
+cd /var/www/order-tracker && pm2 restart all --update-env
+```
+
+Total rollback time: ~5 minutes. Zero data loss because the app was stopped during cutover.
 
 ---
 
 ## Phase 6 — Post-Cutover Cleanup
 
-### 6.1 — Update the daily backup tooling
-
-The existing nightly backup probably copies `api/dev.db` to S3. That's now stale data. Replace with `pg_dump`:
+### 6.1 — Set up `~/.pgpass` for password-less auth
 
 ```bash
-# Check what's currently in cron
-crontab -l
-sudo crontab -u root -l   # in case it's a root cron
-```
-
-Find the SQLite backup line. Replace with something like:
-
-```cron
-0 2 * * * pg_dump -h localhost -U smt_app -d smt_orders -Fc -f /tmp/smt_orders_$(date +\%Y\%m\%d).dump && aws s3 cp /tmp/smt_orders_$(date +\%Y\%m\%d).dump s3://order-tracker-backups-2025/postgres/ && rm /tmp/smt_orders_$(date +\%Y\%m\%d).dump
-```
-
-For the cron user to authenticate without prompting, create a `~/.pgpass` file:
-
-```bash
-echo "localhost:5432:smt_orders:smt_app:CHANGE_ME_STRONG_PASSWORD" > ~/.pgpass
+echo "localhost:5432:smt_orders:smt_app:YOUR_PASSWORD" > ~/.pgpass
 chmod 600 ~/.pgpass
 ```
 
-Test the backup command manually before trusting cron:
+### 6.2 — Update backup scripts to use `pg_dump`
+
+Replace existing SQLite-based backup scripts with `pg_dump -Fc` versions. The two scripts to replace:
+
+- `/var/www/order-tracker/backup-database.sh` — hourly + daily local backup
+- `/usr/local/bin/backup-order-tracker.sh` — daily S3 upload
+
+See the live versions on the server for the current Postgres-aware implementations.
+
+**Watch out:** These two scripts existed pre-cutover but were silently backing up the WRONG file (`api/dev.db`, the 144 KB stale file) for an unknown duration. Always verify backup file size after replacing.
+
+### 6.3 — Test the backup scripts manually
 
 ```bash
-pg_dump -h localhost -U smt_app -d smt_orders -Fc -f /tmp/test.dump
-ls -lh /tmp/test.dump
-rm /tmp/test.dump
+/var/www/order-tracker/backup-database.sh
+/usr/local/bin/backup-order-tracker.sh
+ls -lh /var/www/order-tracker/api/backups/*.dump | tail -3
+aws s3 ls s3://order-tracker-backups-2025/daily/ | tail -3
 ```
 
-### 6.2 — Merge the migration branch into the active branch
+Real backups should be ~500 KB compressed for ~5 MB of data.
 
-Once you've run on Postgres for ~3 days without issues, fold the migration branch back:
-
-```bash
-cd /var/www/order-tracker
-git checkout feature/invoicing-port
-git merge feature/postgres-migration
-git push origin feature/invoicing-port
-
-# Optionally delete the migration branch from GitHub via the website,
-# or:
-git push origin --delete feature/postgres-migration
-```
-
-### 6.3 — Retire the SQLite file (after a comfortable wait)
-
-After ~30 days of stable Postgres operation:
+### 6.4 — Retire the SQLite file (after ~30 days of stable operation)
 
 ```bash
-cd /var/www/order-tracker/api
-
-# Move the live SQLite file out of the way (don't delete — just rename)
+cd /var/www/order-tracker/api/prisma
 mv dev.db dev.db.retired-$(date +%Y%m%d)
-
-# The pre-cutover snapshot in S3 stays as the historical record.
 ```
 
-Do NOT delete `api/dev.db.pre-postgres-cutover.*` from local disk for 90 days.
+Do NOT delete `dev.db.pre-postgres-cutover.*` from local disk for at least 90 days.
 
 ---
 
@@ -566,6 +481,7 @@ Do NOT delete `api/dev.db.pre-postgres-cutover.*` from local disk for 90 days.
 | Data loss during cutover | Very low | Critical | App stopped during cutover; SQLite untouched; pre-cutover snapshot in two places |
 | Password hash incompatibility | None | N/A | bcrypt hashes are opaque text; no DB-side processing involved |
 | NexNP / S3 / SES credentials affected | None | N/A | All in `.env`, untouched by DB swap |
+| Wrong DB path used in scripts | High | High | The live SQLite path is `api/prisma/dev.db`, not `api/dev.db` — see Phase 3 |
 
 ---
 
@@ -580,12 +496,10 @@ Do NOT delete `api/dev.db.pre-postgres-cutover.*` from local disk for 90 days.
 - All file paths and PM2 service names
 - The deploy workflow (`git pull` → `pm2 restart`)
 - Schema models and relationships
-- The `aws-deployment` and `feature/invoicing-port` branches — untouched until merge
 
-## What Changes
+## What Changed
 
 - `schema.prisma` provider: `"sqlite"` → `"postgresql"`
 - `.env` `DATABASE_URL`: `file:./dev.db` → `postgresql://...`
-- Backup tooling: `cp dev.db` → `pg_dump`
-- Search filters: explicitly `mode: 'insensitive'` where intended
-- Anywhere using `$queryRaw` with SQLite-only functions (audit during Phase 4)
+- Backup tooling: `cp dev.db` → `pg_dump -Fc`
+- Search filters: explicitly `mode: 'insensitive'` in 14 route files
