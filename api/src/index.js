@@ -201,12 +201,14 @@ app.get('/users/internal', authGuard, async (req, res) => {
   try {
     // Use Prisma's safe API instead of raw SQL — cleaner, parameterized,
     // and avoids SQLite-vs-Postgres syntax differences (booleans, identifier quoting).
+    // NOTE: Prisma 5.x rejects `{ isEmployee: null }` as direct equality match;
+    // must use `{ isEmployee: { equals: null } }` in OR clauses.
     const users = await prisma.user.findMany({
       where: {
         isActive: true,
         role: { notIn: ['MANUFACTURER', 'BROKER'] },
         OR: [
-          { isEmployee: null },
+          { isEmployee: { equals: null } },
           { isEmployee: true },
         ],
       },
