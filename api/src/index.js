@@ -199,18 +199,15 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
 
 app.get('/users/internal', authGuard, async (req, res) => {
   try {
-    // Use Prisma's safe API instead of raw SQL — cleaner, parameterized,
-    // and avoids SQLite-vs-Postgres syntax differences (booleans, identifier quoting).
-    // NOTE: Prisma 5.x rejects `{ isEmployee: null }` as direct equality match;
-    // must use `{ isEmployee: { equals: null } }` in OR clauses.
+    // Use Prisma's safe API instead of raw SQL.
+    // isEmployee is a non-nullable Boolean in schema with @default(true), so the
+    // original SQL's `isEmployee IS NULL` clause was dead defensive logic from
+    // before that default was added — simplifies to plain `isEmployee: true`.
     const users = await prisma.user.findMany({
       where: {
         isActive: true,
+        isEmployee: true,
         role: { notIn: ['MANUFACTURER', 'BROKER'] },
-        OR: [
-          { isEmployee: { equals: null } },
-          { isEmployee: true },
-        ],
       },
       select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
