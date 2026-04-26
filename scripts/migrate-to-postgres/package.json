@@ -1,0 +1,14 @@
+{
+  "name": "order-tracker-postgres-migration",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-time SQLite → Postgres data migration script for the Order Tracker. See docs/POSTGRES_MIGRATION.md.",
+  "type": "module",
+  "scripts": {
+    "migrate": "node migrate.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "better-sqlite3": "^11.3.0"
+  }
+}
