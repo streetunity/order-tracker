@@ -1,9 +1,9 @@
 # Order Tracker — Feature Roadmap
 
-**Last updated:** March 2026  
+**Last updated:** April 2026  
 **Branch:** `feature/invoicing-port`
 
-Prioritised list of planned enhancements beyond the current production system.
+Prioritised list of planned enhancements beyond the current production system. See `docs/TODO.md` for the consolidated punch list against current branch state.
 
 ---
 
@@ -50,36 +50,25 @@ Prioritised list of planned enhancements beyond the current production system.
 
 ---
 
-### 1.2 Stripe Payments (INV-9 Completion)
+### 1.2 ~~Stripe Payments~~ → NexNP Production Cutover
 
-**Problem:** Invoices exist and are emailed to customers but there is no way to pay online. Payment collection requires manual follow-up.
+**Status:** Stripe is obsolete — NexNP was chosen instead and is mostly built.
 
-**Solution:** Wire up the Stripe integration that was scaffolded but not completed.
+**What's done:**
+- `api/src/services/nextnpService.js` — gateway integration
+- `api/src/routes/payments.js` — manual payment recording, refund support, schedule-item handling
+- `api/src/routes/nextnpWebhook.js` — webhook handler
+- `web/app/pay/[token]/page.jsx` — public payment page using NexNP Tokenizer (PCI SAQ-A — raw card data never hits the server)
+- ACH and card support confirmed
+- Schedule-item-aware payment application + auto order creation when deposit threshold met
 
-#### Scope
+**What's still required:**
+- End-to-end payment testing in production environment (cards + ACH happy paths, edge cases like declines, partials, refunds)
+- Swap sandbox NexNP keys for production keys in `.env`
+- Remove or stub the dead `stripeService.js` and the unused `stripePaymentIntentId` / `stripeChargeId` fields on `Payment` (cosmetic cleanup, not blocking)
 
-**Backend**
-- `api/src/services/stripeService.js` — Payment Intent creation, ACH setup intent, webhook verification
-- `api/src/routes/payments.js` additions:
-  - `POST /payments/:invoiceId/stripe/intent` — creates PaymentIntent, returns `client_secret`
-  - `POST /payments/:invoiceId/stripe/ach-setup` — creates SetupIntent for ACH
-  - `POST /payments/webhook` — Stripe webhook handler (verify signature, handle `payment_intent.succeeded`, `payment_intent.payment_failed`)
-  - `POST /payments/:invoiceId/manual` — record check/wire/cash payment (already partially built)
-- On successful payment: mark invoice schedule item as paid, update invoice status, trigger order creation if deposit
-- Environment variables needed: `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`
-
-**Frontend**
-- `web/app/invoicing/invoices/[id]/page.jsx` — "Record Payment" and "Send Payment Link" buttons
-- `web/app/pay/[token]/page.jsx` — public payment page (no login required):
-  - Shows invoice summary (amount due, line items)
-  - Stripe Elements card input
-  - ACH option (Plaid or manual bank entry)
-  - On success: confirmation screen + email receipt
-- `web/app/invoicing/payments/page.jsx` — admin payment history list
-
-**Estimated effort:** 8–12 hours (Stripe integration + webhook testing is inherently slow)  
-**Risk:** Medium — involves live money, requires test mode validation before production  
-**Prerequisites:** `STRIPE_SECRET_KEY` from Stripe dashboard
+**Estimated effort:** 4–6 hours of testing + key swap  
+**Risk:** Medium — involves live money. Test thoroughly in sandbox before flipping keys.
 
 ---
 
@@ -249,9 +238,9 @@ Prioritised list of planned enhancements beyond the current production system.
 
 ---
 
-### 3.3 Cost / Margin Tracking
+### 3.3 Cost / Margin Tracking (Order Side)
 
-**Problem:** Orders record sale prices but not costs. No way to see margin per order or identify most profitable product lines.
+**Problem:** Orders record sale prices but not costs. No way to see margin per order or identify most profitable product lines. (Invoicing side is already done — `Estimate`, `Invoice`, `Product`, `Bundle` all carry cost / margin fields.)
 
 **Scope (summary):**
 - Add `costPrice` field to `OrderItem`
@@ -279,22 +268,114 @@ Prioritised list of planned enhancements beyond the current production system.
 
 ---
 
+## Priority 4 — E-Signature Enhancements
+
+### 4.1 E-Signature Phase 1 Polish
+
+**Status of what's already built (Option 2 — Draw/Type signatures):**
+- `api/src/routes/signatures.js` — capture, decline, retrieval routes (live)
+- `Signature` schema model — stores `signerName`, `signerTitle`, `signerEmail`, `signatureData` (base64 PNG), `signatureType` (DRAW or TYPE), `typedSignature`, `ipAddress`, `userAgent`, `signedAt`
+- `web/app/sign/[estimateId]/page.jsx` — public signing page with HTML5 canvas (draw) and three cursive font choices (type)
+- Estimate flips to ACCEPTED on capture, DECLINED on decline-with-reason
+- Activity logged to `customerActivityLog`
+- Estimate states handled: signed, declined, expired, success
+- PDF includes a textual "Signed by [name] on [date]" line in the ACCEPTANCE section
+
+**Problem:** Two gaps make the experience feel unfinished:
+1. The signature image is **not** embedded into a regenerated signed PDF. The `signedPdfS3Key` field exists on `Estimate` but no code populates it. The PDF only shows text acknowledging the signature exists.
+2. After capture, the customer success screen states "A copy of the signed estimate will be emailed to you" — but no email is actually sent.
+
+**Solution:** Close both loops in one pass.
+
+#### Scope
+
+**Backend — `api/src/services/pdfService.js`**
+- New `generateSignedEstimatePDF(estimate, companySettings, signature)` function — same layout as `generateEstimatePDF` but with the captured signature PNG drawn onto the signature line in the ACCEPTANCE section, plus printed name, date, and IP audit footer
+- After `POST /signatures/capture` succeeds, call this function, upload via `uploadPDFToS3` to a `signed/` prefix, store the key on `estimate.signedPdfS3Key`
+
+**Backend — `api/src/services/signedEstimateEmailService.js`** (new)
+- Mirrors the `invoiceEmailService.js` pattern
+- Sends to: customer email (from signature/estimate) and the estimate's `createdBy` user
+- Subject: `Signed Estimate ${estimateNumber} — ${customerName}`
+- Body: brief thank-you, link to portal, attached signed PDF (downloaded from S3 inline)
+- Logs to `EmailLog` with `estimateId` set
+- Triggered from `POST /signatures/capture` after PDF generation completes
+
+**Frontend**
+- The success screen already says the PDF will be emailed — keep that copy. Optionally add a "Download signed copy" button that links to the `signedPdfS3Key` URL.
+- The customer portal (`/portal/[token]/estimates/:id/pdf`) already prefers `signedPdfS3Key` over `pdfS3Key` — this just needs the field populated for it to work end-to-end.
+
+**Files to create/modify:**
+- `api/src/services/pdfService.js` (add `generateSignedEstimatePDF`)
+- `api/src/services/signedEstimateEmailService.js` (new)
+- `api/src/routes/signatures.js` (call new functions after capture succeeds)
+- `web/app/sign/[estimateId]/page.jsx` (optional: "Download signed copy" button on success screen)
+
+**Estimated effort:** 4–6 hours  
+**Risk:** Low — additive, doesn't touch the working capture path. PDF generation can fail silently without breaking signing.
+
+---
+
+### 4.2 E-Signature Phase 2 (Future)
+
+Larger DocuSign-territory features. Not required for the current workflow but worth keeping on the list.
+
+#### 4.2.a Audit / Completion Certificate PDF
+
+A separate PDF showing chain of custody — when the estimate was sent, viewed, signed, with IP address, user agent, and (if available) browser geo. All this data is already captured in the `Signature` model and `customerActivityLog`. Nothing renders it as a PDF artifact today.
+
+**Effort:** 3–4 hours
+
+#### 4.2.b Multi-Signer Support
+
+Current schema allows one signature per estimate. For deals where two parties must sign (customer + their manager, or customer + spouse on personal purchases), this would require:
+
+- New `EstimateSigner` model with: `id`, `estimateId`, `signerName`, `signerEmail`, `signerOrder`, `status` (PENDING / SIGNED / DECLINED), `signatureId` (when signed), `notifiedAt`, `signedAt`
+- Sequential mode: sign-link only emails to next signer once previous one signs
+- Parallel mode: all signers get the link at once
+- Estimate only flips to ACCEPTED when all signers have signed
+
+**Effort:** 8–12 hours  
+**Risk:** Medium — touches the core capture flow.
+
+#### 4.2.c Polymorphic Signing
+
+Signatures are hard-wired to `Estimate` today. Some workflows want signed acknowledgment of receipt on invoices, signed change orders, signed packing lists. The `Signature` model would become polymorphic via nullable `estimateId` / `invoiceId` / `documentId` fields, similar to how `CustomerActivityLog` and `Comment` are structured.
+
+**Effort:** 6–8 hours
+
+#### 4.2.d Resend / Reminder Emails for Unsigned Estimates
+
+No automated nudge emails when estimates sit in SENT status for N days. The `Reminder` model exists in the schema but isn't wired to estimate signing. Build a daily cron that creates Reminder rows for estimates older than 3 / 7 / 14 days without a signature, and a notification or email when the reminder fires.
+
+**Effort:** 4–6 hours
+
+#### 4.2.e Field-Level Signing
+
+DocuSign lets the sender place specific fields (initials, checkboxes, date, custom text) on the document. The signer fills each one. Probably overkill for SMT's use case — flagging here for completeness only.
+
+**Effort:** 20+ hours, low priority
+
+---
+
 ## Implementation Order Recommendation
 
 | # | Feature | Est. Hours | Dependencies |
 |---|---------|-----------|-------------|
 | 1 | Global Search | 4–6 | None |
-| 2 | Stripe Payments | 8–12 | Stripe account keys |
-| 3 | Internal Order Notes | 5–7 | None |
-| 4 | Order Templates | 6–8 | None |
-| 5 | Bulk Board Operations | 6–8 | None |
-| 6 | Agent Mobile View | 5–7 | None |
-| 7 | Executive Dashboard | 8–12 | None |
-| 8 | Cost / Margin Tracking | 4–6 | None |
-| 9 | Document Generation | 6–8 | None |
-| 10 | Unified Customer Portal | 12–16 | Stripe (for payment portal) |
+| 2 | NexNP Production Cutover | 4–6 | Production NexNP keys |
+| 3 | E-Signature Phase 1 Polish | 4–6 | None |
+| 4 | Internal Order Notes | 5–7 | None |
+| 5 | Order Templates | 6–8 | None |
+| 6 | Bulk Board Operations | 6–8 | None |
+| 7 | Agent Mobile View | 5–7 | None |
+| 8 | Executive Dashboard | 8–12 | None |
+| 9 | Cost / Margin Tracking | 4–6 | None |
+| 10 | Document Generation | 6–8 | None |
+| 11 | Unified Customer Portal | 12–16 | None |
+| 12 | E-Signature Phase 2 (audit cert + multi-signer + polymorphic + reminders) | 21–30 | Phase 1 done |
 
-**Total estimated: 70–100 hours**
+**Total estimated: 90–125 hours**
 
 ---
 
