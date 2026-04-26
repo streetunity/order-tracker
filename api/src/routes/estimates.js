@@ -80,11 +80,11 @@ export function createEstimatesRouter(prisma) {
       // Search filter (estimate number or customer name)
       if (search) {
         where.OR = [
-          { estimateNumber: { contains: search } },
-          { customer: { firstName: { contains: search } } },
-          { customer: { lastName: { contains: search } } },
-          { customer: { company: { contains: search } } },
-          { customer: { companyName: { contains: search } } }
+          { estimateNumber: { contains: search , mode: 'insensitive'} },
+          { customer: { firstName: { contains: search , mode: 'insensitive'} } },
+          { customer: { lastName: { contains: search , mode: 'insensitive'} } },
+          { customer: { company: { contains: search , mode: 'insensitive'} } },
+          { customer: { companyName: { contains: search , mode: 'insensitive'} } }
         ];
       }
 

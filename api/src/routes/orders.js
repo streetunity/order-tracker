@@ -185,13 +185,13 @@ export function createOrdersRouter(prisma) {
       if (search) {
         const q = String(search);
         baseWhere.OR = [
-          { poNumber: { contains: q } },
-          { sku: { contains: q } },
-          { account: { is: { name: { contains: q } } } },
-          { account: { is: { contactName: { contains: q } } } },
-          { items: { some: { productCode: { contains: q } } } },
-          { items: { some: { serialNumber: { contains: q } } } },
-          { items: { some: { manufacturer: { is: { name: { contains: q } } } } } }
+          { poNumber: { contains: q , mode: 'insensitive'} },
+          { sku: { contains: q , mode: 'insensitive'} },
+          { account: { is: { name: { contains: q , mode: 'insensitive'} } } },
+          { account: { is: { contactName: { contains: q , mode: 'insensitive'} } } },
+          { items: { some: { productCode: { contains: q , mode: 'insensitive'} } } },
+          { items: { some: { serialNumber: { contains: q , mode: 'insensitive'} } } },
+          { items: { some: { manufacturer: { is: { name: { contains: q , mode: 'insensitive'} } } } } }
         ];
       }
 

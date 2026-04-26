@@ -92,9 +92,9 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
     }
     if (search) {
       where.OR = [
-        { containerNumber: { contains: search } },
-        { billOfLading: { contains: search } },
-        { vesselName: { contains: search } }
+        { containerNumber: { contains: search , mode: 'insensitive'} },
+        { billOfLading: { contains: search , mode: 'insensitive'} },
+        { vesselName: { contains: search , mode: 'insensitive'} }
       ];
     }
 
@@ -237,11 +237,11 @@ router.get('/search-items', authGuard, requireInternalStaff, async (req, res) =>
 
     if (search) {
       where.OR = [
-        { productCode: { contains: search } },
-        { serialNumber: { contains: search } },
-        { billOfLading: { contains: search } },
-        { order: { poNumber: { contains: search } } },
-        { order: { account: { name: { contains: search } } } }
+        { productCode: { contains: search , mode: 'insensitive'} },
+        { serialNumber: { contains: search , mode: 'insensitive'} },
+        { billOfLading: { contains: search , mode: 'insensitive'} },
+        { order: { poNumber: { contains: search , mode: 'insensitive'} } },
+        { order: { account: { name: { contains: search , mode: 'insensitive'} } } }
       ];
     }
 

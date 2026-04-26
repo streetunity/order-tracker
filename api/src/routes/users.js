@@ -61,7 +61,7 @@ export function createUsersRouter() {
       const { q } = req.query;
       if (!q || q.length < 1) return res.json([]);
       const users = await prisma.user.findMany({
-        where: { isActive: true, OR: [{ name: { contains: q } }, { email: { contains: q } }] },
+        where: { isActive: true, OR: [{ name: { contains: q , mode: 'insensitive'} }, { email: { contains: q , mode: 'insensitive'} }] },
         select: { id: true, name: true, email: true },
         orderBy: { name: 'asc' },
         take: 10

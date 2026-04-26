@@ -71,12 +71,12 @@ export function createAuditSearchRouter() {
         const searchTerm = search.trim().toLowerCase();
         whereConditions.push({
           OR: [
-            { changes: { contains: searchTerm } },
-            { metadata: { contains: searchTerm } },
-            { performedByName: { contains: searchTerm } },
-            { action: { contains: searchTerm } },
-            { entityId: { contains: searchTerm } },
-            { parentEntityId: { contains: searchTerm } }
+            { changes: { contains: searchTerm , mode: 'insensitive'} },
+            { metadata: { contains: searchTerm , mode: 'insensitive'} },
+            { performedByName: { contains: searchTerm , mode: 'insensitive'} },
+            { action: { contains: searchTerm , mode: 'insensitive'} },
+            { entityId: { contains: searchTerm , mode: 'insensitive'} },
+            { parentEntityId: { contains: searchTerm , mode: 'insensitive'} }
           ]
         });
       }

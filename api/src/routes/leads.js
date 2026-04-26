@@ -17,11 +17,11 @@ export function createLeadsRouter(prisma) {
 
       // Build search conditions
       const searchConditions = search ? [
-        { firstName: { contains: search } },
-        { lastName: { contains: search } },
-        { email: { contains: search } },
-        { company: { contains: search } },
-        { phone: { contains: search } }
+        { firstName: { contains: search , mode: 'insensitive'} },
+        { lastName: { contains: search , mode: 'insensitive'} },
+        { email: { contains: search , mode: 'insensitive'} },
+        { company: { contains: search , mode: 'insensitive'} },
+        { phone: { contains: search , mode: 'insensitive'} }
       ] : null;
 
       // AGENT: can only see leads assigned to them

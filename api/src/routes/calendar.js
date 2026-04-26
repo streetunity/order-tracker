@@ -106,8 +106,8 @@ export function createCalendarRouter(prisma) {
       const where = {
         isArchived: false,
         OR: [
-          { account: { name:        { contains: q } } },
-          { account: { contactName: { contains: q } } },
+          { account: { name:        { contains: q , mode: 'insensitive'} } },
+          { account: { contactName: { contains: q , mode: 'insensitive'} } },
         ],
       };
       if (user.role === 'AGENT') where.sku = user.name;

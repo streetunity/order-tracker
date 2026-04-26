@@ -41,9 +41,9 @@ export function createBundlesRouter(prisma) {
 
       if (search) {
         where.OR = [
-          { sku: { contains: search } },
-          { name: { contains: search } },
-          { description: { contains: search } }
+          { sku: { contains: search , mode: 'insensitive'} },
+          { name: { contains: search , mode: 'insensitive'} },
+          { description: { contains: search , mode: 'insensitive'} }
         ];
       }
 
@@ -95,7 +95,7 @@ export function createBundlesRouter(prisma) {
       const bundles = await prisma.bundle.findMany({
         where: {
           isActive: true,
-          OR: [{ sku: { contains: q } }, { name: { contains: q } }]
+          OR: [{ sku: { contains: q , mode: 'insensitive'} }, { name: { contains: q , mode: 'insensitive'} }]
         },
         include: {
           items: {

@@ -49,10 +49,10 @@ export function createProductsRouter(prisma) {
       // Search filter
       if (search) {
         where.OR = [
-          { sku: { contains: search } },
-          { name: { contains: search } },
-          { description: { contains: search } },
-          { modelNumber: { contains: search } }
+          { sku: { contains: search , mode: 'insensitive'} },
+          { name: { contains: search , mode: 'insensitive'} },
+          { description: { contains: search , mode: 'insensitive'} },
+          { modelNumber: { contains: search , mode: 'insensitive'} }
         ];
       }
 
@@ -121,9 +121,9 @@ export function createProductsRouter(prisma) {
         where: {
           isActive: true,
           OR: [
-            { sku: { contains: q } },
-            { name: { contains: q } },
-            { modelNumber: { contains: q } }
+            { sku: { contains: q , mode: 'insensitive'} },
+            { name: { contains: q , mode: 'insensitive'} },
+            { modelNumber: { contains: q , mode: 'insensitive'} }
           ]
         },
         select: {

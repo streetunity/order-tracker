@@ -31,8 +31,8 @@ export function createCommentsRouter() {
       where: {
         OR: usernames.map(username => ({
           OR: [
-            { name: { contains: username } },
-            { email: { startsWith: username } }
+            { name: { contains: username , mode: 'insensitive'} },
+            { email: { startsWith: username , mode: 'insensitive' } }
           ]
         })).flat()
       },

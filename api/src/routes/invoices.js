@@ -110,11 +110,11 @@ export function createInvoicesRouter(prisma) {
 
       if (search) {
         where.OR = [
-          { invoiceNumber:                 { contains: search } },
-          { customer: { firstName:         { contains: search } } },
-          { customer: { lastName:          { contains: search } } },
-          { customer: { company:           { contains: search } } },
-          { customer: { companyName:       { contains: search } } }
+          { invoiceNumber:                 { contains: search , mode: 'insensitive'} },
+          { customer: { firstName:         { contains: search , mode: 'insensitive'} } },
+          { customer: { lastName:          { contains: search , mode: 'insensitive'} } },
+          { customer: { company:           { contains: search , mode: 'insensitive'} } },
+          { customer: { companyName:       { contains: search , mode: 'insensitive'} } }
         ];
       }
 

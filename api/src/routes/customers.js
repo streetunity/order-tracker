@@ -59,9 +59,9 @@ export function createCustomersRouter(prisma) {
       let where = { isDeleted: false };
       where = applyInvoicingDataFilter(req.user.role, req.user.id, where);
       where.OR = [
-        { customerNumber: { contains: q } }, { firstName: { contains: q } },
-        { lastName: { contains: q } }, { email: { contains: q } },
-        { company: { contains: q } }, { companyName: { contains: q } }
+        { customerNumber: { contains: q , mode: 'insensitive'} }, { firstName: { contains: q , mode: 'insensitive'} },
+        { lastName: { contains: q , mode: 'insensitive'} }, { email: { contains: q , mode: 'insensitive'} },
+        { company: { contains: q , mode: 'insensitive'} }, { companyName: { contains: q , mode: 'insensitive'} }
       ];
       const customers = await prisma.customer.findMany({
         where,
@@ -89,12 +89,12 @@ export function createCustomersRouter(prisma) {
       if (assignedToId) where.assignedToId = assignedToId;
       if (search) {
         where.OR = [
-          { customerNumber: { contains: search } }, { firstName: { contains: search } },
-          { lastName: { contains: search } }, { email: { contains: search } },
-          { company: { contains: search } }, { companyName: { contains: search } }, { phone: { contains: search } }
+          { customerNumber: { contains: search , mode: 'insensitive'} }, { firstName: { contains: search , mode: 'insensitive'} },
+          { lastName: { contains: search , mode: 'insensitive'} }, { email: { contains: search , mode: 'insensitive'} },
+          { company: { contains: search , mode: 'insensitive'} }, { companyName: { contains: search , mode: 'insensitive'} }, { phone: { contains: search , mode: 'insensitive'} }
         ];
       }
-      if (tags) where.tags = { contains: tags };
+      if (tags) where.tags = { contains: tags , mode: 'insensitive'};
       const customers = await prisma.customer.findMany({
         where,
         include: {
