@@ -157,7 +157,11 @@ export function createAuditSearchRouter() {
     }
   });
 
-  // Raw SQL search endpoint for better full-text searching across JSON fields
+  // /search-raw — functionally identical to /search above. Kept as a separate
+  // endpoint because the frontend (web/app/history/page.jsx) routes search
+  // queries here. Now backed by the same safe Prisma API — no raw SQL.
+  // Previously used $queryRawUnsafe with SQLite-only syntax (INSTR, unquoted
+  // identifiers); rewritten during the Postgres migration.
   router.get('/search-raw', async (req, res) => {
     try {
       const {
@@ -169,81 +173,51 @@ export function createAuditSearchRouter() {
         search
       } = req.query;
 
-      console.log('🔍 Raw search called with:', { tab, page, limit, startDate, endDate, search });
-
       const pageNum = Math.max(1, parseInt(page) || 1);
       const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
-      const offset = (pageNum - 1) * limitNum;
+      const skip = (pageNum - 1) * limitNum;
 
-      // Build SQL conditions
-      const conditions = [];
-      const params = [];
+      const whereConditions = [];
 
-      // Tab filter
       const entityTypes = getEntityTypeFilter(tab);
       if (entityTypes) {
-        const placeholders = entityTypes.map(() => '?').join(', ');
-        conditions.push(`entityType IN (${placeholders})`);
-        params.push(...entityTypes);
+        whereConditions.push({ entityType: { in: entityTypes } });
       }
 
-      // Date filters
       if (startDate) {
-        conditions.push('createdAt >= ?');
-        params.push(new Date(startDate).toISOString());
+        whereConditions.push({ createdAt: { gte: new Date(startDate) } });
       }
       if (endDate) {
         const endDateTime = new Date(endDate);
         endDateTime.setDate(endDateTime.getDate() + 1);
-        conditions.push('createdAt < ?');
-        params.push(endDateTime.toISOString());
+        whereConditions.push({ createdAt: { lt: endDateTime } });
       }
 
-      // Text search - use LIKE with % wildcards for SQLite
-      // Search in both changes and metadata fields, plus other text fields
       if (search && search.trim()) {
         const searchTerm = search.trim();
-
-        // Build a comprehensive OR clause for searching
-        // Using INSTR for more reliable substring matching in SQLite
-        conditions.push(`(
-          INSTR(LOWER(COALESCE(changes, '')), LOWER(?)) > 0 OR
-          INSTR(LOWER(COALESCE(metadata, '')), LOWER(?)) > 0 OR
-          INSTR(LOWER(COALESCE(performedByName, '')), LOWER(?)) > 0 OR
-          INSTR(LOWER(COALESCE(action, '')), LOWER(?)) > 0 OR
-          INSTR(LOWER(COALESCE(entityId, '')), LOWER(?)) > 0 OR
-          INSTR(LOWER(COALESCE(parentEntityId, '')), LOWER(?)) > 0
-        )`);
-        // Push the search term 6 times (once for each field)
-        params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
-
-        console.log('🔍 Search term:', searchTerm);
+        whereConditions.push({
+          OR: [
+            { changes:         { contains: searchTerm, mode: 'insensitive' } },
+            { metadata:        { contains: searchTerm, mode: 'insensitive' } },
+            { performedByName: { contains: searchTerm, mode: 'insensitive' } },
+            { action:          { contains: searchTerm, mode: 'insensitive' } },
+            { entityId:        { contains: searchTerm, mode: 'insensitive' } },
+            { parentEntityId:  { contains: searchTerm, mode: 'insensitive' } },
+          ],
+        });
       }
 
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
 
-      console.log('🔍 WHERE clause:', whereClause);
-      console.log('🔍 Params:', params);
+      const totalCount = await prisma.auditLog.count({ where });
 
-      // Get total count
-      const countQuery = `SELECT COUNT(*) as count FROM AuditLog ${whereClause}`;
-      const countResult = await prisma.$queryRawUnsafe(countQuery, ...params);
-      const totalCount = Number(countResult[0]?.count || 0);
+      const logs = await prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      });
 
-      console.log('🔍 Total count:', totalCount);
-
-      // Fetch logs
-      const dataQuery = `
-        SELECT * FROM AuditLog
-        ${whereClause}
-        ORDER BY createdAt DESC
-        LIMIT ? OFFSET ?
-      `;
-      const logs = await prisma.$queryRawUnsafe(dataQuery, ...params, limitNum, offset);
-
-      console.log('🔍 Logs found:', logs.length);
-
-      // Fetch OrderItem details
       const orderItemIds = logs
         .filter(log => log.entityType === 'OrderItem' && log.entityId)
         .map(log => log.entityId);
@@ -255,7 +229,6 @@ export function createAuditSearchRouter() {
 
       const orderItemMap = Object.fromEntries(orderItems.map(item => [item.id, item]));
 
-      // Format logs
       const formattedLogs = logs.map(log => {
         let changes = [];
         let metadata = {};
@@ -272,7 +245,7 @@ export function createAuditSearchRouter() {
           changes,
           metadata,
           performedByUserId: log.performedByUserId,
-          performedByName: log.performedByName
+          performedByName: log.performedByName,
         };
 
         if (log.entityType === 'OrderItem' && log.entityId && orderItemMap[log.entityId]) {
@@ -289,8 +262,8 @@ export function createAuditSearchRouter() {
           limit: limitNum,
           totalCount,
           totalPages: Math.ceil(totalCount / limitNum),
-          hasMore: offset + logs.length < totalCount
-        }
+          hasMore: skip + logs.length < totalCount,
+        },
       });
     } catch (e) {
       console.error('Audit raw search error:', e);

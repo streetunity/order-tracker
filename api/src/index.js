@@ -199,14 +199,20 @@ app.get('/users/sales-reps', authGuard, async (req, res) => {
 
 app.get('/users/internal', authGuard, async (req, res) => {
   try {
-    const users = await prisma.$queryRawUnsafe(`
-      SELECT id, name, role
-      FROM "User"
-      WHERE isActive = 1
-        AND role NOT IN ('MANUFACTURER', 'BROKER')
-        AND (isEmployee IS NULL OR isEmployee = 1)
-      ORDER BY name ASC
-    `);
+    // Use Prisma's safe API instead of raw SQL — cleaner, parameterized,
+    // and avoids SQLite-vs-Postgres syntax differences (booleans, identifier quoting).
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { notIn: ['MANUFACTURER', 'BROKER'] },
+        OR: [
+          { isEmployee: null },
+          { isEmployee: true },
+        ],
+      },
+      select: { id: true, name: true, role: true },
+      orderBy: { name: 'asc' },
+    });
     res.json(users);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
