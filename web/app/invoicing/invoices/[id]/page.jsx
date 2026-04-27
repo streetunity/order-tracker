@@ -248,7 +248,8 @@ export default function InvoiceDetailPage({ params }) {
   const isOverdue = invoice?.dueDate && new Date(invoice.dueDate) < new Date() && !['PAID','VOID'].includes(invoice?.status);
 
   const inputStyle   = { padding: "10px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "rgba(255,255,255,0.9)", fontSize: "14px", width: "100%", boxSizing: "border-box" };
-  const sectionStyle = { background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "12px", padding: 24, marginBottom: 24 };
+  const sectionStyle = { background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "14px", padding: 24, marginBottom: 24, boxShadow: "0 24px 58px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08)" };
+  const metricCardStyle = { ...sectionStyle, marginBottom: 0, minHeight: 126, display: "flex", flexDirection: "column", justifyContent: "space-between" };
 
   if (authLoading || !user) return null;
 
@@ -275,31 +276,31 @@ export default function InvoiceDetailPage({ params }) {
     });
 
   const sidebarJSX = (
-    <div style={{ width: 300, minWidth: 300, flexShrink: 0, position: "sticky", top: 60, height: "calc(100vh - 60px)", background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
+    <div style={{ width: 300, minWidth: 300, flexShrink: 0, position: "sticky", top: 60, height: "calc(100vh - 60px)", background: "linear-gradient(180deg,#171717,#111)", borderRight: "1px solid rgba(255,255,255,0.1)", boxShadow: "18px 0 44px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
       <style>{`
-        .isb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+        .isb-header{padding:18px 14px 12px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;background:radial-gradient(circle at 20% 0%,rgba(220,38,38,0.12),transparent 180px)}
         .isb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
         .isb-title h2{font-size:18px;font-weight:700;color:#dc2626;margin:0}
-        .isb-new-btn{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:6px;color:#dc2626;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s}
-        .isb-new-btn:hover{background:rgba(220,38,38,0.22)}
-        .isb-search{width:100%;padding:8px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px}
+        .isb-new-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:linear-gradient(135deg,#dc2626,#991b1b);border:1px solid rgba(255,255,255,0.14);border-radius:7px;color:#fff;font-size:18px;text-decoration:none;line-height:1;cursor:pointer;box-shadow:0 10px 24px rgba(220,38,38,0.22),inset 0 1px 0 rgba(255,255,255,0.18);transition:filter 0.15s,transform 0.15s}
+        .isb-new-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+        .isb-search{width:100%;padding:9px 12px;background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.045));border:1px solid rgba(255,255,255,0.14);border-radius:8px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05)}
         .isb-search:focus{border-color:rgba(220,38,38,0.5)}
         .isb-search::placeholder{color:rgba(255,255,255,0.35)}
         .isb-filters{display:flex;gap:6px}
-        .isb-filter-sel{flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer}
+        .isb-filter-sel{flex:1;padding:6px 8px;background:#242424;border:1px solid rgba(255,255,255,0.13);border-radius:7px;color:rgba(255,255,255,0.85);font-size:12px;outline:none;cursor:pointer}
         .isb-filter-sel:focus{border-color:rgba(220,38,38,0.4)}
         .isb-sort-bar{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0}
         .isb-sort-btn{flex:1;padding:4px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s}
         .isb-sort-btn:hover{color:rgba(255,255,255,0.7)}
         .isb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.25);color:#dc2626}
-        .isb-list{flex:1;overflow-y:auto;padding:6px 0}
+        .isb-list{flex:1;overflow-y:auto;padding:8px}
         .isb-list::-webkit-scrollbar{width:6px}
         .isb-list::-webkit-scrollbar-track{background:transparent}
         .isb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
         .isb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}
-        .isb-item{padding:10px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block}
-        .isb-item:hover{background:rgba(255,255,255,0.04)}
-        .isb-item.active{background:rgba(220,38,38,0.08);border-left-color:#dc2626}
+        .isb-item{padding:12px 12px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);border-left:3px solid transparent;border-radius:8px;transition:background 0.12s,border-color 0.12s,transform 0.12s,box-shadow 0.12s;text-decoration:none;display:block;margin-bottom:8px;background:linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02));box-shadow:0 10px 24px rgba(0,0,0,0.2)}
+        .isb-item:hover{background:linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03));border-color:rgba(255,255,255,0.13);transform:translateY(-1px)}
+        .isb-item.active{background:linear-gradient(135deg,rgba(220,38,38,0.18),rgba(38,38,38,0.94));border-color:rgba(220,38,38,0.36);border-left-color:#dc2626;box-shadow:0 18px 34px rgba(220,38,38,0.12),0 10px 30px rgba(0,0,0,0.28)}
         .isb-item-num{font-size:12px;font-weight:600;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace}
         .isb-item.active .isb-item-num{color:#fff}
         .isb-item-cust{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -401,24 +402,77 @@ export default function InvoiceDetailPage({ params }) {
 
   // Derive which schedule item is next — shown in the modal hint
   const nextPendingScheduleItem = invoice.paymentSchedule?.find(item => item.status === 'PENDING');
+  const amountPaid = invoice.amountPaid || (invoice.payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const daysOverdue = isOverdue ? Math.max(0, Math.ceil((new Date() - new Date(invoice.dueDate)) / (1000 * 60 * 60 * 24))) : 0;
+  const paidPct = invoice.total ? Math.min(100, Math.round((amountPaid / invoice.total) * 100)) : 0;
+  const dueState = isOverdue
+    ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
+    : invoice.status === "PAID" ? "Paid in full" : "On schedule";
+  const agingBuckets = [
+    { label: "0 - 30 Days", max: 30 },
+    { label: "31 - 60 Days", max: 60 },
+    { label: "61 - 90 Days", max: 90 },
+    { label: "91+ Days", max: Infinity },
+  ].map((bucket, index, buckets) => {
+    const min = index === 0 ? 0 : buckets[index - 1].max + 1;
+    const isActiveBucket = invoice.balanceDue > 0 && (!isOverdue ? index === 0 : daysOverdue >= min && daysOverdue <= bucket.max);
+    return { ...bucket, value: isActiveBucket ? invoice.balanceDue : 0 };
+  });
+  const timelineItems = [
+    {
+      title: isOverdue ? "Invoice Overdue" : invoice.status === "PAID" ? "Invoice Paid" : "Invoice Due",
+      detail: isOverdue ? `Invoice is ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} past due` : dueState,
+      date: invoice.dueDate,
+      color: isOverdue ? "#ef4444" : invoice.status === "PAID" ? "#22c55e" : "#f59e0b",
+    },
+    {
+      title: invoice.lastSentAt ? "Invoice Sent" : "Ready to Send",
+      detail: invoice.lastSentAt ? `Sent to ${invoice.customer?.email || "customer"}` : "No send activity recorded",
+      date: invoice.lastSentAt,
+      color: "#3b82f6",
+    },
+    {
+      title: "Invoice Created",
+      detail: `By ${invoice.createdBy?.name || "team"}`,
+      date: invoice.createdAt,
+      color: "rgba(255,255,255,0.45)",
+    },
+  ];
 
   return (
     <>
       <InvoicingNav />
-      <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "#0f0f0f" }}>
+      <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "radial-gradient(circle at 18% 0%, rgba(220,38,38,0.11), transparent 420px), radial-gradient(circle at 100% 8%, rgba(255,255,255,0.045), transparent 360px), #0f0f0f" }}>
         {sidebarJSX}
         <div style={{ flex: 1, minWidth: 0, padding: "24px 28px 60px", overflowX: "hidden" }}>
+          <style>{`
+            .invoice-back-link{display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,0.54);font-size:13px;text-decoration:none;margin-bottom:14px}
+            .invoice-back-link:hover{color:#fff}
+            .invoice-action-primary{box-shadow:0 14px 28px rgba(220,38,38,0.22),inset 0 1px 0 rgba(255,255,255,0.18)}
+            .invoice-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+            .invoice-insight-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:18px;margin-bottom:18px}
+            .invoice-kpi-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.58);text-transform:uppercase;letter-spacing:.04em}
+            .invoice-kpi-icon{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05)}
+            .invoice-kpi-value{font-size:24px;font-weight:800;color:#fff;line-height:1.05;margin-top:18px}
+            .invoice-kpi-sub{font-size:13px;color:rgba(255,255,255,0.48);margin-top:7px}
+            .invoice-soft-table thead tr{background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))}
+            .invoice-soft-table tbody tr{background:rgba(255,255,255,0.025)}
+            .invoice-soft-table tbody tr:hover{background:rgba(255,255,255,0.045)}
+            @media (max-width: 1280px){.invoice-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.invoice-insight-grid{grid-template-columns:1fr}}
+            @media (max-width: 860px){.invoice-kpi-grid{grid-template-columns:1fr}}
+          `}</style>
 
           {/* Header */}
           <div style={{ marginBottom: 24 }}>
+            <Link href="/invoicing/invoices" className="invoice-back-link">Back to invoices</Link>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-                  <h1 style={{ fontSize: 28, fontWeight: 700, color: "#dc2626", margin: 0 }}>{invoice.invoiceNumber}</h1>
+                  <h1 style={{ fontSize: 32, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: 0 }}>{invoice.invoiceNumber}</h1>
                   <span style={{ padding: "4px 12px", background: statusColor.bg, border: `1px solid ${statusColor.border}`, borderRadius: 6, color: statusColor.text, fontSize: 12, fontWeight: 500 }}>{invoice.status}</span>
                   {isOverdue && invoice.status !== 'OVERDUE' && <span style={{ padding: "4px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#ef4444", fontSize: 12 }}>Overdue</span>}
                 </div>
-                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>Created by {invoice.createdBy?.name} on {formatDate(invoice.createdAt)}</p>
+                <p style={{ color: "rgba(255,255,255,0.62)", fontSize: 14 }}>{invoice.customer?.companyName || invoice.customer?.company || [invoice.customer?.firstName, invoice.customer?.lastName].filter(Boolean).join(" ") || "Customer"} <span style={{ color: "rgba(255,255,255,0.32)", margin: "0 8px" }}>|</span> Created by {invoice.createdBy?.name} on {formatDate(invoice.createdAt)}</p>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {invoice.status === 'DRAFT' && (
@@ -429,7 +483,7 @@ export default function InvoiceDetailPage({ params }) {
                 </button>
                 <button onClick={() => { setEmailTo(invoice?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
                 {canPay && (
-                  <button onClick={() => openPaymentModal()} style={{ padding: "8px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, color: "#f59e0b", cursor: "pointer", fontSize: 14, fontWeight: 500 }}>Record Payment</button>
+                  <button onClick={() => openPaymentModal()} className="invoice-action-primary" style={{ padding: "8px 16px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>Record Payment</button>
                 )}
                 {invoice.status !== 'VOID' && invoice.amountPaid === 0 && (
                   <button onClick={confirmVoidInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(107,114,128,0.1)", border: "1px solid rgba(107,114,128,0.3)", borderRadius: 8, color: "#6b7280", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Void</button>
@@ -445,6 +499,80 @@ export default function InvoiceDetailPage({ params }) {
               <button onClick={() => setError("")} style={{ float: "right", background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>\u00d7</button>
             </div>
           )}
+
+          <div className="invoice-kpi-grid">
+            <div style={metricCardStyle}>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon" style={{ color: "#ef4444" }}>$</span>Balance Due</div>
+              <div>
+                <div className="invoice-kpi-value">{formatCurrency(invoice.balanceDue)}</div>
+                <div className="invoice-kpi-sub">{invoice.balanceDue > 0 ? "Outstanding balance" : "Nothing outstanding"}</div>
+              </div>
+            </div>
+            <div style={metricCardStyle}>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon" style={{ color: "#22c55e" }}>$</span>Amount Paid</div>
+              <div>
+                <div className="invoice-kpi-value">{formatCurrency(amountPaid)}</div>
+                <div className="invoice-kpi-sub">{paidPct}% of {formatCurrency(invoice.total)}</div>
+              </div>
+            </div>
+            <div style={{ ...metricCardStyle, borderColor: isOverdue ? "rgba(239,68,68,0.38)" : "rgba(255,255,255,0.12)" }}>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon" style={{ color: isOverdue ? "#ef4444" : "#f59e0b" }}>!</span>Due Date</div>
+              <div>
+                <div className="invoice-kpi-value" style={{ color: isOverdue ? "#fff" : "#fff", fontSize: 21 }}>{formatDate(invoice.dueDate)}</div>
+                <div className="invoice-kpi-sub" style={{ color: isOverdue ? "#ef4444" : "rgba(255,255,255,0.48)" }}>{dueState}</div>
+              </div>
+            </div>
+            <div style={metricCardStyle}>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon" style={{ color: "#9ca3af" }}>#</span>Payment Terms</div>
+              <div>
+                <div className="invoice-kpi-value" style={{ fontSize: 22 }}>{invoice.paymentTerms || "-"}</div>
+                <div className="invoice-kpi-sub">{invoice.status === "PAID" ? "Closed" : "Due on receipt terms shown here"}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="invoice-insight-grid">
+            <div style={sectionStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 22 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: "#fff", margin: 0 }}>Invoice Aging</h2>
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>As of {formatDate(new Date())}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 14 }}>
+                {agingBuckets.map(bucket => {
+                  const active = bucket.value > 0;
+                  return (
+                    <div key={bucket.label} style={{ borderLeft: "1px solid rgba(255,255,255,0.09)", paddingLeft: 12 }}>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.52)", marginBottom: 8 }}>{bucket.label}</div>
+                      <div style={{ fontSize: 13, color: active ? "#fff" : "rgba(255,255,255,0.45)", marginBottom: 8 }}>{formatCurrency(bucket.value)}</div>
+                      <div style={{ height: 12, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                        <div style={{ width: active ? "100%" : "0%", height: "100%", borderRadius: 999, background: active ? "linear-gradient(90deg,#dc2626,#ef4444)" : "transparent", boxShadow: active ? "0 0 18px rgba(239,68,68,0.42)" : "none" }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                <span style={{ color: "rgba(255,255,255,0.52)" }}>Total Outstanding</span>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: 18 }}>{formatCurrency(invoice.balanceDue)}</span>
+              </div>
+            </div>
+
+            <div style={sectionStyle}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#fff", margin: "0 0 18px" }}>Payment Timeline</h2>
+              <div style={{ display: "grid", gap: 0 }}>
+                {timelineItems.map((item, index) => (
+                  <div key={item.title} style={{ display: "grid", gridTemplateColumns: "34px 1fr auto", gap: 10, paddingBottom: index === timelineItems.length - 1 ? 0 : 16, marginBottom: index === timelineItems.length - 1 ? 0 : 16, borderBottom: index === timelineItems.length - 1 ? "none" : "1px solid rgba(255,255,255,0.07)" }}>
+                    <span style={{ width: 28, height: 28, borderRadius: "50%", border: `1px solid ${item.color}`, color: item.color, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, boxShadow: `0 0 18px ${item.color === "rgba(255,255,255,0.45)" ? "rgba(255,255,255,0.08)" : item.color + "40"}` }}>!</span>
+                    <span>
+                      <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{item.title}</div>
+                      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 3 }}>{item.detail}</div>
+                    </span>
+                    <span style={{ color: "rgba(255,255,255,0.52)", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>{formatDate(item.date)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
             <div>
@@ -464,7 +592,7 @@ export default function InvoiceDetailPage({ params }) {
               <div style={sectionStyle}>
                 <h2 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase" }}>Line Items ({invoice.items?.length || 0})</h2>
                 {invoice.items && invoice.items.length > 0 ? (
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <table className="invoice-soft-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                         <th style={{ padding: "8px", textAlign: "left",   fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Item</th>
@@ -495,7 +623,7 @@ export default function InvoiceDetailPage({ params }) {
               {invoice.paymentSchedule && invoice.paymentSchedule.length > 0 && (
                 <div style={sectionStyle}>
                   <h2 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase" }}>Payment Schedule</h2>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <table className="invoice-soft-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                         <th style={{ padding: "8px", textAlign: "left",   fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Description</th>
@@ -536,7 +664,7 @@ export default function InvoiceDetailPage({ params }) {
               {invoice.payments && invoice.payments.length > 0 && (
                 <div style={sectionStyle}>
                   <h2 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase" }}>Payments</h2>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <table className="invoice-soft-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                         <th style={{ padding: "8px", textAlign: "left", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Date</th>
