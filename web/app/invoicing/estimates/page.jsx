@@ -77,36 +77,36 @@ export default function EstimatesPage() {
     <>
       <InvoicingNav />
       <style>{`
-        .esb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0}
+        .esb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;background:linear-gradient(180deg,rgba(255,255,255,0.025),rgba(0,0,0,0));box-shadow:inset 0 1px 0 rgba(255,255,255,0.035)}
         .esb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
         .esb-title h2{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.7);margin:0;text-transform:uppercase;letter-spacing:0.8px}
         .esb-title h2::before{content:'';display:block;width:3px;height:13px;background:#dc2626;border-radius:2px;flex-shrink:0}
-        .esb-new-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;background:rgba(220,38,38,0.1);border:1px solid rgba(220,38,38,0.25);border-radius:6px;color:#dc2626;font-size:16px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s}
-        .esb-new-btn:hover{background:rgba(220,38,38,0.2)}
-        .esb-search{width:100%;padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px;transition:border-color 0.15s}
-        .esb-search:focus{border-color:rgba(220,38,38,0.45)}
+        .esb-new-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;background:linear-gradient(180deg,rgba(220,38,38,0.16),rgba(220,38,38,0.08));border:1px solid rgba(220,38,38,0.32);border-radius:6px;color:#ff4b4b;font-size:16px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s,box-shadow 0.15s,transform 0.15s;box-shadow:0 8px 18px rgba(0,0,0,0.22),inset 0 1px 0 rgba(255,255,255,0.05)}
+        .esb-new-btn:hover{background:rgba(220,38,38,0.2);box-shadow:0 10px 22px rgba(0,0,0,0.28),0 0 0 1px rgba(220,38,38,0.12);transform:translateY(-1px)}
+        .esb-search{width:100%;padding:8px 12px;background:linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.045));border:1px solid rgba(255,255,255,0.11);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px;transition:border-color 0.15s,box-shadow 0.15s;box-shadow:inset 0 1px 0 rgba(255,255,255,0.035)}
+        .esb-search:focus{border-color:rgba(220,38,38,0.48);box-shadow:0 0 0 3px rgba(220,38,38,0.08),inset 0 1px 0 rgba(255,255,255,0.04)}
         .esb-search::placeholder{color:rgba(255,255,255,0.28)}
         .esb-filters{display:flex;gap:6px}
-        .esb-filter-sel{flex:1;padding:5px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:6px;color:rgba(255,255,255,0.7);font-size:12px;outline:none;cursor:pointer}
+        .esb-filter-sel{flex:1;padding:5px 8px;background:linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.045));border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.74);font-size:12px;outline:none;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03)}
         .esb-filter-sel:focus{border-color:rgba(220,38,38,0.4)}
-        .esb-sort-bar{display:flex;gap:3px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0}
+        .esb-sort-bar{display:flex;gap:3px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0;background:rgba(0,0,0,0.12)}
         .esb-sort-btn{flex:1;padding:5px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.35);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s;font-weight:500}
         .esb-sort-btn:hover{color:rgba(255,255,255,0.65);background:rgba(255,255,255,0.04)}
         .esb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.22);color:#dc2626}
-        .esb-list{flex:1;overflow-y:auto;padding:4px 0}
+        .esb-list{flex:1;overflow-y:auto;padding:6px 7px}
         .esb-list::-webkit-scrollbar{width:5px}
         .esb-list::-webkit-scrollbar-track{background:transparent}
         .esb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
         .esb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.22)}
-        .esb-item{padding:11px 14px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s,border-color 0.12s;border-bottom:1px solid rgba(255,255,255,0.04);text-decoration:none;display:block}
-        .esb-item:hover{background:rgba(255,255,255,0.04);border-left-color:rgba(220,38,38,0.45)}
+        .esb-item{padding:11px 12px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s,border-color 0.12s,box-shadow 0.12s,transform 0.12s;border-bottom:0;text-decoration:none;display:block;border-radius:8px;background:rgba(255,255,255,0.018);border-top:1px solid rgba(255,255,255,0.025);margin-bottom:6px}
+        .esb-item:hover{background:linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.032));border-left-color:rgba(220,38,38,0.62);box-shadow:0 10px 22px rgba(0,0,0,0.22),inset 0 1px 0 rgba(255,255,255,0.035);transform:translateY(-1px)}
         .esb-item-num{font-size:12px;font-weight:600;color:rgba(255,255,255,0.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace}
         .esb-item-cust{font-size:11px;color:rgba(255,255,255,0.38);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .esb-item-foot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
         .esb-item-amt{font-size:11px;color:rgba(255,255,255,0.5)}
         .esb-item-status{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.3px}
-        .esb-count{padding:7px 14px;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0}
-        .est-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px;background:#0f0f0f}
+        .esb-count{padding:7px 14px;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0;background:rgba(0,0,0,0.16)}
+        .est-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px;background:radial-gradient(circle at top left,rgba(220,38,38,0.035),transparent 320px),#0f0f0f}
         .est-right::-webkit-scrollbar{width:8px}
         .est-right::-webkit-scrollbar-track{background:transparent}
         .est-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
@@ -114,7 +114,7 @@ export default function EstimatesPage() {
 
       <div style={{ display: "flex", height: "calc(100vh - 64px)", overflow: "hidden" }}>
         {/* Sidebar */}
-        <div style={{ width: 280, minWidth: 280, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden" }}>
+        <div style={{ width: 280, minWidth: 280, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden", boxShadow: "inset -1px 0 0 rgba(0,0,0,0.45), 8px 0 30px rgba(0,0,0,0.12)" }}>
           <div className="esb-header">
             <div className="esb-title">
               <h2>Estimates</h2>
@@ -185,7 +185,7 @@ export default function EstimatesPage() {
               {!search && statusFilter === "all" && <Link href="/invoicing/estimates/new" style={btnOutlinedRed}>+ Create First Estimate</Link>}
             </div>
           ) : (
-            <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, overflow: "hidden", boxShadow: "0 16px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}>

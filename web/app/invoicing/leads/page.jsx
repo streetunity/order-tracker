@@ -124,11 +124,11 @@ export default function LeadsPage() {
     <>
       <InvoicingNav />
       <style>{`
-        .leads-row-tr { border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background 0.1s; }
-        .leads-row-tr:hover { background: rgba(255,255,255,0.03); }
+        .leads-row-tr { border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background 0.12s, box-shadow 0.12s; }
+        .leads-row-tr:hover { background: linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.025)); box-shadow: inset 3px 0 0 rgba(220,38,38,0.38); }
       `}</style>
 
-      <div style={{ minHeight: "calc(100vh - 64px)", background: "#0f0f0f", padding: "32px 32px 60px" }}>
+      <div style={{ minHeight: "calc(100vh - 64px)", background: "radial-gradient(circle at top left,rgba(220,38,38,0.035),transparent 360px),#0f0f0f", padding: "32px 32px 60px" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
@@ -136,7 +136,7 @@ export default function LeadsPage() {
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>Leads</h1>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>Manage your sales pipeline and convert leads to customers</p>
           </div>
-          <Link href="/invoicing/leads/new" style={{ padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13 }}>+ New Lead</Link>
+          <Link href="/invoicing/leads/new" style={{ padding: "7px 16px", background: "linear-gradient(180deg,rgba(220,38,38,0.16),rgba(220,38,38,0.08))", border: "1px solid rgba(220,38,38,0.32)", borderRadius: 7, color: "#ff4b4b", textDecoration: "none", fontWeight: 600, fontSize: 13, boxShadow: "0 10px 22px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.05)" }}>+ New Lead</Link>
         </div>
 
         {/* Status Tabs */}
@@ -158,7 +158,7 @@ export default function LeadsPage() {
           })}
           <div style={{ marginLeft: 'auto' }}>
             <input type="text" placeholder="Search leads..." value={search} onChange={e => setSearch(e.target.value)}
-              style={{ padding: "7px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.9)", fontSize: 13, outline: "none", width: 220 }} />
+              style={{ padding: "7px 12px", background: "linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.045))", border: "1px solid rgba(255,255,255,0.11)", borderRadius: 7, color: "rgba(255,255,255,0.9)", fontSize: 13, outline: "none", width: 220, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }} />
           </div>
         </div>
 
@@ -174,10 +174,10 @@ export default function LeadsPage() {
             <Link href="/invoicing/leads/new" style={{ padding: "8px 18px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ Create First Lead</Link>
           </div>
         ) : (
-          <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, overflow: "hidden", boxShadow: "0 16px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.075)", background: "linear-gradient(180deg,rgba(255,255,255,0.045),rgba(0,0,0,0.18))" }}>
                   {["Src", "Name", "Contact", "Company", "Status", "Assigned", "Created", ""].map((h, i) => (
                     <th key={i} style={{ padding: "11px 14px", textAlign: i === 7 ? "right" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>
                   ))}
