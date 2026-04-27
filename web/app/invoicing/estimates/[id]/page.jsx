@@ -346,7 +346,7 @@ export default function EstimateDetailPage({ params }) {
   const filteredProducts = products.filter(p => !productSearch || p.name?.toLowerCase().includes(productSearch.toLowerCase()) || p.sku?.toLowerCase().includes(productSearch.toLowerCase()));
   const filteredBundles  = bundles.filter(b => !productSearch || b.name?.toLowerCase().includes(productSearch.toLowerCase()));
   const inp = { padding: "8px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "rgba(255,255,255,0.9)", fontSize: "14px" };
-  const panelStyle = { background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 24, boxShadow: "0 24px 58px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08)" };
+  const panelStyle = { background: "linear-gradient(180deg,#1d1d1d,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 20, boxShadow: "0 18px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.07)" };
   const getItemImageUrl = (item) => {
     const attachment = item.attachments?.find?.(a => a.mimeType?.startsWith?.("image/") || a.contentType?.startsWith?.("image/") || a.fileType?.startsWith?.("image/")) || item.product?.attachments?.find?.(a => a.mimeType?.startsWith?.("image/") || a.contentType?.startsWith?.("image/") || a.fileType?.startsWith?.("image/"));
     return item.imageUrl || item.thumbnailUrl || item.product?.imageUrl || item.product?.thumbnailUrl || attachment?.url || attachment?.fileUrl || attachment?.downloadUrl || attachment?.signedUrl || null;
@@ -504,9 +504,15 @@ export default function EstimateDetailPage({ params }) {
           <style>{`
             .estimate-detail-shell button{transition:filter .15s,transform .15s,background .15s,border-color .15s}
             .estimate-detail-shell button:hover:not(:disabled){filter:brightness(1.08)}
-            .estimate-hero-card{background:linear-gradient(180deg,#202020,#151515 48%,#121212);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:26px 28px;margin-bottom:18px;box-shadow:0 24px 58px rgba(0,0,0,0.42),inset 0 1px 0 rgba(255,255,255,0.08)}
-            .estimate-kpi-icon{width:52px;height:52px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.32);background:rgba(220,38,38,0.1);color:#ef4444;font-size:22px;box-shadow:0 0 26px rgba(220,38,38,0.12);flex-shrink:0}
-            .estimate-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-bottom:16px}
+            .estimate-hero-card{background:linear-gradient(180deg,#1d1d1d,#151515 48%,#111);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:22px 24px;margin-bottom:14px;box-shadow:0 18px 42px rgba(0,0,0,0.38),inset 0 1px 0 rgba(255,255,255,0.07)}
+            .estimate-kpi-icon{width:48px;height:48px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.32);background:rgba(220,38,38,0.08);color:#ef4444;font-size:20px;box-shadow:0 0 22px rgba(220,38,38,0.1);flex-shrink:0}
+            .estimate-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-bottom:14px}
+            .estimate-action-btn{height:40px;padding:0 16px;background:linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035));border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:rgba(255,255,255,0.9);cursor:pointer;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:9px;box-shadow:0 12px 24px rgba(0,0,0,0.24),inset 0 1px 0 rgba(255,255,255,0.08)}
+            .estimate-action-primary{background:linear-gradient(180deg,#dc2626,#991b1b);border-color:rgba(255,255,255,0.18);color:#fff;box-shadow:0 14px 28px rgba(220,38,38,0.24),inset 0 1px 0 rgba(255,255,255,0.18)}
+            .estimate-action-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:190px;background:#171717;border:1px solid rgba(255,255,255,0.13);border-radius:8px;overflow:hidden;z-index:100;box-shadow:0 22px 48px rgba(0,0,0,0.5)}
+            .estimate-action-menu button{width:100%;padding:10px 13px !important;background:transparent !important;border:0 !important;color:rgba(255,255,255,0.82) !important;font-size:13px !important;text-align:left !important;cursor:pointer}
+            .estimate-action-menu button:hover{background:rgba(255,255,255,0.06) !important;color:#fff !important}
+            .estimate-icon{min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:currentColor}
             .estimate-soft-table thead tr{background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))}
             .estimate-soft-table tbody tr{background:rgba(255,255,255,0.022)}
             .estimate-soft-table tbody tr:hover{background:rgba(255,255,255,0.045)}
@@ -533,12 +539,12 @@ export default function EstimateDetailPage({ params }) {
                   <div style={{ fontSize: 13, color: "rgba(255,255,255,0.52)", marginBottom: 4 }}>Total Amount</div>
                   <div style={{ fontSize: 24, fontWeight: 800, color: "#fff" }}>{fmt(estimate.total)}</div>
                 </div>
-                <button onClick={() => { setEmailTo(estimate?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
-                <button onClick={generatePDF} disabled={generatingPDF} style={{ padding: "8px 16px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 8, color: "#3b82f6", cursor: generatingPDF ? "not-allowed" : "pointer", fontSize: 14 }}>{generatingPDF ? "Generating..." : (estimate?.pdfS3Key ? "View PDF" : "Generate PDF")}</button>
+                <button onClick={() => { setEmailTo(estimate?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} className="estimate-action-btn estimate-action-primary"><span className="estimate-icon">&gt;</span>Send</button>
+                <button onClick={generatePDF} disabled={generatingPDF} className="estimate-action-btn"><span className="estimate-icon">[]</span>{generatingPDF ? "Generating" : "PDF"}</button>
                 <div style={{ position: "relative" }} ref={actionsRef}>
-                  <button onClick={() => setShowActionsMenu(!showActionsMenu)} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>Actions <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg></button>
+                  <button onClick={() => setShowActionsMenu(!showActionsMenu)} className="estimate-action-btn"><span className="estimate-icon">...</span>More</button>
                   {showActionsMenu && (
-                    <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, minWidth: 180, zIndex: 100, overflow: "hidden" }}>
+                    <div className="estimate-action-menu">
                       {estimate.status === 'DRAFT' && <button onClick={() => updateStatus('SENT')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#3b82f6", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark as Sent</button>}
                       {estimate.status !== 'ACCEPTED' && estimate.status !== 'CONVERTED' && <button onClick={() => updateStatus('ACCEPTED')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#22c55e", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark Accepted</button>}
                       {estimate.status !== 'DECLINED' && estimate.status !== 'CONVERTED' && <button onClick={() => updateStatus('DECLINED')} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "#ef4444", textAlign: "left", cursor: "pointer", fontSize: 14 }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>Mark Declined</button>}
@@ -579,7 +585,7 @@ export default function EstimateDetailPage({ params }) {
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Created</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.estimateDate)}</span></div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Expires</span><span style={{ fontSize: 13, color: isExpired ? "#ef4444" : "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.expiryDate)}</span></div>
-                {estimate.sentAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Sent</span><span style={{ fontSize: 13, color: "#3b82f6" }}>{fmtDate(estimate.sentAt)}</span></div>}
+                {estimate.sentAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Sent</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.82)" }}>{fmtDate(estimate.sentAt)}</span></div>}
               </div>
             </div>
             <div style={{ padding: "0 20px", borderLeft: "1px solid rgba(255,255,255,0.09)" }}>
@@ -589,7 +595,7 @@ export default function EstimateDetailPage({ params }) {
                 {estimate.viewedAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>First View</span><span style={{ fontSize: 13, color: "#a855f7" }}>{fmtDate(estimate.viewedAt)}</span></div>}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>PDF</span>
-                  {estimate.pdfS3Key ? <button onClick={downloadPDF} style={{ padding: "2px 8px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 4, color: "#22c55e", cursor: "pointer", fontSize: 11 }}>Download</button> : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Not generated</span>}
+                  {estimate.pdfS3Key ? <button onClick={downloadPDF} style={{ padding: "2px 8px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 4, color: "rgba(255,255,255,0.82)", cursor: "pointer", fontSize: 11 }}>Download</button> : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Not generated</span>}
                 </div>
               </div>
             </div>
@@ -601,8 +607,8 @@ export default function EstimateDetailPage({ params }) {
             <div style={{ padding: "0 0 0 20px", borderLeft: "1px solid rgba(255,255,255,0.09)" }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Total</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: "#dc2626" }}>{fmt(estimate.total)}</div>
-              {estimate.discountAmount > 0 && <div style={{ fontSize: 12, color: "#22c55e", marginTop: 4 }}>Includes {fmt(estimate.discountAmount)} discount</div>}
-              {estimate.marginPercent != null && <div style={{ fontSize: 12, color: estimate.marginPercent > 30 ? "#22c55e" : estimate.marginPercent > 15 ? "#eab308" : "#ef4444", marginTop: 4 }}>Margin: {estimate.marginPercent?.toFixed(1)}%</div>}
+              {estimate.discountAmount > 0 && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.58)", marginTop: 4 }}>Includes {fmt(estimate.discountAmount)} discount</div>}
+              {estimate.marginPercent != null && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.58)", marginTop: 4 }}>Margin: {estimate.marginPercent?.toFixed(1)}%</div>}
             </div>
           </div>
 

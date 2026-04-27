@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,6 +54,8 @@ export default function InvoiceDetailPage({ params }) {
   const [confirmConfig,    setConfirmConfig]    = useState({ title: "", message: "", onConfirm: null });
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage,   setSuccessMessage]   = useState("");
+  const [showMoreMenu,     setShowMoreMenu]     = useState(false);
+  const moreRef = useRef(null);
 
   // Sidebar state
   const [allInvoices,    setAllInvoices]    = useState([]);
@@ -68,6 +70,14 @@ export default function InvoiceDetailPage({ params }) {
     loadInvoice();
     loadAllInvoices();
   }, [user, router, id]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (moreRef.current && !moreRef.current.contains(e.target)) setShowMoreMenu(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   async function loadAllInvoices() {
     setSidebarLoading(true);
@@ -248,8 +258,8 @@ export default function InvoiceDetailPage({ params }) {
   const isOverdue = invoice?.dueDate && new Date(invoice.dueDate) < new Date() && !['PAID','VOID'].includes(invoice?.status);
 
   const inputStyle   = { padding: "10px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "rgba(255,255,255,0.9)", fontSize: "14px", width: "100%", boxSizing: "border-box" };
-  const sectionStyle = { background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "14px", padding: 24, marginBottom: 24, boxShadow: "0 24px 58px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08)" };
-  const metricCardStyle = { ...sectionStyle, marginBottom: 0, minHeight: 126, display: "flex", flexDirection: "column", justifyContent: "space-between" };
+  const sectionStyle = { background: "linear-gradient(180deg,#1d1d1d,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: 20, marginBottom: 18, boxShadow: "0 18px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.07)" };
+  const metricCardStyle = { ...sectionStyle, marginBottom: 0, minHeight: 106, display: "flex", flexDirection: "column", justifyContent: "space-between" };
 
   if (authLoading || !user) return null;
 
@@ -423,13 +433,13 @@ export default function InvoiceDetailPage({ params }) {
       title: isOverdue ? "Invoice Overdue" : invoice.status === "PAID" ? "Invoice Paid" : "Invoice Due",
       detail: isOverdue ? `Invoice is ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} past due` : dueState,
       date: invoice.dueDate,
-      color: isOverdue ? "#ef4444" : invoice.status === "PAID" ? "#22c55e" : "#f59e0b",
+      color: isOverdue ? "#ef4444" : "rgba(255,255,255,0.58)",
     },
     {
       title: invoice.lastSentAt ? "Invoice Sent" : "Ready to Send",
       detail: invoice.lastSentAt ? `Sent to ${invoice.customer?.email || "customer"}` : "No send activity recorded",
       date: invoice.lastSentAt,
-      color: "#3b82f6",
+      color: "rgba(255,255,255,0.58)",
     },
     {
       title: "Invoice Created",
@@ -448,13 +458,18 @@ export default function InvoiceDetailPage({ params }) {
           <style>{`
             .invoice-back-link{display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,0.54);font-size:13px;text-decoration:none;margin-bottom:14px}
             .invoice-back-link:hover{color:#fff}
-            .invoice-action-primary{box-shadow:0 14px 28px rgba(220,38,38,0.22),inset 0 1px 0 rgba(255,255,255,0.18)}
-            .invoice-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
-            .invoice-insight-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:18px;margin-bottom:18px}
+            .invoice-action-btn{height:40px;padding:0 16px;background:linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035));border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:rgba(255,255,255,0.9);cursor:pointer;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:9px;box-shadow:0 12px 24px rgba(0,0,0,0.24),inset 0 1px 0 rgba(255,255,255,0.08)}
+            .invoice-action-primary{background:linear-gradient(180deg,#dc2626,#991b1b);border-color:rgba(255,255,255,0.18);color:#fff;box-shadow:0 14px 28px rgba(220,38,38,0.24),inset 0 1px 0 rgba(255,255,255,0.18)}
+            .invoice-action-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:190px;background:#171717;border:1px solid rgba(255,255,255,0.13);border-radius:8px;overflow:hidden;z-index:100;box-shadow:0 22px 48px rgba(0,0,0,0.5)}
+            .invoice-action-menu button{width:100%;padding:10px 13px;background:transparent;border:0;color:rgba(255,255,255,0.82);font-size:13px;text-align:left;cursor:pointer}
+            .invoice-action-menu button:hover{background:rgba(255,255,255,0.06);color:#fff}
+            .invoice-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+            .invoice-insight-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:14px;margin-bottom:14px}
             .invoice-kpi-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.58);text-transform:uppercase;letter-spacing:.04em}
-            .invoice-kpi-icon{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05)}
-            .invoice-kpi-value{font-size:24px;font-weight:800;color:#fff;line-height:1.05;margin-top:18px}
-            .invoice-kpi-sub{font-size:13px;color:rgba(255,255,255,0.48);margin-top:7px}
+            .invoice-kpi-icon{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.28);background:rgba(220,38,38,0.08);color:#ef4444}
+            .invoice-kpi-value{font-size:23px;font-weight:800;color:#fff;line-height:1.05;margin-top:14px}
+            .invoice-kpi-sub{font-size:12px;color:rgba(255,255,255,0.48);margin-top:7px}
+            .invoice-icon{min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:currentColor}
             .invoice-soft-table thead tr{background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))}
             .invoice-soft-table tbody tr{background:rgba(255,255,255,0.025)}
             .invoice-soft-table tbody tr:hover{background:rgba(255,255,255,0.045)}
@@ -474,7 +489,32 @@ export default function InvoiceDetailPage({ params }) {
                 </div>
                 <p style={{ color: "rgba(255,255,255,0.62)", fontSize: 14 }}>{invoice.customer?.companyName || invoice.customer?.company || [invoice.customer?.firstName, invoice.customer?.lastName].filter(Boolean).join(" ") || "Customer"} <span style={{ color: "rgba(255,255,255,0.32)", margin: "0 8px" }}>|</span> Created by {invoice.createdBy?.name} on {formatDate(invoice.createdAt)}</p>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                {canPay && (
+                  <button onClick={() => openPaymentModal()} className="invoice-action-btn invoice-action-primary">
+                    <span className="invoice-icon">$</span>Record Payment
+                  </button>
+                )}
+                <button onClick={() => { setEmailTo(invoice?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} className="invoice-action-btn">
+                  <span className="invoice-icon">&gt;</span>Send
+                </button>
+                <button onClick={generatingPDF ? null : (invoice?.pdfS3Key ? downloadPDF : generatePDF)} disabled={generatingPDF} className="invoice-action-btn">
+                  <span className="invoice-icon">[]</span>{generatingPDF ? "Generating" : "PDF"}
+                </button>
+                <div style={{ position: "relative" }} ref={moreRef}>
+                  <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="invoice-action-btn">
+                    <span className="invoice-icon">...</span>More
+                  </button>
+                  {showMoreMenu && (
+                    <div className="invoice-action-menu">
+                      {invoice.status === 'DRAFT' && <button onClick={() => { setShowMoreMenu(false); updateStatus('SENT'); }}>Mark as Sent</button>}
+                      {invoice.status !== 'VOID' && invoice.amountPaid === 0 && <button onClick={() => { setShowMoreMenu(false); confirmVoidInvoice(); }}>Void Invoice</button>}
+                      <button onClick={() => { setShowMoreMenu(false); confirmDeleteInvoice(); }} style={{ color: "#ef4444" }}>Delete Invoice</button>
+                    </div>
+                  )}
+                </div>
+                {false && (
+                <>
                 {invoice.status === 'DRAFT' && (
                   <button onClick={() => updateStatus('SENT')} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#3b82f6,#2563eb)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Mark as Sent</button>
                 )}
@@ -489,6 +529,8 @@ export default function InvoiceDetailPage({ params }) {
                   <button onClick={confirmVoidInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(107,114,128,0.1)", border: "1px solid rgba(107,114,128,0.3)", borderRadius: 8, color: "#6b7280", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Void</button>
                 )}
                 <button onClick={confirmDeleteInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Delete</button>
+                </>
+                )}
               </div>
             </div>
           </div>
@@ -509,21 +551,21 @@ export default function InvoiceDetailPage({ params }) {
               </div>
             </div>
             <div style={metricCardStyle}>
-              <div className="invoice-kpi-label"><span className="invoice-kpi-icon" style={{ color: "#22c55e" }}>$</span>Amount Paid</div>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon">$</span>Amount Paid</div>
               <div>
                 <div className="invoice-kpi-value">{formatCurrency(amountPaid)}</div>
                 <div className="invoice-kpi-sub">{paidPct}% of {formatCurrency(invoice.total)}</div>
               </div>
             </div>
             <div style={{ ...metricCardStyle, borderColor: isOverdue ? "rgba(239,68,68,0.38)" : "rgba(255,255,255,0.12)" }}>
-              <div className="invoice-kpi-label"><span className="invoice-kpi-icon" style={{ color: isOverdue ? "#ef4444" : "#f59e0b" }}>!</span>Due Date</div>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon">!</span>Due Date</div>
               <div>
                 <div className="invoice-kpi-value" style={{ color: isOverdue ? "#fff" : "#fff", fontSize: 21 }}>{formatDate(invoice.dueDate)}</div>
                 <div className="invoice-kpi-sub" style={{ color: isOverdue ? "#ef4444" : "rgba(255,255,255,0.48)" }}>{dueState}</div>
               </div>
             </div>
             <div style={metricCardStyle}>
-              <div className="invoice-kpi-label"><span className="invoice-kpi-icon" style={{ color: "#9ca3af" }}>#</span>Payment Terms</div>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon">#</span>Payment Terms</div>
               <div>
                 <div className="invoice-kpi-value" style={{ fontSize: 22 }}>{invoice.paymentTerms || "-"}</div>
                 <div className="invoice-kpi-sub">{invoice.status === "PAID" ? "Closed" : "Due on receipt terms shown here"}</div>
