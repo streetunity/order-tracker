@@ -500,23 +500,36 @@ export default function EstimateDetailPage({ params }) {
       <InvoicingNav />
       <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "radial-gradient(circle at 18% 0%, rgba(220,38,38,0.11), transparent 420px), radial-gradient(circle at 100% 8%, rgba(255,255,255,0.045), transparent 360px), #0f0f0f" }}>
         {sidebarJSX}
-        <div style={{ flex: 1, minWidth: 0, padding: "24px 28px 60px", overflowX: "hidden" }}>
+        <div style={{ flex: 1, minWidth: 0, padding: "16px 18px 48px", overflowX: "hidden" }}>
           <style>{`
             .estimate-detail-shell button{transition:filter .15s,transform .15s,background .15s,border-color .15s}
             .estimate-detail-shell button:hover:not(:disabled){filter:brightness(1.08)}
-            .estimate-hero-card{background:linear-gradient(180deg,#1d1d1d,#151515 48%,#111);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:22px 24px;margin-bottom:14px;box-shadow:0 18px 42px rgba(0,0,0,0.38),inset 0 1px 0 rgba(255,255,255,0.07)}
-            .estimate-kpi-icon{width:48px;height:48px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.32);background:rgba(220,38,38,0.08);color:#ef4444;font-size:20px;box-shadow:0 0 22px rgba(220,38,38,0.1);flex-shrink:0}
-            .estimate-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-bottom:14px}
+            .estimate-hero-card{background:linear-gradient(180deg,#1d1d1d,#151515 48%,#111);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:18px 20px;margin-bottom:12px;box-shadow:0 16px 36px rgba(0,0,0,0.36),inset 0 1px 0 rgba(255,255,255,0.07)}
+            .estimate-kpi-icon{width:44px;height:44px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.32);background:rgba(220,38,38,0.08);color:#ef4444;font-size:18px;box-shadow:0 0 20px rgba(220,38,38,0.1);flex-shrink:0}
+            .estimate-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-bottom:12px;padding:16px 18px !important}
+            .estimate-summary-cell{display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;padding:0 18px;border-left:1px solid rgba(255,255,255,0.09)}
+            .estimate-summary-cell:first-child{border-left:0;padding-left:0}
+            .estimate-summary-icon{width:40px;height:40px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.26);background:rgba(220,38,38,0.065);color:#ef4444;font-size:15px}
+            .estimate-summary-label{font-size:12px;color:rgba(255,255,255,0.52);margin-bottom:3px}
+            .estimate-summary-value{font-size:18px;font-weight:700;color:#fff;line-height:1.15}
+            .estimate-summary-sub{font-size:12px;color:#ef4444;margin-top:3px}
             .estimate-action-btn{height:40px;padding:0 16px;background:linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035));border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:rgba(255,255,255,0.9);cursor:pointer;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:9px;box-shadow:0 12px 24px rgba(0,0,0,0.24),inset 0 1px 0 rgba(255,255,255,0.08)}
             .estimate-action-primary{background:linear-gradient(180deg,#dc2626,#991b1b);border-color:rgba(255,255,255,0.18);color:#fff;box-shadow:0 14px 28px rgba(220,38,38,0.24),inset 0 1px 0 rgba(255,255,255,0.18)}
             .estimate-action-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:190px;background:#171717;border:1px solid rgba(255,255,255,0.13);border-radius:8px;overflow:hidden;z-index:100;box-shadow:0 22px 48px rgba(0,0,0,0.5)}
             .estimate-action-menu button{width:100%;padding:10px 13px !important;background:transparent !important;border:0 !important;color:rgba(255,255,255,0.82) !important;font-size:13px !important;text-align:left !important;cursor:pointer}
             .estimate-action-menu button:hover{background:rgba(255,255,255,0.06) !important;color:#fff !important}
             .estimate-icon{min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:currentColor}
-            .estimate-soft-table thead tr{background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))}
+            .estimate-line-panel{padding:0 !important;margin-bottom:18px !important;overflow:hidden}
+            .estimate-line-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.1)}
+            .estimate-tabs{display:flex;align-items:center;gap:18px}
+            .estimate-tab{height:34px;display:inline-flex;align-items:center;border-bottom:2px solid transparent;color:rgba(255,255,255,0.62);font-weight:600;font-size:14px}
+            .estimate-tab.active{color:#fff;border-bottom-color:#dc2626}
+            .estimate-line-tools{display:flex;gap:8px;align-items:center}
+            .estimate-line-table-wrap{padding:0 18px 16px}
+            .estimate-soft-table thead tr{background:linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.035))}
             .estimate-soft-table tbody tr{background:rgba(255,255,255,0.022)}
             .estimate-soft-table tbody tr:hover{background:rgba(255,255,255,0.045)}
-            .estimate-thumb{width:44px;height:44px;border-radius:7px;border:1px solid rgba(255,255,255,0.12);background:linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.025));display:flex;align-items:center;justify-content:center;overflow:hidden;color:rgba(255,255,255,0.42);font-size:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.07)}
+            .estimate-thumb{width:38px;height:38px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.025));display:flex;align-items:center;justify-content:center;overflow:hidden;color:rgba(255,255,255,0.42);font-size:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.07)}
             .estimate-thumb img{width:100%;height:100%;object-fit:cover;display:block}
             @media (max-width: 1280px){.estimate-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.estimate-hero-card > div{grid-template-columns:1fr !important}}
           `}</style>
@@ -524,15 +537,21 @@ export default function EstimateDetailPage({ params }) {
 
           <div className="estimate-hero-card">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
                 <div className="estimate-kpi-icon">E</div>
-                <h1 style={{ fontSize: 32, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: 0 }}>{estimate.estimateNumber}</h1>
+                <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <h1 style={{ fontSize: 29, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: 0 }}>{estimate.estimateNumber}</h1>
                 {estimate.version > 1 && <span style={{ padding: "4px 8px", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 6, color: "#a855f7", fontSize: 12, fontWeight: 500 }}>v{estimate.version}</span>}
                 <span style={{ padding: "4px 12px", background: statusColor.bg, border: `1px solid ${statusColor.border}`, borderRadius: 6, color: statusColor.text, fontSize: 12, fontWeight: 500 }}>{estimate.status}</span>
                 {isExpired && estimate.status !== 'ACCEPTED' && estimate.status !== 'DECLINED' && (
                   <span style={{ padding: "4px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#ef4444", fontSize: 12 }}>Expired</span>
                 )}
                 {saving && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Saving…</span>}
+              </div>
+                <div style={{ color: "#fff", fontSize: 15, fontWeight: 650, marginTop: 4 }}>{customerName}</div>
+                <div style={{ color: "rgba(255,255,255,0.54)", fontSize: 12, marginTop: 3 }}>Created {fmtDate(estimate.createdAt)} by {estimate.createdBy?.name || "team"}</div>
+                </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <div style={{ minWidth: 170, paddingLeft: 24, marginRight: 10, borderLeft: "1px solid rgba(255,255,255,0.1)" }}>
@@ -559,7 +578,6 @@ export default function EstimateDetailPage({ params }) {
                 </div>
               </div>
             </div>
-            <p style={{ color: "rgba(255,255,255,0.58)", fontSize: 13, marginTop: 12, marginLeft: 68 }}>{customerName} | Created by {estimate.createdBy?.name} on {fmtDate(estimate.createdAt)}</p>
           </div>
 
           {error && (
@@ -570,62 +588,64 @@ export default function EstimateDetailPage({ params }) {
           )}
 
           <div className="estimate-summary-grid" style={panelStyle}>
-            <div style={{ padding: "0 20px 0 0" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Customer</div>
-              {estimate.customer ? (
-                <>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{estimate.customer.firstName} {estimate.customer.lastName}</div>
-                  {(estimate.customer.company || estimate.customer.companyName) && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{estimate.customer.company || estimate.customer.companyName}</div>}
-                  {estimate.customer.email && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{estimate.customer.email}</div>}
-                </>
-              ) : <div style={{ color: "rgba(255,255,255,0.4)" }}>No customer assigned</div>}
-            </div>
-            <div style={{ padding: "0 20px", borderLeft: "1px solid rgba(255,255,255,0.09)" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Dates</div>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Created</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.estimateDate)}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Expires</span><span style={{ fontSize: 13, color: isExpired ? "#ef4444" : "rgba(255,255,255,0.9)" }}>{fmtDate(estimate.expiryDate)}</span></div>
-                {estimate.sentAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Sent</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.82)" }}>{fmtDate(estimate.sentAt)}</span></div>}
+            <div className="estimate-summary-cell">
+              <div className="estimate-summary-icon">Cal</div>
+              <div>
+                <div className="estimate-summary-label">Expiry Date</div>
+                <div className="estimate-summary-value">{fmtDate(estimate.expiryDate)}</div>
+                <div className="estimate-summary-sub">{isExpired ? "Expired" : "Active quote window"}</div>
               </div>
             </div>
-            <div style={{ padding: "0 20px", borderLeft: "1px solid rgba(255,255,255,0.09)" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Tracking</div>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Views</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.9)" }}>{estimate.viewCount || 0}</span></div>
-                {estimate.viewedAt && <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>First View</span><span style={{ fontSize: 13, color: "#a855f7" }}>{fmtDate(estimate.viewedAt)}</span></div>}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>PDF</span>
-                  {estimate.pdfS3Key ? <button onClick={downloadPDF} style={{ padding: "2px 8px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.13)", borderRadius: 4, color: "rgba(255,255,255,0.82)", cursor: "pointer", fontSize: 11 }}>Download</button> : <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>Not generated</span>}
-                </div>
+            <div className="estimate-summary-cell">
+              <div className="estimate-summary-icon">$</div>
+              <div>
+                <div className="estimate-summary-label">Sub Total</div>
+                <div className="estimate-summary-value">{fmt(estimate.subtotal)}</div>
               </div>
             </div>
-            <div style={{ padding: "0 20px", borderLeft: "1px solid rgba(255,255,255,0.09)" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Subtotal</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>{fmt(estimate.subtotal)}</div>
-              {estimate.taxAmount > 0 && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 5 }}>Tax: {fmt(estimate.taxAmount)}</div>}
+            <div className="estimate-summary-cell">
+              <div className="estimate-summary-icon">Tax</div>
+              <div>
+                <div className="estimate-summary-label">Tax ({estimate.taxRate || 0}%)</div>
+                <div className="estimate-summary-value">{fmt(estimate.taxAmount)}</div>
+              </div>
             </div>
-            <div style={{ padding: "0 0 0 20px", borderLeft: "1px solid rgba(255,255,255,0.09)" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", marginBottom: 8 }}>Total</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: "#dc2626" }}>{fmt(estimate.total)}</div>
-              {estimate.discountAmount > 0 && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.58)", marginTop: 4 }}>Includes {fmt(estimate.discountAmount)} discount</div>}
-              {estimate.marginPercent != null && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.58)", marginTop: 4 }}>Margin: {estimate.marginPercent?.toFixed(1)}%</div>}
+            <div className="estimate-summary-cell">
+              <div className="estimate-summary-icon">%</div>
+              <div>
+                <div className="estimate-summary-label">Discount</div>
+                <div className="estimate-summary-value">{fmt(estimate.discountAmount)}</div>
+              </div>
+            </div>
+            <div className="estimate-summary-cell">
+              <div className="estimate-summary-icon">Tot</div>
+              <div>
+                <div className="estimate-summary-label">Total Amount</div>
+                <div className="estimate-summary-value" style={{ color: "#fff" }}>{fmt(estimate.total)}</div>
+              </div>
             </div>
           </div>
 
-          <div style={{ ...panelStyle, marginBottom: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.9)", margin: 0 }}>Line Items ({estimate.items?.length || 0})</h2>
+          <div className="estimate-line-panel" style={{ ...panelStyle, marginBottom: 24 }}>
+            <div className="estimate-line-head">
+              <div className="estimate-tabs">
+                <span className="estimate-tab active">Line Items</span>
+                <span className="estimate-tab">Customer</span>
+                <span className="estimate-tab">Activity</span>
+              </div>
               {editMode ? (
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="estimate-line-tools">
                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>Drag rows to reorder</span>
-                  <button onClick={() => setEditMode(false)} style={{ padding: "6px 12px", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 6, color: "#22c55e", cursor: "pointer", fontSize: 13 }}>Done Editing</button>
+                  <button onClick={() => setEditMode(false)} className="estimate-action-btn" style={{ height: 36 }}>Done Editing</button>
                 </div>
               ) : estimate.status === 'DRAFT' && (
-                <button onClick={() => setEditMode(true)} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.9)", cursor: "pointer", fontSize: 13 }}>Edit Items</button>
+                <div className="estimate-line-tools">
+                  <button onClick={() => setEditMode(true)} className="estimate-action-btn" style={{ height: 36 }}>Edit Items</button>
+                </div>
               )}
             </div>
             {editMode && (
-              <div style={{ position: "relative", marginBottom: 16 }}>
+              <div style={{ position: "relative", padding: "12px 18px 0" }}>
                 <input type="text" placeholder="Search products or bundles to add..." value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setShowProductDropdown(true); }} onFocus={() => setShowProductDropdown(true)} style={{ ...inp, width: "100%" }} />
                 {showProductDropdown && (filteredProducts.length > 0 || filteredBundles.length > 0) && (
                   <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, marginTop: 4, maxHeight: 300, overflow: "auto", zIndex: 100 }}>
@@ -642,6 +662,7 @@ export default function EstimateDetailPage({ params }) {
               </div>
             )}
             {estimate.items && estimate.items.length > 0 ? (
+              <div className="estimate-line-table-wrap">
               <table className="estimate-soft-table" style={{ width: "100%", borderCollapse: "collapse", background: "transparent" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
@@ -755,6 +776,7 @@ export default function EstimateDetailPage({ params }) {
                   </tr>
                 </tfoot>
               </table>
+              </div>
             ) : (
               <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.4)" }}>No items in this estimate</div>
             )}
