@@ -258,8 +258,8 @@ export default function InvoiceDetailPage({ params }) {
   const isOverdue = invoice?.dueDate && new Date(invoice.dueDate) < new Date() && !['PAID','VOID'].includes(invoice?.status);
 
   const inputStyle   = { padding: "10px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "rgba(255,255,255,0.9)", fontSize: "14px", width: "100%", boxSizing: "border-box" };
-  const sectionStyle = { background: "linear-gradient(180deg,#1d1d1d,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: 20, marginBottom: 18, boxShadow: "0 18px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.07)" };
-  const metricCardStyle = { ...sectionStyle, marginBottom: 0, minHeight: 106, display: "flex", flexDirection: "column", justifyContent: "space-between" };
+  const sectionStyle = { background: "linear-gradient(180deg,#1d1d1d,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", padding: 16, marginBottom: 14, boxShadow: "0 16px 36px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.07)" };
+  const metricCardStyle = { ...sectionStyle, marginBottom: 0, minHeight: 92, display: "flex", flexDirection: "column", justifyContent: "space-between" };
 
   if (authLoading || !user) return null;
 
@@ -454,22 +454,29 @@ export default function InvoiceDetailPage({ params }) {
       <InvoicingNav />
       <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "radial-gradient(circle at 18% 0%, rgba(220,38,38,0.11), transparent 420px), radial-gradient(circle at 100% 8%, rgba(255,255,255,0.045), transparent 360px), #0f0f0f" }}>
         {sidebarJSX}
-        <div style={{ flex: 1, minWidth: 0, padding: "24px 28px 60px", overflowX: "hidden" }}>
+        <div style={{ flex: 1, minWidth: 0, padding: "16px 18px 48px", overflowX: "hidden" }}>
           <style>{`
-            .invoice-back-link{display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,0.54);font-size:13px;text-decoration:none;margin-bottom:14px}
+            .invoice-back-link{display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,0.54);font-size:13px;text-decoration:none;margin-bottom:10px}
             .invoice-back-link:hover{color:#fff}
-            .invoice-action-btn{height:40px;padding:0 16px;background:linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035));border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:rgba(255,255,255,0.9);cursor:pointer;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:9px;box-shadow:0 12px 24px rgba(0,0,0,0.24),inset 0 1px 0 rgba(255,255,255,0.08)}
+            .invoice-action-btn{height:38px;padding:0 14px;background:linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035));border:1px solid rgba(255,255,255,0.14);border-radius:6px;color:rgba(255,255,255,0.9);cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:8px;box-shadow:0 12px 24px rgba(0,0,0,0.24),inset 0 1px 0 rgba(255,255,255,0.08)}
             .invoice-action-primary{background:linear-gradient(180deg,#dc2626,#991b1b);border-color:rgba(255,255,255,0.18);color:#fff;box-shadow:0 14px 28px rgba(220,38,38,0.24),inset 0 1px 0 rgba(255,255,255,0.18)}
             .invoice-action-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:190px;background:#171717;border:1px solid rgba(255,255,255,0.13);border-radius:8px;overflow:hidden;z-index:100;box-shadow:0 22px 48px rgba(0,0,0,0.5)}
             .invoice-action-menu button{width:100%;padding:10px 13px;background:transparent;border:0;color:rgba(255,255,255,0.82);font-size:13px;text-align:left;cursor:pointer}
             .invoice-action-menu button:hover{background:rgba(255,255,255,0.06);color:#fff}
-            .invoice-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
-            .invoice-insight-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:14px;margin-bottom:14px}
+            .invoice-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+            .invoice-insight-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:12px;margin-bottom:12px}
             .invoice-kpi-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.58);text-transform:uppercase;letter-spacing:.04em}
-            .invoice-kpi-icon{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.28);background:rgba(220,38,38,0.08);color:#ef4444}
-            .invoice-kpi-value{font-size:23px;font-weight:800;color:#fff;line-height:1.05;margin-top:14px}
-            .invoice-kpi-sub{font-size:12px;color:rgba(255,255,255,0.48);margin-top:7px}
+            .invoice-kpi-icon{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(220,38,38,0.28);background:rgba(220,38,38,0.08);color:#ef4444}
+            .invoice-kpi-value{font-size:22px;font-weight:800;color:#fff;line-height:1.05;margin-top:10px}
+            .invoice-kpi-sub{font-size:12px;color:rgba(255,255,255,0.48);margin-top:5px}
             .invoice-icon{min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:currentColor}
+            .invoice-line-panel{padding:0 !important;overflow:hidden}
+            .invoice-line-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.1)}
+            .invoice-tabs{display:flex;align-items:center;gap:20px}
+            .invoice-tab{height:34px;display:inline-flex;align-items:center;border-bottom:2px solid transparent;color:rgba(255,255,255,0.62);font-size:14px;font-weight:600}
+            .invoice-tab.active{color:#fff;border-bottom-color:#dc2626}
+            .invoice-line-count{font-size:12px;color:rgba(255,255,255,0.42);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+            .invoice-line-table-wrap{padding:0 18px 16px}
             .invoice-soft-table thead tr{background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))}
             .invoice-soft-table tbody tr{background:rgba(255,255,255,0.025)}
             .invoice-soft-table tbody tr:hover{background:rgba(255,255,255,0.045)}
@@ -478,16 +485,16 @@ export default function InvoiceDetailPage({ params }) {
           `}</style>
 
           {/* Header */}
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ marginBottom: 14 }}>
             <Link href="/invoicing/invoices" className="invoice-back-link">Back to invoices</Link>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-                  <h1 style={{ fontSize: 32, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: 0 }}>{invoice.invoiceNumber}</h1>
+                  <h1 style={{ fontSize: 29, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: 0 }}>{invoice.invoiceNumber}</h1>
                   <span style={{ padding: "4px 12px", background: statusColor.bg, border: `1px solid ${statusColor.border}`, borderRadius: 6, color: statusColor.text, fontSize: 12, fontWeight: 500 }}>{invoice.status}</span>
                   {isOverdue && invoice.status !== 'OVERDUE' && <span style={{ padding: "4px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#ef4444", fontSize: 12 }}>Overdue</span>}
                 </div>
-                <p style={{ color: "rgba(255,255,255,0.62)", fontSize: 14 }}>{invoice.customer?.companyName || invoice.customer?.company || [invoice.customer?.firstName, invoice.customer?.lastName].filter(Boolean).join(" ") || "Customer"} <span style={{ color: "rgba(255,255,255,0.32)", margin: "0 8px" }}>|</span> Created by {invoice.createdBy?.name} on {formatDate(invoice.createdAt)}</p>
+                <p style={{ color: "rgba(255,255,255,0.62)", fontSize: 13, margin: 0 }}>{invoice.customer?.companyName || invoice.customer?.company || [invoice.customer?.firstName, invoice.customer?.lastName].filter(Boolean).join(" ") || "Customer"} <span style={{ color: "rgba(255,255,255,0.32)", margin: "0 8px" }}>|</span> Created by {invoice.createdBy?.name} on {formatDate(invoice.createdAt)}</p>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {canPay && (
@@ -513,24 +520,6 @@ export default function InvoiceDetailPage({ params }) {
                     </div>
                   )}
                 </div>
-                {false && (
-                <>
-                {invoice.status === 'DRAFT' && (
-                  <button onClick={() => updateStatus('SENT')} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#3b82f6,#2563eb)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Mark as Sent</button>
-                )}
-                <button onClick={generatingPDF ? null : (invoice?.pdfS3Key ? downloadPDF : generatePDF)} disabled={generatingPDF} style={{ padding: "8px 16px", background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 8, color: "#3b82f6", cursor: generatingPDF ? "not-allowed" : "pointer", fontSize: 14 }}>
-                  {generatingPDF ? "Generating..." : (invoice?.pdfS3Key ? "View PDF" : "Generate PDF")}
-                </button>
-                <button onClick={() => { setEmailTo(invoice?.customer?.email || ""); setShowSendModal(true); }} disabled={saving} style={{ padding: "8px 16px", background: "linear-gradient(135deg,#22c55e,#16a34a)", border: "none", borderRadius: 8, color: "white", cursor: saving ? "not-allowed" : "pointer", fontSize: 14, fontWeight: 500 }}>Send to Customer</button>
-                {canPay && (
-                  <button onClick={() => openPaymentModal()} className="invoice-action-primary" style={{ padding: "8px 16px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>Record Payment</button>
-                )}
-                {invoice.status !== 'VOID' && invoice.amountPaid === 0 && (
-                  <button onClick={confirmVoidInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(107,114,128,0.1)", border: "1px solid rgba(107,114,128,0.3)", borderRadius: 8, color: "#6b7280", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Void</button>
-                )}
-                <button onClick={confirmDeleteInvoice} disabled={saving} style={{ padding: "8px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", cursor: saving ? "not-allowed" : "pointer", fontSize: 14 }}>Delete</button>
-                </>
-                )}
               </div>
             </div>
           </div>
@@ -616,7 +605,7 @@ export default function InvoiceDetailPage({ params }) {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
             <div>
               {/* Bill To */}
               <div style={sectionStyle}>
@@ -631,34 +620,41 @@ export default function InvoiceDetailPage({ params }) {
               </div>
 
               {/* Line Items */}
-              <div style={sectionStyle}>
-                <h2 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase" }}>Line Items ({invoice.items?.length || 0})</h2>
+              <div className="invoice-line-panel" style={sectionStyle}>
+                <div className="invoice-line-head">
+                  <div className="invoice-tabs">
+                    <span className="invoice-tab active">Line Items</span>
+                  </div>
+                  <span className="invoice-line-count">{invoice.items?.length || 0} item{invoice.items?.length === 1 ? "" : "s"}</span>
+                </div>
                 {invoice.items && invoice.items.length > 0 ? (
-                  <table className="invoice-soft-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                        <th style={{ padding: "8px", textAlign: "left",   fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Item</th>
-                        <th style={{ padding: "8px", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 80  }}>Qty</th>
-                        <th style={{ padding: "8px", textAlign: "right",  fontSize: 12, color: "rgba(255,255,255,0.5)", width: 100 }}>Price</th>
-                        <th style={{ padding: "8px", textAlign: "right",  fontSize: 12, color: "rgba(255,255,255,0.5)", width: 100 }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoice.items.map(item => (
-                        <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                          <td style={{ padding: "12px 8px" }}>
-                            <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{item.name}</div>
-                            {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{item.sku}</div>}
-                            {item.description && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4, whiteSpace: "pre-wrap" }}>{item.description}</div>}
-                          </td>
-                          <td style={{ padding: "12px 8px", textAlign: "center", color: "rgba(255,255,255,0.7)" }}>{item.quantity}</td>
-                          <td style={{ padding: "12px 8px", textAlign: "right",  color: "rgba(255,255,255,0.7)" }}>{formatCurrency(item.unitPrice)}</td>
-                          <td style={{ padding: "12px 8px", textAlign: "right",  fontWeight: 500, color: "rgba(255,255,255,0.9)" }}>{formatCurrency(item.amount || item.quantity * item.unitPrice)}</td>
+                  <div className="invoice-line-table-wrap">
+                    <table className="invoice-soft-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                          <th style={{ padding: "8px", textAlign: "left",   fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Item</th>
+                          <th style={{ padding: "8px", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.5)", width: 80  }}>Qty</th>
+                          <th style={{ padding: "8px", textAlign: "right",  fontSize: 12, color: "rgba(255,255,255,0.5)", width: 100 }}>Price</th>
+                          <th style={{ padding: "8px", textAlign: "right",  fontSize: 12, color: "rgba(255,255,255,0.5)", width: 100 }}>Total</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.4)" }}>No items in this invoice</div>}
+                      </thead>
+                      <tbody>
+                        {invoice.items.map(item => (
+                          <tr key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            <td style={{ padding: "11px 8px" }}>
+                              <div style={{ fontWeight: 600, color: "rgba(255,255,255,0.92)" }}>{item.name}</div>
+                              {item.sku && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{item.sku}</div>}
+                              {item.description && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 3, whiteSpace: "pre-wrap" }}>{item.description}</div>}
+                            </td>
+                            <td style={{ padding: "11px 8px", textAlign: "center", color: "rgba(255,255,255,0.7)" }}>{item.quantity}</td>
+                            <td style={{ padding: "11px 8px", textAlign: "right",  color: "rgba(255,255,255,0.7)" }}>{formatCurrency(item.unitPrice)}</td>
+                            <td style={{ padding: "11px 8px", textAlign: "right",  fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>{formatCurrency(item.amount || item.quantity * item.unitPrice)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : <div style={{ textAlign: "center", padding: "28px 0", color: "rgba(255,255,255,0.4)" }}>No items in this invoice</div>}
               </div>
 
               {/* Payment Schedule */}
