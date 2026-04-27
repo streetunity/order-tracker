@@ -18,9 +18,9 @@ const fmt  = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency
 const fmtP = (v) => `${(v || 0).toFixed(1)}%`;
 
 const STAT = ({ label, value, color }) => (
-  <div style={{ background: "linear-gradient(180deg,#202020,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "17px 20px", flex: 1, boxShadow: "0 20px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
-    <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>{label}</div>
-    <div style={{ fontSize: 24, fontWeight: 700, color: color || "rgba(255,255,255,0.88)", letterSpacing: "-0.3px" }}>{value}</div>
+  <div style={{ background: "linear-gradient(180deg,#1f1f1f,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "15px 18px", flex: 1, boxShadow: "0 16px 36px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+    <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 7 }}>{label}</div>
+    <div style={{ fontSize: 23, fontWeight: 700, color: color || "rgba(255,255,255,0.88)", letterSpacing: "-0.3px" }}>{value}</div>
   </div>
 );
 
@@ -81,17 +81,17 @@ export default function ReportsPage() {
   };
 
   const TABLE = ({ headers, rows }) => (
-    <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", marginTop: 20, boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+    <div style={{ background: "linear-gradient(180deg,#1f1f1f,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, overflow: "hidden", marginTop: 16, boxShadow: "0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
-            {headers.map((h, i) => <th key={i} style={{ padding: "10px 14px", textAlign: i > 0 ? "right" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>)}
+            {headers.map((h, i) => <th key={i} style={{ padding: "10px 13px", textAlign: i > 0 ? "right" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-              {row.map((cell, j) => <td key={j} style={{ padding: "12px 14px", textAlign: j > 0 ? "right" : "left", color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{cell}</td>)}
+              {row.map((cell, j) => <td key={j} style={{ padding: "11px 13px", textAlign: j > 0 ? "right" : "left", color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{cell}</td>)}
             </tr>
           ))}
         </tbody>
@@ -109,13 +109,13 @@ export default function ReportsPage() {
         const { pipeline = [], summary = {} } = reportData;
         return (
           <>
-            <div style={{ display: "flex", gap: 14, marginBottom: 24 }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
               <STAT label="Total Pipeline"  value={fmt(summary.totalValue)} color="#dc2626" />
               <STAT label="Total Estimates" value={summary.totalCount || 0} />
               <STAT label="Avg Deal Size"   value={fmt(summary.avgValue)} />
             </div>
             {pipeline.filter(s => s.count > 0).map(stage => (
-              <div key={stage.status} style={{ marginBottom: 14, background: "linear-gradient(180deg,#202020,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "15px 18px", boxShadow: "0 20px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+              <div key={stage.status} style={{ marginBottom: 12, background: "linear-gradient(180deg,#1f1f1f,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 16px", boxShadow: "0 16px 36px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{stage.status}</span>
                   <div style={{ textAlign: "right" }}>
@@ -263,8 +263,8 @@ export default function ReportsPage() {
         </div>
 
         {/* Main */}
-        <div className="rpt-main" style={{ flex: 1, overflowY: "auto", padding: "28px 32px 60px" }}>
-          <div style={{ marginBottom: 24 }}>
+        <div className="rpt-main" style={{ flex: 1, overflowY: "auto", padding: "24px 24px 48px" }}>
+          <div style={{ marginBottom: 18 }}>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>{activeReportInfo?.name}</h1>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>{activeReportInfo?.description}</p>
           </div>

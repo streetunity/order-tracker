@@ -75,7 +75,7 @@ function SaveBar({ hasChanges, saving, onSave, msg }) {
 
 const INP  = { width: "100%", padding: "9px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.9)", fontSize: 13, boxSizing: "border-box", outline: "none" };
 const LBL  = { display: "block", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 5 };
-const CARD = { background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 24, marginBottom: 20 };
+const CARD = { background: "linear-gradient(180deg,#1f1f1f,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 18, marginBottom: 14, boxShadow: "0 16px 36px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.07)" };
 const HINT = { fontSize: 11, color: "rgba(255,255,255,0.28)", marginTop: 4 };
 
 export default function UnifiedSettingsPage() {
@@ -464,7 +464,7 @@ export default function UnifiedSettingsPage() {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, minWidth: 0, padding: "32px 36px 80px", overflowX: "hidden" }}>
+        <div style={{ flex: 1, minWidth: 0, padding: "24px 24px 56px", overflowX: "hidden" }}>
           <div style={{ marginBottom: 28 }}>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{TABS.find(t => t.id === activeTab)?.label}</h1>
             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", margin: 0 }}>System-wide configuration for Stealth Machine Tools</p>

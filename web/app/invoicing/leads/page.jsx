@@ -117,8 +117,8 @@ export default function LeadsPage() {
 
   if (authLoading || !user) return null;
 
-  const activeRedBtn = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid rgba(220,38,38,0.3)", background: "rgba(220,38,38,0.1)", color: "#dc2626" };
-  const inactiveBtn  = { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 400, cursor: "pointer", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.5)" };
+  const activeRedBtn = { padding: "6px 13px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid rgba(220,38,38,0.34)", background: "linear-gradient(180deg,rgba(220,38,38,0.16),rgba(220,38,38,0.08))", color: "#ff4b4b", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)" };
+  const inactiveBtn  = { padding: "6px 13px", borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: "pointer", border: "1px solid rgba(255,255,255,0.09)", background: "linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))", color: "rgba(255,255,255,0.52)" };
 
   return (
     <>
@@ -126,21 +126,22 @@ export default function LeadsPage() {
       <style>{`
         .leads-row-tr { border-bottom: 1px solid rgba(255,255,255,0.06); cursor: pointer; transition: background 0.14s, box-shadow 0.14s; }
         .leads-row-tr:hover { background: linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03)); box-shadow: inset 3px 0 0 rgba(255,75,75,0.72); }
+        .lead-action-btn { box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 18px rgba(0,0,0,0.18); }
       `}</style>
 
-      <div style={{ minHeight: "calc(100vh - 64px)", background: "radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f", padding: "32px 32px 60px" }}>
+      <div style={{ minHeight: "calc(100vh - 64px)", background: "radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f", padding: "24px 24px 48px" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>Leads</h1>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>Manage your sales pipeline and convert leads to customers</p>
           </div>
-          <Link href="/invoicing/leads/new" style={{ padding: "8px 17px", background: "linear-gradient(180deg,rgba(255,75,75,0.24),rgba(220,38,38,0.12))", border: "1px solid rgba(255,75,75,0.46)", borderRadius: 8, color: "#ff5a5a", textDecoration: "none", fontWeight: 600, fontSize: 13, boxShadow: "0 14px 30px rgba(0,0,0,0.36), 0 0 18px rgba(220,38,38,0.08), inset 0 1px 0 rgba(255,255,255,0.12)" }}>+ New Lead</Link>
+          <Link href="/invoicing/leads/new" style={{ padding: "8px 16px", background: "linear-gradient(180deg,rgba(255,75,75,0.24),rgba(220,38,38,0.12))", border: "1px solid rgba(255,75,75,0.46)", borderRadius: 7, color: "#ff5a5a", textDecoration: "none", fontWeight: 600, fontSize: 13, boxShadow: "0 12px 24px rgba(0,0,0,0.32), 0 0 18px rgba(220,38,38,0.08), inset 0 1px 0 rgba(255,255,255,0.12)" }}>+ New Lead</Link>
         </div>
 
         {/* Status Tabs */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
           {["ALL", "NEW", "CONTACTED", "QUALIFIED", "CONVERTED", "LOST"].map(status => {
             const sc = STATUS_COLORS[status];
             const isActive = statusFilter === status;
@@ -149,7 +150,7 @@ export default function LeadsPage() {
               <button key={status} onClick={() => setStatusFilter(status)}
                 style={isAll
                   ? (isActive ? activeRedBtn : inactiveBtn)
-                  : { padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: isActive ? 600 : 400, cursor: "pointer", border: `1px solid ${isActive ? sc.border : 'rgba(255,255,255,0.08)'}`, background: isActive ? sc.bg : 'rgba(255,255,255,0.03)', color: isActive ? sc.text : 'rgba(255,255,255,0.5)' }
+                  : { padding: "6px 13px", borderRadius: 6, fontSize: 12, fontWeight: isActive ? 600 : 500, cursor: "pointer", border: `1px solid ${isActive ? sc.border : 'rgba(255,255,255,0.09)'}`, background: isActive ? sc.bg : 'linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))', color: isActive ? sc.text : 'rgba(255,255,255,0.52)', boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }
                 }
               >
                 {status} <span style={{ opacity: 0.65, fontSize: 11 }}>({statusCounts[status] || 0})</span>
@@ -167,35 +168,35 @@ export default function LeadsPage() {
         {loading ? (
           <div style={{ color: "rgba(255,255,255,0.3)", padding: "60px 0", textAlign: "center", fontSize: 14 }}>Loading leads&hellip;</div>
         ) : leads.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 0", background: "#141414", borderRadius: 12, border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div style={{ textAlign: "center", padding: "64px 0", background: "linear-gradient(180deg,#1b1b1b,#121212)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 18px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
             <div style={{ fontSize: 44, marginBottom: 14 }}>📋</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>No leads found</div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginBottom: 20 }}>Add your first lead to start tracking your pipeline</div>
             <Link href="/invoicing/leads/new" style={{ padding: "8px 18px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>+ Create First Lead</Link>
           </div>
         ) : (
-          <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+          <div style={{ background: "linear-gradient(180deg,#1f1f1f,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, overflow: "hidden", boxShadow: "0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
                   {["Src", "Name", "Contact", "Company", "Status", "Assigned", "Created", ""].map((h, i) => (
-                    <th key={i} style={{ padding: "11px 14px", textAlign: i === 7 ? "right" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>
+                    <th key={i} style={{ padding: "10px 13px", textAlign: i === 7 ? "right" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {leads.map(lead => (
                   <tr key={lead.id} className="leads-row-tr" onClick={() => router.push(`/invoicing/leads/${lead.id}`)}>
-                    <td style={{ padding: "13px 14px", fontSize: 16 }} title={lead.source}>
+                    <td style={{ padding: "11px 13px", fontSize: 15 }} title={lead.source}>
                       {sourceIcon(lead.source)}
                     </td>
-                    <td style={{ padding: "13px 14px" }}><div style={{ fontWeight: 600, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{lead.firstName} {lead.lastName}</div></td>
-                    <td style={{ padding: "13px 14px" }}>
+                    <td style={{ padding: "11px 13px" }}><div style={{ fontWeight: 600, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{lead.firstName} {lead.lastName}</div></td>
+                    <td style={{ padding: "11px 13px" }}>
                       <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 13 }}>{lead.email}</div>
                       {lead.phone && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{lead.phone}</div>}
                     </td>
-                    <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{lead.company || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&mdash;</span>}</td>
-                    <td style={{ padding: "13px 14px" }} onClick={e => e.stopPropagation()}>
+                    <td style={{ padding: "11px 13px", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{lead.company || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&mdash;</span>}</td>
+                    <td style={{ padding: "11px 13px" }} onClick={e => e.stopPropagation()}>
                       <select value={lead.status} onChange={e => handleStatusChange(lead, e.target.value)} disabled={lead.status === "CONVERTED"}
                         style={{ padding: "4px 8px", background: STATUS_COLORS[lead.status]?.bg || "rgba(255,255,255,0.07)", border: `1px solid ${STATUS_COLORS[lead.status]?.border || "rgba(255,255,255,0.15)"}`, borderRadius: 5, color: STATUS_COLORS[lead.status]?.text || "#fff", fontSize: 11, fontWeight: 600, cursor: lead.status === "CONVERTED" ? "not-allowed" : "pointer", letterSpacing: '0.3px' }}>
                         <option value="NEW">NEW</option>
@@ -205,9 +206,9 @@ export default function LeadsPage() {
                         <option value="LOST">LOST</option>
                       </select>
                     </td>
-                    <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{lead.assignedTo?.name || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&mdash;</span>}</td>
-                    <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.35)", fontSize: 12 }}>{new Date(lead.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                    <td style={{ padding: "13px 14px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                    <td style={{ padding: "11px 13px", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>{lead.assignedTo?.name || <span style={{ color: 'rgba(255,255,255,0.2)' }}>&mdash;</span>}</td>
+                    <td style={{ padding: "11px 13px", color: "rgba(255,255,255,0.35)", fontSize: 12 }}>{new Date(lead.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                    <td style={{ padding: "11px 13px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                         {lead.status !== "CONVERTED" && lead.status !== "LOST" && (
                           <button onClick={() => handleConvert(lead)} style={{ padding: "5px 10px", background: "rgba(147,51,234,0.1)", border: "1px solid rgba(147,51,234,0.3)", borderRadius: 5, color: "#a78bfa", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Convert</button>

@@ -178,13 +178,13 @@ export default function ProductsPage() {
   const tabBtn = (id, label, count) => {
     const active = activeTab === id;
     return (
-      <button onClick={() => setActiveTab(id)} style={{ padding: "6px 14px", background: active ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${active ? "rgba(220,38,38,0.3)" : "rgba(255,255,255,0.08)"}`, borderRadius: 6, color: active ? "#dc2626" : "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", transition: "all 0.12s" }}>
+      <button onClick={() => setActiveTab(id)} style={{ padding: "6px 13px", background: active ? "linear-gradient(180deg,rgba(220,38,38,0.16),rgba(220,38,38,0.08))" : "linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.02))", border: `1px solid ${active ? "rgba(220,38,38,0.34)" : "rgba(255,255,255,0.09)"}`, borderRadius: 6, color: active ? "#ff4b4b" : "rgba(255,255,255,0.52)", fontSize: 12, fontWeight: active ? 600 : 500, cursor: "pointer", transition: "all 0.12s", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
         {label} <span style={{ opacity: 0.65, fontSize: 11 }}>({count})</span>
       </button>
     );
   };
 
-  const TH = (label, align = "left") => <th style={{ padding: "11px 14px", textAlign: align, fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{label}</th>;
+  const TH = (label, align = "left") => <th style={{ padding: "10px 13px", textAlign: align, fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{label}</th>;
 
   return (
     <>
@@ -200,9 +200,9 @@ export default function ProductsPage() {
         .files-btn.has-files { border-color: rgba(59,130,246,0.35); color: #93c5fd; font-weight: 600; }
       `}</style>
 
-      <div style={{ minHeight: "calc(100vh - 64px)", background: "radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f", padding: "32px 32px 60px" }}>
+      <div style={{ minHeight: "calc(100vh - 64px)", background: "radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f", padding: "24px 24px 48px" }}>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.3px" }}>Products &amp; Bundles</h1>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>
@@ -210,7 +210,7 @@ export default function ProductsPage() {
             </p>
           </div>
           <button onClick={activeTab === "products" ? openNewProductModal : openNewBundleModal}
-            style={{ padding: "8px 17px", background: "linear-gradient(180deg,rgba(255,75,75,0.24),rgba(220,38,38,0.12))", border: "1px solid rgba(255,75,75,0.46)", borderRadius: 8, color: "#ff5a5a", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 14px 30px rgba(0,0,0,0.36), 0 0 18px rgba(220,38,38,0.08), inset 0 1px 0 rgba(255,255,255,0.12)" }}>
+            style={{ padding: "8px 16px", background: "linear-gradient(180deg,rgba(255,75,75,0.24),rgba(220,38,38,0.12))", border: "1px solid rgba(255,75,75,0.46)", borderRadius: 7, color: "#ff5a5a", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 12px 24px rgba(0,0,0,0.32), 0 0 18px rgba(220,38,38,0.08), inset 0 1px 0 rgba(255,255,255,0.12)" }}>
             + New {activeTab === "products" ? "Product" : "Bundle"}
           </button>
         </div>
@@ -222,14 +222,14 @@ export default function ProductsPage() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
           {tabBtn("products", "Products", products.length)}
           {tabBtn("bundles",  "Bundles",  bundles.length)}
         </div>
 
         {activeTab === "products" && (
           <>
-            <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 9, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
               <input type="text" placeholder="Search products..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="prod-search" style={{ width: 260 }} />
               <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} style={{ ...INP, width: 160, background: "linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.055))", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 20px rgba(0,0,0,0.2)" }}>
                 {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -238,7 +238,7 @@ export default function ProductsPage() {
                 <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> Show Inactive
               </label>
             </div>
-            <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+            <div style={{ background: "linear-gradient(180deg,#1f1f1f,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, overflow: "hidden", boxShadow: "0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
@@ -252,18 +252,18 @@ export default function ProductsPage() {
                     const fileCount = p.attachments?.length || 0;
                     return (
                       <tr key={p.id} className="prod-row" style={{ opacity: p.isActive ? 1 : 0.5 }}>
-                        <td style={{ padding: "13px 14px", fontWeight: 600, color: "rgba(255,255,255,0.85)", fontSize: 13, fontFamily: "monospace" }}>{p.sku}</td>
-                        <td style={{ padding: "13px 14px" }}>
+                        <td style={{ padding: "11px 13px", fontWeight: 600, color: "rgba(255,255,255,0.85)", fontSize: 13, fontFamily: "monospace" }}>{p.sku}</td>
+                        <td style={{ padding: "11px 13px" }}>
                           <div style={{ fontWeight: 500, color: "rgba(255,255,255,0.85)", fontSize: 13 }}>{p.name}</div>
                           {p.description && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</div>}
                         </td>
-                        <td style={{ padding: "13px 14px", color: "rgba(255,255,255,0.55)", fontSize: 13, textTransform: "capitalize" }}>{p.category || <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
-                        <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{fmt(p.price)}</td>
-                        <td style={{ padding: "13px 14px", textAlign: "right", color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{p.cost ? fmt(p.cost) : <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
-                        <td style={{ padding: "13px 14px", textAlign: "right", fontSize: 13 }}>
+                        <td style={{ padding: "11px 13px", color: "rgba(255,255,255,0.55)", fontSize: 13, textTransform: "capitalize" }}>{p.category || <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
+                        <td style={{ padding: "11px 13px", textAlign: "right", fontWeight: 700, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{fmt(p.price)}</td>
+                        <td style={{ padding: "11px 13px", textAlign: "right", color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{p.cost ? fmt(p.cost) : <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}</td>
+                        <td style={{ padding: "11px 13px", textAlign: "right", fontSize: 13 }}>
                           {p.marginPercent ? <span style={{ color: parseFloat(p.marginPercent) >= 20 ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>{p.marginPercent}%</span> : <span style={{ color: "rgba(255,255,255,0.2)" }}>&#8212;</span>}
                         </td>
-                        <td style={{ padding: "13px 14px", textAlign: "center" }}>
+                        <td style={{ padding: "11px 13px", textAlign: "center" }}>
                           <Link
                             href={`/invoicing/products/${p.id}`}
                             className={`files-btn${fileCount > 0 ? ' has-files' : ''}`}
@@ -272,12 +272,12 @@ export default function ProductsPage() {
                             {fileCount > 0 ? `${fileCount} file${fileCount !== 1 ? 's' : ''}` : '+ Files'}
                           </Link>
                         </td>
-                        <td style={{ padding: "13px 14px", textAlign: "center" }}>
+                        <td style={{ padding: "11px 13px", textAlign: "center" }}>
                           <span style={{ padding: "3px 9px", borderRadius: 5, fontSize: 11, fontWeight: 600, letterSpacing: "0.3px", background: p.isActive ? "rgba(34,197,94,0.1)" : "rgba(156,163,175,0.1)", border: p.isActive ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(156,163,175,0.3)", color: p.isActive ? "#22c55e" : "#9ca3af" }}>
                             {p.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td style={{ padding: "13px 14px", textAlign: "right" }}>
+                        <td style={{ padding: "11px 13px", textAlign: "right" }}>
                           <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                             <button onClick={() => openEditProductModal(p)} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", fontSize: 12, cursor: "pointer" }}>Edit</button>
                             {p.isActive && <button onClick={() => confirmDeactivateProduct(p)} style={{ padding: "5px 11px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6, color: "#f87171", fontSize: 12, cursor: "pointer" }}>Deactivate</button>}
@@ -294,13 +294,13 @@ export default function ProductsPage() {
 
         {activeTab === "bundles" && (
           <>
-            <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 9, marginBottom: 16, alignItems: "center" }}>
               <input type="text" placeholder="Search bundles..." value={bundleSearchTerm} onChange={e => setBundleSearchTerm(e.target.value)} className="prod-search" style={{ width: 260 }} />
               <label style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.55)", fontSize: 13, cursor: "pointer" }}>
                 <input type="checkbox" checked={showBundleInactive} onChange={e => setShowBundleInactive(e.target.checked)} /> Show Inactive
               </label>
             </div>
-            <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+            <div style={{ background: "linear-gradient(180deg,#1f1f1f,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, overflow: "hidden", boxShadow: "0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
@@ -314,18 +314,18 @@ export default function ProductsPage() {
                     </td></tr>
                   ) : filteredBundles.map(b => (
                     <tr key={b.id} className="prod-row" style={{ opacity: b.isActive ? 1 : 0.5 }}>
-                      <td style={{ padding: "13px 14px" }}>
+                      <td style={{ padding: "11px 13px" }}>
                         <div style={{ fontWeight: 600, color: "rgba(255,255,255,0.88)", fontSize: 13 }}>{b.name}</div>
                         {b.description && <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2, maxWidth: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.description}</div>}
                       </td>
-                      <td style={{ padding: "13px 14px", textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{b.itemCount || b.items?.length || 0}</td>
-                      <td style={{ padding: "13px 14px", textAlign: "right", fontWeight: 700, color: "#dc2626", fontSize: 13 }}>{fmt(b.price)}</td>
-                      <td style={{ padding: "13px 14px", textAlign: "center" }}>
+                      <td style={{ padding: "11px 13px", textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 13 }}>{b.itemCount || b.items?.length || 0}</td>
+                      <td style={{ padding: "11px 13px", textAlign: "right", fontWeight: 700, color: "#dc2626", fontSize: 13 }}>{fmt(b.price)}</td>
+                      <td style={{ padding: "11px 13px", textAlign: "center" }}>
                         <span style={{ padding: "3px 9px", borderRadius: 5, fontSize: 11, fontWeight: 600, letterSpacing: "0.3px", background: b.isActive ? "rgba(34,197,94,0.1)" : "rgba(156,163,175,0.1)", border: b.isActive ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(156,163,175,0.3)", color: b.isActive ? "#22c55e" : "#9ca3af" }}>
                           {b.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td style={{ padding: "13px 14px", textAlign: "right" }}>
+                      <td style={{ padding: "11px 13px", textAlign: "right" }}>
                         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                           <button onClick={() => openEditBundleModal(b)} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, color: "rgba(255,255,255,0.7)", fontSize: 12, cursor: "pointer" }}>Edit</button>
                           {b.isActive

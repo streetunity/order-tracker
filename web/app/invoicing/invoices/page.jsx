@@ -110,7 +110,7 @@ export default function InvoicesPage() {
         .isb-item-bal.owed{color:#f59e0b;font-weight:600}
         .isb-item-status{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.3px}
         .isb-count{padding:8px 14px;font-size:11px;color:rgba(255,255,255,0.34);text-align:center;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0;background:linear-gradient(180deg,rgba(255,255,255,0.025),rgba(0,0,0,0.28))}
-        .inv-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px;background:radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f}
+        .inv-right{flex:1;min-width:0;overflow-y:auto;padding:20px 22px 48px;background:radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f}
         .inv-right::-webkit-scrollbar{width:8px}
         .inv-right::-webkit-scrollbar-track{background:transparent}
         .inv-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
@@ -168,21 +168,21 @@ export default function InvoicesPage() {
 
         {/* Main content */}
         <div className="inv-right">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <div>
               <h1 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: 0, marginBottom: 4, letterSpacing: "-0.3px" }}>Invoices</h1>
               <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, margin: 0 }}>Manage invoices and track payments</p>
             </div>
             <Link href="/invoicing/invoices/new" style={btnOutlinedRed}>+ New Invoice</Link>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 16 }}>
             {[
               { label: "Total Invoices",  value: invoices.length,       color: "rgba(255,255,255,0.85)" },
               { label: "Outstanding",     value: fmt(totalOutstanding), color: "#f59e0b" },
               { label: "Overdue",         value: fmt(totalOverdue),     color: "#ef4444" },
               { label: "Paid This Month", value: fmt(paidThisMonth),    color: "#22c55e" },
             ].map(s => (
-              <div key={s.label} style={{ background: "linear-gradient(180deg,#202020,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "17px 18px", boxShadow: "0 20px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+              <div key={s.label} style={{ background: "linear-gradient(180deg,#1f1f1f,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "15px 16px", boxShadow: "0 16px 36px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 7, fontWeight: 600 }}>{s.label}</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: s.color, letterSpacing: "-0.3px" }}>{s.value}</div>
               </div>
@@ -198,7 +198,7 @@ export default function InvoicesPage() {
               {!search && statusFilter === "all" && <Link href="/invoicing/invoices/new" style={btnOutlinedRed}>+ Create First Invoice</Link>}
             </div>
           ) : (
-            <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
+            <div style={{ background: "linear-gradient(180deg,#1f1f1f,#151515 48%,#111)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, overflow: "hidden", boxShadow: "0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
@@ -217,7 +217,7 @@ export default function InvoicesPage() {
                         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.boxShadow = "none"; }}
                         onClick={() => router.push(`/invoicing/invoices/${invoice.id}`)}
                       >
-                        <td style={{ padding: "13px 14px" }}><span style={{ fontFamily: "monospace", color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{invoice.invoiceNumber}</span></td>
+                        <td style={{ padding: "11px 13px" }}><span style={{ fontFamily: "monospace", color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{invoice.invoiceNumber}</span></td>
                         <td style={{ padding: "13px 14px" }}>
                           {invoice.customer ? (
                             <div>

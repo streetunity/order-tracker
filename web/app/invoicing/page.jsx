@@ -89,20 +89,20 @@ export default function InvoicingDashboard() {
 
   const greeting = () => { const h = new Date().getHours(); if (h < 12) return "Good morning"; if (h < 17) return "Good afternoon"; return "Good evening"; };
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  const actionBtn = { padding: "9px 16px", background: "linear-gradient(180deg,rgba(255,75,75,0.18),rgba(220,38,38,0.08))", border: "1px solid rgba(255,75,75,0.38)", borderRadius: 8, color: "#ff5a5a", textDecoration: "none", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, boxShadow: "0 12px 28px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.09)" };
+  const actionBtn = { padding: "8px 15px", background: "linear-gradient(180deg,rgba(255,75,75,0.18),rgba(220,38,38,0.08))", border: "1px solid rgba(255,75,75,0.38)", borderRadius: 7, color: "#ff5a5a", textDecoration: "none", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, boxShadow: "0 10px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.09)" };
 
   return (
     <>
       <InvoicingNav />
       <style>{`
         .dash-shell { min-height: calc(100vh - 64px); background: radial-gradient(circle at 12% 4%,rgba(220,38,38,0.12),transparent 390px),radial-gradient(circle at 74% 0%,rgba(255,255,255,0.045),transparent 520px),#0f0f0f; }
-        .dash-hero { background: linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025) 45%,rgba(220,38,38,0.055)); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 24px; margin-bottom: 26px; box-shadow: 0 28px 70px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.08); position: relative; overflow: hidden; }
+        .dash-hero { background: linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025) 45%,rgba(220,38,38,0.055)); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 22px 52px rgba(0,0,0,0.44), inset 0 1px 0 rgba(255,255,255,0.08); position: relative; overflow: hidden; }
         .dash-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg,rgba(220,38,38,0.22),transparent 34%); opacity: 0.32; pointer-events: none; }
         .dash-hero-content { position: relative; z-index: 1; }
-        .dash-stat-card { transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s; background: linear-gradient(180deg,#202020,#151515); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .dash-stat-card { transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s; background: linear-gradient(180deg,#1f1f1f,#151515); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 16px 36px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08); }
         .dash-stat-card:hover { transform: translateY(-3px); box-shadow: 0 28px 58px rgba(0,0,0,0.5), 0 0 0 1px rgba(220,38,38,0.16), inset 0 1px 0 rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.18); }
-        .dash-panel { background: linear-gradient(180deg,#202020,#151515 48%,#121212); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08); }
-        .dash-panel-head { padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.09); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg,rgba(255,255,255,0.055),rgba(0,0,0,0.12)); }
+        .dash-panel { background: linear-gradient(180deg,#1f1f1f,#151515 48%,#111); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; overflow: hidden; box-shadow: 0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .dash-panel-head { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.09); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg,rgba(255,255,255,0.055),rgba(0,0,0,0.12)); }
         .dash-row-link { transition: background 0.14s, box-shadow 0.14s; }
         .dash-row-link:hover { background: linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032)) !important; box-shadow: inset 3px 0 0 rgba(255,75,75,0.72); }
         .dash-nav-card { transition: all 0.15s; }
@@ -110,15 +110,15 @@ export default function InvoicingDashboard() {
       `}</style>
 
       <div className="dash-shell">
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 28px 60px" }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "24px 24px 48px" }}>
 
           <div className="dash-hero">
             <div className="dash-hero-content">
               {/* Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24, marginBottom: 24 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, marginBottom: 18 }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.42)", textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>{todayStr}</div>
-                  <h1 style={{ fontSize: 34, fontWeight: 800, color: "#fff", margin: "0 0 6px", letterSpacing: "-0.5px" }}>{greeting()}, {user.name?.split(" ")[0]}</h1>
+                  <h1 style={{ fontSize: 30, fontWeight: 800, color: "#fff", margin: "0 0 5px", letterSpacing: "-0.3px" }}>{greeting()}, {user.name?.split(" ")[0]}</h1>
                   <p style={{ color: "rgba(255,255,255,0.48)", fontSize: 14, margin: 0 }}>Pipeline, estimates, invoices, and new leads at a glance.</p>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -129,18 +129,18 @@ export default function InvoicingDashboard() {
               </div>
 
               {/* Stat Cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr 1fr 1fr", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr 1fr 1fr", gap: 12 }}>
                 {[
                   { label: "Total Pipeline",   value: fmt(stats?.totalPipeline),  sub: "Active estimate value",   color: "#ff4b4b", icon: "&#128200;", accent: "linear-gradient(180deg,rgba(220,38,38,0.18),rgba(220,38,38,0.065))" },
                   { label: "Open Estimates",   value: stats?.totalEstimates ?? 0, sub: "Awaiting response",        color: "rgba(255,255,255,0.94)", icon: "&#128203;", accent: "linear-gradient(180deg,#202020,#151515)" },
                   { label: "Pending Invoices", value: loading ? "\u2014" : pendingInvoices.length, sub: "Sent & awaiting payment", color: "#f59e0b", icon: "&#128179;", accent: "linear-gradient(180deg,rgba(245,158,11,0.12),rgba(245,158,11,0.045))" },
                   { label: "Avg Deal Size",    value: fmt(stats?.avgDealSize),    sub: "Per estimate",             color: "rgba(255,255,255,0.94)", icon: "&#127919;", accent: "linear-gradient(180deg,#202020,#151515)" },
                 ].map((s) => (
-                  <div key={s.label} className="dash-stat-card" style={{ background: s.accent, borderRadius: 14, padding: "22px 24px", position: "relative", overflow: "hidden" }}>
-                    <div style={{ position: "absolute", top: 18, right: 20, fontSize: 24, opacity: 0.38 }} dangerouslySetInnerHTML={{ __html: s.icon }} />
-                    <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.42)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 12 }}>{s.label}</div>
-                    <div style={{ fontSize: s.label === "Total Pipeline" ? 36 : 30, fontWeight: 800, color: s.color, letterSpacing: "-0.5px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>\u2014</span> : s.value}</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.34)", marginTop: 10 }}>{s.sub}</div>
+                  <div key={s.label} className="dash-stat-card" style={{ background: s.accent, borderRadius: 10, padding: "18px 20px", position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: 16, right: 18, fontSize: 22, opacity: 0.34 }} dangerouslySetInnerHTML={{ __html: s.icon }} />
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.42)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 10 }}>{s.label}</div>
+                    <div style={{ fontSize: s.label === "Total Pipeline" ? 32 : 27, fontWeight: 800, color: s.color, letterSpacing: "-0.4px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>\u2014</span> : s.value}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.34)", marginTop: 8 }}>{s.sub}</div>
                   </div>
                 ))}
               </div>
@@ -162,7 +162,7 @@ export default function InvoicingDashboard() {
           )}
 
           {/* Main Content Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             {/* Recent Leads */}
             <div className="dash-panel">
               <div className="dash-panel-head">
@@ -263,7 +263,7 @@ export default function InvoicingDashboard() {
           </div>
 
           {/* Quick Nav Strip */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginTop: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginTop: 16 }}>
             {[
               { href: "/invoicing/leads",     label: "Leads",     icon: "&#128229;" },
               { href: "/invoicing/customers", label: "Customers", icon: "&#128100;" },
