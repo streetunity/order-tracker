@@ -89,34 +89,61 @@ export default function InvoicingDashboard() {
 
   const greeting = () => { const h = new Date().getHours(); if (h < 12) return "Good morning"; if (h < 17) return "Good afternoon"; return "Good evening"; };
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  const actionBtn = { padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 5 };
+  const actionBtn = { padding: "9px 16px", background: "linear-gradient(180deg,rgba(255,75,75,0.18),rgba(220,38,38,0.08))", border: "1px solid rgba(255,75,75,0.38)", borderRadius: 8, color: "#ff5a5a", textDecoration: "none", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, boxShadow: "0 12px 28px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.09)" };
 
   return (
     <>
       <InvoicingNav />
       <style>{`
-        .dash-stat-card { transition: transform 0.15s, box-shadow 0.15s; }
-        .dash-stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-        .dash-row-link { transition: background 0.12s; }
-        .dash-row-link:hover { background: rgba(255,255,255,0.05) !important; }
+        .dash-shell { min-height: calc(100vh - 64px); background: radial-gradient(circle at 12% 4%,rgba(220,38,38,0.12),transparent 390px),radial-gradient(circle at 74% 0%,rgba(255,255,255,0.045),transparent 520px),#0f0f0f; }
+        .dash-hero { background: linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.025) 45%,rgba(220,38,38,0.055)); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 24px; margin-bottom: 26px; box-shadow: 0 28px 70px rgba(0,0,0,0.48), inset 0 1px 0 rgba(255,255,255,0.08); position: relative; overflow: hidden; }
+        .dash-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg,rgba(220,38,38,0.22),transparent 34%); opacity: 0.32; pointer-events: none; }
+        .dash-hero-content { position: relative; z-index: 1; }
+        .dash-stat-card { transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s; background: linear-gradient(180deg,#202020,#151515); border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 18px 42px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .dash-stat-card:hover { transform: translateY(-3px); box-shadow: 0 28px 58px rgba(0,0,0,0.5), 0 0 0 1px rgba(220,38,38,0.16), inset 0 1px 0 rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.18); }
+        .dash-panel { background: linear-gradient(180deg,#202020,#151515 48%,#121212); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .dash-panel-head { padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.09); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg,rgba(255,255,255,0.055),rgba(0,0,0,0.12)); }
+        .dash-row-link { transition: background 0.14s, box-shadow 0.14s; }
+        .dash-row-link:hover { background: linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032)) !important; box-shadow: inset 3px 0 0 rgba(255,75,75,0.72); }
         .dash-nav-card { transition: all 0.15s; }
-        .dash-nav-card:hover { background: rgba(255,255,255,0.06) !important; border-color: rgba(220,38,38,0.3) !important; }
+        .dash-nav-card:hover { background: linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04)) !important; border-color: rgba(255,75,75,0.42) !important; box-shadow: 0 16px 34px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08); transform: translateY(-2px); }
       `}</style>
 
-      <div style={{ minHeight: "calc(100vh - 64px)", background: "#0f0f0f" }}>
+      <div className="dash-shell">
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 28px 60px" }}>
 
-          {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 6 }}>{todayStr}</div>
-              <h1 style={{ fontSize: 30, fontWeight: 700, color: "#fff", margin: "0 0 4px", letterSpacing: "-0.5px" }}>{greeting()}, {user.name?.split(" ")[0]}</h1>
-              <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, margin: 0 }}>Here&#8217;s what&#8217;s happening with your pipeline today.</p>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Link href="/invoicing/leads/new"     style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> New Lead</Link>
-              <Link href="/invoicing/estimates/new" style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Estimate</Link>
-              <Link href="/invoicing/invoices/new"  style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Invoice</Link>
+          <div className="dash-hero">
+            <div className="dash-hero-content">
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24, marginBottom: 24 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.42)", textTransform: "uppercase", letterSpacing: "1.2px", marginBottom: 8 }}>{todayStr}</div>
+                  <h1 style={{ fontSize: 34, fontWeight: 800, color: "#fff", margin: "0 0 6px", letterSpacing: "-0.5px" }}>{greeting()}, {user.name?.split(" ")[0]}</h1>
+                  <p style={{ color: "rgba(255,255,255,0.48)", fontSize: 14, margin: 0 }}>Pipeline, estimates, invoices, and new leads at a glance.</p>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <Link href="/invoicing/leads/new"     style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> New Lead</Link>
+                  <Link href="/invoicing/estimates/new" style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Estimate</Link>
+                  <Link href="/invoicing/invoices/new"  style={actionBtn}><span style={{ fontSize: 15, lineHeight: 1 }}>+</span> Invoice</Link>
+                </div>
+              </div>
+
+              {/* Stat Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr 1fr 1fr", gap: 16 }}>
+                {[
+                  { label: "Total Pipeline",   value: fmt(stats?.totalPipeline),  sub: "Active estimate value",   color: "#ff4b4b", icon: "&#128200;", accent: "linear-gradient(180deg,rgba(220,38,38,0.18),rgba(220,38,38,0.065))" },
+                  { label: "Open Estimates",   value: stats?.totalEstimates ?? 0, sub: "Awaiting response",        color: "rgba(255,255,255,0.94)", icon: "&#128203;", accent: "linear-gradient(180deg,#202020,#151515)" },
+                  { label: "Pending Invoices", value: loading ? "\u2014" : pendingInvoices.length, sub: "Sent & awaiting payment", color: "#f59e0b", icon: "&#128179;", accent: "linear-gradient(180deg,rgba(245,158,11,0.12),rgba(245,158,11,0.045))" },
+                  { label: "Avg Deal Size",    value: fmt(stats?.avgDealSize),    sub: "Per estimate",             color: "rgba(255,255,255,0.94)", icon: "&#127919;", accent: "linear-gradient(180deg,#202020,#151515)" },
+                ].map((s) => (
+                  <div key={s.label} className="dash-stat-card" style={{ background: s.accent, borderRadius: 14, padding: "22px 24px", position: "relative", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", top: 18, right: 20, fontSize: 24, opacity: 0.38 }} dangerouslySetInnerHTML={{ __html: s.icon }} />
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.42)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 12 }}>{s.label}</div>
+                    <div style={{ fontSize: s.label === "Total Pipeline" ? 36 : 30, fontWeight: 800, color: s.color, letterSpacing: "-0.5px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>\u2014</span> : s.value}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.34)", marginTop: 10 }}>{s.sub}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -134,28 +161,11 @@ export default function InvoicingDashboard() {
             </div>
           )}
 
-          {/* Stat Cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
-            {[
-              { label: "Total Pipeline",   value: fmt(stats?.totalPipeline),  sub: "Active estimate value",   color: "#dc2626", icon: "&#128200;", accent: "rgba(220,38,38,0.08)" },
-              { label: "Open Estimates",   value: stats?.totalEstimates ?? 0, sub: "Awaiting response",        color: "rgba(255,255,255,0.9)", icon: "&#128203;", accent: "rgba(255,255,255,0.03)" },
-              { label: "Pending Invoices", value: loading ? "\u2014" : pendingInvoices.length, sub: "Sent & awaiting payment", color: "#f59e0b", icon: "&#128179;", accent: "rgba(245,158,11,0.06)" },
-              { label: "Avg Deal Size",    value: fmt(stats?.avgDealSize),    sub: "Per estimate",             color: "rgba(255,255,255,0.9)", icon: "&#127919;", accent: "rgba(255,255,255,0.03)" },
-            ].map((s) => (
-              <div key={s.label} className="dash-stat-card" style={{ background: s.accent, border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "22px 24px", position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", top: 18, right: 20, fontSize: 22, opacity: 0.35 }} dangerouslySetInnerHTML={{ __html: s.icon }} />
-                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 10 }}>{s.label}</div>
-                <div style={{ fontSize: 30, fontWeight: 700, color: s.color, letterSpacing: "-0.5px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>\u2014</span> : s.value}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginTop: 8 }}>{s.sub}</div>
-              </div>
-            ))}
-          </div>
-
           {/* Main Content Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
             {/* Recent Leads */}
-            <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ padding: "18px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="dash-panel">
+              <div className="dash-panel-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 3, height: 14, background: "#dc2626", borderRadius: 2 }} />
                   <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Recent Leads</span>
@@ -184,8 +194,8 @@ export default function InvoicingDashboard() {
             </div>
 
             {/* Recent Estimates */}
-            <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ padding: "18px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="dash-panel">
+              <div className="dash-panel-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 3, height: 14, background: "#dc2626", borderRadius: 2 }} />
                   <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Recent Estimates</span>
@@ -217,8 +227,8 @@ export default function InvoicingDashboard() {
             </div>
 
             {/* Pending Invoices */}
-            <div style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, overflow: "hidden" }}>
-              <div style={{ padding: "18px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="dash-panel">
+              <div className="dash-panel-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 3, height: 14, background: "#dc2626", borderRadius: 2 }} />
                   <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Pending Invoices</span>
@@ -261,7 +271,7 @@ export default function InvoicingDashboard() {
               { href: "/invoicing/invoices",  label: "Invoices",  icon: "&#128179;" },
               { href: "/invoicing/products",  label: "Products",  icon: "&#128230;" },
             ].map(({ href, label, icon }) => (
-              <Link key={href} href={href} className="dash-nav-card" style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, textDecoration: "none", color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 500 }}>
+              <Link key={href} href={href} className="dash-nav-card" style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: "linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.024))", border: "1px solid rgba(255,255,255,0.11)", borderRadius: 10, textDecoration: "none", color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, boxShadow: "0 10px 24px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
                 <span style={{ fontSize: 18 }} dangerouslySetInnerHTML={{ __html: icon }} />
                 <span>{label} &#8594;</span>
               </Link>
