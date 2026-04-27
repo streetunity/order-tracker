@@ -326,6 +326,16 @@ export default function CommissionsPage() {
   return (
     <>
       <TopNav />
+      <style>{`
+        .commission-polish-table tbody tr {
+          transition: background 0.14s, box-shadow 0.14s;
+        }
+        .commission-polish-table tbody tr:hover {
+          background: linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));
+          box-shadow: inset 3px 0 0 rgba(220,38,38,0.65);
+        }
+      `}</style>
+      <div style={{ minHeight: "calc(100vh - 60px)", background: "radial-gradient(circle at 12% 0%,rgba(220,38,38,0.07),transparent 420px)" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px 24px 40px" }}>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
@@ -333,24 +343,24 @@ export default function CommissionsPage() {
         </div>
 
         {/* Tab bar + Generate Report */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 30, borderBottom: "2px solid #333" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 30, borderBottom: "1px solid rgba(255,255,255,0.12)", background: "linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.08))", borderRadius: 10, padding: "8px 10px 0", boxShadow: "0 12px 28px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
           <div style={{ display: "flex", gap: 4 }}>
             {TABS.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                padding: "12px 20px", background: "none",
-                color: activeTab === tab ? "#dc2626" : "#999",
-                border: "none",
+                padding: "10px 18px", background: activeTab === tab ? "linear-gradient(180deg,rgba(220,38,38,0.16),rgba(220,38,38,0.07))" : "transparent",
+                color: activeTab === tab ? "#ff4b4b" : "#999",
+                border: activeTab === tab ? "1px solid rgba(255,75,75,0.32)" : "1px solid transparent",
                 borderBottom: activeTab === tab ? "2px solid #dc2626" : "2px solid transparent",
-                cursor: "pointer", fontSize: 14, marginBottom: "-2px", textTransform: "capitalize",
+                borderRadius: "7px 7px 0 0", cursor: "pointer", fontSize: 14, marginBottom: "-1px", textTransform: "capitalize",
               }}>
                 {tab === "settings" ? "⚙️ Settings" : tab}
               </button>
             ))}
           </div>
           <button onClick={() => setShowPdfModal(true)} style={{
-            padding: "7px 16px", background: "rgba(220,38,38,0.08)", color: "#dc2626",
-            border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7,
-            cursor: "pointer", fontSize: 13, fontWeight: 600, marginBottom: 8,
+            padding: "7px 16px", background: "linear-gradient(180deg,rgba(255,75,75,0.2),rgba(220,38,38,0.09))", color: "#ff5a5a",
+            border: "1px solid rgba(255,75,75,0.4)", borderRadius: 7,
+            cursor: "pointer", fontSize: 13, fontWeight: 600, marginBottom: 8, boxShadow: "0 12px 26px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08)",
           }}>Generate Report</button>
         </div>
 
@@ -363,7 +373,7 @@ export default function CommissionsPage() {
               <div>
                 <div style={{ marginBottom: 20, color: "#999" }}>{flaggedCommissions.length} commissions need attention</div>
                 {flaggedCommissions.map(commission => (
-                  <div key={commission.id} style={{ background: "#1a1a1a", border: isPaymentDenied(commission.flagReason) ? "1px solid #dc2626" : "1px solid #333", borderRadius: 8, padding: 20, marginBottom: 16 }}>
+                  <div key={commission.id} style={{ background: "linear-gradient(180deg,#202020,#151515)", border: isPaymentDenied(commission.flagReason) ? "1px solid #dc2626" : "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 20, marginBottom: 16, boxShadow: "0 16px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                       <div style={{ flex: 1 }}>
                         <h3 style={{ color: isPaymentDenied(commission.flagReason) ? "#dc2626" : "#f59e0b", marginBottom: 8 }}>
@@ -410,8 +420,8 @@ export default function CommissionsPage() {
                   <div>Total pending: {formatCurrency(payoutGroups.reduce((s, g) => s + g.total, 0))}</div>
                 </div>
                 {payoutGroups.map(group => (
-                  <div key={group.salesPerson} style={{ background: "#1a1a1a", borderRadius: 8, border: "1px solid #333", marginBottom: 20, overflow: "hidden" }}>
-                    <div onClick={() => toggleGroup(group.salesPerson)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 20, cursor: "pointer", background: expandedGroups.has(group.salesPerson) ? "#252525" : "transparent" }}>
+                  <div key={group.salesPerson} style={{ background: "linear-gradient(180deg,#202020,#151515)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", marginBottom: 20, overflow: "hidden", boxShadow: "0 16px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
+                    <div onClick={() => toggleGroup(group.salesPerson)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 20, cursor: "pointer", background: expandedGroups.has(group.salesPerson) ? "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))" : "transparent" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
                         <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "white" }}>
                           {group.salesPerson.split(" ").map(n => n[0]).join("").toUpperCase()}
@@ -432,7 +442,7 @@ export default function CommissionsPage() {
                         <div style={{ marginBottom: 16 }}>
                           <button onClick={() => selectAllInGroup(group)} style={{ padding: "8px 16px", background: "#333", color: "white", border: "none", borderRadius: 4, cursor: "pointer", marginRight: 8 }}>Select All</button>
                         </div>
-                        <table style={{ width: "100%", tableLayout: "fixed" }}>
+                        <table className="commission-polish-table" style={{ width: "100%", tableLayout: "fixed" }}>
                           <colgroup>
                             <col style={{ width: 40 }} /><col style={{ width: "27%" }} /><col style={{ width: "27%" }} />
                             {stageSettings.map((_, i) => <col key={i} style={{ width: 50 }} />)}
@@ -491,8 +501,8 @@ export default function CommissionsPage() {
                     <input type="text" placeholder="Payment notes (optional)" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} style={{ padding: 8, background: "#1a1a1a", color: "white", border: "1px solid #333", borderRadius: 4, width: 200 }} />
                   </div>
                 </div>
-                <div style={{ background: "#1a1a1a", borderRadius: 8, border: "1px solid #333", overflow: "hidden" }}>
-                  <table style={{ width: "100%", tableLayout: "fixed" }}>
+                <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 22px 52px rgba(0,0,0,0.44), inset 0 1px 0 rgba(255,255,255,0.07)" }}>
+                  <table className="commission-polish-table" style={{ width: "100%", tableLayout: "fixed" }}>
                     <colgroup><col style={{width:40}}/><col style={{width:"20%"}}/><col style={{width:"20%"}}/><col style={{width:"13%"}}/><col style={{width:80}}/><col style={{width:100}}/><col style={{width:100}}/><col style={{width:90}}/></colgroup>
                     <thead>
                       <tr style={{ background: "#252525", borderBottom: "1px solid #333" }}>
@@ -550,8 +560,8 @@ export default function CommissionsPage() {
                     {paidFilterSalesRep && <button onClick={() => { setPaidFilterSalesRep(""); setSelectedPayouts(new Set()); }} style={{ padding: "8px 12px", background: "#333", color: "#999", border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>Clear</button>}
                   </div>
                 </div>
-                <div style={{ background: "#1a1a1a", borderRadius: 8, border: "1px solid #333", overflow: "hidden" }}>
-                  <table style={{ width: "100%", tableLayout: "fixed" }}>
+                <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", overflow: "hidden", boxShadow: "0 22px 52px rgba(0,0,0,0.44), inset 0 1px 0 rgba(255,255,255,0.07)" }}>
+                  <table className="commission-polish-table" style={{ width: "100%", tableLayout: "fixed" }}>
                     <colgroup><col style={{width:40}}/><col style={{width:"15%"}}/><col style={{width:"18%"}}/><col style={{width:"12%"}}/><col style={{width:50}}/><col style={{width:90}}/><col style={{width:65}}/><col style={{width:80}}/><col style={{width:"10%"}}/><col style={{width:50}}/></colgroup>
                     <thead>
                       <tr style={{ background: "#252525", borderBottom: "1px solid #333" }}>
@@ -600,7 +610,7 @@ export default function CommissionsPage() {
               <div>
                 <div style={{ marginBottom: 20, color: "#f59e0b" }}>⚠️ These commissions are from deleted orders</div>
                 {orphanedCommissions.map(commission => (
-                  <div key={commission.id} style={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, padding: 20, marginBottom: 16 }}>
+                  <div key={commission.id} style={{ background: "linear-gradient(180deg,#202020,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: 20, marginBottom: 16, boxShadow: "0 16px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                       <div>
                         <h3 style={{ color: "#f59e0b", marginBottom: 8 }}>PO #{commission.order?.poNumber || "Unknown"} - {commission.salesPersonName}</h3>
@@ -624,6 +634,7 @@ export default function CommissionsPage() {
         )}
 
         <BulkActionsBar activeTab={activeTab} selectedCount={selectedPayouts.size} onBulkApprove={handleBulkApprove} onBulkPay={handleBulkPay} onGenerateReport={generateReportFromSelected} onClearSelection={() => setSelectedPayouts(new Set())} />
+      </div>
       </div>
 
       <RejectPaymentModal show={showRejectModal} onClose={() => setShowRejectModal(false)} rejectionReason={rejectionReason} setRejectionReason={setRejectionReason} onExecute={executeReject} />

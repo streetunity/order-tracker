@@ -18,7 +18,7 @@ const fmt  = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency
 const fmtP = (v) => `${(v || 0).toFixed(1)}%`;
 
 const STAT = ({ label, value, color }) => (
-  <div style={{ background: "linear-gradient(180deg,#1b1b1b,#151515)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "16px 20px", flex: 1, boxShadow: "0 12px 28px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+  <div style={{ background: "linear-gradient(180deg,#202020,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "17px 20px", flex: 1, boxShadow: "0 20px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
     <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 8 }}>{label}</div>
     <div style={{ fontSize: 24, fontWeight: 700, color: color || "rgba(255,255,255,0.88)", letterSpacing: "-0.3px" }}>{value}</div>
   </div>
@@ -81,10 +81,10 @@ export default function ReportsPage() {
   };
 
   const TABLE = ({ headers, rows }) => (
-    <div style={{ background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, overflow: "hidden", marginTop: 20, boxShadow: "0 14px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+    <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", marginTop: 20, boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.075)", background: "linear-gradient(180deg,rgba(255,255,255,0.045),rgba(0,0,0,0.18))" }}>
+          <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
             {headers.map((h, i) => <th key={i} style={{ padding: "10px 14px", textAlign: i > 0 ? "right" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>)}
           </tr>
         </thead>
@@ -115,7 +115,7 @@ export default function ReportsPage() {
               <STAT label="Avg Deal Size"   value={fmt(summary.avgValue)} />
             </div>
             {pipeline.filter(s => s.count > 0).map(stage => (
-              <div key={stage.status} style={{ marginBottom: 14, background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "14px 18px", boxShadow: "0 12px 26px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+              <div key={stage.status} style={{ marginBottom: 14, background: "linear-gradient(180deg,#202020,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "15px 18px", boxShadow: "0 20px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{stage.status}</span>
                   <div style={{ textAlign: "right" }}>
@@ -213,20 +213,20 @@ export default function ReportsPage() {
     <>
       <InvoicingNav />
       <style>{`
-        .rpt-sidebar-item { display: block; width: calc(100% - 8px); margin: 4px; text-align: left; padding: 10px 12px; background: rgba(255,255,255,0.018); border: none; border-left: 3px solid transparent; border-radius: 8px; cursor: pointer; transition: all 0.12s; border-top: 1px solid rgba(255,255,255,0.025); }
-        .rpt-sidebar-item:hover { background: linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.032)); border-left-color: rgba(220,38,38,0.45); box-shadow: 0 10px 22px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.035); transform: translateY(-1px); }
-        .rpt-sidebar-item.active { background: linear-gradient(180deg,rgba(220,38,38,0.11),rgba(220,38,38,0.055)); border-left-color: #dc2626; box-shadow: inset 0 1px 0 rgba(255,255,255,0.035), 0 8px 18px rgba(0,0,0,0.18); }
-        .rpt-date-input { width: 100%; padding: 8px 10px; background: linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.045)); border: 1px solid rgba(255,255,255,0.11); border-radius: 7px; color: rgba(255,255,255,0.85); font-size: 12px; outline: none; box-sizing: border-box; color-scheme: dark; box-shadow: inset 0 1px 0 rgba(255,255,255,0.035); }
-        .rpt-date-input:focus { border-color: rgba(220,38,38,0.48); box-shadow: 0 0 0 3px rgba(220,38,38,0.08), inset 0 1px 0 rgba(255,255,255,0.04); }
+        .rpt-sidebar-item { display: block; width: calc(100% - 12px); margin: 6px; text-align: left; padding: 11px 12px; background: linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.024)); border: none; border-left: 3px solid rgba(255,255,255,0.03); border-radius: 9px; cursor: pointer; transition: all 0.14s; border-top: 1px solid rgba(255,255,255,0.075); border-right: 1px solid rgba(255,255,255,0.035); box-shadow: 0 8px 18px rgba(0,0,0,0.16); }
+        .rpt-sidebar-item:hover { background: linear-gradient(180deg,rgba(255,255,255,0.105),rgba(255,255,255,0.052)); border-left-color: rgba(255,75,75,0.72); box-shadow: 0 16px 34px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(220,38,38,0.12); transform: translateY(-2px); }
+        .rpt-sidebar-item.active { background: linear-gradient(180deg,rgba(220,38,38,0.18),rgba(220,38,38,0.08)); border-left-color: #ff4b4b; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 34px rgba(0,0,0,0.32), 0 0 0 1px rgba(220,38,38,0.15); }
+        .rpt-date-input { width: 100%; padding: 9px 10px; background: linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.055)); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: rgba(255,255,255,0.88); font-size: 12px; outline: none; box-sizing: border-box; color-scheme: dark; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 20px rgba(0,0,0,0.2); }
+        .rpt-date-input:focus { border-color: rgba(255,75,75,0.62); box-shadow: 0 0 0 3px rgba(220,38,38,0.13), inset 0 1px 0 rgba(255,255,255,0.08); }
         .rpt-main::-webkit-scrollbar { width: 8px; }
         .rpt-main::-webkit-scrollbar-track { background: transparent; }
         .rpt-main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
       `}</style>
 
-      <div style={{ display: "flex", height: "calc(100vh - 64px)", background: "radial-gradient(circle at top left,rgba(220,38,38,0.035),transparent 340px),#0f0f0f", overflow: "hidden" }}>
+      <div style={{ display: "flex", height: "calc(100vh - 64px)", background: "radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f", overflow: "hidden" }}>
         {/* Sidebar */}
-        <div style={{ width: 260, minWidth: 260, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "inset -1px 0 0 rgba(0,0,0,0.45), 8px 0 30px rgba(0,0,0,0.12)" }}>
-          <div style={{ padding: "16px 14px 8px", borderBottom: "1px solid rgba(255,255,255,0.07)", background: "linear-gradient(180deg,rgba(255,255,255,0.025),rgba(0,0,0,0))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+        <div style={{ width: 260, minWidth: 260, flexShrink: 0, background: "linear-gradient(180deg,#1b1b1b 0%,#131313 46%,#101010 100%)", borderRight: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "inset -1px 0 0 rgba(0,0,0,0.7), 18px 0 42px rgba(0,0,0,0.34)" }}>
+          <div style={{ padding: "16px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.09)", background: "radial-gradient(circle at top left,rgba(220,38,38,0.12),transparent 155px),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.08))", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 26px rgba(0,0,0,0.24)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <div style={{ width: 3, height: 13, background: "#dc2626", borderRadius: 2, flexShrink: 0 }} />
               <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Reports</span>

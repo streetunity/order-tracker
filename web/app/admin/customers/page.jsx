@@ -160,14 +160,15 @@ export default function CustomersPage() {
   return (
     <>
       <TopNav />
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: 24 }}>
+      <div style={{ minHeight: "calc(100vh - 60px)", background: "radial-gradient(circle at 12% 0%,rgba(220,38,38,0.07),transparent 420px)", padding: 24 }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#fff", margin: 0, letterSpacing: "-0.3px" }}>
             Manage Customers
           </h1>
-          <Link href="/admin/customers/new" style={btnOutlinedRed}>+ Add Customer</Link>
+          <Link href="/admin/customers/new" style={{ ...btnOutlinedRed, background: "linear-gradient(180deg,rgba(255,75,75,0.2),rgba(220,38,38,0.09))", border: "1px solid rgba(255,75,75,0.4)", color: "#ff5a5a", boxShadow: "0 12px 26px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08)" }}>+ Add Customer</Link>
         </div>
 
         <input
@@ -175,7 +176,7 @@ export default function CustomersPage() {
           placeholder="Search Customer Name / Contact / Email / Phone / Address"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          style={{ width: "100%", padding: "10px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "8px", color: "rgba(255,255,255,0.9)", fontSize: "14px", marginBottom: 20, boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "10px 14px", background: "linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0.055))", border: "1px solid rgba(255,255,255,0.16)", borderRadius: "8px", color: "rgba(255,255,255,0.9)", fontSize: "14px", marginBottom: 20, boxSizing: "border-box", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(0,0,0,0.18)" }}
         />
 
         {error && (
@@ -194,11 +195,11 @@ export default function CustomersPage() {
               </div>
             ) : (
               filteredCustomers.map((customer) => (
-                <div key={customer.id} style={{ border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, background: "#141414" }}>
+                <div key={customer.id} style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, background: "linear-gradient(180deg,#202020,#151515)", boxShadow: "0 16px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.06)", overflow: "hidden" }}>
 
                   {/* Row header */}
                   <div
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", cursor: "pointer" }}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", cursor: "pointer", background: "linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.04))" }}
                     onClick={() => setExpandedCustomer(expandedCustomer === customer.id ? null : customer.id)}
                   >
                     <div style={{ minWidth: 0 }}>
@@ -229,7 +230,7 @@ export default function CustomersPage() {
 
                   {/* Expanded panel */}
                   {expandedCustomer === customer.id && (
-                    <div style={{ padding: "0 20px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ padding: "0 20px 20px", borderTop: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.12)" }}>
                       {editingCustomer === customer.id ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 16 }}>
                           {[
@@ -313,6 +314,7 @@ export default function CustomersPage() {
             <span style={{ color: "#d1d5db", fontSize: 13 }}>{notificationMessage}</span>
           </div>
         )}
+      </div>
       </div>
     </>
   );

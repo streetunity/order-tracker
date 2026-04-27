@@ -80,37 +80,37 @@ export default function InvoicesPage() {
     <>
       <InvoicingNav />
       <style>{`
-        .isb-header{padding:16px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;background:linear-gradient(180deg,rgba(255,255,255,0.025),rgba(0,0,0,0));box-shadow:inset 0 1px 0 rgba(255,255,255,0.035)}
+        .isb-header{padding:16px 14px 12px;border-bottom:1px solid rgba(255,255,255,0.09);flex-shrink:0;background:radial-gradient(circle at top left,rgba(220,38,38,0.12),transparent 155px),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.08));box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),0 12px 26px rgba(0,0,0,0.24)}
         .isb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
         .isb-title h2{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.7);margin:0;text-transform:uppercase;letter-spacing:0.8px}
         .isb-title h2::before{content:'';display:block;width:3px;height:13px;background:#dc2626;border-radius:2px;flex-shrink:0}
-        .isb-new-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;background:linear-gradient(180deg,rgba(220,38,38,0.16),rgba(220,38,38,0.08));border:1px solid rgba(220,38,38,0.32);border-radius:6px;color:#ff4b4b;font-size:16px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s,box-shadow 0.15s,transform 0.15s;box-shadow:0 8px 18px rgba(0,0,0,0.22),inset 0 1px 0 rgba(255,255,255,0.05)}
-        .isb-new-btn:hover{background:rgba(220,38,38,0.2);box-shadow:0 10px 22px rgba(0,0,0,0.28),0 0 0 1px rgba(220,38,38,0.12);transform:translateY(-1px)}
-        .isb-search{width:100%;padding:8px 12px;background:linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.045));border:1px solid rgba(255,255,255,0.11);border-radius:7px;color:rgba(255,255,255,0.9);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px;transition:border-color 0.15s,box-shadow 0.15s;box-shadow:inset 0 1px 0 rgba(255,255,255,0.035)}
-        .isb-search:focus{border-color:rgba(220,38,38,0.48);box-shadow:0 0 0 3px rgba(220,38,38,0.08),inset 0 1px 0 rgba(255,255,255,0.04)}
+        .isb-new-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;background:linear-gradient(180deg,rgba(255,75,75,0.24),rgba(220,38,38,0.12));border:1px solid rgba(255,75,75,0.46);border-radius:6px;color:#ff5a5a;font-size:16px;text-decoration:none;line-height:1;cursor:pointer;transition:background 0.15s,box-shadow 0.15s,transform 0.15s;box-shadow:0 12px 26px rgba(0,0,0,0.36),0 0 18px rgba(220,38,38,0.08),inset 0 1px 0 rgba(255,255,255,0.12)}
+        .isb-new-btn:hover{background:linear-gradient(180deg,rgba(255,75,75,0.32),rgba(220,38,38,0.18));box-shadow:0 14px 30px rgba(0,0,0,0.42),0 0 0 1px rgba(220,38,38,0.2),0 0 20px rgba(220,38,38,0.12);transform:translateY(-1px)}
+        .isb-search{width:100%;padding:9px 12px;background:linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.055));border:1px solid rgba(255,255,255,0.16);border-radius:8px;color:rgba(255,255,255,0.92);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:9px;transition:border-color 0.15s,box-shadow 0.15s;box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),0 10px 20px rgba(0,0,0,0.2)}
+        .isb-search:focus{border-color:rgba(255,75,75,0.62);box-shadow:0 0 0 3px rgba(220,38,38,0.13),inset 0 1px 0 rgba(255,255,255,0.08)}
         .isb-search::placeholder{color:rgba(255,255,255,0.28)}
         .isb-filters{display:flex;gap:6px}
-        .isb-filter-sel{flex:1;padding:5px 8px;background:linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.045));border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:rgba(255,255,255,0.74);font-size:12px;outline:none;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,0.03)}
+        .isb-filter-sel{flex:1;padding:6px 8px;background:linear-gradient(180deg,rgba(255,255,255,0.095),rgba(255,255,255,0.055));border:1px solid rgba(255,255,255,0.14);border-radius:7px;color:rgba(255,255,255,0.8);font-size:12px;outline:none;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 8px 18px rgba(0,0,0,0.14)}
         .isb-filter-sel:focus{border-color:rgba(220,38,38,0.4)}
-        .isb-sort-bar{display:flex;gap:3px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0;background:rgba(0,0,0,0.12)}
+        .isb-sort-bar{display:flex;gap:4px;padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;background:linear-gradient(180deg,rgba(0,0,0,0.18),rgba(255,255,255,0.018))}
         .isb-sort-btn{flex:1;padding:5px 6px;background:transparent;border:1px solid transparent;border-radius:5px;color:rgba(255,255,255,0.35);font-size:11px;cursor:pointer;text-align:center;transition:all 0.12s;font-weight:500}
         .isb-sort-btn:hover{color:rgba(255,255,255,0.65);background:rgba(255,255,255,0.04)}
-        .isb-sort-btn.active{background:rgba(220,38,38,0.1);border-color:rgba(220,38,38,0.22);color:#dc2626}
-        .isb-list{flex:1;overflow-y:auto;padding:6px 7px}
+        .isb-sort-btn.active{background:linear-gradient(180deg,rgba(220,38,38,0.18),rgba(220,38,38,0.09));border-color:rgba(255,75,75,0.42);color:#ff4b4b;box-shadow:inset 0 1px 0 rgba(255,255,255,0.06)}
+        .isb-list{flex:1;overflow-y:auto;padding:9px 8px}
         .isb-list::-webkit-scrollbar{width:5px}
         .isb-list::-webkit-scrollbar-track{background:transparent}
         .isb-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
         .isb-list::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.22)}
-        .isb-item{padding:11px 12px;cursor:pointer;border-left:3px solid transparent;transition:background 0.12s,border-color 0.12s,box-shadow 0.12s,transform 0.12s;border-bottom:0;text-decoration:none;display:block;border-radius:8px;background:rgba(255,255,255,0.018);border-top:1px solid rgba(255,255,255,0.025);margin-bottom:6px}
-        .isb-item:hover{background:linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.032));border-left-color:rgba(220,38,38,0.62);box-shadow:0 10px 22px rgba(0,0,0,0.22),inset 0 1px 0 rgba(255,255,255,0.035);transform:translateY(-1px)}
+        .isb-item{padding:12px 12px;cursor:pointer;border-left:3px solid rgba(255,255,255,0.03);transition:background 0.14s,border-color 0.14s,box-shadow 0.14s,transform 0.14s;border-bottom:0;text-decoration:none;display:block;border-radius:9px;background:linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.024));border-top:1px solid rgba(255,255,255,0.075);border-right:1px solid rgba(255,255,255,0.035);margin-bottom:8px;box-shadow:0 8px 18px rgba(0,0,0,0.16)}
+        .isb-item:hover{background:linear-gradient(180deg,rgba(255,255,255,0.105),rgba(255,255,255,0.052));border-left-color:rgba(255,75,75,0.86);box-shadow:0 16px 34px rgba(0,0,0,0.34),inset 0 1px 0 rgba(255,255,255,0.08),0 0 0 1px rgba(220,38,38,0.12);transform:translateY(-2px)}
         .isb-item-num{font-size:12px;font-weight:600;color:rgba(255,255,255,0.88);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:monospace}
         .isb-item-cust{font-size:11px;color:rgba(255,255,255,0.38);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .isb-item-foot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
         .isb-item-bal{font-size:11px;color:rgba(255,255,255,0.45)}
         .isb-item-bal.owed{color:#f59e0b;font-weight:600}
         .isb-item-status{display:flex;align-items:center;gap:3px;font-size:10px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.3px}
-        .isb-count{padding:7px 14px;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;border-top:1px solid rgba(255,255,255,0.05);flex-shrink:0;background:rgba(0,0,0,0.16)}
-        .inv-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px;background:radial-gradient(circle at top left,rgba(220,38,38,0.035),transparent 320px),#0f0f0f}
+        .isb-count{padding:8px 14px;font-size:11px;color:rgba(255,255,255,0.34);text-align:center;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0;background:linear-gradient(180deg,rgba(255,255,255,0.025),rgba(0,0,0,0.28))}
+        .inv-right{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px;background:radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f}
         .inv-right::-webkit-scrollbar{width:8px}
         .inv-right::-webkit-scrollbar-track{background:transparent}
         .inv-right::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
@@ -118,7 +118,7 @@ export default function InvoicesPage() {
 
       <div style={{ display: "flex", height: "calc(100vh - 64px)", overflow: "hidden" }}>
         {/* Sidebar */}
-        <div style={{ width: 280, minWidth: 280, flexShrink: 0, background: "#141414", borderRight: "1px solid rgba(255,255,255,0.07)", display: "flex", flexDirection: "column", overflowY: "hidden", boxShadow: "inset -1px 0 0 rgba(0,0,0,0.45), 8px 0 30px rgba(0,0,0,0.12)" }}>
+        <div style={{ width: 280, minWidth: 280, flexShrink: 0, background: "linear-gradient(180deg,#1b1b1b 0%,#131313 46%,#101010 100%)", borderRight: "1px solid rgba(255,255,255,0.1)", display: "flex", flexDirection: "column", overflowY: "hidden", boxShadow: "inset -1px 0 0 rgba(0,0,0,0.7), 18px 0 42px rgba(0,0,0,0.34)" }}>
           <div className="isb-header">
             <div className="isb-title">
               <h2>Invoices</h2>
@@ -182,7 +182,7 @@ export default function InvoicesPage() {
               { label: "Overdue",         value: fmt(totalOverdue),     color: "#ef4444" },
               { label: "Paid This Month", value: fmt(paidThisMonth),    color: "#22c55e" },
             ].map(s => (
-              <div key={s.label} style={{ background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: "16px 18px", boxShadow: "0 12px 28px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+              <div key={s.label} style={{ background: "linear-gradient(180deg,#202020,#151515)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: "17px 18px", boxShadow: "0 20px 42px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 7, fontWeight: 600 }}>{s.label}</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: s.color, letterSpacing: "-0.3px" }}>{s.value}</div>
               </div>
@@ -198,10 +198,10 @@ export default function InvoicesPage() {
               {!search && statusFilter === "all" && <Link href="/invoicing/invoices/new" style={btnOutlinedRed}>+ Create First Invoice</Link>}
             </div>
           ) : (
-            <div style={{ background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, overflow: "hidden", boxShadow: "0 16px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+            <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
                     {["Invoice #","Customer","Date","Due Date","Total","Balance","Status",""].map((h,i) => (
                       <th key={i} style={{ padding: "11px 14px", textAlign: ["Total","Balance"].includes(h) ? "right" : h === "Status" ? "center" : "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.7px" }}>{h}</th>
                     ))}
@@ -212,9 +212,9 @@ export default function InvoicesPage() {
                     const sc = STATUS_COLORS[invoice.status] || STATUS_COLORS.DRAFT;
                     const overdue = new Date(invoice.dueDate) < new Date() && !['PAID','VOID'].includes(invoice.status);
                     return (
-                      <tr key={invoice.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer", transition: "background 0.1s" }}
-                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      <tr key={invoice.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: "pointer", transition: "background 0.14s, box-shadow 0.14s" }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))"; e.currentTarget.style.boxShadow = "inset 3px 0 0 rgba(255,75,75,0.72)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.boxShadow = "none"; }}
                         onClick={() => router.push(`/invoicing/invoices/${invoice.id}`)}
                       >
                         <td style={{ padding: "13px 14px" }}><span style={{ fontFamily: "monospace", color: "#dc2626", fontWeight: 600, fontSize: 13 }}>{invoice.invoiceNumber}</span></td>

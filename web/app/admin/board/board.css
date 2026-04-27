@@ -17,10 +17,10 @@
   position: sticky !important;
   top: 60px !important; /* TopNav height - force exact positioning */
   z-index: 105 !important; /* Higher than stage header (90) to prevent slide-behind */
-  background: rgba(45, 45, 45, 0.95);
+  background: linear-gradient(180deg,rgba(39,39,39,0.98),rgba(24,24,24,0.96));
   backdrop-filter: blur(10px);
-  box-shadow: 0 2px 8px rgba(0,0,0,.3);
-  border-bottom: 1px solid var(--border);
+  box-shadow: 0 10px 28px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
   /* Removed min/max height constraints - let it flow naturally */
 }
 
@@ -53,7 +53,7 @@
   gap: 0;
   align-items: stretch;
   padding: 0;
-  background: var(--bg);
+  background: radial-gradient(circle at 12% 0%,rgba(220,38,38,0.07),transparent 420px),var(--bg);
   width: 100%;
   min-width: 100%;
   max-width: 100%;
@@ -68,7 +68,7 @@
   align-items: center;
   z-index: 90 !important;
   border-bottom: 2px solid var(--border);
-  box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  box-shadow: 0 8px 20px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
 /* Adjust sticky positioning when QuickActions is hidden (manufacturers) */
@@ -85,7 +85,7 @@
 .stickyCol {
   position: sticky;
   left: 0;
-  background: var(--panel);
+  background: linear-gradient(180deg,#1b1b1b,#121212);
   z-index: 85;
   border-right: 2px solid var(--border);
   min-width: 200px;
@@ -138,13 +138,13 @@
 
 /* Alternating row backgrounds */
 .customerRow:nth-child(even) .stageCol {
-  background: var(--row-bg-even);
+  background: linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.022));
   border-top: 2px solid rgba(255, 255, 255, 0.15);
   border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .customerRow:nth-child(odd) .stageCol {
-  background: var(--row-bg-odd);
+  background: rgba(255,255,255,0.008);
   border-bottom: 1px solid var(--border);
 }
 
@@ -168,11 +168,11 @@
 }
 
 .customerRow:nth-child(even) .customerHeader {
-  background: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035));
 }
 
 .customerRow:nth-child(odd) .customerHeader {
-  background: #1a1a1a;
+  background: linear-gradient(180deg,#1c1c1c,#141414);
 }
 
 .customerHeader::after {
@@ -212,11 +212,11 @@
 
 /* Item cards */
 .itemCard {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--panel);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 7px;
+  background: linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025));
   padding: 0; /* No padding - handled by inline styles for proper centering */
-  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  box-shadow: 0 8px 18px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,0.06);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   font-size: 11px;
   position: relative;
@@ -226,18 +226,19 @@
 
 .customerRow:nth-child(even) .itemCard {
   border-left: 4px solid #dc2626;
-  background: rgba(255, 255, 255, 0.03);
+  background: linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03));
 }
 
 .customerRow:nth-child(odd) .itemCard {
   border-left: 4px solid #6b7280;
-  background: rgba(107, 114, 128, 0.05);
+  background: linear-gradient(180deg,rgba(107,114,128,0.1),rgba(107,114,128,0.045));
 }
 
 .itemCard:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  box-shadow: 0 14px 28px rgba(0,0,0,.4), 0 0 0 1px rgba(220,38,38,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
   border-left-width: 5px;
+  border-color: rgba(255,255,255,0.18);
 }
 
 .itemCard.archived {
@@ -394,10 +395,11 @@
 .toolbar input[type="text"],
 .toolbar input[type="search"],
 .toolbar select {
-  background: var(--input-bg);
+  background: linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0.055));
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255,255,255,0.16);
   font-size: 13px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(0,0,0,0.18);
 }
 
 .toolbar input[type="checkbox"] {

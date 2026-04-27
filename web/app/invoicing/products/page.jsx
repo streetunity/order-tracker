@@ -190,17 +190,17 @@ export default function ProductsPage() {
     <>
       <InvoicingNav />
       <style>{`
-        .prod-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.12s, box-shadow 0.12s; }
-        .prod-row:hover { background: linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.025)); box-shadow: inset 3px 0 0 rgba(220,38,38,0.38); }
-        .prod-search { padding: 8px 12px; background: linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.045)); border: 1px solid rgba(255,255,255,0.11); border-radius: 7px; color: rgba(255,255,255,0.9); font-size: 13px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: inset 0 1px 0 rgba(255,255,255,0.035); }
-        .prod-search:focus { border-color: rgba(220,38,38,0.48); box-shadow: 0 0 0 3px rgba(220,38,38,0.08), inset 0 1px 0 rgba(255,255,255,0.04); }
+        .prod-row { border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.14s, box-shadow 0.14s; }
+        .prod-row:hover { background: linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03)); box-shadow: inset 3px 0 0 rgba(255,75,75,0.72); }
+        .prod-search { padding: 9px 12px; background: linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.055)); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; color: rgba(255,255,255,0.92); font-size: 13px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 20px rgba(0,0,0,0.2); }
+        .prod-search:focus { border-color: rgba(255,75,75,0.62); box-shadow: 0 0 0 3px rgba(220,38,38,0.13), inset 0 1px 0 rgba(255,255,255,0.08); }
         .prod-search::placeholder { color: rgba(255,255,255,0.28); }
-        .files-btn { padding: 5px 11px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 6px; color: rgba(96,165,250,0.8); font-size: 12px; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.12s, box-shadow 0.12s, transform 0.12s; white-space: nowrap; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
-        .files-btn:hover { background: rgba(59,130,246,0.15); color: #93c5fd; box-shadow: 0 8px 18px rgba(0,0,0,0.22); transform: translateY(-1px); }
+        .files-btn { padding: 5px 11px; background: linear-gradient(180deg,rgba(59,130,246,0.15),rgba(59,130,246,0.08)); border: 1px solid rgba(59,130,246,0.3); border-radius: 7px; color: rgba(147,197,253,0.92); font-size: 12px; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.12s, box-shadow 0.12s, transform 0.12s; white-space: nowrap; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 18px rgba(0,0,0,0.16); }
+        .files-btn:hover { background: rgba(59,130,246,0.2); color: #bfdbfe; box-shadow: 0 12px 24px rgba(0,0,0,0.3); transform: translateY(-1px); }
         .files-btn.has-files { border-color: rgba(59,130,246,0.35); color: #93c5fd; font-weight: 600; }
       `}</style>
 
-      <div style={{ minHeight: "calc(100vh - 64px)", background: "radial-gradient(circle at top left,rgba(220,38,38,0.035),transparent 360px),#0f0f0f", padding: "32px 32px 60px" }}>
+      <div style={{ minHeight: "calc(100vh - 64px)", background: "radial-gradient(circle at 12% 8%,rgba(220,38,38,0.095),transparent 360px),radial-gradient(circle at 70% 0%,rgba(255,255,255,0.035),transparent 420px),#0f0f0f", padding: "32px 32px 60px" }}>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
           <div>
@@ -210,7 +210,7 @@ export default function ProductsPage() {
             </p>
           </div>
           <button onClick={activeTab === "products" ? openNewProductModal : openNewBundleModal}
-            style={{ padding: "7px 16px", background: "linear-gradient(180deg,rgba(220,38,38,0.16),rgba(220,38,38,0.08))", border: "1px solid rgba(220,38,38,0.32)", borderRadius: 7, color: "#ff4b4b", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 10px 22px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+            style={{ padding: "8px 17px", background: "linear-gradient(180deg,rgba(255,75,75,0.24),rgba(220,38,38,0.12))", border: "1px solid rgba(255,75,75,0.46)", borderRadius: 8, color: "#ff5a5a", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 14px 30px rgba(0,0,0,0.36), 0 0 18px rgba(220,38,38,0.08), inset 0 1px 0 rgba(255,255,255,0.12)" }}>
             + New {activeTab === "products" ? "Product" : "Bundle"}
           </button>
         </div>
@@ -231,17 +231,17 @@ export default function ProductsPage() {
           <>
             <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
               <input type="text" placeholder="Search products..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="prod-search" style={{ width: 260 }} />
-              <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} style={{ ...INP, width: 160, background: "linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.045))", border: "1px solid rgba(255,255,255,0.11)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+              <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} style={{ ...INP, width: 160, background: "linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.055))", border: "1px solid rgba(255,255,255,0.16)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 20px rgba(0,0,0,0.2)" }}>
                 {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               <label style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255,255,255,0.55)", fontSize: 13, cursor: "pointer" }}>
                 <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} /> Show Inactive
               </label>
             </div>
-            <div style={{ background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, overflow: "hidden", boxShadow: "0 16px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+            <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.075)", background: "linear-gradient(180deg,rgba(255,255,255,0.045),rgba(0,0,0,0.18))" }}>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
                     {TH("Short Name")}{TH("Name")}{TH("Category")}{TH("Price", "right")}{TH("Cost", "right")}{TH("Margin", "right")}{TH("Files", "center")}{TH("Status", "center")}{TH("Actions", "right")}
                   </tr>
                 </thead>
@@ -300,10 +300,10 @@ export default function ProductsPage() {
                 <input type="checkbox" checked={showBundleInactive} onChange={e => setShowBundleInactive(e.target.checked)} /> Show Inactive
               </label>
             </div>
-            <div style={{ background: "linear-gradient(180deg,#171717,#131313)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, overflow: "hidden", boxShadow: "0 16px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.035)" }}>
+            <div style={{ background: "linear-gradient(180deg,#202020,#151515 48%,#121212)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden", boxShadow: "0 24px 58px rgba(0,0,0,0.46), inset 0 1px 0 rgba(255,255,255,0.08)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.075)", background: "linear-gradient(180deg,rgba(255,255,255,0.045),rgba(0,0,0,0.18))" }}>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", background: "linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22))" }}>
                     {TH("Name")}{TH("Items", "center")}{TH("Total Price", "right")}{TH("Status", "center")}{TH("Actions", "right")}
                   </tr>
                 </thead>

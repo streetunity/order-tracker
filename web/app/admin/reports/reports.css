@@ -4,7 +4,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
-  background: var(--bg);
+  background: radial-gradient(circle at 12% 0%,rgba(220,38,38,0.07),transparent 420px),var(--bg);
   color: var(--text);
 }
 
@@ -62,17 +62,19 @@
 }
 
 .kpi-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: linear-gradient(180deg,#202020,#151515);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
   padding: 20px;
   text-align: center;
-  transition: transform 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  box-shadow: 0 18px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.07);
 }
 
 .kpi-card:hover {
   transform: translateY(-2px);
   border-color: var(--accent);
+  box-shadow: 0 24px 48px rgba(0,0,0,0.42), 0 0 0 1px rgba(220,38,38,0.12), inset 0 1px 0 rgba(255,255,255,0.09);
 }
 
 .kpi-card.accent {
@@ -120,11 +122,12 @@
 .stage-card {
   flex: 1 1 0;
   min-width: 0;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.028));
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
   padding: 10px 6px;
   text-align: center;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .stage-name {
@@ -172,18 +175,20 @@
   align-items: flex-start;
   gap: 15px;
   padding: 20px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: linear-gradient(180deg,#202020,#151515);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
   text-decoration: none;
   color: var(--text);
   transition: all 0.2s;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .report-link:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
-  background: var(--hover-bg);
+  background: linear-gradient(180deg,rgba(255,255,255,0.085),rgba(255,255,255,0.035));
+  box-shadow: 0 20px 42px rgba(0,0,0,0.42), 0 0 0 1px rgba(220,38,38,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 .report-icon {
@@ -218,9 +223,10 @@
   align-items: center;
   margin-bottom: 30px;
   padding: 20px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: linear-gradient(180deg,#202020,#151515);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  box-shadow: 0 14px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
   flex-wrap: wrap;
 }
 
@@ -239,11 +245,12 @@
 
 .filter-input {
   padding: 8px 12px;
-  background: var(--input-bg) !important;
+  background: linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0.055)) !important;
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 8px;
   font-size: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(0,0,0,0.18);
 }
 
 .btn-filter {
@@ -264,10 +271,11 @@
 /* Data Table */
 .data-table {
   width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: linear-gradient(180deg,#202020,#151515 48%,#121212);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 22px 52px rgba(0,0,0,0.44), inset 0 1px 0 rgba(255,255,255,0.07);
 }
 
 .data-table table {
@@ -294,7 +302,8 @@
 }
 
 .data-table tr:hover {
-  background: var(--hover-bg);
+  background: linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));
+  box-shadow: inset 3px 0 0 rgba(220,38,38,0.65);
 }
 
 /* Pagination */
@@ -335,11 +344,12 @@
 
 /* Chart Container */
 .chart-container {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: linear-gradient(180deg,#202020,#151515);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
   padding: 20px;
   margin-bottom: 30px;
+  box-shadow: 0 18px 38px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.07);
 }
 
 .chart-title {

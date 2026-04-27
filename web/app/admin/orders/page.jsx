@@ -128,12 +128,32 @@ export default function ManageOrdersPage() {
   return (
     <>
       <TopNav />
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: 24 }}>
+      <style>{`
+        .admin-polish-table {
+          background: linear-gradient(180deg,#202020,#151515 48%,#121212);
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 22px 52px rgba(0,0,0,0.44), inset 0 1px 0 rgba(255,255,255,0.07);
+        }
+        .admin-polish-table thead tr {
+          background: linear-gradient(180deg,rgba(255,255,255,0.07),rgba(0,0,0,0.22));
+        }
+        .admin-polish-table tbody tr {
+          transition: background 0.14s, box-shadow 0.14s;
+        }
+        .admin-polish-table tbody tr:hover {
+          background: linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));
+          box-shadow: inset 3px 0 0 rgba(220,38,38,0.65);
+        }
+      `}</style>
+      <div style={{ minHeight: "calc(100vh - 60px)", background: "radial-gradient(circle at 12% 0%,rgba(220,38,38,0.07),transparent 420px)", padding: 24 }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#fff", margin: 0, letterSpacing: "-0.3px" }}>Manage Orders</h1>
-          <Link href="/admin/orders/new" style={{ padding: "7px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.28)", borderRadius: 7, color: "#dc2626", textDecoration: "none", fontWeight: 600, fontSize: 13 }}>+ New Order</Link>
+          <Link href="/admin/orders/new" style={{ padding: "7px 16px", background: "linear-gradient(180deg,rgba(255,75,75,0.2),rgba(220,38,38,0.09))", border: "1px solid rgba(255,75,75,0.4)", borderRadius: 7, color: "#ff5a5a", textDecoration: "none", fontWeight: 600, fontSize: 13, boxShadow: "0 12px 26px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08)" }}>+ New Order</Link>
         </div>
 
         {/* Tabs */}
@@ -149,9 +169,9 @@ export default function ManageOrdersPage() {
             placeholder="Search Order Date / Sales Person / Account / Item"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            style={{ flex: 1, padding: "8px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.9)", fontSize: 13, outline: "none" }}
+            style={{ flex: 1, padding: "9px 12px", background: "linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0.055))", border: "1px solid rgba(255,255,255,0.16)", borderRadius: 8, color: "rgba(255,255,255,0.9)", fontSize: 13, outline: "none", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 18px rgba(0,0,0,0.18)" }}
           />
-          <button type="submit" style={{ padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 7, color: "rgba(255,255,255,0.7)", fontSize: 13, cursor: "pointer" }}>Search</button>
+          <button type="submit" style={{ padding: "8px 14px", background: "linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.045))", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 7, color: "rgba(255,255,255,0.76)", fontSize: 13, cursor: "pointer", boxShadow: "0 8px 18px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.06)" }}>Search</button>
         </form>
 
         {loading ? (
@@ -159,7 +179,7 @@ export default function ManageOrdersPage() {
         ) : err ? (
           <div style={{ color: "#dc2626", padding: 12 }}>{err}</div>
         ) : (
-          <table className="table">
+          <table className="table admin-polish-table">
             <thead>
               <tr>
                 <th>Customer</th>
@@ -271,6 +291,7 @@ export default function ManageOrdersPage() {
             <span style={{ color: "#d1d5db", fontSize: 13 }}>{notificationMessage}</span>
           </div>
         )}
+      </div>
       </div>
     </>
   );
