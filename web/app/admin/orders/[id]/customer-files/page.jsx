@@ -7,11 +7,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
 const ALL_CATEGORIES = [
-  { id: "photos",    label: "Photos",    accept: "image/*",                    icon: "🖼" },
-  { id: "videos",    label: "Videos",    accept: "video/*",                    icon: "🎬" },
-  { id: "manuals",   label: "Manuals",   accept: ".pdf,.doc,.docx",            icon: "📕" },
-  { id: "documents", label: "Documents", accept: ".pdf,.doc,.docx,.xls,.xlsx", icon: "📄" },
-  { id: "readme",    label: "Read Me",   accept: "*/*",                        icon: "📖" },
+  { id: "photos",    label: "Photos",    accept: "image/*",                    icon: "\ud83d\uddbc" },
+  { id: "videos",    label: "Videos",    accept: "video/*",                    icon: "\ud83c\udfac" },
+  { id: "manuals",   label: "Manuals",   accept: ".pdf,.doc,.docx",            icon: "\ud83d\udcd5" },
+  { id: "documents", label: "Documents", accept: ".pdf,.doc,.docx,.xls,.xlsx", icon: "\ud83d\udcc4" },
+  { id: "readme",    label: "Read Me",   accept: "*/*",                        icon: "\ud83d\udcd6" },
 ];
 
 // Manufacturers can only see/upload photos and videos
@@ -82,7 +82,7 @@ export default function CustomerFilesPage() {
 
       const parts = [];
       for (let part = 1; part <= totalParts; part++) {
-        setUploadStatus(`Uploading "${file.name}" — part ${part}/${totalParts}`);
+        setUploadStatus(`Uploading "${file.name}" \u2014 part ${part}/${totalParts}`);
         setUploadProgress(Math.round(((part - 1) / totalParts) * 90));
         const chunk = file.slice((part - 1) * CHUNK_SIZE, part * CHUNK_SIZE);
         const signRes = await fetch(`/api/customer-documents/${orderId}/sign-part`, {
@@ -97,7 +97,7 @@ export default function CustomerFilesPage() {
         parts.push({ PartNumber: part, ETag: up.headers.get("ETag") });
       }
 
-      setUploadStatus(`Finalising "${file.name}"…`); setUploadProgress(95);
+      setUploadStatus(`Finalising "${file.name}"\u2026`); setUploadProgress(95);
       const completeRes = await fetch(`/api/customer-documents/${orderId}/complete`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -234,7 +234,7 @@ export default function CustomerFilesPage() {
   if (loading) return (
     <><TopNav />
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:300 }}>
-        <div style={{ color:"#6b7280", fontSize:14 }}>Loading…</div>
+        <div style={{ color:"#6b7280", fontSize:14 }}>Loading\u2026</div>
       </div>
     </>
   );
@@ -262,7 +262,7 @@ export default function CustomerFilesPage() {
         }}
       >
         {canDrag && (
-          <div style={{ color:"#374151", fontSize:18, cursor:"grab", flexShrink:0, userSelect:"none", lineHeight:1 }} title="Drag to reorder">⠿</div>
+          <div style={{ color:"#374151", fontSize:18, cursor:"grab", flexShrink:0, userSelect:"none", lineHeight:1 }} title="Drag to reorder">\u2820</div>
         )}
         {isGlobalReadme && (
           <span style={{ flexShrink:0, fontSize:10, background:"rgba(37,99,235,0.15)", color:"#60a5fa", border:"1px solid rgba(37,99,235,0.3)", borderRadius:4, padding:"2px 7px", fontWeight:700, whiteSpace:"nowrap" }}>GLOBAL</span>
@@ -292,27 +292,27 @@ export default function CustomerFilesPage() {
               </p>
               {file.description && <p style={{ margin:"2px 0 0", fontSize:12, color:"#6b7280", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{file.description}</p>}
               <p style={{ margin:"2px 0 0", fontSize:11, color:"#374151" }}>
-                {fmt(file.fileSize)}{file.uploadedBy?.name ? ` · ${file.uploadedBy.name}` : ""}
-                {isGlobalReadme && <span style={{ color:"#4b5563", marginLeft:6 }}>· All orders</span>}
+                {fmt(file.fileSize)}{file.uploadedBy?.name ? ` \u00b7 ${file.uploadedBy.name}` : ""}
+                {isGlobalReadme && <span style={{ color:"#4b5563", marginLeft:6 }}>\u00b7 All orders</span>}
               </p>
             </>
           )}
         </div>
         <div style={{ display:"flex", gap:6, flexShrink:0 }}>
           {isGlobalReadme ? (
-            <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download" style={{ ...S.iconBtn, textDecoration:"none" }}>↗</a>
+            <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download" style={{ ...S.iconBtn, textDecoration:"none" }}>\u2197</a>
           ) : editingId === file.id ? (
             <>
-              <button onClick={() => saveEdit(file.id)} title="Save" style={{ ...S.iconBtn, color:"#10b981", borderColor:"rgba(16,185,129,0.3)" }}>✓</button>
-              <button onClick={() => setEditingId(null)} title="Cancel" style={S.iconBtn}>✕</button>
+              <button onClick={() => saveEdit(file.id)} title="Save" style={{ ...S.iconBtn, color:"#10b981", borderColor:"rgba(16,185,129,0.3)" }}>\u2713</button>
+              <button onClick={() => setEditingId(null)} title="Cancel" style={S.iconBtn}>\u2715</button>
             </>
           ) : (
             <>
-              <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download" style={{ ...S.iconBtn, textDecoration:"none" }}>↗</a>
+              <a href={file.url} target="_blank" rel="noopener noreferrer" title="View / Download" style={{ ...S.iconBtn, textDecoration:"none" }}>\u2197</a>
               {canAct && (
                 <>
-                  <button onClick={() => { setEditingId(file.id); setEditForm({ displayName: file.displayName || file.fileName, description: file.description || "", category: file.category || selectedCategory }); }} title="Edit" style={S.iconBtn}>✎</button>
-                  <button onClick={() => setDeleteConfirm({ id: file.id, name: file.displayName || file.fileName })} title="Delete" style={{ ...S.iconBtn, color:"#dc2626", borderColor:"rgba(220,38,38,0.25)" }}>🗑</button>
+                  <button onClick={() => { setEditingId(file.id); setEditForm({ displayName: file.displayName || file.fileName, description: file.description || "", category: file.category || selectedCategory }); }} title="Edit" style={S.iconBtn}>\u270e</button>
+                  <button onClick={() => setDeleteConfirm({ id: file.id, name: file.displayName || file.fileName })} title="Delete" style={{ ...S.iconBtn, color:"#dc2626", borderColor:"rgba(220,38,38,0.25)" }}>\ud83d\udd11</button>
                 </>
               )}
             </>
@@ -330,7 +330,7 @@ export default function CustomerFilesPage() {
         {/* Page header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <button onClick={() => router.push(`/admin/orders/${orderId}`)} style={{ ...S.btnGray, padding:"7px 12px" }}>← Back</button>
+            <button onClick={() => router.push(`/admin/orders/${orderId}`)} style={{ ...S.btnGray, padding:"7px 12px" }}>\u2190 Back</button>
             <div>
               <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#fff" }}>Customer Files</h1>
               <p style={{ margin:"3px 0 0", fontSize:13, color:"#6b7280" }}>
@@ -344,14 +344,14 @@ export default function CustomerFilesPage() {
           {!isManufacturer && (
             <div style={{ display:"flex", gap:8 }}>
               {isReadmeTab && (
-                <a href="/admin/readme-files" style={{ ...S.btnGray, textDecoration:"none" }} title="Manage global Read Me files">⚙ Global Files</a>
+                <a href="/admin/readme-files" style={{ ...S.btnGray, textDecoration:"none" }} title="Manage global Read Me files">\u2699 Global Files</a>
               )}
               <button
                 onClick={handleNotify}
                 disabled={notifying || orderFileCount === 0}
                 style={{ ...S.btnGray, opacity: (notifying || orderFileCount === 0) ? 0.4 : 1, cursor: (notifying || orderFileCount === 0) ? "not-allowed" : "pointer" }}
               >
-                🔔 {notifying ? "Sending…" : "Notify Customer"}
+                \ud83d\udd14 {notifying ? "Sending\u2026" : "Notify Customer"}
               </button>
             </div>
           )}
@@ -360,32 +360,32 @@ export default function CustomerFilesPage() {
         {/* Manufacturer info banner */}
         {isManufacturer && (
           <div style={{ marginBottom:20, padding:"12px 16px", background:"rgba(37,99,235,0.08)", border:"1px solid rgba(37,99,235,0.2)", borderRadius:7, fontSize:13, color:"#93c5fd", display:"flex", alignItems:"center", gap:10 }}>
-            ℹ️ Upload photos and videos to share with the customer. The assigned agent and administrators will be notified automatically when you upload. You can only see files you have uploaded.
+            \u2139\ufe0f Upload photos and videos to share with the customer. The assigned agent and administrators will be notified automatically when you upload. You can only see files you have uploaded.
           </div>
         )}
 
         {/* Alerts */}
         {error && (
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, padding:"10px 14px", background:"rgba(220,38,38,0.1)", border:"1px solid rgba(220,38,38,0.3)", borderRadius:7, color:"#fca5a5", fontSize:13 }}>
-            ⚠ {error}
-            <button onClick={() => setError("")} style={{ marginLeft:"auto", background:"none", border:"none", color:"#fca5a5", cursor:"pointer", fontSize:16, lineHeight:1 }}>×</button>
+            \u26a0 {error}
+            <button onClick={() => setError("")} style={{ marginLeft:"auto", background:"none", border:"none", color:"#fca5a5", cursor:"pointer", fontSize:16, lineHeight:1 }}>\u00d7</button>
           </div>
         )}
         {success && (
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, padding:"10px 14px", background:"rgba(16,185,129,0.1)", border:"1px solid rgba(16,185,129,0.25)", borderRadius:7, color:"#6ee7b7", fontSize:13 }}>
-            ✓ {success}
+            \u2713 {success}
           </div>
         )}
 
         {/* Multi-file upload progress */}
         {isUploading && uploadQueue.length > 1 && (
           <div style={{ marginBottom:16, padding:"12px 16px", background:"#141414", border:"1px solid #2d2d2d", borderRadius:8 }}>
-            <p style={{ margin:"0 0 8px", fontSize:13, color:"#9ca3af" }}>Uploading {uploadingIdx + 1} of {uploadQueue.length} files…</p>
+            <p style={{ margin:"0 0 8px", fontSize:13, color:"#9ca3af" }}>Uploading {uploadingIdx + 1} of {uploadQueue.length} files\u2026</p>
             <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
               {uploadQueue.map((item, i) => (
                 <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, fontSize:12 }}>
                   <span style={{ color: i < uploadingIdx ? "#10b981" : i === uploadingIdx ? "#e4e4e4" : "#4b5563", minWidth:14 }}>
-                    {i < uploadingIdx ? "✓" : i === uploadingIdx ? "▶" : "○"}
+                    {i < uploadingIdx ? "\u2713" : i === uploadingIdx ? "\u25b6" : "\u25cb"}
                   </span>
                   <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color: i < uploadingIdx ? "#6b7280" : "#e4e4e4" }}>{item.file.name}</span>
                   <span style={{ color:"#4b5563" }}>{fmt(item.file.size)}</span>
@@ -447,16 +447,16 @@ export default function CustomerFilesPage() {
                   <div style={{ width:"100%", maxWidth:300, background:"#1f1f1f", borderRadius:99, height:6, overflow:"hidden" }}>
                     <div style={{ height:"100%", width:`${uploadProgress}%`, background:"#dc2626", borderRadius:99, transition:"width 0.2s" }} />
                   </div>
-                  <p style={{ margin:0, fontSize:13, color:"#9ca3af" }}>{uploadStatus} — {uploadProgress}%</p>
+                  <p style={{ margin:0, fontSize:13, color:"#9ca3af" }}>{uploadStatus} \u2014 {uploadProgress}%</p>
                 </>
               ) : dragOver ? (
                 <>
-                  <span style={{ fontSize:32 }}>📂</span>
+                  <span style={{ fontSize:32 }}>\ud83d\udcc2</span>
                   <p style={{ margin:0, fontSize:14, fontWeight:500, color:"#dc2626" }}>Drop files here</p>
                 </>
               ) : (
                 <>
-                  <span style={{ fontSize:28 }}>⬆</span>
+                  <span style={{ fontSize:28 }}>\u2b06</span>
                   <p style={{ margin:0, fontSize:14, fontWeight:500, color:"#e4e4e4" }}>
                     {isReadmeTab
                       ? "Drag & drop or click to upload order-specific Read Me files"
@@ -464,7 +464,7 @@ export default function CustomerFilesPage() {
                     }
                   </p>
                   <p style={{ margin:0, fontSize:12, color:"#4b5563" }}>
-                    {isReadmeTab ? "Any file type · Global files appear automatically for all orders" : `Multiple files supported · ${currentCat.accept}`}
+                    {isReadmeTab ? "Any file type \u00b7 Global files appear automatically for all orders" : `Multiple files supported \u00b7 ${currentCat.accept}`}
                   </p>
                 </>
               )}
@@ -477,8 +477,8 @@ export default function CustomerFilesPage() {
               {globalReadmeFiles.length > 0 && (
                 <div style={{ marginBottom: orderReadmeFiles.length > 0 ? 20 : 0 }}>
                   <p style={{ margin:"0 0 10px", fontSize:11, color:"#4b5563", textTransform:"uppercase", letterSpacing:"0.05em" }}>
-                    🌐 Global — appears in all orders
-                    <a href="/admin/readme-files" style={{ marginLeft:10, color:"#dc2626", textDecoration:"none", fontWeight:600 }}>Manage ↗</a>
+                    \ud83c\udf10 Global \u2014 appears in all orders
+                    <a href="/admin/readme-files" style={{ marginLeft:10, color:"#dc2626", textDecoration:"none", fontWeight:600 }}>Manage \u2197</a>
                   </p>
                   {globalReadmeFiles.map(file => renderFileRow(file))}
                 </div>
@@ -491,7 +491,7 @@ export default function CustomerFilesPage() {
               )}
               {currentFiles.length === 0 && (
                 <div style={{ textAlign:"center", padding:"40px 0", color:"#374151" }}>
-                  <div style={{ fontSize:40, marginBottom:10 }}>📖</div>
+                  <div style={{ fontSize:40, marginBottom:10 }}>\ud83d\udcd6</div>
                   <p style={{ margin:0, fontSize:14 }}>No Read Me files yet</p>
                   <p style={{ margin:"8px 0 0", fontSize:12, color:"#4b5563" }}>
                     Upload order-specific files above, or <a href="/admin/readme-files" style={{ color:"#dc2626" }}>manage global files</a>
@@ -508,20 +508,10 @@ export default function CustomerFilesPage() {
               </div>
             ) : (
               <div>
-                {!isManufacturer && <p style={{ margin:"0 0 10px", fontSize:11, color:"#4b5563" }}>Drag ⠿ to reorder</p>}
+                {!isManufacturer && <p style={{ margin:"0 0 10px", fontSize:11, color:"#4b5563" }}>Drag \u2820 to reorder</p>}
                 {currentFiles.map(file => renderFileRow(file))}
               </div>
             )
-          )}
-
-          {/* Legacy Dropbox link */}
-          {!isManufacturer && files.legacyDropboxLink && (
-            <div style={{ marginTop:20, padding:"12px 16px", background:"#0f0f0f", border:"1px solid #2d2d2d", borderRadius:7 }}>
-              <p style={{ margin:"0 0 6px", fontSize:11, color:"#4b5563", textTransform:"uppercase", letterSpacing:"0.05em" }}>Legacy Dropbox Link</p>
-              <a href={files.legacyDropboxLink} target="_blank" rel="noopener noreferrer" style={{ fontSize:13, color:"#dc2626", wordBreak:"break-all" }}>
-                {files.legacyDropboxLink} ↗
-              </a>
-            </div>
           )}
         </div>
 
