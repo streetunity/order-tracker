@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Trash2 } from "lucide-react";
 
 const ALL_CATEGORIES = [
   { id: "photos",    label: "Photos",    icon: "🖼",  accept: "image/*" },
@@ -21,7 +22,7 @@ const fmt = (bytes) => {
   return (bytes / 1073741824).toFixed(2) + " GB";
 };
 
-export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHeaders }) {
+export default function CustomerDocumentsTab({ order, user, isManufacturer, getAuthHeaders, onSetDeleteConfirm }) {
   const UPLOAD_CATEGORIES = isManufacturer ? MANUFACTURER_CATEGORIES : ALL_CATEGORIES;
 
   const [files,         setFiles]         = useState({ photos: [], videos: [], manuals: [], documents: [] });
@@ -39,7 +40,11 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
 
   const currentCat = UPLOAD_CATEGORIES.find(c => c.id === category) || UPLOAD_CATEGORIES[0];
 
-  // ── Fetch ──────────────────────────────────────────────────────
+  // Mirrors backend rule in api/src/routes/customerDocuments.js DELETE handler:
+  // MANUFACTURER can only delete files they uploaded; everyone else can delete any.
+  const canDeleteFile = (file) => !isManufacturer || (file?.uploadedBy && file.uploadedBy.id === user?.id);
+
+  // ── Fetch ─────────────────────────────────────────
   const loadFiles = useCallback(async () => {
     if (!order?.id) return;
     try {
@@ -53,7 +58,28 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
 
   useEffect(() => { loadFiles(); }, [loadFiles]);
 
-  // ── Upload single file ─────────────────────────────────────────
+  // ── Delete a single file ────────────────────────────────
+  const handleDeleteFile = useCallback(async (fileId) => {
+    if (!order?.id || !fileId) return;
+    try {
+      const res = await fetch(`/api/customer-documents/${order.id}/${fileId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        await loadFiles();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        console.error("Delete failed:", d.error || res.status);
+        setUploadError(d.error || "Failed to delete file");
+      }
+    } catch (e) {
+      console.error("Delete failed:", e);
+      setUploadError(e.message || "Failed to delete file");
+    }
+  }, [order?.id, getAuthHeaders, loadFiles]);
+
+  // ── Upload single file ──────────────────────────────────
   const uploadOne = useCallback(async (file) => {
     let documentId = null, uploadId = null, s3Key = null;
     try {
@@ -100,7 +126,7 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
     }
   }, [order?.id, category, getAuthHeaders]);
 
-  // ── Process queue sequentially ────────────────────────────────
+  // ── Process queue sequentially ───────────────────────────────
   const processQueue = useCallback(async (queue) => {
     setUploadError(""); setUploadSuccess("");
     const errors = [];
@@ -123,7 +149,7 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
     }
   }, [uploadOne, loadFiles, isManufacturer]);
 
-  // ── Enqueue and kick off ──────────────────────────────────────
+  // ── Enqueue and kick off ────────────────────────────────────
   const enqueueFiles = useCallback((fileList) => {
     const items = Array.from(fileList).map(f => ({ file: f, id: Math.random().toString(36).slice(2) }));
     if (!items.length) return;
@@ -142,6 +168,22 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
   const myFiles = isManufacturer
     ? { photos: (files.photos || []), videos: (files.videos || []) }
     : files;
+
+  // Helper to fire the shared confirm dialog (lives in ViewItemModal).
+  // Falls back to window.confirm if no dialog handler was passed.
+  const requestDelete = (file) => {
+    const payload = {
+      id: file.id,
+      fileName: file.fileName,
+      displayName: file.displayName,
+      _onConfirm: () => handleDeleteFile(file.id),
+    };
+    if (typeof onSetDeleteConfirm === "function") {
+      onSetDeleteConfirm(payload);
+    } else if (typeof window !== "undefined" && window.confirm(`Delete "${file.displayName || file.fileName}"? This cannot be undone.`)) {
+      handleDeleteFile(file.id);
+    }
+  };
 
   return (
     <div style={{ padding: "1.5rem", maxHeight: "60vh", overflowY: "auto" }}>
@@ -270,29 +312,56 @@ export default function CustomerDocumentsTab({ order, isManufacturer, getAuthHea
 
                 {cat.id === "photos" && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: "8px" }}>
-                    {catFiles.map(f => (
-                      <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display: "block", borderRadius: "6px", overflow: "hidden", border: "1px solid #2d2d2d", aspectRatio: "1", backgroundColor: "#1a1a1a" }}>
-                        <img src={f.url} alt={f.displayName || f.fileName} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                      </a>
-                    ))}
+                    {catFiles.map(f => {
+                      const showDelete = canDeleteFile(f);
+                      return (
+                        <div key={f.id} style={{ position: "relative", borderRadius: "6px", overflow: "hidden", border: "1px solid #2d2d2d", aspectRatio: "1", backgroundColor: "#1a1a1a" }}>
+                          <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ display: "block", width: "100%", height: "100%" }}>
+                            <img src={f.url} alt={f.displayName || f.fileName} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                          </a>
+                          {showDelete && (
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); requestDelete(f); }}
+                              title="Delete"
+                              style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.7)", border: "1px solid rgba(220,38,38,0.4)", borderRadius: 4, padding: 4, cursor: "pointer", color: "#fca5a5", lineHeight: 0 }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
                 {(cat.id === "videos" || cat.id === "manuals" || cat.id === "documents") && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {catFiles.map(f => (
-                      <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", backgroundColor: "#1a1a1a", border: "1px solid #2d2d2d", borderRadius: "6px", textDecoration: "none", color: "#e4e4e4", fontSize: "13px" }}>
-                        <span style={{ fontSize: "18px" }}>{cat.icon}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.displayName || f.fileName}</div>
-                          {f.description && <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>{f.description}</div>}
+                    {catFiles.map(f => {
+                      const showDelete = canDeleteFile(f);
+                      return (
+                        <div key={f.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", backgroundColor: "#1a1a1a", border: "1px solid #2d2d2d", borderRadius: "6px" }}>
+                          <a href={f.url} target="_blank" rel="noopener noreferrer"
+                            style={{ flex: 1, display: "flex", alignItems: "center", gap: "10px", minWidth: 0, textDecoration: "none", color: "#e4e4e4", fontSize: "13px" }}>
+                            <span style={{ fontSize: "18px" }}>{cat.icon}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.displayName || f.fileName}</div>
+                              {f.description && <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>{f.description}</div>}
+                            </div>
+                            <span style={{ fontSize: "12px", color: "#6b7280", flexShrink: 0 }}>{fmt(f.fileSize)}</span>
+                            <span style={{ color: "#dc2626", flexShrink: 0 }}>↗</span>
+                          </a>
+                          {showDelete && (
+                            <button
+                              onClick={() => requestDelete(f)}
+                              title="Delete"
+                              style={{ background: "transparent", border: "1px solid #404040", borderRadius: 4, padding: "6px 8px", cursor: "pointer", color: "#fca5a5", lineHeight: 0 }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
-                        <span style={{ fontSize: "12px", color: "#6b7280", flexShrink: 0 }}>{fmt(f.fileSize)}</span>
-                        <span style={{ color: "#dc2626", flexShrink: 0 }}>↗</span>
-                      </a>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

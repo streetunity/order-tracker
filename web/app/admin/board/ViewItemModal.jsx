@@ -203,6 +203,7 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
           {activeTab === "documents" && (
             <BrokerDocumentsTab
               item={item}
+              user={user}
               isManufacturer={isManufacturer}
               getAuthHeaders={getAuthHeaders}
               onSetDeleteConfirm={setShowDeleteConfirm}
@@ -212,8 +213,10 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
           {activeTab === "customerDocs" && (
             <CustomerDocumentsTab
               order={order}
+              user={user}
               isManufacturer={isManufacturer}
               getAuthHeaders={getAuthHeaders}
+              onSetDeleteConfirm={setShowDeleteConfirm}
             />
           )}
 
@@ -290,11 +293,16 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
       {showAdminOnlyAlert && <div style={{ position: "fixed", top: "100px", right: "24px", backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "1rem 1.5rem", zIndex: 1200, maxWidth: "400px" }}><span style={{ color: "#d1d5db", fontSize: "14px" }}>⚠️ Only administrators can unlock orders.</span></div>}
       {showUnlockError && <div style={{ position: "fixed", top: "100px", right: "24px", backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "1rem 1.5rem", zIndex: 1200, maxWidth: "400px" }}><span style={{ color: "#d1d5db", fontSize: "14px" }}>⚠️ Please provide a reason with at least 10 characters.</span></div>}
 
-      {/* Delete broker doc confirmation */}
+      {/* Delete document confirmation (used by both Broker Documents and Customer Documents tabs) */}
       {showDeleteConfirm && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }} onClick={() => setShowDeleteConfirm(null)}>
           <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "2rem", maxWidth: "400px", width: "90%" }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#fff", margin: "0 0 1rem 0" }}>Delete Document?</h3>
+            {(showDeleteConfirm.fileName || showDeleteConfirm.displayName) && (
+              <p style={{ fontSize: "13px", color: "#9ca3af", margin: "0 0 8px 0", wordBreak: "break-all" }}>
+                <strong style={{ color: "#e4e4e4" }}>{showDeleteConfirm.displayName || showDeleteConfirm.fileName}</strong>
+              </p>
+            )}
             <p style={{ fontSize: "14px", color: "#d1d5db", marginBottom: "1rem" }}>This action cannot be undone.</p>
             {showDeleteConfirm.isShipmentDocument && (
               <div style={{ padding: '10px', marginBottom: '16px', backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid #dc2626', borderRadius: '6px' }}>
@@ -303,7 +311,18 @@ export function ViewItemModal({ item, order, onClose, onUpdate }) {
             )}
             <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
               <button onClick={() => setShowDeleteConfirm(null)} style={{ background: "#2d2d2d", color: "#fff", border: "1px solid #404040", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}>Cancel</button>
-              <button onClick={() => { setShowDeleteConfirm(null); }} style={{ backgroundColor: "#dc2626", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}>Delete</button>
+              <button
+                onClick={() => {
+                  // Capture the callback before clearing state, then fire the delete async.
+                  // The child handler is responsible for refreshing its list on success.
+                  const fire = showDeleteConfirm?._onConfirm;
+                  setShowDeleteConfirm(null);
+                  if (typeof fire === "function") fire();
+                }}
+                style={{ backgroundColor: "#dc2626", color: "white", border: "none", padding: "0.5rem 1.5rem", borderRadius: "6px", cursor: "pointer", fontSize: "14px" }}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>

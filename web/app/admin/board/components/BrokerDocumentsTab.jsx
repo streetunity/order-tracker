@@ -18,7 +18,7 @@ const DOCUMENT_TYPE_LABELS = {
 
 const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_INVOICE', 'PACKING_LIST', 'DELIVERY_ORDER'];
 
-export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeaders, onSetDeleteConfirm }) {
+export default function BrokerDocumentsTab({ item, user, isManufacturer, getAuthHeaders, onSetDeleteConfirm }) {
   const [documents,        setDocuments]        = useState([]);
   const [loading,          setLoading]          = useState(false);
   const [selectedDocType,  setSelectedDocType]  = useState("");
@@ -29,6 +29,12 @@ export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeader
   const [isSharedShipment, setIsSharedShipment] = useState(false);
   const [shipmentInfo,     setShipmentInfo]     = useState(null);
   const fileInputRef = useRef(null);
+
+  // Mirrors backend rule in api/src/routes/itemDocuments.js (canDelete check):
+  // ADMIN/SUPER_ADMIN can delete any; everyone else can only delete their own.
+  const isAdminOrSuper = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const canDeleteDoc = (doc) =>
+    isAdminOrSuper || (doc?.uploadedBy && doc.uploadedBy === user?.name);
 
   const loadDocuments = async () => {
     if (!item?.id) return;
@@ -84,7 +90,12 @@ export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeader
       const token = localStorage.getItem('token');
       const endpoint = isManufacturer ? `/api/manufacturer/item/${item.id}/documents/${docId}` : `/api/items/${item.id}/documents/${docId}`;
       const res = await fetch(endpoint, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) { onSetDeleteConfirm(null); await loadDocuments(); }
+      if (res.ok) {
+        await loadDocuments();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        console.error("Delete failed:", d.error || res.status);
+      }
     } catch (e) { console.error("Delete failed:", e); }
   };
 
@@ -104,7 +115,7 @@ export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeader
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}><Ship size={18} color="#dc2626" /><strong style={{ color: "#dc2626" }}>Shared Shipment Documents</strong></div>
           <p style={{ fontSize: "13px", color: "#e4e4e4", margin: "0 0 8px 0" }}>This item is part of a shared shipment. Some documents may be shared with other items.</p>
           <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-            <div><strong>Container:</strong> {shipmentInfo.containerNumber || '—'}</div>
+            <div><strong>Container:</strong> {shipmentInfo.containerNumber || '\u2014'}</div>
             {shipmentInfo.billOfLading && <div><strong>BOL:</strong> {shipmentInfo.billOfLading}</div>}
             {shipmentInfo.linkedItems?.length > 0 && <div style={{ marginTop: "4px" }}><strong>Also in this shipment:</strong> {shipmentInfo.linkedItems.map(i => i.productCode || 'Item').join(', ')}</div>}
           </div>
@@ -171,11 +182,22 @@ export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeader
                       {doc.isShipmentDocument && <span style={{ marginLeft: "8px", padding: "1px 6px", backgroundColor: "rgba(220,38,38,0.2)", borderRadius: "3px", fontSize: "10px", color: "#dc2626" }}>Shared</span>}
                     </div>
                     <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "4px" }}>{DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}</div>
-                    <div style={{ fontSize: "12px", color: "#6b7280" }}>{(doc.fileSize / 1024).toFixed(1)} KB • {new Date(doc.uploadedAt).toLocaleDateString()}</div>
+                    <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                      {(doc.fileSize / 1024).toFixed(1)} KB • {new Date(doc.uploadedAt).toLocaleDateString()}
+                      {doc.uploadedBy && <span> • {doc.uploadedBy}</span>}
+                    </div>
                   </div>
                   <div style={{ display: "flex", gap: "6px" }}>
-                    <button onClick={() => handleDownload(doc)} style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}><Download size={14} /></button>
-                    <button onClick={() => onSetDeleteConfirm({ ...doc, _onConfirm: () => handleDelete(doc.id) })} style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}><Trash2 size={14} /></button>
+                    <button onClick={() => handleDownload(doc)} title="Download" style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#9ca3af", cursor: "pointer" }}><Download size={14} /></button>
+                    {canDeleteDoc(doc) && (
+                      <button
+                        onClick={() => onSetDeleteConfirm({ ...doc, _onConfirm: () => handleDelete(doc.id) })}
+                        title="Delete"
+                        style={{ padding: "8px", background: "transparent", border: "1px solid #404040", borderRadius: "6px", color: "#fca5a5", cursor: "pointer" }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
