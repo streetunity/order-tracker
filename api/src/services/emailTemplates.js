@@ -415,4 +415,4 @@ export function getCustomerFilesEmailTemplate(data) {
   `, `${totalCount} new file${totalCount !== 1 ? 's' : ''} available for order #${orderNumber}`);
 }
 
-export { wrapInBaseTemplate };
+export { wrapInBaseTemplate, buildHeader };

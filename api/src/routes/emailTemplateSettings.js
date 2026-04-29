@@ -325,10 +325,9 @@ const DEFAULT_STAGE_CONFIGS = {
   DELIVERED:     { notify: true, subject: 'Your order has been delivered!',             message: 'Your item ({{productCode}}) has been delivered. We hope you enjoy it!' },
 };
 
-// Friendly stage labels used in preview/test-send for the order_stage template.
-// Mirrors the STAGES const in web/app/admin/email/page.jsx so the preview matches
-// what the editor UI shows. Production sends still use the raw key (e.g. "AT SEA")
-// via orderStageEmailService — that's a separate concern flagged for follow-up.
+// Friendly stage labels used in preview/test-send for the order_stage template
+// AND in the production sender (orderStageEmailService.js) so customers see
+// matching, human-friendly labels in both the preview and real emails.
 const STAGE_DISPLAY_NAMES = {
   MANUFACTURING: 'Manufacturing',
   TESTING:       'Debugging & Testing',
@@ -612,5 +611,5 @@ export function createEmailTemplateSettingsRouter(prisma) {
   return router;
 }
 
-export { DEFAULT_TEMPLATES, DEFAULT_STAGE_CONFIGS };
+export { DEFAULT_TEMPLATES, DEFAULT_STAGE_CONFIGS, STAGE_DISPLAY_NAMES };
 export default createEmailTemplateSettingsRouter;
