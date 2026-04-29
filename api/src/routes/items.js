@@ -27,6 +27,10 @@ import { STAGE_THRESHOLDS } from '../config/stageThresholds.js';
 
 const prisma = new PrismaClient();
 
+// Stages that a MANUFACTURER role is permitted to move items between.
+// Beyond AT_SEA the item is out of the manufacturer's hands.
+const MANUFACTURER_ALLOWED_STAGES = ['MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA'];
+
 // Helper to calculate ETA (reads from database StageThreshold + SystemSetting tables)
 async function calculateETADate(orderDate = new Date(), hasExtendedItems = false) {
   try {
@@ -737,6 +741,19 @@ export function createItemsRouter() {
       }
 
       const currentStage = item.currentStage ?? item.order.currentStage ?? 'MANUFACTURING';
+
+      // MANUFACTURER STAGE-RANGE LIMIT: manufacturers can only operate within
+      // MANUFACTURING → AT_SEA. After AT_SEA the item is out of their hands.
+      // Applies to both forward and backward moves.
+      if (isManufacturer(req.user.role)) {
+        if (!MANUFACTURER_ALLOWED_STAGES.includes(currentStage) || !MANUFACTURER_ALLOWED_STAGES.includes(nextStage)) {
+          console.log(`[ACCESS DENIED] Manufacturer ${req.user.name} tried to move item ${itemId} ${currentStage} \u2192 ${nextStage} (outside allowed range)`);
+          return res.status(403).json({
+            error: 'Manufacturers can only move items between Manufacturing, Testing, Preparing Container, and At Sea stages.'
+          });
+        }
+      }
+
       const isForward = STAGES.indexOf(nextStage) >= STAGES.indexOf(currentStage);
 
       if (isForward) {
@@ -759,7 +776,7 @@ export function createItemsRouter() {
           data: {
             orderItemId: item.id,
             stage: nextStage,
-            note: note ?? (isForward ? null : `Correction: ${currentStage} → ${nextStage}`),
+            note: note ?? (isForward ? null : `Correction: ${currentStage} \u2192 ${nextStage}`),
             changedByUserId: req.user.id
           }
         });
@@ -785,6 +802,22 @@ export function createItemsRouter() {
       } catch (emailError) {
         console.error(`[EMAIL] Error sending stage notification for item ${itemId}:`, emailError);
         // Don't fail the stage change if email sending fails
+      }
+
+      // Send internal notification + email to admins/sales agent for manufacturer-driven moves.
+      // No-ops silently for non-manufacturer actors.
+      try {
+        const { sendInternalStageNotification } = await import('../services/orderStageInternalNotificationService.js');
+        await sendInternalStageNotification(prisma, {
+          orderId,
+          itemId,
+          oldStage: currentStage,
+          newStage: nextStage,
+          actor: req.user,
+        });
+      } catch (internalNotifError) {
+        console.error(`[INTERNAL-NOTIF] Error sending internal stage notification for item ${itemId}:`, internalNotifError);
+        // Don't fail the stage change if internal notification fails
       }
 
       res.json({ ok: true, event });

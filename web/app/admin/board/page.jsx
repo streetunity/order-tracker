@@ -14,6 +14,11 @@ import { CustomerOrdersModal } from './CustomerOrdersModal';
 import BoardFilters, { STAGES, STAGE_LABELS } from './BoardFilters';
 import { DeleteItemDialog, ArchiveItemDialog, ArchiveOrderDialog, StageChangeDialog, NotificationToast } from './BoardConfirmDialogs';
 
+// Manufacturers can only move items within these stages.
+// Beyond AT_SEA the item is out of the manufacturer's hands.
+// Mirrored on the backend in api/src/routes/items.js (MANUFACTURER_ALLOWED_STAGES).
+const MANUFACTURER_ALLOWED_STAGES = ['MANUFACTURING', 'TESTING', 'SHIPPING', 'AT_SEA'];
+
 // Helper to check if a container has complete measurement info
 const containerHasMeasurements = (container) => {
   const hasAllDimensions =
@@ -364,7 +369,7 @@ export default function AdminBoardPage() {
       if (!o.items || o.items.length === 0) continue;
       const key = o.account?.id || o.accountId || o.id;
       if (!by.has(key))
-        by.set(key, { accountId: o.account?.id || o.accountId || null, accountName: o.account?.name || "—", orders: [] });
+        by.set(key, { accountId: o.account?.id || o.accountId || null, accountName: o.account?.name || "\u2014", orders: [] });
       by.get(key).orders.push(o);
     }
     return Array.from(by.values()).sort((a, b) => a.accountName.localeCompare(b.accountName));
@@ -495,12 +500,23 @@ export default function AdminBoardPage() {
                           const measurementsComplete = hasMeasurements(it);
                           const measurementSummary = getMeasurementSummary(it);
 
+                          // Manufacturers may only move within MANUFACTURER_ALLOWED_STAGES.
+                          // Both the current stage and the target stage must be in range.
+                          const canMoveBack = !!prev && (
+                            !isManufacturer ||
+                            (MANUFACTURER_ALLOWED_STAGES.includes(s) && MANUFACTURER_ALLOWED_STAGES.includes(prev))
+                          );
+                          const canMoveForward = !!next && (
+                            !isManufacturer ||
+                            (MANUFACTURER_ALLOWED_STAGES.includes(s) && MANUFACTURER_ALLOWED_STAGES.includes(next))
+                          );
+
                           let tooltipText = `${it.productCode || "Item"} - ${s}`;
                           if (it.serialNumber) tooltipText += `\nS/N: ${it.serialNumber}`;
                           if (it.modelNumber) tooltipText += `\nModel: ${it.modelNumber}`;
                           if (it.voltage) tooltipText += `\nPower: ${it.voltage}`;
                           if (it.notes) tooltipText += `\nNotes: ${it.notes}`;
-                          if (measurementSummary) tooltipText += `\n📐 Measurements: ${measurementSummary}`;
+                          if (measurementSummary) tooltipText += `\n\ud83d\udcd0 Measurements: ${measurementSummary}`;
                           if (isOrderLocked) tooltipText += "\n(Order Locked)";
 
                           const itemName = it.productCode || "Item";
@@ -528,20 +544,26 @@ export default function AdminBoardPage() {
                                 🔍
                               </button>
 
-                              {!isLimitedAccess && (
+                              {!isBroker && (
                                 <>
                                   {/* Move back */}
                                   <button
                                     aria-label="Move back"
-                                    disabled={!prev}
+                                    disabled={!canMoveBack}
                                     onClick={() => {
-                                      if (!prev) return;
+                                      if (!canMoveBack) return;
                                       requestStageChange(order.id, it.id, itemName, prev, { allowBackward: true });
                                     }}
-                                    title={prev ? `Move to ${STAGE_LABELS[prev] ?? prev}` : "No previous stage"}
-                                    style={{ position: 'absolute', bottom: '2px', left: '2px', fontSize: '13px', padding: '0', margin: '0', lineHeight: 1, opacity: prev ? 0.7 : 0.3, transition: 'opacity 0.2s', border: 'none', outline: 'none', background: 'transparent', cursor: prev ? 'pointer' : 'not-allowed', color: 'inherit', boxShadow: 'none' }}
-                                    onMouseEnter={(e) => prev && (e.currentTarget.style.opacity = '1')}
-                                    onMouseLeave={(e) => prev && (e.currentTarget.style.opacity = '0.7')}
+                                    title={
+                                      !prev
+                                        ? "No previous stage"
+                                        : !canMoveBack
+                                          ? "Manufacturers can only move within Manufacturing \u2192 At Sea"
+                                          : `Move to ${STAGE_LABELS[prev] ?? prev}`
+                                    }
+                                    style={{ position: 'absolute', bottom: '2px', left: '2px', fontSize: '13px', padding: '0', margin: '0', lineHeight: 1, opacity: canMoveBack ? 0.7 : 0.3, transition: 'opacity 0.2s', border: 'none', outline: 'none', background: 'transparent', cursor: canMoveBack ? 'pointer' : 'not-allowed', color: 'inherit', boxShadow: 'none' }}
+                                    onMouseEnter={(e) => canMoveBack && (e.currentTarget.style.opacity = '1')}
+                                    onMouseLeave={(e) => canMoveBack && (e.currentTarget.style.opacity = '0.7')}
                                   >
                                     ◀
                                   </button>
@@ -549,15 +571,21 @@ export default function AdminBoardPage() {
                                   {/* Move forward */}
                                   <button
                                     aria-label="Move forward"
-                                    disabled={!next}
+                                    disabled={!canMoveForward}
                                     onClick={() => {
-                                      if (!next) return;
+                                      if (!canMoveForward) return;
                                       requestStageChange(order.id, it.id, itemName, next, { allowFastForward: true });
                                     }}
-                                    title={next ? `Move to ${STAGE_LABELS[next] ?? next}` : "No next stage"}
-                                    style={{ position: 'absolute', bottom: '2px', right: '2px', fontSize: '13px', padding: '0', margin: '0', lineHeight: 1, opacity: next ? 0.7 : 0.3, transition: 'opacity 0.2s', border: 'none', outline: 'none', background: 'transparent', cursor: next ? 'pointer' : 'not-allowed', color: 'inherit', boxShadow: 'none' }}
-                                    onMouseEnter={(e) => next && (e.currentTarget.style.opacity = '1')}
-                                    onMouseLeave={(e) => next && (e.currentTarget.style.opacity = '0.7')}
+                                    title={
+                                      !next
+                                        ? "No next stage"
+                                        : !canMoveForward
+                                          ? "Manufacturers can only move within Manufacturing \u2192 At Sea"
+                                          : `Move to ${STAGE_LABELS[next] ?? next}`
+                                    }
+                                    style={{ position: 'absolute', bottom: '2px', right: '2px', fontSize: '13px', padding: '0', margin: '0', lineHeight: 1, opacity: canMoveForward ? 0.7 : 0.3, transition: 'opacity 0.2s', border: 'none', outline: 'none', background: 'transparent', cursor: canMoveForward ? 'pointer' : 'not-allowed', color: 'inherit', boxShadow: 'none' }}
+                                    onMouseEnter={(e) => canMoveForward && (e.currentTarget.style.opacity = '1')}
+                                    onMouseLeave={(e) => canMoveForward && (e.currentTarget.style.opacity = '0.7')}
                                   >
                                     ▶
                                   </button>
