@@ -113,6 +113,10 @@ export default function UnifiedSettingsPage() {
   const [stageConfigs,    setStageConfigs]    = useState([]);
   const [emailView,       setEmailView]       = useState("templates");
   const [selTpl,          setSelTpl]          = useState(null);
+  // Stage selector for the order_stage template's Preview / Test Send.
+  // Defaults to AT_SEA so prior preview behavior is unchanged. Persists
+  // across template switches so users don't have to re-pick when toggling.
+  const [selectedStage,   setSelectedStage]   = useState("AT_SEA");
   const [editSubject,     setEditSubject]     = useState("");
   const [editBody,        setEditBody]        = useState("");
   const [editClosing,     setEditClosing]     = useState("");
@@ -302,9 +306,14 @@ export default function UnifiedSettingsPage() {
   };
   const generatePreview = async () => {
     if (!selTpl) return;
+    const isOrderStage = selTpl.key === "order_stage";
     const res = await fetch(`/api/email-templates/preview/${selTpl.key}`, {
       method: "POST", headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ subject: editSubject, bodyContent: editBody, closingContent: editClosing, footerContent: editFooter }),
+      body: JSON.stringify({
+        subject: editSubject, bodyContent: editBody, closingContent: editClosing, footerContent: editFooter,
+        // Only meaningful for order_stage; backend ignores for other keys.
+        stage: isOrderStage ? selectedStage : undefined,
+      }),
     });
     if (res.ok) {
       const d = await res.json();
@@ -316,9 +325,14 @@ export default function UnifiedSettingsPage() {
   const sendTestEmail = async () => {
     if (!testEmail || !selTpl) return;
     setSendingTest(true);
+    const isOrderStage = selTpl.key === "order_stage";
     const res = await fetch("/api/email-templates/test-send", {
       method: "POST", headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ templateKey: selTpl.key, toEmail: testEmail }),
+      body: JSON.stringify({
+        templateKey: selTpl.key, toEmail: testEmail,
+        // Only meaningful for order_stage; backend ignores for other keys.
+        stage: isOrderStage ? selectedStage : undefined,
+      }),
     });
     const d = await res.json();
     if (d.success) { setTplMsg({ type: "success", text: `Test sent to ${testEmail}` }); setShowTestSend(false); setTestEmail(""); }
@@ -437,6 +451,10 @@ export default function UnifiedSettingsPage() {
   templates.forEach(t => { const c = t.category || "other"; if (!groupedTemplates[c]) groupedTemplates[c] = []; groupedTemplates[c].push(t); });
 
   const stageTotal = stageDist.reduce((s, x) => s + Number(x.percentage), 0);
+
+  // Used in editor header (only for order_stage) and the Test Send / Preview modals.
+  const isOrderStageSelected = selTpl?.key === "order_stage";
+  const selectedStageLabel   = EMAIL_STAGES.find(s => s.key === selectedStage)?.label || selectedStage;
 
   const OVERLAY = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
   const DIALOG  = { background: "#1f1f1f", border: "1px solid #404040", borderRadius: 10, padding: 28, width: "90%", maxWidth: 500, boxShadow: "0 4px 24px rgba(0,0,0,0.6)" };
@@ -584,9 +602,17 @@ export default function UnifiedSettingsPage() {
                       <div style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, overflow: "hidden" }}>
                         {selTpl ? (
                           <>
-                            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                               <div><div style={{ fontSize: 16, fontWeight: 600 }}>{selTpl.name}</div>{selTpl.description && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 3 }}>{selTpl.description}</div>}</div>
-                              <div style={{ display: "flex", gap: 7 }}>
+                              <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
+                                {isOrderStageSelected && (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Stage:</span>
+                                    <select value={selectedStage} onChange={e => setSelectedStage(e.target.value)} title="Pick which stage to use when previewing or test-sending this template" style={{ padding: "6px 10px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.85)", fontSize: 12, cursor: "pointer" }}>
+                                      {EMAIL_STAGES.map(s => <option key={s.key} value={s.key} style={{ background: "#1a1a1a" }}>{s.icon} {s.label}</option>)}
+                                    </select>
+                                  </div>
+                                )}
                                 <button onClick={generatePreview} style={{ padding: "6px 13px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 12 }}>Preview</button>
                                 <button onClick={() => setShowTestSend(true)} style={{ padding: "6px 13px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 12 }}>Test Send</button>
                                 {selTpl.isCustomized && <button onClick={resetTemplate} disabled={tplSaving} style={{ padding: "6px 13px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 6, cursor: "pointer", color: "#f59e0b", fontSize: 12 }}>Reset Default</button>}
@@ -821,7 +847,10 @@ export default function UnifiedSettingsPage() {
         <div style={OVERLAY} onClick={() => setShowPreview(false)}>
           <div style={{ ...DIALOG, maxWidth: 680, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", padding: 0 }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.07)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div><div style={{ fontSize: 14, fontWeight: 600 }}>Email Preview</div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Subject: {previewSubject}</div></div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>Email Preview{isOrderStageSelected ? ` \u2014 ${selectedStageLabel}` : ""}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>Subject: {previewSubject}</div>
+              </div>
               <button onClick={() => setShowPreview(false)} style={{ padding: "5px 12px", background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 6, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontSize: 12 }}>Close</button>
             </div>
             <div style={{ flex: 1, overflow: "auto", padding: 24, background: "#f5f5f5" }}><div dangerouslySetInnerHTML={{ __html: previewHtml }} /></div>
@@ -833,7 +862,9 @@ export default function UnifiedSettingsPage() {
         <div style={OVERLAY} onClick={() => setShowTestSend(false)}>
           <div style={DIALOG} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>Send Test Email</h3>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16 }}>Send a test version of \u201c{selTpl?.name}\u201d with sample data.</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16 }}>
+              Send a test version of \u201c{selTpl?.name}\u201d{isOrderStageSelected ? ` for the ${selectedStageLabel} stage` : ""} with sample data.
+            </p>
             <label style={LBL}>Recipient Email</label>
             <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="you@example.com" style={{ ...INP, marginBottom: 20 }} />
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
