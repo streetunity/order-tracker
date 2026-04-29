@@ -33,7 +33,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// Middleware for broker, admin, or agent (can view/upload docs)
+// Middleware for broker, admin, or agent (can view/edit shipments + upload broker docs)
 const requireBrokerOrStaff = (req, res, next) => {
   if (!['SUPER_ADMIN', 'ADMIN', 'AGENT', 'BROKER'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Access denied' });
@@ -55,22 +55,35 @@ const requireShipmentViewer = (req, res, next) => {
   next();
 };
 
+// Middleware for create + link/unlink: internal staff OR manufacturer (with profile).
+// Used by POST /, GET /search-items, POST /:id/link-item, POST /:id/unlink-item.
+// Each handler is still responsible for verifying that manufacturers only act on
+// their own items and shipments they have access to.
+const requireInternalStaffOrManufacturer = (req, res, next) => {
+  if (!['SUPER_ADMIN', 'ADMIN', 'AGENT', 'MANUFACTURER'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  if (req.user.role === 'MANUFACTURER' && !req.user.manufacturer?.id) {
+    return res.status(403).json({ error: 'No manufacturer profile linked to your account' });
+  }
+  next();
+};
+
 // =============================
 // MANUFACTURER SCOPING HELPERS
 // =============================
 
-// Returns a Prisma where-clause fragment that limits a Shipment query to
-// shipments containing at least one non-archived item assigned to the
-// requesting manufacturer. Returns {} for non-manufacturer users.
+// Returns a Prisma where-clause fragment that limits a Shipment query to:
+//   - shipments containing at least one non-archived item assigned to them, OR
+//   - shipments they created (so brand-new empty shipments are visible).
+// Returns {} for non-manufacturer users.
 function manufacturerScopeForShipments(req) {
   if (req.user.role !== 'MANUFACTURER') return {};
   return {
-    items: {
-      some: {
-        manufacturerId: req.user.manufacturer.id,
-        archivedAt: null,
-      },
-    },
+    OR: [
+      { items: { some: { manufacturerId: req.user.manufacturer.id, archivedAt: null } } },
+      { createdByUserId: req.user.id },
+    ],
   };
 }
 
@@ -123,27 +136,35 @@ router.get('/', authGuard, requireShipmentViewer, async (req, res) => {
   try {
     const { status, search, includeArchived, archivedOnly } = req.query;
 
-    const where = {};
+    // Build conditions as an AND-array so we can compose multiple OR clauses
+    // (search OR + manufacturer scope OR) without one clobbering the other.
+    const conditions = [];
 
     if (archivedOnly === 'true') {
-      where.archivedAt = { not: null };
+      conditions.push({ archivedAt: { not: null } });
     } else if (includeArchived !== 'true') {
-      where.archivedAt = null;
+      conditions.push({ archivedAt: null });
     }
 
     if (status) {
-      where.customsDocumentStatus = status;
+      conditions.push({ customsDocumentStatus: status });
     }
     if (search) {
-      where.OR = [
-        { containerNumber: { contains: search , mode: 'insensitive'} },
-        { billOfLading: { contains: search , mode: 'insensitive'} },
-        { vesselName: { contains: search , mode: 'insensitive'} }
-      ];
+      conditions.push({
+        OR: [
+          { containerNumber: { contains: search, mode: 'insensitive' } },
+          { billOfLading: { contains: search, mode: 'insensitive' } },
+          { vesselName: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
 
-    // Scope to shipments containing the manufacturer's items (no-op for other roles).
-    Object.assign(where, manufacturerScopeForShipments(req));
+    const mfgScope = manufacturerScopeForShipments(req);
+    if (Object.keys(mfgScope).length > 0) {
+      conditions.push(mfgScope);
+    }
+
+    const where = conditions.length > 0 ? { AND: conditions } : {};
 
     const shipments = await prisma.shipment.findMany({
       where,
@@ -242,13 +263,22 @@ router.get('/stats', authGuard, requireShipmentViewer, async (req, res) => {
     const mfgScope = manufacturerScopeForShipments(req);
     const isManufacturer = req.user.role === 'MANUFACTURER';
 
+    // Build base where as an AND-array so we can mix the manufacturer OR-scope
+    // with the archive filter without clobbering.
+    const buildWhere = (extra = {}) => {
+      const conds = [];
+      if (Object.keys(extra).length > 0) conds.push(extra);
+      if (Object.keys(mfgScope).length > 0) conds.push(mfgScope);
+      return conds.length > 0 ? { AND: conds } : {};
+    };
+
     const [total, active, archived, byStatus] = await Promise.all([
-      prisma.shipment.count({ where: { ...mfgScope } }),
-      prisma.shipment.count({ where: { ...mfgScope, archivedAt: null } }),
-      prisma.shipment.count({ where: { ...mfgScope, archivedAt: { not: null } } }),
+      prisma.shipment.count({ where: buildWhere() }),
+      prisma.shipment.count({ where: buildWhere({ archivedAt: null }) }),
+      prisma.shipment.count({ where: buildWhere({ archivedAt: { not: null } }) }),
       prisma.shipment.groupBy({
         by: ['customsDocumentStatus'],
-        where: { ...mfgScope, archivedAt: null },
+        where: buildWhere({ archivedAt: null }),
         _count: true
       })
     ]);
@@ -283,16 +313,22 @@ router.get('/stats', authGuard, requireShipmentViewer, async (req, res) => {
 
 /**
  * GET /api/shipments/search-items
- * MUST be before /:id to avoid Express catching it as an id param
+ * Returns unlinked items the requester is allowed to add to a shipment.
+ * Manufacturers see only their own unlinked items.
+ * MUST be before /:id to avoid Express catching it as an id param.
  */
-router.get('/search-items', authGuard, requireInternalStaff, async (req, res) => {
+router.get('/search-items', authGuard, requireInternalStaffOrManufacturer, async (req, res) => {
   try {
     const { search, stage } = req.query;
 
     const where = {
       shipmentId: null,
-      archivedAt: null
+      archivedAt: null,
     };
+
+    if (req.user.role === 'MANUFACTURER') {
+      where.manufacturerId = req.user.manufacturer.id;
+    }
 
     if (stage) {
       where.currentStage = stage;
@@ -373,9 +409,14 @@ router.get('/:id', authGuard, requireShipmentViewer, async (req, res) => {
       return res.status(404).json({ error: 'Shipment not found' });
     }
 
-    // For manufacturers: if the shipment exists but contains no items belonging
-    // to them, treat as not found rather than leaking the shipment's existence.
-    if (isManufacturer && shipment.items.length === 0) {
+    // For manufacturers: if the shipment has no items belonging to them AND
+    // they didn't create it, treat as not found rather than leaking it.
+    // (Manufacturer-created empty shipments stay accessible.)
+    if (
+      isManufacturer &&
+      shipment.items.length === 0 &&
+      shipment.createdByUserId !== req.user.id
+    ) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
 
@@ -396,8 +437,10 @@ router.get('/:id', authGuard, requireShipmentViewer, async (req, res) => {
 
 /**
  * POST /api/shipments
+ * Manufacturers can create shipments; createdByUserId records ownership so
+ * they can subsequently see/edit-via-link-item their brand-new empty shipment.
  */
-router.post('/', authGuard, requireInternalStaff, async (req, res) => {
+router.post('/', authGuard, requireInternalStaffOrManufacturer, async (req, res) => {
   try {
     const { containerNumber, billOfLading, etaDate, vesselName, portOfOrigin, portOfDestination } = req.body;
 
@@ -437,6 +480,8 @@ router.post('/', authGuard, requireInternalStaff, async (req, res) => {
 
 /**
  * PUT /api/shipments/:id
+ * Editing shipment metadata (BOL, vessel, customs status, etc.) remains
+ * restricted to internal staff and brokers. Manufacturers create + link only.
  */
 router.put('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
   try {
@@ -620,10 +665,29 @@ router.delete('/:id', authGuard, requireAdmin, async (req, res) => {
 // ITEM LINKING
 // =============================
 
+// Helper: for manufacturers, verify they have access to the given shipment.
+// Shipment is accessible if: contains at least one of their items, or they created it.
+async function manufacturerCanAccessShipment(req, shipmentId) {
+  if (req.user.role !== 'MANUFACTURER') return true;
+  const accessible = await prisma.shipment.findFirst({
+    where: {
+      id: shipmentId,
+      OR: [
+        { items: { some: { manufacturerId: req.user.manufacturer.id, archivedAt: null } } },
+        { createdByUserId: req.user.id },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!accessible;
+}
+
 /**
  * POST /api/shipments/:id/link-item
+ * Manufacturers can link their own items to shipments they have access to
+ * (shipments containing their items or shipments they created).
  */
-router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) => {
+router.post('/:id/link-item', authGuard, requireInternalStaffOrManufacturer, async (req, res) => {
   try {
     const { id } = req.params;
     const { itemId } = req.body;
@@ -647,6 +711,16 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
     });
     if (!item) {
       return res.status(404).json({ error: 'Item not found' });
+    }
+
+    // Manufacturer guards: item must belong to them AND they must have access to the shipment.
+    if (req.user.role === 'MANUFACTURER') {
+      if (item.manufacturerId !== req.user.manufacturer.id) {
+        return res.status(403).json({ error: 'You can only link items assigned to you' });
+      }
+      if (!(await manufacturerCanAccessShipment(req, id))) {
+        return res.status(404).json({ error: 'Shipment not found' });
+      }
     }
 
     if (item.shipmentId) {
@@ -689,8 +763,9 @@ router.post('/:id/link-item', authGuard, requireInternalStaff, async (req, res) 
 
 /**
  * POST /api/shipments/:id/unlink-item
+ * Manufacturers can unlink their own items from any shipment.
  */
-router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res) => {
+router.post('/:id/unlink-item', authGuard, requireInternalStaffOrManufacturer, async (req, res) => {
   try {
     const { id } = req.params;
     const { itemId } = req.body;
@@ -706,6 +781,11 @@ router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res
 
     if (!item || item.shipmentId !== id) {
       return res.status(400).json({ error: 'Item is not linked to this shipment' });
+    }
+
+    // Manufacturer guard: item must belong to them.
+    if (req.user.role === 'MANUFACTURER' && item.manufacturerId !== req.user.manufacturer.id) {
+      return res.status(403).json({ error: 'You can only unlink items assigned to you' });
     }
 
     await prisma.orderItem.update({
@@ -735,8 +815,8 @@ router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res
 // SHIPMENT DOCUMENTS
 // =============================
 
-// Helper: for manufacturers, verify the shipment has at least one item assigned
-// to them. Resolves to true if access should be allowed.
+// Helper: for manufacturers, verify access to the shipment for document operations.
+// Shipment is accessible if: contains one of their items, OR they created it.
 async function manufacturerHasShipmentAccess(req, shipmentId) {
   if (req.user.role !== 'MANUFACTURER') return true;
   const hasItem = await prisma.orderItem.findFirst({
@@ -747,7 +827,13 @@ async function manufacturerHasShipmentAccess(req, shipmentId) {
     },
     select: { id: true },
   });
-  return !!hasItem;
+  if (hasItem) return true;
+  // Fallback: manufacturer-created shipments stay accessible even when empty.
+  const created = await prisma.shipment.findFirst({
+    where: { id: shipmentId, createdByUserId: req.user.id },
+    select: { id: true },
+  });
+  return !!created;
 }
 
 // Helper: for manufacturers, verify a given itemId belongs to one of their items.
@@ -814,7 +900,7 @@ router.get('/:id/documents', authGuard, requireShipmentViewer, async (req, res) 
 /**
  * POST /api/shipments/:id/documents
  * Upload document to shipment (creates ShipmentDocument).
- * Manufacturers can upload to shipments containing their items, restricted
+ * Manufacturers can upload to shipments they have access to, restricted
  * to the same 6 document types they're allowed at the item level.
  */
 router.post('/:id/documents', authGuard, requireShipmentViewer, upload.single('file'), async (req, res) => {
