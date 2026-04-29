@@ -46,11 +46,14 @@ export default function ShipmentManagementPage() {
   });
 
   const isAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
+  const isManufacturer = user?.role === "MANUFACTURER";
+  // Manufacturers see this page in read-only mode — no create, edit, link, unlink, archive, delete.
+  const canManage = !isManufacturer;
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
-    } else if (user && !["SUPER_ADMIN", "ADMIN", "AGENT"].includes(user.role)) {
+    } else if (user && !["SUPER_ADMIN", "ADMIN", "AGENT", "MANUFACTURER"].includes(user.role)) {
       router.push("/");
     }
   }, [user, authLoading, router]);
@@ -422,32 +425,36 @@ export default function ShipmentManagementPage() {
           <div>
             <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#dc2626", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: "32px" }}>🚢</span>
-              Shipment Management
+              {isManufacturer ? "Shared Shipments" : "Shipment Management"}
             </h1>
             <p style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: "14px" }}>
-              Manage shared shipments and track customs clearance
+              {isManufacturer
+                ? "Read-only view of shipments containing items assigned to you."
+                : "Manage shared shipments and track customs clearance"}
             </p>
           </div>
-          
-          <button
-            onClick={() => setShowCreateForm(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "12px 20px",
-              background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontWeight: "600",
-              fontSize: "14px"
-            }}
-          >
-            <span style={{ fontSize: "18px" }}>+</span>
-            New Shipment
-          </button>
+
+          {canManage && (
+            <button
+              onClick={() => setShowCreateForm(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "12px 20px",
+                background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "14px"
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>+</span>
+              New Shipment
+            </button>
+          )}
         </div>
 
         {/* Stats Cards */}
@@ -478,7 +485,7 @@ export default function ShipmentManagementPage() {
               padding: "20px"
             }}>
               <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: 4 }}>{stats.linkedItems}</div>
-              <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.5)" }}>Linked Items</div>
+              <div style={{ fontSize: "14px", color: "rgba(255, 255, 255, 0.5)" }}>{isManufacturer ? "My Linked Items" : "Linked Items"}</div>
             </div>
             <div style={{
               background: "rgba(34, 197, 94, 0.1)",
@@ -503,14 +510,16 @@ export default function ShipmentManagementPage() {
           setError={setError}
         />
 
-        <ShipmentFormModal
-          show={showCreateForm}
-          onClose={() => setShowCreateForm(false)}
-          formData={formData}
-          setFormData={setFormData}
-          onSubmit={handleCreateShipment}
-          loading={actionLoading === "create"}
-        />
+        {canManage && (
+          <ShipmentFormModal
+            show={showCreateForm}
+            onClose={() => setShowCreateForm(false)}
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleCreateShipment}
+            loading={actionLoading === "create"}
+          />
+        )}
 
         {/* Shipments List */}
         {loading ? (
@@ -520,7 +529,7 @@ export default function ShipmentManagementPage() {
         ) : shipments.length === 0 ? (
           <div style={{ textAlign: "center", padding: 48, color: "rgba(255, 255, 255, 0.5)" }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🚢</div>
-            <p>No shipments found</p>
+            <p>{isManufacturer ? "No shipments contain items assigned to you yet." : "No shipments found"}</p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -595,7 +604,7 @@ export default function ShipmentManagementPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255, 255, 255, 0.5)", fontSize: 13 }}>
                         <span>📦</span>
-                        <span>{itemCount} items</span>
+                        <span>{itemCount} {isManufacturer ? "of yours" : "items"}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, color: "rgba(255, 255, 255, 0.5)", fontSize: 13 }}>
                         <span>📄</span>
@@ -610,7 +619,7 @@ export default function ShipmentManagementPage() {
                   {/* Expanded Content */}
                   {expandedShipment === shipment.id && (
                     <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)", padding: "20px" }}>
-                      {editingShipment === shipment.id ? (
+                      {canManage && editingShipment === shipment.id ? (
                         /* Edit Form */
                         <div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
@@ -752,9 +761,9 @@ export default function ShipmentManagementPage() {
                           <div style={{ marginBottom: 20 }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                               <h4 style={{ fontSize: 14, fontWeight: 600, color: "rgba(255, 255, 255, 0.6)", margin: 0 }}>
-                                Linked Items ({shipment.items?.length || 0})
+                                {isManufacturer ? "Your Items" : "Linked Items"} ({shipment.items?.length || 0})
                               </h4>
-                              {!shipment.archivedAt && (
+                              {canManage && !shipment.archivedAt && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -826,49 +835,51 @@ export default function ShipmentManagementPage() {
                                         </span>
                                       )}
                                     </div>
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                      <Link
-                                        href={`/admin/orders/${item.order?.id}`}
-                                        style={{
-                                          padding: "4px 10px",
-                                          background: "rgba(255, 255, 255, 0.05)",
-                                          border: "1px solid rgba(255, 255, 255, 0.1)",
-                                          borderRadius: 4,
-                                          color: "rgba(255, 255, 255, 0.7)",
-                                          textDecoration: "none",
-                                          fontSize: 12
-                                        }}
-                                        title="View Order"
-                                      >
-                                        View →
-                                      </Link>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleUnlinkItem(shipment.id, item.id);
-                                        }}
-                                        disabled={actionLoading === item.id}
-                                        style={{
-                                          padding: "4px 10px",
-                                          background: "rgba(239, 68, 68, 0.1)",
-                                          border: "1px solid rgba(239, 68, 68, 0.3)",
-                                          borderRadius: 4,
-                                          color: "#ef4444",
-                                          cursor: "pointer",
-                                          fontSize: 12
-                                        }}
-                                        title="Unlink Item"
-                                      >
-                                        Unlink
-                                      </button>
-                                    </div>
+                                    {canManage && (
+                                      <div style={{ display: "flex", gap: 8 }}>
+                                        <Link
+                                          href={`/admin/orders/${item.order?.id}`}
+                                          style={{
+                                            padding: "4px 10px",
+                                            background: "rgba(255, 255, 255, 0.05)",
+                                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                                            borderRadius: 4,
+                                            color: "rgba(255, 255, 255, 0.7)",
+                                            textDecoration: "none",
+                                            fontSize: 12
+                                          }}
+                                          title="View Order"
+                                        >
+                                          View →
+                                        </Link>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUnlinkItem(shipment.id, item.id);
+                                          }}
+                                          disabled={actionLoading === item.id}
+                                          style={{
+                                            padding: "4px 10px",
+                                            background: "rgba(239, 68, 68, 0.1)",
+                                            border: "1px solid rgba(239, 68, 68, 0.3)",
+                                            borderRadius: 4,
+                                            color: "#ef4444",
+                                            cursor: "pointer",
+                                            fontSize: 12
+                                          }}
+                                          title="Unlink Item"
+                                        >
+                                          Unlink
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>
                             )}
 
                             {/* Add Item Panel */}
-                            {isAddingItem && (
+                            {canManage && isAddingItem && (
                               <div style={{
                                 background: "rgba(220, 38, 38, 0.05)",
                                 border: "1px solid rgba(220, 38, 38, 0.2)",
@@ -975,90 +986,92 @@ export default function ShipmentManagementPage() {
                           </div>
 
                           {/* Actions */}
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingTop: 16, borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                            <button
-                              onClick={() => startEdit(shipment)}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                padding: "8px 16px",
-                                background: "rgba(255, 255, 255, 0.05)",
-                                border: "1px solid rgba(255, 255, 255, 0.1)",
-                                color: "rgba(255, 255, 255, 0.9)",
-                                borderRadius: 6,
-                                cursor: "pointer",
-                                fontSize: 13
-                              }}
-                            >
-                              ✏️ Edit
-                            </button>
-                            
-                            {isAdmin && (
-                              <>
-                                {shipment.archivedAt ? (
+                          {canManage && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingTop: 16, borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                              <button
+                                onClick={() => startEdit(shipment)}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  padding: "8px 16px",
+                                  background: "rgba(255, 255, 255, 0.05)",
+                                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                                  color: "rgba(255, 255, 255, 0.9)",
+                                  borderRadius: 6,
+                                  cursor: "pointer",
+                                  fontSize: 13
+                                }}
+                              >
+                                ✏️ Edit
+                              </button>
+                              
+                              {isAdmin && (
+                                <>
+                                  {shipment.archivedAt ? (
+                                    <button
+                                      onClick={() => handleUnarchive(shipment.id)}
+                                      disabled={actionLoading === shipment.id}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "8px 16px",
+                                        background: "rgba(34, 197, 94, 0.2)",
+                                        border: "1px solid rgba(34, 197, 94, 0.4)",
+                                        color: "#4ade80",
+                                        borderRadius: 6,
+                                        cursor: "pointer",
+                                        fontSize: 13
+                                      }}
+                                    >
+                                      📤 Restore
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleArchive(shipment.id)}
+                                      disabled={actionLoading === shipment.id}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "8px 16px",
+                                        background: "rgba(234, 179, 8, 0.2)",
+                                        border: "1px solid rgba(234, 179, 8, 0.4)",
+                                        color: "#fbbf24",
+                                        borderRadius: 6,
+                                        cursor: "pointer",
+                                        fontSize: 13
+                                      }}
+                                    >
+                                      📥 Archive
+                                    </button>
+                                  )}
+                                  
                                   <button
-                                    onClick={() => handleUnarchive(shipment.id)}
-                                    disabled={actionLoading === shipment.id}
+                                    onClick={() => handleDelete(shipment.id, itemCount)}
+                                    disabled={actionLoading === shipment.id || itemCount > 0}
                                     style={{
                                       display: "flex",
                                       alignItems: "center",
                                       gap: 6,
                                       padding: "8px 16px",
-                                      background: "rgba(34, 197, 94, 0.2)",
-                                      border: "1px solid rgba(34, 197, 94, 0.4)",
-                                      color: "#4ade80",
+                                      background: "rgba(239, 68, 68, 0.2)",
+                                      border: "1px solid rgba(239, 68, 68, 0.4)",
+                                      color: "#ef4444",
                                       borderRadius: 6,
-                                      cursor: "pointer",
+                                      cursor: itemCount > 0 ? "not-allowed" : "pointer",
+                                      opacity: itemCount > 0 ? 0.5 : 1,
                                       fontSize: 13
                                     }}
+                                    title={itemCount > 0 ? "Unlink all items first" : "Delete shipment"}
                                   >
-                                    📤 Restore
+                                    🗑️ Delete
                                   </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleArchive(shipment.id)}
-                                    disabled={actionLoading === shipment.id}
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 6,
-                                      padding: "8px 16px",
-                                      background: "rgba(234, 179, 8, 0.2)",
-                                      border: "1px solid rgba(234, 179, 8, 0.4)",
-                                      color: "#fbbf24",
-                                      borderRadius: 6,
-                                      cursor: "pointer",
-                                      fontSize: 13
-                                    }}
-                                  >
-                                    📥 Archive
-                                  </button>
-                                )}
-                                
-                                <button
-                                  onClick={() => handleDelete(shipment.id, itemCount)}
-                                  disabled={actionLoading === shipment.id || itemCount > 0}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    padding: "8px 16px",
-                                    background: "rgba(239, 68, 68, 0.2)",
-                                    border: "1px solid rgba(239, 68, 68, 0.4)",
-                                    color: "#ef4444",
-                                    borderRadius: 6,
-                                    cursor: itemCount > 0 ? "not-allowed" : "pointer",
-                                    opacity: itemCount > 0 ? 0.5 : 1,
-                                    fontSize: 13
-                                  }}
-                                  title={itemCount > 0 ? "Unlink all items first" : "Delete shipment"}
-                                >
-                                  🗑️ Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

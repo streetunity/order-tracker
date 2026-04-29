@@ -41,6 +41,49 @@ const requireBrokerOrStaff = (req, res, next) => {
   next();
 };
 
+// Middleware for read-only views: admin, agent, broker, OR manufacturer.
+// Manufacturers must have a linked manufacturer profile so we can scope by manufacturerId.
+// Each handler is responsible for applying the manufacturerScope* helpers below.
+const requireShipmentViewer = (req, res, next) => {
+  if (!['SUPER_ADMIN', 'ADMIN', 'AGENT', 'BROKER', 'MANUFACTURER'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  if (req.user.role === 'MANUFACTURER' && !req.user.manufacturer?.id) {
+    return res.status(403).json({ error: 'No manufacturer profile linked to your account' });
+  }
+  next();
+};
+
+// =============================
+// MANUFACTURER SCOPING HELPERS
+// =============================
+
+// Returns a Prisma where-clause fragment that limits a Shipment query to
+// shipments containing at least one non-archived item assigned to the
+// requesting manufacturer. Returns {} for non-manufacturer users.
+function manufacturerScopeForShipments(req) {
+  if (req.user.role !== 'MANUFACTURER') return {};
+  return {
+    items: {
+      some: {
+        manufacturerId: req.user.manufacturer.id,
+        archivedAt: null,
+      },
+    },
+  };
+}
+
+// Returns the items.where filter to apply when including items in a Shipment
+// response. Manufacturers see ONLY their own items; everyone else sees all
+// non-archived items.
+function manufacturerItemFilter(req) {
+  if (req.user.role !== 'MANUFACTURER') return { archivedAt: null };
+  return {
+    archivedAt: null,
+    manufacturerId: req.user.manufacturer.id,
+  };
+}
+
 // =============================
 // HELPER: Sync status from shipment to all linked items
 // =============================
@@ -75,12 +118,12 @@ async function syncShipmentStatusToItems(shipmentId, newStatus, additionalData =
 /**
  * GET /api/shipments
  */
-router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
+router.get('/', authGuard, requireShipmentViewer, async (req, res) => {
   try {
     const { status, search, includeArchived, archivedOnly } = req.query;
 
     const where = {};
-    
+
     if (archivedOnly === 'true') {
       where.archivedAt = { not: null };
     } else if (includeArchived !== 'true') {
@@ -98,11 +141,14 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
       ];
     }
 
+    // Scope to shipments containing the manufacturer's items (no-op for other roles).
+    Object.assign(where, manufacturerScopeForShipments(req));
+
     const shipments = await prisma.shipment.findMany({
       where,
       include: {
         items: {
-          where: { archivedAt: null },
+          where: manufacturerItemFilter(req),
           select: {
             id: true,
             productCode: true,
@@ -134,13 +180,22 @@ router.get('/', authGuard, requireBrokerOrStaff, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    const isManufacturer = req.user.role === 'MANUFACTURER';
+
     const shipmentsWithDocCounts = shipments.map(shipment => {
       const itemDocCount = shipment.items.reduce((total, item) => {
         return total + (item._count?.documents || 0);
       }, 0);
-      
+
+      // For manufacturers, override the unfiltered _count.items so the UI
+      // doesn't reveal the total item count of other manufacturers' items.
+      const _count = isManufacturer
+        ? { items: shipment.items.length, documents: shipment._count?.documents || 0 }
+        : shipment._count;
+
       return {
         ...shipment,
+        _count,
         itemDocCount,
         totalDocCount: (shipment._count?.documents || 0) + itemDocCount
       };
@@ -181,24 +236,31 @@ router.get('/active', authGuard, requireInternalStaff, async (req, res) => {
 /**
  * GET /api/shipments/stats
  */
-router.get('/stats', authGuard, requireBrokerOrStaff, async (req, res) => {
+router.get('/stats', authGuard, requireShipmentViewer, async (req, res) => {
   try {
+    const mfgScope = manufacturerScopeForShipments(req);
+    const isManufacturer = req.user.role === 'MANUFACTURER';
+
     const [total, active, archived, byStatus] = await Promise.all([
-      prisma.shipment.count(),
-      prisma.shipment.count({ where: { archivedAt: null } }),
-      prisma.shipment.count({ where: { archivedAt: { not: null } } }),
+      prisma.shipment.count({ where: { ...mfgScope } }),
+      prisma.shipment.count({ where: { ...mfgScope, archivedAt: null } }),
+      prisma.shipment.count({ where: { ...mfgScope, archivedAt: { not: null } } }),
       prisma.shipment.groupBy({
         by: ['customsDocumentStatus'],
-        where: { archivedAt: null },
+        where: { ...mfgScope, archivedAt: null },
         _count: true
       })
     ]);
 
+    const itemStatsWhere = {
+      shipmentId: { not: null },
+      archivedAt: null
+    };
+    if (isManufacturer) {
+      itemStatsWhere.manufacturerId = req.user.manufacturer.id;
+    }
     const itemStats = await prisma.orderItem.aggregate({
-      where: { 
-        shipmentId: { not: null },
-        archivedAt: null
-      },
+      where: itemStatsWhere,
       _count: true
     });
 
@@ -270,15 +332,16 @@ router.get('/search-items', authGuard, requireInternalStaff, async (req, res) =>
 /**
  * GET /api/shipments/:id
  */
-router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
+router.get('/:id', authGuard, requireShipmentViewer, async (req, res) => {
   try {
     const { id } = req.params;
+    const isManufacturer = req.user.role === 'MANUFACTURER';
 
     const shipment = await prisma.shipment.findUnique({
       where: { id },
       include: {
         items: {
-          where: { archivedAt: null },
+          where: manufacturerItemFilter(req),
           include: {
             order: {
               select: {
@@ -306,6 +369,12 @@ router.get('/:id', authGuard, requireBrokerOrStaff, async (req, res) => {
     });
 
     if (!shipment) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+
+    // For manufacturers: if the shipment exists but contains no items belonging
+    // to them, treat as not found rather than leaking the shipment's existence.
+    if (isManufacturer && shipment.items.length === 0) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
 
@@ -665,13 +734,34 @@ router.post('/:id/unlink-item', authGuard, requireInternalStaff, async (req, res
 // SHIPMENT DOCUMENTS
 // =============================
 
+// Helper: for manufacturers, verify the shipment has at least one item assigned
+// to them. Resolves to true if access should be allowed.
+async function manufacturerHasShipmentAccess(req, shipmentId) {
+  if (req.user.role !== 'MANUFACTURER') return true;
+  const hasItem = await prisma.orderItem.findFirst({
+    where: {
+      shipmentId,
+      manufacturerId: req.user.manufacturer.id,
+      archivedAt: null,
+    },
+    select: { id: true },
+  });
+  return !!hasItem;
+}
+
 /**
  * GET /api/shipments/:id/documents
  * Uses documentService for unified view across both tables
  */
-router.get('/:id/documents', authGuard, requireBrokerOrStaff, async (req, res) => {
+router.get('/:id/documents', authGuard, requireShipmentViewer, async (req, res) => {
   try {
-    const result = await getDocumentsForShipment(req.params.id);
+    const { id } = req.params;
+
+    if (!(await manufacturerHasShipmentAccess(req, id))) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+
+    const result = await getDocumentsForShipment(id);
     if (!result) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
@@ -750,9 +840,13 @@ router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('fi
  * GET /api/shipments/:id/documents/:documentId/download
  * Uses documentService to resolve across both tables
  */
-router.get('/:id/documents/:documentId/download', authGuard, requireBrokerOrStaff, async (req, res) => {
+router.get('/:id/documents/:documentId/download', authGuard, requireShipmentViewer, async (req, res) => {
   try {
     const { id, documentId } = req.params;
+
+    if (!(await manufacturerHasShipmentAccess(req, id))) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
 
     const resolved = await resolveDocumentById(documentId, { shipmentId: id });
     if (!resolved) {
