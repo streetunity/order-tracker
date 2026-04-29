@@ -21,7 +21,7 @@ const REQUIRED_TYPES = ['ISF', 'ARRIVAL_NOTICE', 'BILL_OF_LADING', 'COMMERCIAL_I
 export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeaders, onSetDeleteConfirm }) {
   const [documents,        setDocuments]        = useState([]);
   const [loading,          setLoading]          = useState(false);
-  const [selectedDocType,  setSelectedDocType]  = useState("ISF");
+  const [selectedDocType,  setSelectedDocType]  = useState("");
   const [selectedFile,     setSelectedFile]     = useState(null);
   const [uploading,        setUploading]        = useState(false);
   const [uploadError,      setUploadError]      = useState("");
@@ -63,6 +63,7 @@ export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeader
       const res = await fetch(endpoint, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Upload failed"); }
       setSelectedFile(null);
+      setSelectedDocType("");
       if (fileInputRef.current) fileInputRef.current.value = "";
       await loadDocuments();
     } catch (e) { setUploadError(e.message); }
@@ -132,6 +133,10 @@ export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeader
         <h4 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: 600, color: "#fff" }}>Upload Document</h4>
         {uploadError && <div style={{ padding: "10px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: "6px", color: "#ef4444", fontSize: "13px", marginBottom: "12px" }}>{uploadError}</div>}
         <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+          <select value={selectedDocType} onChange={(e) => setSelectedDocType(e.target.value)} style={{ flex: "0 0 250px", padding: "10px 12px", background: "#1a1a1a", border: "1px solid #404040", borderRadius: "6px", color: "#fff", fontSize: "13px" }}>
+            <option value="">Select document type...</option>
+            {Object.entries(DOCUMENT_TYPE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
           <div
             onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -142,12 +147,9 @@ export default function BrokerDocumentsTab({ item, isManufacturer, getAuthHeader
             <Upload size={16} />{selectedFile ? selectedFile.name : "Drop file or click to browse"}
           </div>
           <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={(e) => setSelectedFile(e.target.files[0])} />
-          <select value={selectedDocType} onChange={(e) => setSelectedDocType(e.target.value)} style={{ flex: "0 0 250px", padding: "10px 12px", background: "#1a1a1a", border: "1px solid #404040", borderRadius: "6px", color: "#fff", fontSize: "13px" }}>
-            {REQUIRED_TYPES.map(type => <option key={type} value={type}>{DOCUMENT_TYPE_LABELS[type]}</option>)}
-          </select>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button onClick={handleUpload} disabled={!selectedFile || uploading} style={{ padding: "10px 20px", background: "#dc2626", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: (!selectedFile || uploading) ? "not-allowed" : "pointer", opacity: (!selectedFile || uploading) ? 0.5 : 1 }}>
+          <button onClick={handleUpload} disabled={!selectedFile || !selectedDocType || uploading} style={{ padding: "10px 20px", background: "#dc2626", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: (!selectedFile || !selectedDocType || uploading) ? "not-allowed" : "pointer", opacity: (!selectedFile || !selectedDocType || uploading) ? 0.5 : 1 }}>
             {uploading ? "Uploading..." : "Upload"}
           </button>
         </div>
