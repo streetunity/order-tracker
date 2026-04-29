@@ -325,6 +325,44 @@ const DEFAULT_STAGE_CONFIGS = {
   DELIVERED:     { notify: true, subject: 'Your order has been delivered!',             message: 'Your item ({{productCode}}) has been delivered. We hope you enjoy it!' },
 };
 
+// Friendly stage labels used in preview/test-send for the order_stage template.
+// Mirrors the STAGES const in web/app/admin/email/page.jsx so the preview matches
+// what the editor UI shows. Production sends still use the raw key (e.g. "AT SEA")
+// via orderStageEmailService — that's a separate concern flagged for follow-up.
+const STAGE_DISPLAY_NAMES = {
+  MANUFACTURING: 'Manufacturing',
+  TESTING:       'Debugging & Testing',
+  SHIPPING:      'Preparing Shipment',
+  AT_SEA:        'Container At Sea',
+  SMT:           'Arrived at SMT',
+  QC:            'Quality Control',
+  DELIVERED:     'Delivered',
+};
+
+// Resolve the stage-specific sample data used for previewing/testing the
+// order_stage template. Pulls the user's customized config from
+// prisma.emailStageConfig if present, otherwise falls back to the built-in
+// DEFAULT_STAGE_CONFIGS. Substitutes {{productCode}} in the message and
+// subject with the sample product code.
+async function resolveStageSampleData(prisma, stage) {
+  if (!stage || !DEFAULT_STAGE_CONFIGS[stage]) return null;
+  let dbConfig = null;
+  try {
+    dbConfig = await prisma.emailStageConfig.findUnique({ where: { stage } });
+  } catch (e) {
+    // If the table is missing or the query fails, fall back to defaults silently.
+    dbConfig = null;
+  }
+  const config = dbConfig || DEFAULT_STAGE_CONFIGS[stage];
+  const sampleProductCode = 'SL-3015';
+  const productCodeRegex = /\{\{productCode\}\}/g;
+  return {
+    stageDisplayName: STAGE_DISPLAY_NAMES[stage] || stage,
+    message: (config.message || '').replace(productCodeRegex, sampleProductCode),
+    stageSubject: (config.subject || '').replace(productCodeRegex, sampleProductCode),
+  };
+}
+
 export function createEmailTemplateSettingsRouter(prisma) {
   const router = Router();
 
@@ -452,6 +490,19 @@ export function createEmailTemplateSettingsRouter(prisma) {
       if (key === 'broker_document') sampleData.documentCount = '2';
       else sampleData.documentCount = sampleData.documentCount || '0'; // preserve customer_files value
 
+      // Stage-specific override for the order_stage template. If a `stage`
+      // is provided in the request body, swap in that stage's display name
+      // and message before substitution. This lets users preview each of
+      // the 7 stages instead of always seeing AT_SEA.
+      if (key === 'order_stage' && req.body.stage) {
+        const stageInfo = await resolveStageSampleData(prisma, req.body.stage);
+        if (stageInfo) {
+          sampleData.stageDisplayName = stageInfo.stageDisplayName;
+          sampleData.message = stageInfo.message;
+          sampleData.newStage = String(req.body.stage).toLowerCase();
+        }
+      }
+
       let processedSubject = subject || '';
       let processedBody    = bodyContent || '';
       let processedClosing = closingContent || '';
@@ -514,6 +565,16 @@ export function createEmailTemplateSettingsRouter(prisma) {
       if (templateKey === 'pending_approval_notification') sampleData.payoutDetails = SAMPLE_APPROVAL_DETAILS;
       if (templateKey === 'broker_document') sampleData.documentCount = '2';
       else sampleData.documentCount = sampleData.documentCount || '0';
+
+      // Stage-specific override for order_stage test sends. Same logic as preview.
+      if (templateKey === 'order_stage' && req.body.stage) {
+        const stageInfo = await resolveStageSampleData(prisma, req.body.stage);
+        if (stageInfo) {
+          sampleData.stageDisplayName = stageInfo.stageDisplayName;
+          sampleData.message = stageInfo.message;
+          sampleData.newStage = String(req.body.stage).toLowerCase();
+        }
+      }
 
       let subject = tpl.subject || defaultTpl.subject;
       let body    = tpl.bodyContent || defaultTpl.bodyContent;

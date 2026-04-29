@@ -7,20 +7,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNav from "@/components/TopNav";
 
 const CATEGORIES = {
-  invoicing:  { label: "Invoicing",        icon: "💰", color: "#10b981" },
-  orders:     { label: "Order Tracking",   icon: "📦", color: "#3b82f6" },
-  internal:   { label: "Internal",         icon: "🔒", color: "#8b5cf6" },
-  documents:  { label: "Document Changes", icon: "📁", color: "#f59e0b" },
+  invoicing:  { label: "Invoicing",        icon: "\uD83D\uDCB0", color: "#10b981" },
+  orders:     { label: "Order Tracking",   icon: "\uD83D\uDCE6", color: "#3b82f6" },
+  internal:   { label: "Internal",         icon: "\uD83D\uDD12", color: "#8b5cf6" },
+  documents:  { label: "Document Changes", icon: "\uD83D\uDCC1", color: "#f59e0b" },
 };
 
 const STAGES = [
-  { key: "MANUFACTURING", label: "Manufacturing",       icon: "🏭" },
-  { key: "TESTING",       label: "Debugging & Testing", icon: "🔧" },
-  { key: "SHIPPING",      label: "Preparing Shipment",  icon: "📦" },
-  { key: "AT_SEA",        label: "Container At Sea",    icon: "🚢" },
-  { key: "SMT",           label: "Arrived at SMT",      icon: "🏢" },
-  { key: "QC",            label: "Quality Control",     icon: "✅" },
-  { key: "DELIVERED",     label: "Delivered",           icon: "🎉" },
+  { key: "MANUFACTURING", label: "Manufacturing",       icon: "\uD83C\uDFED" },
+  { key: "TESTING",       label: "Debugging & Testing", icon: "\uD83D\uDD27" },
+  { key: "SHIPPING",      label: "Preparing Shipment",  icon: "\uD83D\uDCE6" },
+  { key: "AT_SEA",        label: "Container At Sea",    icon: "\uD83D\uDEA2" },
+  { key: "SMT",           label: "Arrived at SMT",      icon: "\uD83C\uDFE2" },
+  { key: "QC",            label: "Quality Control",     icon: "\u2705" },
+  { key: "DELIVERED",     label: "Delivered",           icon: "\uD83C\uDF89" },
 ];
 
 export default function EmailTemplatesPage() {
@@ -40,6 +40,11 @@ export default function EmailTemplatesPage() {
   const [hasChanges,   setHasChanges]   = useState(false);
   const [saving,       setSaving]       = useState(false);
 
+  // Stage selector for the order_stage template's preview / test send.
+  // Defaults to AT_SEA to preserve the prior preview behavior. Persists
+  // across template switches so users don't have to re-pick when toggling.
+  const [selectedStage, setSelectedStage] = useState("AT_SEA");
+
   // Customer files template state (Document Changes tab)
   const [docTemplate,        setDocTemplate]        = useState(null);
   const [editDocSubject,     setEditDocSubject]     = useState("");
@@ -52,6 +57,7 @@ export default function EmailTemplatesPage() {
   const [showPreview,    setShowPreview]    = useState(false);
   const [previewHtml,    setPreviewHtml]    = useState("");
   const [previewSubject, setPreviewSubject] = useState("");
+  const [previewStageLabel, setPreviewStageLabel] = useState("");
   const [showTestSend,   setShowTestSend]   = useState(false);
   const [testEmail,      setTestEmail]      = useState("");
   const [sendingTest,    setSendingTest]    = useState(false);
@@ -225,14 +231,24 @@ export default function EmailTemplatesPage() {
   const generatePreview = async () => {
     if (!selectedTemplate) return;
     try {
+      const isOrderStage = selectedTemplate.key === 'order_stage';
+      const stageObj = isOrderStage ? STAGES.find(s => s.key === selectedStage) : null;
       const res = await fetch(`/api/email-templates/preview/${selectedTemplate.key}`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: editSubject, bodyContent: editBody, closingContent: editClosing, footerContent: editFooter }),
+        body: JSON.stringify({
+          subject: editSubject,
+          bodyContent: editBody,
+          closingContent: editClosing,
+          footerContent: editFooter,
+          // Only meaningful for order_stage; backend ignores for other keys.
+          stage: isOrderStage ? selectedStage : undefined,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
         setPreviewSubject(data.subject);
+        setPreviewStageLabel(stageObj ? `${stageObj.icon} ${stageObj.label}` : "");
         setPreviewHtml(`
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; color: #333;">
             <div style="background: #dc2626; color: white; padding: 20px; text-align: center;">
@@ -254,10 +270,16 @@ export default function EmailTemplatesPage() {
     if (!testEmail || !selectedTemplate) return;
     try {
       setSendingTest(true);
+      const isOrderStage = selectedTemplate.key === 'order_stage';
       const res = await fetch("/api/email-templates/test-send", {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ templateKey: selectedTemplate.key, toEmail: testEmail }),
+        body: JSON.stringify({
+          templateKey: selectedTemplate.key,
+          toEmail: testEmail,
+          // Only meaningful for order_stage; backend ignores for other keys.
+          stage: isOrderStage ? selectedStage : undefined,
+        }),
       });
       const data = await res.json();
       if (data.success) { showToast(data.message); setShowTestSend(false); setTestEmail(''); }
@@ -310,6 +332,10 @@ export default function EmailTemplatesPage() {
     </button>
   );
 
+  // Used in editor header (only for order_stage) and the test send modal description.
+  const isOrderStageSelected = selectedTemplate?.key === 'order_stage';
+  const selectedStageLabel = STAGES.find(s => s.key === selectedStage)?.label || selectedStage;
+
   return (
     <>
       <TopNav />
@@ -324,9 +350,9 @@ export default function EmailTemplatesPage() {
 
         {/* Tab Bar */}
         <div style={{ display: "flex", gap: "10px", marginBottom: "24px", borderBottom: "2px solid #333" }}>
-          {tabBtn("templates", "📧 Email Templates")}
-          {tabBtn("stages",    "📊 Stage Notifications")}
-          {tabBtn("documents", "📁 Document Changes")}
+          {tabBtn("templates", "\uD83D\uDCE7 Email Templates")}
+          {tabBtn("stages",    "\uD83D\uDCCA Stage Notifications")}
+          {tabBtn("documents", "\uD83D\uDCC1 Document Changes")}
         </div>
 
         {loading ? (
@@ -366,7 +392,7 @@ export default function EmailTemplatesPage() {
             <div>
               {selectedTemplate ? (
                 <div style={{ background: "#1a1a1a", borderRadius: "8px", border: "1px solid #333", overflow: "hidden" }}>
-                  <div style={{ padding: "20px 24px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ padding: "20px 24px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>{selectedTemplate.name}</h2>
                       <p style={{ margin: "4px 0 0", color: "#999", fontSize: "13px" }}>{selectedTemplate.description}</p>
@@ -374,7 +400,22 @@ export default function EmailTemplatesPage() {
                         <p style={{ margin: "4px 0 0", color: "#666", fontSize: "12px" }}>Last edited by {selectedTemplate.lastUpdatedBy}{selectedTemplate.lastUpdatedAt && ` on ${new Date(selectedTemplate.lastUpdatedAt).toLocaleDateString()}`}</p>
                       )}
                     </div>
-                    <div style={{ display: "flex", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                      {isOrderStageSelected && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ fontSize: "12px", color: "#999", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Stage:</span>
+                          <select
+                            value={selectedStage}
+                            onChange={(e) => setSelectedStage(e.target.value)}
+                            title="Pick which stage to use when previewing or test-sending this template"
+                            style={{ padding: "8px 12px", background: "#252525", border: "1px solid #333", color: "white", borderRadius: "6px", fontSize: "13px", cursor: "pointer" }}
+                          >
+                            {STAGES.map(s => (
+                              <option key={s.key} value={s.key}>{s.icon} {s.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <button onClick={generatePreview} style={{ padding: "8px 16px", background: "#333", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}>👁️ Preview</button>
                       <button onClick={() => setShowTestSend(true)} style={{ padding: "8px 16px", background: "#333", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}>📤 Test Send</button>
                       {selectedTemplate.isCustomized && (
@@ -443,7 +484,7 @@ export default function EmailTemplatesPage() {
 
             <div style={{ background: "#1a1a1a", borderRadius: "8px", border: "1px solid #333", overflow: "hidden" }}>
               {stageConfigs.map((stage, idx) => {
-                const stageInfo = STAGES.find(s => s.key === stage.stage) || { label: stage.stage, icon: "📌" };
+                const stageInfo = STAGES.find(s => s.key === stage.stage) || { label: stage.stage, icon: "\uD83D\uDCCC" };
                 return (
                   <div key={stage.stage} style={{ padding: "24px", borderBottom: idx < stageConfigs.length - 1 ? "1px solid #333" : "none" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -564,7 +605,7 @@ export default function EmailTemplatesPage() {
             <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", width: "90%", maxWidth: "700px", maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
               <div style={{ padding: "16px 20px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "16px" }}>📧 Email Preview</h3>
+                  <h3 style={{ margin: 0, fontSize: "16px" }}>📧 Email Preview{previewStageLabel ? ` — ${previewStageLabel}` : ""}</h3>
                   <p style={{ margin: "4px 0 0", color: "#999", fontSize: "13px" }}>Subject: {previewSubject}</p>
                 </div>
                 <button onClick={() => setShowPreview(false)} style={{ background: "#333", color: "white", border: "none", borderRadius: "6px", padding: "8px 16px", cursor: "pointer" }}>✕ Close</button>
@@ -581,7 +622,10 @@ export default function EmailTemplatesPage() {
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowTestSend(false)}>
             <div style={{ backgroundColor: "#1f1f1f", border: "1px solid #404040", borderRadius: "8px", padding: "24px", width: "90%", maxWidth: "450px" }} onClick={(e) => e.stopPropagation()}>
               <h3 style={{ margin: "0 0 16px", fontSize: "18px" }}>📤 Send Test Email</h3>
-              <p style={{ color: "#999", fontSize: "13px", marginBottom: "16px" }}>Send a test version of "{selectedTemplate?.name}" with sample data.</p>
+              <p style={{ color: "#999", fontSize: "13px", marginBottom: "16px" }}>
+                Send a test version of "{selectedTemplate?.name}"
+                {isOrderStageSelected ? ` for the ${selectedStageLabel} stage` : ''} with sample data.
+              </p>
               <label style={{ display: "block", marginBottom: "6px", color: "#999", fontSize: "12px", fontWeight: "600", textTransform: "uppercase" }}>Recipient Email</label>
               <input type="email" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="you@example.com" style={{ width: "100%", padding: "12px 14px", background: "#252525", border: "1px solid #333", color: "white", borderRadius: "6px", fontSize: "14px", marginBottom: "20px" }} />
               <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
