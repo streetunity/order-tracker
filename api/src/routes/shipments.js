@@ -4,8 +4,8 @@ import { PrismaClient } from '@prisma/client';
 import { authGuard } from '../middleware/auth.js';
 import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl, validateFile } from '../services/fileUploadService.js';
 import {
-  DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, BROKER_DOCUMENT_TYPES,
-  getDocumentsForShipment, resolveDocumentById, deleteResolvedDocument
+  DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES, BROKER_DOCUMENT_TYPES,
+  getDocumentsForShipment, resolveDocumentById, deleteResolvedDocument, buildChecklist
 } from '../services/documentService.js';
 
 const router = express.Router();
@@ -41,7 +41,8 @@ const requireBrokerOrStaff = (req, res, next) => {
   next();
 };
 
-// Middleware for read-only views: admin, agent, broker, OR manufacturer.
+// Middleware for read-only views and (now) shipment-doc upload/delete:
+// admin, agent, broker, OR manufacturer.
 // Manufacturers must have a linked manufacturer profile so we can scope by manufacturerId.
 // Each handler is responsible for applying the manufacturerScope* helpers below.
 const requireShipmentViewer = (req, res, next) => {
@@ -749,9 +750,20 @@ async function manufacturerHasShipmentAccess(req, shipmentId) {
   return !!hasItem;
 }
 
+// Helper: for manufacturers, verify a given itemId belongs to one of their items.
+async function manufacturerOwnsItem(req, itemId) {
+  if (req.user.role !== 'MANUFACTURER') return true;
+  const item = await prisma.orderItem.findUnique({
+    where: { id: itemId },
+    select: { manufacturerId: true },
+  });
+  return !!item && item.manufacturerId === req.user.manufacturer.id;
+}
+
 /**
  * GET /api/shipments/:id/documents
- * Uses documentService for unified view across both tables
+ * Uses documentService for unified view across both tables.
+ * For manufacturers, filters out ItemDocuments from items they don't own.
  */
 router.get('/:id/documents', authGuard, requireShipmentViewer, async (req, res) => {
   try {
@@ -765,6 +777,33 @@ router.get('/:id/documents', authGuard, requireShipmentViewer, async (req, res) 
     if (!result) {
       return res.status(404).json({ error: 'Shipment not found' });
     }
+
+    // Manufacturer scope: keep ShipmentDocuments (no itemId) plus ItemDocuments
+    // from items they own. Rebuild checklist/stats from the filtered list.
+    if (req.user.role === 'MANUFACTURER') {
+      const myItems = await prisma.orderItem.findMany({
+        where: {
+          shipmentId: id,
+          manufacturerId: req.user.manufacturer.id,
+          archivedAt: null,
+        },
+        select: { id: true },
+      });
+      const myItemIds = new Set(myItems.map(i => i.id));
+
+      const filtered = (result.documents || []).filter(d => {
+        // Pure ShipmentDocument has no itemId
+        if (!d.itemId) return true;
+        // ItemDocument: must belong to one of their items
+        return myItemIds.has(d.itemId);
+      });
+
+      const { checklist, stats } = buildChecklist(filtered);
+      result.documents = filtered;
+      result.checklist = checklist;
+      result.stats = stats;
+    }
+
     res.json(result);
   } catch (error) {
     console.error('Error fetching shipment documents:', error);
@@ -774,16 +813,29 @@ router.get('/:id/documents', authGuard, requireShipmentViewer, async (req, res) 
 
 /**
  * POST /api/shipments/:id/documents
- * Upload document to shipment (creates ShipmentDocument)
+ * Upload document to shipment (creates ShipmentDocument).
+ * Manufacturers can upload to shipments containing their items, restricted
+ * to the same 6 document types they're allowed at the item level.
  */
-router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('file'), async (req, res) => {
+router.post('/:id/documents', authGuard, requireShipmentViewer, upload.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
     const { documentType } = req.body;
     const file = req.file;
     const username = req.user.name;
 
-    const allowedTypes = req.user.role === 'BROKER' ? BROKER_DOCUMENT_TYPES : Object.keys(DOCUMENT_TYPES);
+    if (!(await manufacturerHasShipmentAccess(req, id))) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
+
+    let allowedTypes;
+    if (req.user.role === 'BROKER') {
+      allowedTypes = BROKER_DOCUMENT_TYPES;
+    } else if (req.user.role === 'MANUFACTURER') {
+      allowedTypes = REQUIRED_DOCUMENT_TYPES;
+    } else {
+      allowedTypes = Object.keys(DOCUMENT_TYPES);
+    }
     if (!documentType || !allowedTypes.includes(documentType)) {
       return res.status(400).json({ error: `Invalid document type. Allowed: ${allowedTypes.join(', ')}` });
     }
@@ -838,7 +890,8 @@ router.post('/:id/documents', authGuard, requireBrokerOrStaff, upload.single('fi
 
 /**
  * GET /api/shipments/:id/documents/:documentId/download
- * Uses documentService to resolve across both tables
+ * Uses documentService to resolve across both tables.
+ * For manufacturers, ItemDocuments must belong to items they own.
  */
 router.get('/:id/documents/:documentId/download', authGuard, requireShipmentViewer, async (req, res) => {
   try {
@@ -853,6 +906,15 @@ router.get('/:id/documents/:documentId/download', authGuard, requireShipmentView
       return res.status(404).json({ error: 'Document not found' });
     }
 
+    // Manufacturer additional check for ItemDocuments: must belong to one of their items.
+    if (
+      req.user.role === 'MANUFACTURER' &&
+      resolved.table === 'ItemDocument' &&
+      !(await manufacturerOwnsItem(req, resolved.document.itemId))
+    ) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
     const downloadUrl = await getSignedDownloadUrl(resolved.document.s3Key, resolved.document.fileName);
     res.json({ downloadUrl, fileName: resolved.document.fileName });
   } catch (error) {
@@ -863,18 +925,32 @@ router.get('/:id/documents/:documentId/download', authGuard, requireShipmentView
 
 /**
  * DELETE /api/shipments/:id/documents/:documentId
- * Uses documentService to resolve and delete from correct table
+ * Uses documentService to resolve and delete from correct table.
+ * Manufacturers can delete documents they uploaded; admins can delete any.
  */
-router.delete('/:id/documents/:documentId', authGuard, requireBrokerOrStaff, async (req, res) => {
+router.delete('/:id/documents/:documentId', authGuard, requireShipmentViewer, async (req, res) => {
   try {
     const { id, documentId } = req.params;
+
+    if (!(await manufacturerHasShipmentAccess(req, id))) {
+      return res.status(404).json({ error: 'Shipment not found' });
+    }
 
     const resolved = await resolveDocumentById(documentId, { shipmentId: id });
     if (!resolved) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    // Only uploader or admin can delete
+    // Manufacturer additional check for ItemDocuments: must belong to one of their items.
+    if (
+      req.user.role === 'MANUFACTURER' &&
+      resolved.table === 'ItemDocument' &&
+      !(await manufacturerOwnsItem(req, resolved.document.itemId))
+    ) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Only uploader or admin can delete (applies uniformly across all roles).
     if (resolved.document.uploadedBy !== req.user.name && !['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
       return res.status(403).json({ error: 'Not authorized to delete this document' });
     }

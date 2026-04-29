@@ -8,6 +8,7 @@ import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import ShipmentFilters from "./ShipmentFilters";
 import ShipmentFormModal from "./ShipmentFormModal";
+import ShipmentDocumentsSection from "./ShipmentDocumentsSection";
 
 export default function ShipmentManagementPage() {
   const { user, getAuthHeaders, loading: authLoading } = useAuth();
@@ -429,7 +430,7 @@ export default function ShipmentManagementPage() {
             </h1>
             <p style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: "14px" }}>
               {isManufacturer
-                ? "Read-only view of shipments containing items assigned to you."
+                ? "Read-only view of shipments containing items assigned to you. You can upload shipment-level documents."
                 : "Manage shared shipments and track customs clearance"}
             </p>
           </div>
@@ -984,6 +985,14 @@ export default function ShipmentManagementPage() {
                               </div>
                             )}
                           </div>
+
+                          {/* Documents (shipment-level + item-level unified view) */}
+                          <ShipmentDocumentsSection
+                            shipment={shipment}
+                            user={user}
+                            getAuthHeaders={getAuthHeaders}
+                            onChange={loadShipments}
+                          />
 
                           {/* Actions */}
                           {canManage && (
