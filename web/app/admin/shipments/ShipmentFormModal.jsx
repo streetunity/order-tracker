@@ -57,49 +57,23 @@ export default function ShipmentFormModal({
         </h3>
 
         <form onSubmit={onSubmit}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-            <div>
-              <label style={labelStyle}>Container Number</label>
-              <input
-                type="text"
-                value={formData.containerNumber}
-                onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Bill of Lading</label>
-              <input
-                type="text"
-                value={formData.billOfLading}
-                onChange={(e) => setFormData({ ...formData, billOfLading: e.target.value })}
-                style={inputStyle}
-              />
-            </div>
+          {/* Shipment Name (full width).
+              Note: still stored on the underlying `containerNumber` field so no
+              database/backend changes are needed. The label is just renamed. */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Shipment Name</label>
+            <input
+              type="text"
+              value={formData.containerNumber}
+              onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
+              style={inputStyle}
+              placeholder="e.g. Acme \u2014 March Order"
+            />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-            <div>
-              <label style={labelStyle}>Vessel Name</label>
-              <input
-                type="text"
-                value={formData.vesselName}
-                onChange={(e) => setFormData({ ...formData, vesselName: e.target.value })}
-                style={inputStyle}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>ETA Date</label>
-              <input
-                type="date"
-                value={formData.etaDate}
-                onChange={(e) => setFormData({ ...formData, etaDate: e.target.value })}
-                style={inputStyle}
-              />
-            </div>
-          </div>
+          {/* Bill of Lading and Vessel Name removed: never used in practice. */}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
               <label style={labelStyle}>Port of Origin</label>
               <input
@@ -118,6 +92,19 @@ export default function ShipmentFormModal({
                 style={inputStyle}
               />
             </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+            <div>
+              <label style={labelStyle}>ETA Date</label>
+              <input
+                type="date"
+                value={formData.etaDate}
+                onChange={(e) => setFormData({ ...formData, etaDate: e.target.value })}
+                style={inputStyle}
+              />
+            </div>
+            <div />
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>

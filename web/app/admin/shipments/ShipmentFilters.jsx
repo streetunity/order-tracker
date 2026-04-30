@@ -50,7 +50,7 @@ export default function ShipmentFilters({
             onClick={() => setError("")}
             style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}
           >
-            ✕
+            \u2715
           </button>
         </div>
       )}
@@ -65,7 +65,7 @@ export default function ShipmentFilters({
       }}>
         <input
           type="text"
-          placeholder="Search container, BOL, vessel..."
+          placeholder="Search shipment, contact, customer, PO, item..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
@@ -74,7 +74,7 @@ export default function ShipmentFilters({
             border: "1px solid rgba(255, 255, 255, 0.1)",
             borderRadius: "8px",
             color: "#fff",
-            width: "300px",
+            width: "360px",
             fontSize: "14px"
           }}
         />

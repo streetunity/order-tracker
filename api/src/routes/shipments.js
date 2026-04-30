@@ -150,11 +150,24 @@ router.get('/', authGuard, requireShipmentViewer, async (req, res) => {
       conditions.push({ customsDocumentStatus: status });
     }
     if (search) {
+      // Search across shipment fields, customer/contact info on the linked
+      // account, the order's PO number, and item-level identifiers. Customer
+      // name and contact person are nested two levels deep:
+      //   shipment -> items[] -> order -> account.{name,contactName}
+      // Prisma needs `items: { some: { order: { account: {...} } } }` for that.
       conditions.push({
         OR: [
+          // Shipment-level fields
           { containerNumber: { contains: search, mode: 'insensitive' } },
-          { billOfLading: { contains: search, mode: 'insensitive' } },
-          { vesselName: { contains: search, mode: 'insensitive' } },
+          { billOfLading:    { contains: search, mode: 'insensitive' } },
+          { vesselName:      { contains: search, mode: 'insensitive' } },
+          // Item-level fields (any one item in the shipment matches)
+          { items: { some: { productCode:  { contains: search, mode: 'insensitive' } } } },
+          { items: { some: { serialNumber: { contains: search, mode: 'insensitive' } } } },
+          // Order-level (PO number) and account-level (customer + contact)
+          { items: { some: { order: { poNumber: { contains: search, mode: 'insensitive' } } } } },
+          { items: { some: { order: { account: { name:        { contains: search, mode: 'insensitive' } } } } } },
+          { items: { some: { order: { account: { contactName: { contains: search, mode: 'insensitive' } } } } } },
         ],
       });
     }
@@ -340,7 +353,8 @@ router.get('/search-items', authGuard, requireInternalStaffOrManufacturer, async
         { serialNumber: { contains: search , mode: 'insensitive'} },
         { billOfLading: { contains: search , mode: 'insensitive'} },
         { order: { poNumber: { contains: search , mode: 'insensitive'} } },
-        { order: { account: { name: { contains: search , mode: 'insensitive'} } } }
+        { order: { account: { name: { contains: search , mode: 'insensitive'} } } },
+        { order: { account: { contactName: { contains: search , mode: 'insensitive'} } } }
       ];
     }
 
