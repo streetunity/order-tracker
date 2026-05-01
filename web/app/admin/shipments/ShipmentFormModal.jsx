@@ -67,7 +67,7 @@ export default function ShipmentFormModal({
               value={formData.containerNumber}
               onChange={(e) => setFormData({ ...formData, containerNumber: e.target.value })}
               style={inputStyle}
-              placeholder="e.g. Acme \u2014 March Order"
+              placeholder="e.g. Acme -- March Order"
             />
           </div>
 
