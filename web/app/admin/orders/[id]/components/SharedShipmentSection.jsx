@@ -126,7 +126,7 @@ export default function SharedShipmentSection({
               gap: "8px",
               marginBottom: "4px"
             }}>
-              <span style={{ fontSize: "16px" }}>\uD83D\uDD17</span>
+              <span style={{ fontSize: "16px" }}>🔗</span>
               <span style={{ fontWeight: "600", color: "#dc2626" }}>Shared Shipment</span>
               {otherItemCount > 0 && (
                 <span style={{
@@ -199,7 +199,7 @@ export default function SharedShipmentSection({
         gap: "8px",
         marginBottom: "8px"
       }}>
-        <span style={{ fontSize: "14px" }}>\uD83D\uDCE6</span>
+        <span style={{ fontSize: "14px" }}>📦</span>
         <span style={{ fontWeight: "500", fontSize: "13px" }}>Shared Shipment</span>
         <span style={{ fontSize: "11px", color: "#9ca3af" }}>
           (Link items shipping in the same container)
@@ -221,7 +221,7 @@ export default function SharedShipmentSection({
             minWidth: "240px"
           }}
         >
-          <option value="">Select a shipment\u2026</option>
+          <option value="">Select a shipment…</option>
           {shipments.map(s => {
             const label = s.containerNumber || s.billOfLading || "(unnamed)";
             const itemCount = s._count?.items || 0;
@@ -248,7 +248,7 @@ export default function SharedShipmentSection({
             fontWeight: 600
           }}
         >
-          {loading ? "Adding\u2026" : "Add to Shipment"}
+          {loading ? "Adding…" : "Add to Shipment"}
         </button>
       </div>
 
