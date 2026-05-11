@@ -3,6 +3,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 
 import { authGuard, adminGuard, nonManufacturerGuard } from './middleware/auth.js';
@@ -57,6 +58,7 @@ import { createEmailTemplateSettingsRouter } from './routes/emailTemplateSetting
 import createInvoicingSettingsRouter from './routes/invoicingSettings.js';
 import { createNextnpWebhookHandler } from './routes/nextnpWebhook.js';
 import { createCalendarRouter } from './routes/calendar.js';
+import { createCalendarFeedRouter } from './routes/calendarFeed.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -156,6 +158,7 @@ const remindersRouter          = createRemindersRouter();
 const emailTemplateSettingsRouter = createEmailTemplateSettingsRouter(prisma);
 const invoicingSettingsRouter  = createInvoicingSettingsRouter(prisma);
 const calendarRouter           = createCalendarRouter(prisma);
+const calendarFeedRouter       = createCalendarFeedRouter(prisma);
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
@@ -228,6 +231,36 @@ app.get('/users/search', authGuard, async (req, res) => {
     }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// ICS calendar subscription token (per-user self-service).
+// GET returns current state, POST generates/regenerates, DELETE disables.
+app.get('/users/me/ics-token', authGuard, async (req, res) => {
+  try {
+    const u = await prisma.user.findUnique({ where: { id: req.user.id }, select: { icsToken: true } });
+    if (!u) return res.status(404).json({ error: 'User not found' });
+    const baseUrl = process.env.PUBLIC_BASE_URL || 'https://smt-orders.com';
+    res.json({
+      enabled: !!u.icsToken,
+      feedUrl: u.icsToken ? `${baseUrl}/api/calendar/feed/${u.icsToken}.ics` : null,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/users/me/ics-token', authGuard, async (req, res) => {
+  try {
+    const token = crypto.randomBytes(32).toString('hex');
+    await prisma.user.update({ where: { id: req.user.id }, data: { icsToken: token } });
+    const baseUrl = process.env.PUBLIC_BASE_URL || 'https://smt-orders.com';
+    res.json({ enabled: true, feedUrl: `${baseUrl}/api/calendar/feed/${token}.ics` });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/users/me/ics-token', authGuard, async (req, res) => {
+  try {
+    await prisma.user.update({ where: { id: req.user.id }, data: { icsToken: null } });
+    res.json({ enabled: false, feedUrl: null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.use('/users', adminGuard, usersRouter);
 
 app.get('/manufacturers/active', authGuard, async (req, res) => {
@@ -261,6 +294,9 @@ app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
 app.use('/commissions', authGuard, commissionsRouter);
 
+// ICS feed: token-in-URL is the auth, no middleware. Must be mounted BEFORE
+// the auth-guarded /calendar router so the /feed/:token.ics path matches first.
+app.use('/calendar/feed', calendarFeedRouter);
 app.use('/calendar', authGuard, calendarRouter);
 
 app.use('/customs', brokerRouter);

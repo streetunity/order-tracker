@@ -12,6 +12,7 @@ const TABS = [
   { id: "account",  label: "Account Information" },
   { id: "email",    label: "Email Settings" },
   { id: "password", label: "Change Password" },
+  { id: "calendar", label: "Calendar Sync" },
 ];
 
 export default function ProfilePage() {
@@ -49,6 +50,15 @@ export default function ProfilePage() {
   const [pwError,          setPwError]          = useState("");
   const [pwSuccess,        setPwSuccess]        = useState(false);
 
+  // ---- Calendar Sync ----
+  const [icsLoading,   setIcsLoading]   = useState(true);
+  const [icsEnabled,   setIcsEnabled]   = useState(false);
+  const [icsFeedUrl,   setIcsFeedUrl]   = useState("");
+  const [icsBusy,      setIcsBusy]      = useState(false);
+  const [icsError,     setIcsError]     = useState("");
+  const [icsCopied,    setIcsCopied]    = useState(false);
+  const [icsConfirm,   setIcsConfirm]   = useState(null); // 'regenerate' | 'disable' | null
+
   const isManufacturer = user?.role === "MANUFACTURER";
 
   // Read ?from= on the client side
@@ -62,6 +72,7 @@ export default function ProfilePage() {
     setName(user.name || "");
     setEmail(user.email || "");
     loadEmailSettings();
+    loadIcsState();
   }, [user, router]);
 
   useEffect(() => {
@@ -165,6 +176,63 @@ export default function ProfilePage() {
     } finally { setPwLoading(false); }
   }
 
+  async function loadIcsState() {
+    setIcsLoading(true); setIcsError("");
+    try {
+      const res = await fetch("/api/users/me/ics-token", { headers: getAuthHeaders() });
+      if (res.ok) {
+        const d = await res.json();
+        setIcsEnabled(!!d.enabled);
+        setIcsFeedUrl(d.feedUrl || "");
+      } else {
+        setIcsError("Failed to load calendar sync status.");
+      }
+    } catch (e) { setIcsError("Failed to load calendar sync status."); }
+    finally { setIcsLoading(false); }
+  }
+
+  async function handleIcsEnable() {
+    setIcsBusy(true); setIcsError("");
+    try {
+      const res = await fetch("/api/users/me/ics-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to enable sync");
+      setIcsEnabled(true); setIcsFeedUrl(d.feedUrl || "");
+    } catch (e) { setIcsError(e.message); }
+    finally { setIcsBusy(false); setIcsConfirm(null); }
+  }
+
+  async function handleIcsDisable() {
+    setIcsBusy(true); setIcsError("");
+    try {
+      const res = await fetch("/api/users/me/ics-token", {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed to disable sync");
+      setIcsEnabled(false); setIcsFeedUrl("");
+    } catch (e) { setIcsError(e.message); }
+    finally { setIcsBusy(false); setIcsConfirm(null); }
+  }
+
+  async function handleIcsCopy() {
+    if (!icsFeedUrl) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(icsFeedUrl);
+      } else {
+        // Fallback: select the input so the user can copy manually.
+        const inp = document.getElementById("ics-feed-url");
+        if (inp) { inp.select(); document.execCommand("copy"); }
+      }
+      setIcsCopied(true);
+      setTimeout(() => setIcsCopied(false), 2000);
+    } catch (e) { setIcsError("Copy failed -- please select and copy manually."); }
+  }
+
   function formatDate(dateValue, includeTime = false) {
     if (!dateValue) return "N/A";
     try {
@@ -241,7 +309,7 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* ── Tab 1: Account Information ── */}
+        {/* -- Tab 1: Account Information -- */}
         {activeTab === "account" && (
           <div style={CARD}>
             <SectionHeader label="Account Information" />
@@ -269,7 +337,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* ── Tab 2: Email Settings ── */}
+        {/* -- Tab 2: Email Settings -- */}
         {activeTab === "email" && (
           <div style={CARD}>
             <SectionHeader label="Email Settings" />
@@ -333,7 +401,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* ── Tab 3: Change Password ── */}
+        {/* -- Tab 3: Change Password -- */}
         {activeTab === "password" && (
           <div style={CARD}>
             <SectionHeader label="Change Password" />
@@ -376,6 +444,161 @@ export default function ProfilePage() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* -- Tab 4: Calendar Sync -- */}
+        {activeTab === "calendar" && (
+          <div style={CARD}>
+            <SectionHeader label="Calendar Subscription" />
+
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 18, lineHeight: 1.6, marginTop: -8 }}>
+              Subscribe to your Order Tracker calendar from Google, Apple, or Outlook. Events you can see in the in-app calendar will appear in your external calendar. Updates may take several hours to appear depending on your calendar app's refresh schedule.
+            </p>
+
+            {icsLoading ? (
+              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "20px 0" }}>Loading\u2026</div>
+            ) : (
+              <>
+                {/* Status indicator */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: icsEnabled ? "#10b981" : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: icsEnabled ? "#10b981" : "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                    {icsEnabled ? "Active" : "Not Enabled"}
+                  </span>
+                </div>
+
+                {icsError && (
+                  <div style={{ padding: "10px 14px", background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 8, color: "#dc2626", fontSize: 13, marginBottom: 16 }}>
+                    {icsError}
+                  </div>
+                )}
+
+                {!icsEnabled && (
+                  <div>
+                    <button
+                      onClick={handleIcsEnable}
+                      disabled={icsBusy}
+                      style={{ padding: "10px 20px", background: icsBusy ? "rgba(220,38,38,0.4)" : "#dc2626", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: icsBusy ? "not-allowed" : "pointer" }}
+                    >
+                      {icsBusy ? "Enabling\u2026" : "Enable Calendar Sync"}
+                    </button>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginTop: 8 }}>
+                      Generates a private subscription URL you can add to your calendar app.
+                    </div>
+                  </div>
+                )}
+
+                {icsEnabled && (
+                  <>
+                    {/* URL + Copy */}
+                    <label style={LBL}>Subscription URL</label>
+                    <div style={{ display: "flex", gap: 8, alignItems: "stretch", marginBottom: 16 }}>
+                      <input
+                        id="ics-feed-url"
+                        type="text"
+                        value={icsFeedUrl}
+                        readOnly
+                        onClick={e => e.target.select()}
+                        style={{ ...INP, flex: 1 }}
+                      />
+                      <button
+                        onClick={handleIcsCopy}
+                        style={{
+                          padding: "0 16px", minWidth: 92,
+                          background: icsCopied ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)",
+                          border: `1px solid ${icsCopied ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.1)"}`,
+                          borderRadius: 7,
+                          color: icsCopied ? "#10b981" : "rgba(255,255,255,0.7)",
+                          fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {icsCopied ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginBottom: 18 }}>
+                      Keep this URL private. Anyone with it can read your calendar.
+                    </div>
+
+                    {/* Instructions */}
+                    <details style={{ marginBottom: 10 }}>
+                      <summary style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", cursor: "pointer", userSelect: "none", padding: "8px 0", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                        Google Calendar
+                      </summary>
+                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, padding: "8px 0 12px 4px" }}>
+                        Open Google Calendar. In the left sidebar, click the <strong>+</strong> next to <strong>Other calendars</strong>, choose <strong>From URL</strong>, paste the URL above, click <strong>Add calendar</strong>.
+                      </div>
+                    </details>
+
+                    <details style={{ marginBottom: 10 }}>
+                      <summary style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", cursor: "pointer", userSelect: "none", padding: "8px 0", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                        Apple Calendar (Mac)
+                      </summary>
+                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, padding: "8px 0 12px 4px" }}>
+                        Open Calendar. <strong>File &rarr; New Calendar Subscription</strong>. Paste the URL above and click <strong>Subscribe</strong>. Choose your preferred refresh frequency.
+                      </div>
+                    </details>
+
+                    <details style={{ marginBottom: 20 }}>
+                      <summary style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", cursor: "pointer", userSelect: "none", padding: "8px 0", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                        Apple Calendar (iPhone / iPad)
+                      </summary>
+                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, padding: "8px 0 12px 4px" }}>
+                        <strong>Settings &rarr; Calendar &rarr; Accounts &rarr; Add Account &rarr; Other &rarr; Add Subscribed Calendar</strong>. Paste the URL and tap <strong>Next</strong>.
+                      </div>
+                    </details>
+
+                    {/* Confirm prompts */}
+                    {icsConfirm === "regenerate" && (
+                      <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.5, marginBottom: 12 }}>
+                          This will break the connection to any calendar app currently subscribed to your old URL. You will need to update the URL in each one. Continue?
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => setIcsConfirm(null)} disabled={icsBusy} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Cancel</button>
+                          <button onClick={handleIcsEnable} disabled={icsBusy} style={{ padding: "7px 16px", background: icsBusy ? "rgba(245,158,11,0.4)" : "#f59e0b", border: "none", borderRadius: 7, color: "#000", fontSize: 13, fontWeight: 600, cursor: icsBusy ? "not-allowed" : "pointer" }}>
+                            {icsBusy ? "Regenerating\u2026" : "Regenerate URL"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {icsConfirm === "disable" && (
+                      <div style={{ padding: "14px 16px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 8, marginBottom: 14 }}>
+                        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.5, marginBottom: 12 }}>
+                          This will stop your external calendars from receiving updates. Continue?
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => setIcsConfirm(null)} disabled={icsBusy} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Cancel</button>
+                          <button onClick={handleIcsDisable} disabled={icsBusy} style={{ padding: "7px 16px", background: icsBusy ? "rgba(220,38,38,0.4)" : "#dc2626", border: "none", borderRadius: 7, color: "#fff", fontSize: 13, fontWeight: 600, cursor: icsBusy ? "not-allowed" : "pointer" }}>
+                            {icsBusy ? "Disabling\u2026" : "Disable Sync"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    {!icsConfirm && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 10, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                        <button
+                          onClick={() => { setIcsError(""); setIcsConfirm("regenerate"); }}
+                          style={{ padding: "8px 16px", background: "transparent", border: "1px solid rgba(245,158,11,0.5)", borderRadius: 7, color: "#f59e0b", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+                        >
+                          Regenerate URL
+                        </button>
+                        <button
+                          onClick={() => { setIcsError(""); setIcsConfirm("disable"); }}
+                          style={{ padding: "8px 16px", background: "transparent", border: "1px solid rgba(220,38,38,0.5)", borderRadius: 7, color: "#dc2626", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+                        >
+                          Disable Sync
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
           </div>
         )}
 
