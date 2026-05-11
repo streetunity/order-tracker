@@ -438,6 +438,7 @@ model User {
   isEmployee             Boolean                @default(true)  // False for system/service accounts (cron jobs, sysop, etc.)
   showInSalesRepDropdown Boolean                @default(true)
   lastLogin              DateTime?
+  icsToken               String?                @unique
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   createdOrders          Order[]
