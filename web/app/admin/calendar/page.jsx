@@ -60,6 +60,12 @@ function toInputDate(dateOrStr) {
   return [d.getUTCFullYear(), String(d.getUTCMonth() + 1).padStart(2, '0'), String(d.getUTCDate()).padStart(2, '0')].join('-');
 }
 
+function toInputDateLocal(dateOrStr) {
+  if (!dateOrStr) return '';
+  const d = new Date(dateOrStr);
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+}
+
 function toInputTime(dateOrStr) {
   if (!dateOrStr) return '09:00';
   const d = new Date(dateOrStr);
@@ -563,8 +569,8 @@ export default function CalendarPage() {
     const isAllDay = e.allDay !== false;
     setFormType(e.type);
     setFormAllDay(isAllDay);
-    setFormStart(toInputDate(e.startDate));
-    setFormEnd(toInputDate(e.endDate));
+    setFormStart(isAllDay ? toInputDate(e.startDate) : toInputDateLocal(e.startDate));
+    setFormEnd(isAllDay ? toInputDate(e.endDate) : toInputDateLocal(e.endDate));
     setFormStartTime(isAllDay ? '09:00' : toInputTime(e.startDate));
     setFormEndTime(isAllDay ? '10:00' : toInputTime(e.endDate));
     setFormNotes(e.notes || '');
@@ -604,8 +610,17 @@ export default function CalendarPage() {
       autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Out of Office`;
     }
 
-    const startDate = isAllDay ? formStart : `${formStart}T${formStartTime}:00`;
-    const endDate   = isAllDay ? (formEnd || formStart) : `${formStart}T${formEndTime}:00`;
+    let startDate, endDate;
+    if (isAllDay) {
+      startDate = formStart;
+      endDate = formEnd || formStart;
+    } else {
+      const [sy, smo, sd] = formStart.split('-').map(Number);
+      const [ssh, ssm] = formStartTime.split(':').map(Number);
+      const [esh, esm] = formEndTime.split(':').map(Number);
+      startDate = new Date(sy, smo - 1, sd, ssh, ssm, 0).toISOString();
+      endDate   = new Date(sy, smo - 1, sd, esh, esm, 0).toISOString();
+    }
 
     setSaving(true);
     try {
