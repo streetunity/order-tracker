@@ -444,21 +444,37 @@ router.get("/manufacturer/item/:itemId/documents/:documentId/download", authGuar
 
     const manufacturerId = req.user.manufacturer.id;
 
-    const document = await prisma.itemDocument.findUnique({
-      where: { id: documentId },
-      include: { item: true }
+    // Verify the requesting item belongs to this manufacturer.
+    const item = await prisma.orderItem.findUnique({
+      where: { id: itemId },
+      select: { manufacturerId: true, shipmentId: true }
     });
+    if (!item || item.manufacturerId !== manufacturerId) {
+      return res.status(403).json({ error: "Item not assigned to you" });
+    }
 
-    if (!document || document.itemId !== itemId) {
+    // Resolve across both tables (ShipmentDocument + ItemDocument).
+    const resolved = await resolveDocumentById(documentId, { itemId });
+    if (!resolved) {
       return res.status(404).json({ error: "Document not found" });
     }
 
-    if (document.item.manufacturerId !== manufacturerId) {
-      return res.status(403).json({ error: "Not authorized" });
+    // For ItemDocuments (own or sibling), the doc's item must also be
+    // owned by this manufacturer. ShipmentDocuments are implicitly OK
+    // because resolveDocumentById already confirmed the shipment match
+    // and the manufacturer's item ownership is verified above.
+    if (resolved.table === 'ItemDocument') {
+      const docItem = await prisma.orderItem.findUnique({
+        where: { id: resolved.document.itemId },
+        select: { manufacturerId: true }
+      });
+      if (!docItem || docItem.manufacturerId !== manufacturerId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
     }
 
-    const downloadUrl = await getSignedDownloadUrl(document.s3Key, document.fileName);
-    res.json({ downloadUrl, fileName: document.fileName });
+    const downloadUrl = await getSignedDownloadUrl(resolved.document.s3Key, resolved.document.fileName);
+    res.json({ downloadUrl, fileName: resolved.document.fileName });
   } catch (error) {
     console.error("Manufacturer download URL error:", error);
     res.status(500).json({ error: "Failed to generate download URL" });
@@ -479,53 +495,66 @@ router.delete("/manufacturer/item/:itemId/documents/:documentId", authGuard, asy
 
     const manufacturerId = req.user.manufacturer.id;
 
-    const document = await prisma.itemDocument.findUnique({
-      where: { id: documentId },
-      include: { 
-        item: {
-          include: {
-            order: {
-              include: { account: { select: { name: true } } }
-            }
-          }
+    // Verify the requesting item belongs to this manufacturer.
+    const item = await prisma.orderItem.findUnique({
+      where: { id: itemId },
+      include: {
+        order: {
+          include: { account: { select: { name: true } } }
         }
       }
     });
+    if (!item || item.manufacturerId !== manufacturerId) {
+      return res.status(403).json({ error: "Item not assigned to you" });
+    }
 
-    if (!document || document.itemId !== itemId) {
+    // Resolve across both tables (ShipmentDocument + ItemDocument).
+    const resolved = await resolveDocumentById(documentId, { itemId });
+    if (!resolved) {
       return res.status(404).json({ error: "Document not found" });
     }
 
-    if (document.item.manufacturerId !== manufacturerId) {
-      return res.status(403).json({ error: "Not authorized" });
+    // For ItemDocuments (own or sibling), the doc's item must belong to
+    // this manufacturer. ShipmentDocuments are shared with the shipment
+    // and access is implied by item ownership (already verified above).
+    if (resolved.table === 'ItemDocument') {
+      const docItem = await prisma.orderItem.findUnique({
+        where: { id: resolved.document.itemId },
+        select: { manufacturerId: true }
+      });
+      if (!docItem || docItem.manufacturerId !== manufacturerId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
     }
 
-    if (document.uploadedBy !== req.user.name) {
+    // Manufacturers can only delete documents they uploaded themselves.
+    if (resolved.document.uploadedBy !== req.user.name) {
       return res.status(403).json({ error: "Not authorized to delete this document" });
     }
 
-    await deleteFileFromS3(document.s3Key);
-
     await prisma.$transaction(async (tx) => {
-      await tx.itemDocument.delete({ where: { id: documentId } });
+      await deleteResolvedDocument(resolved, deleteFileFromS3, tx);
 
       await tx.auditLog.create({
         data: {
-          entityType: 'ItemDocument',
+          entityType: resolved.table,
           entityId: documentId,
-          parentEntityId: document.item.orderId,
+          parentEntityId: resolved.table === 'ShipmentDocument'
+            ? (item.shipmentId || item.orderId)
+            : item.orderId,
           action: 'DOCUMENT_DELETED',
           metadata: JSON.stringify({
-            fileName: document.fileName,
-            fileSize: document.fileSize,
-            documentType: document.documentType,
-            documentTypeLabel: DOCUMENT_TYPE_LABELS[document.documentType],
+            fileName: resolved.document.fileName,
+            fileSize: resolved.document.fileSize,
+            documentType: resolved.document.documentType,
+            documentTypeLabel: DOCUMENT_TYPE_LABELS[resolved.document.documentType],
             itemId,
-            productCode: document.item.productCode,
-            orderPO: document.item.order?.poNumber,
-            customerName: document.item.order?.account?.name,
+            productCode: item.productCode,
+            orderPO: item.order?.poNumber,
+            customerName: item.order?.account?.name,
             deletedByRole: 'MANUFACTURER',
-            manufacturerName: req.user.manufacturer?.name
+            manufacturerName: req.user.manufacturer?.name,
+            sourceTable: resolved.table
           }),
           performedByUserId: req.user.id,
           performedByName: req.user.name
