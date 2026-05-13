@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Upload, File, Download, Trash2 } from "lucide-react";
+import { Upload, File, Download, Trash2, CheckCircle, XCircle } from "lucide-react";
 
 const ALL_DOCUMENT_TYPE_LABELS = {
   ISF: "ISF (International Security Filing)",
@@ -27,8 +27,12 @@ const MANUFACTURER_DOCUMENT_TYPES = [
   "DELIVERY_ORDER",
 ];
 
+// Required document types for the shipment checklist (same as manufacturer set).
+const REQUIRED_TYPES = MANUFACTURER_DOCUMENT_TYPES;
+
 export default function ShipmentDocumentsSection({ shipment, user, getAuthHeaders, onChange }) {
   const [documents, setDocuments] = useState([]);
+  const [checklist, setChecklist] = useState({});
   const [loading, setLoading] = useState(false);
   const [selectedType, setSelectedType] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
@@ -60,12 +64,15 @@ export default function ShipmentDocumentsSection({ shipment, user, getAuthHeader
       if (res.ok) {
         const data = await res.json();
         setDocuments(Array.isArray(data?.documents) ? data.documents : []);
+        setChecklist(data?.checklist || {});
       } else {
         setDocuments([]);
+        setChecklist({});
       }
     } catch (e) {
       console.error("Failed to load shipment documents:", e);
       setDocuments([]);
+      setChecklist({});
     } finally {
       setLoading(false);
     }
@@ -146,7 +153,55 @@ export default function ShipmentDocumentsSection({ shipment, user, getAuthHeader
         Documents ({documents.length})
       </h4>
 
-      {/* Upload panel — hidden when shipment is archived */}
+      {/* Document checklist (required broker docs) */}
+      <div style={{
+        background: "rgba(255, 255, 255, 0.02)",
+        border: "1px solid rgba(255, 255, 255, 0.08)",
+        borderRadius: 8,
+        padding: 14,
+        marginBottom: 12,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontWeight: 600, color: "#fff", fontSize: 14 }}>Document Checklist</span>
+          <span style={{ color: "rgba(255, 255, 255, 0.5)", fontSize: 12 }}>
+            {REQUIRED_TYPES.filter(t => checklist[t]?.uploaded).length}/{REQUIRED_TYPES.length} Complete
+          </span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {REQUIRED_TYPES.map(type => {
+            const entry = checklist[type] || {};
+            const has = !!entry.uploaded;
+            return (
+              <div
+                key={type}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 12px",
+                  background: "rgba(0, 0, 0, 0.25)",
+                  borderRadius: 6,
+                }}
+              >
+                {has
+                  ? <CheckCircle size={15} color="#22c55e" />
+                  : <XCircle size={15} color="#ef4444" />
+                }
+                <span style={{ flex: 1, fontSize: 13, color: "#e5e7eb" }}>
+                  {ALL_DOCUMENT_TYPE_LABELS[type] || type}
+                </span>
+                {entry.count > 0 && (
+                  <span style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.4)" }}>
+                    {entry.count} file{entry.count === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Upload panel \u2014 hidden when shipment is archived */}
       {!isArchived && (
         <div style={{
           background: "rgba(255, 255, 255, 0.02)",

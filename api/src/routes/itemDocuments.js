@@ -5,7 +5,7 @@ import { uploadFileToS3, deleteFileFromS3, getSignedDownloadUrl, validateFile } 
 import { authGuard } from "../middleware/auth.js";
 import {
   DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS, REQUIRED_DOCUMENT_TYPES, BROKER_DOCUMENT_TYPES,
-  getDocumentsForItem, resolveDocumentById, deleteResolvedDocument
+  getDocumentsForItem, resolveDocumentById, deleteResolvedDocument, buildChecklist
 } from "../services/documentService.js";
 import { queueBrokerDocumentNotification } from "../services/brokerEmailService.js";
 
@@ -285,28 +285,37 @@ router.get("/manufacturer/item/:itemId/documents", authGuard, async (req, res) =
       return res.status(403).json({ error: "Item not assigned to you" });
     }
 
-    const documents = await prisma.itemDocument.findMany({
-      where: { itemId },
-      orderBy: { uploadedAt: 'desc' }
-    });
-
-    const checklist = {};
-    for (const type of REQUIRED_DOCUMENT_TYPES) {
-      const count = documents.filter(d => d.documentType === type).length;
-      checklist[type] = { uploaded: count > 0, count, label: DOCUMENT_TYPE_LABELS[type] };
+    // Use the unified service so ShipmentDocuments and sibling ItemDocuments
+    // are returned. Then filter to keep:
+    //   - all ShipmentDocuments (shared across the shipment), and
+    //   - ItemDocuments belonging only to items this manufacturer owns.
+    const result = await getDocumentsForItem(itemId);
+    if (!result) {
+      return res.status(404).json({ error: "Item not found" });
     }
 
-    const uploadedRequired = REQUIRED_DOCUMENT_TYPES.filter(type => checklist[type].uploaded).length;
+    if (item.shipmentId) {
+      const myItems = await prisma.orderItem.findMany({
+        where: { shipmentId: item.shipmentId, manufacturerId, archivedAt: null },
+        select: { id: true },
+      });
+      const myItemIds = new Set(myItems.map(i => i.id));
 
-    res.json({
-      documents: documents.filter(d => d.documentType !== 'OTHER'),
-      checklist,
-      stats: {
-        complete: uploadedRequired === REQUIRED_DOCUMENT_TYPES.length,
-        uploadedRequired,
-        totalRequired: REQUIRED_DOCUMENT_TYPES.length
-      }
-    });
+      const filtered = (result.documents || []).filter(d => {
+        if (!d.itemId) return true;          // ShipmentDocument: always visible
+        return myItemIds.has(d.itemId);       // ItemDocument: only own items
+      });
+
+      const { checklist, stats } = buildChecklist(filtered);
+      result.documents = filtered;
+      result.checklist = checklist;
+      result.stats = stats;
+    }
+
+    // Hide OTHER-typed documents from the manufacturer view (legacy behavior).
+    result.documents = (result.documents || []).filter(d => d.documentType !== 'OTHER');
+
+    res.json(result);
   } catch (error) {
     console.error("Manufacturer get documents error:", error);
     res.status(500).json({ error: "Failed to retrieve documents" });
