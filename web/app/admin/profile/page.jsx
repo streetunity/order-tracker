@@ -60,6 +60,14 @@ export default function ProfilePage() {
   const [icsConfirm,   setIcsConfirm]   = useState(null); // 'regenerate' | 'disable' | null
 
   const isManufacturer = user?.role === "MANUFACTURER";
+  const isBroker       = user?.role === "BROKER";
+
+  // Brokers and manufacturers don't need email-template settings or
+  // outbound calendar sync; hide those tabs for them.
+  const hideExtras  = isManufacturer || isBroker;
+  const visibleTabs = hideExtras
+    ? TABS.filter(t => t.id !== "email" && t.id !== "calendar")
+    : TABS;
 
   // Read ?from= on the client side
   useEffect(() => {
@@ -302,7 +310,7 @@ export default function ProfilePage() {
 
         {/* Tab bar */}
         <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: 24 }}>
-          {TABS.map(tab => (
+          {visibleTabs.map(tab => (
             <button key={tab.id} style={tabStyle(tab.id)} onClick={() => setActiveTab(tab.id)}>
               {tab.label}
             </button>
