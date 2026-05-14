@@ -18,12 +18,13 @@ const prisma = new PrismaClient();
 const USER_SELECT = {
   id: true, email: true, name: true, role: true,
   isActive: true, isEmployee: true, showInSalesRepDropdown: true,
+  alertEmailsEnabled: true,
   lastLogin: true, createdAt: true,
 };
 
 // Fields allowed to be changed on the system user account.
 // Everything else is blocked to protect the service account.
-const SYSTEM_USER_ALLOWED_FIELDS = ['isEmployee', 'showInSalesRepDropdown'];
+const SYSTEM_USER_ALLOWED_FIELDS = ['isEmployee', 'showInSalesRepDropdown', 'alertEmailsEnabled'];
 
 export function createUsersRouter() {
   const router = express.Router();
@@ -185,7 +186,7 @@ export function createUsersRouter() {
       const isSystemUser = original.email === 'system@ordertracker.internal';
       const requestedFields = Object.keys(req.body);
 
-      // System user: only allow toggling isEmployee / showInSalesRepDropdown
+      // System user: only allow toggling isEmployee / showInSalesRepDropdown / alertEmailsEnabled
       if (isSystemUser) {
         const disallowed = requestedFields.filter(f => !SYSTEM_USER_ALLOWED_FIELDS.includes(f));
         if (disallowed.length > 0) {
@@ -198,7 +199,7 @@ export function createUsersRouter() {
         return res.status(403).json({ error: `You cannot edit users with role ${getRoleDisplayName(original.role)}` });
       }
 
-      const { name, email, role, isActive, isEmployee, showInSalesRepDropdown, password } = req.body;
+      const { name, email, role, isActive, isEmployee, showInSalesRepDropdown, alertEmailsEnabled, password } = req.body;
       const data = {};
       const changes = [];
 
@@ -217,6 +218,10 @@ export function createUsersRouter() {
       if (showInSalesRepDropdown !== undefined && showInSalesRepDropdown !== original.showInSalesRepDropdown) {
         data.showInSalesRepDropdown = showInSalesRepDropdown;
         changes.push({ field: 'showInSalesRepDropdown', oldValue: String(original.showInSalesRepDropdown), newValue: String(showInSalesRepDropdown) });
+      }
+      if (alertEmailsEnabled !== undefined && alertEmailsEnabled !== original.alertEmailsEnabled) {
+        data.alertEmailsEnabled = alertEmailsEnabled;
+        changes.push({ field: 'alertEmailsEnabled', oldValue: String(original.alertEmailsEnabled), newValue: String(alertEmailsEnabled) });
       }
       if (role !== undefined && role.toUpperCase() !== original.role) {
         const targetRole = role.toUpperCase();

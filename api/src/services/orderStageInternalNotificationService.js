@@ -1,12 +1,13 @@
 /**
  * Internal Stage Notification Service
  *
- * Fires when a MANUFACTURER moves an item to a new stage. Notifies all active
- * admins (ADMIN, SUPER_ADMIN) plus the order's listed sales agent via in-app
- * notification AND email.
+ * Fires when a MANUFACTURER moves an item to a new stage. Creates an in-app
+ * notification for all active employee admins (ADMIN, SUPER_ADMIN) plus the
+ * order's listed sales agent. Sends an email to the same recipients EXCEPT
+ * any who have alertEmailsEnabled=false (per-user opt-out).
  *
- * Per project policy: internal users have no email opt-out — all active users
- * in the recipient roles always receive emails.
+ * Service accounts (isEmployee=false) are excluded from both notifications
+ * and emails -- they're filtered out at the recipient query level.
  *
  * Silently no-ops when the actor is not a manufacturer (admin-driven moves
  * don't ping admins; that would be noise).
@@ -88,20 +89,24 @@ export async function sendInternalStageNotification(prisma, {
       return { success: false, error: "Item not found" };
     }
 
-    // Recipients: all active admins + the listed sales agent (deduped by id).
+    // Recipients: active employees with admin role + the listed sales agent.
+    // isEmployee=true filters out service accounts (cron, system, sysop) that
+    // don't have real mailboxes. alertEmailsEnabled is selected so we can gate
+    // the email send below; the in-app notification always fires.
     const admins = await prisma.user.findMany({
       where: {
         isActive: true,
+        isEmployee: true,
         role: { in: ["ADMIN", "SUPER_ADMIN"] },
       },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, alertEmailsEnabled: true },
     });
 
     let salesAgent = null;
     if (order.sku) {
       salesAgent = await prisma.user.findFirst({
-        where: { name: order.sku, isActive: true },
-        select: { id: true, name: true, email: true, role: true },
+        where: { name: order.sku, isActive: true, isEmployee: true },
+        select: { id: true, name: true, email: true, role: true, alertEmailsEnabled: true },
       });
     }
 
@@ -161,9 +166,10 @@ export async function sendInternalStageNotification(prisma, {
     let notifCount = 0;
     let emailSent = 0;
     let emailFailed = 0;
+    let emailSkipped = 0;
 
     for (const user of recipients) {
-      // In-app notification
+      // In-app notification (always fires regardless of email preference).
       try {
         await prisma.notification.create({
           data: {
@@ -195,36 +201,40 @@ export async function sendInternalStageNotification(prisma, {
         );
       }
 
-      // Email
-      if (user.email) {
-        try {
-          const result = await emailService.sendEmail({
-            to: user.email,
-            from: fromEmail,
-            fromName,
-            subject: emailSubject,
-            html: emailHtml,
-          });
-          if (result.success) {
-            emailSent += 1;
-          } else {
-            emailFailed += 1;
-            console.error(
-              `[INTERNAL-NOTIF] Email send failed for ${user.email}: ${result.error}`
-            );
-          }
-        } catch (e) {
+      // Email (gated on per-user opt-in).
+      if (!user.email) continue;
+      if (user.alertEmailsEnabled === false) {
+        emailSkipped += 1;
+        continue;
+      }
+
+      try {
+        const result = await emailService.sendEmail({
+          to: user.email,
+          from: fromEmail,
+          fromName,
+          subject: emailSubject,
+          html: emailHtml,
+        });
+        if (result.success) {
+          emailSent += 1;
+        } else {
           emailFailed += 1;
           console.error(
-            `[INTERNAL-NOTIF] Email send error for ${user.email}:`,
-            e.message
+            `[INTERNAL-NOTIF] Email send failed for ${user.email}: ${result.error}`
           );
         }
+      } catch (e) {
+        emailFailed += 1;
+        console.error(
+          `[INTERNAL-NOTIF] Email send error for ${user.email}:`,
+          e.message
+        );
       }
     }
 
     console.log(
-      `[INTERNAL-NOTIF] Item ${itemId} stage ${oldStage}\u2192${newStage} by manufacturer ${actor.name}: ${notifCount} notifications created, ${emailSent}/${recipients.length} emails sent (${emailFailed} failed)`
+      `[INTERNAL-NOTIF] Item ${itemId} stage ${oldStage}\u2192${newStage} by manufacturer ${actor.name}: ${notifCount} notifications created, ${emailSent}/${recipients.length} emails sent (${emailFailed} failed, ${emailSkipped} opted out)`
     );
 
     return {
@@ -232,6 +242,7 @@ export async function sendInternalStageNotification(prisma, {
       notifCount,
       emailSent,
       emailFailed,
+      emailSkipped,
       recipientCount: recipients.length,
     };
   } catch (error) {

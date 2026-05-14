@@ -55,7 +55,8 @@ export function createAuthRouter() {
           name: updatedUser.name,
           role: updatedUser.role,
           createdAt: updatedUser.createdAt,
-          lastLogin: updatedUser.lastLogin
+          lastLogin: updatedUser.lastLogin,
+          alertEmailsEnabled: updatedUser.alertEmailsEnabled
         }
       });
     } catch (e) {
@@ -80,7 +81,8 @@ export function createAuthRouter() {
         name: true,
         role: true,
         createdAt: true,
-        lastLogin: true
+        lastLogin: true,
+        alertEmailsEnabled: true
       }
     });
     
@@ -95,7 +97,8 @@ export function createAuthRouter() {
         name: user.name,
         role: user.role,
         createdAt: user.createdAt,
-        lastLogin: user.lastLogin
+        lastLogin: user.lastLogin,
+        alertEmailsEnabled: user.alertEmailsEnabled
       }
     });
   });
@@ -211,7 +214,8 @@ export function createAuthRouter() {
           name: true,
           role: true,
           createdAt: true,
-          lastLogin: true
+          lastLogin: true,
+          alertEmailsEnabled: true
         }
       });
       
@@ -227,7 +231,8 @@ export function createAuthRouter() {
           name: user.name,
           role: user.role,
           createdAt: user.createdAt,
-          lastLogin: user.lastLogin
+          lastLogin: user.lastLogin,
+          alertEmailsEnabled: user.alertEmailsEnabled
         }
       });
     } else {
