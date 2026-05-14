@@ -50,6 +50,9 @@ export default function ProfilePage() {
   const [pwError,          setPwError]          = useState("");
   const [pwSuccess,        setPwSuccess]        = useState(false);
 
+  // ---- Alert email opt-out ----
+  const [alertEmailsEnabled, setAlertEmailsEnabled] = useState(true);
+
   // ---- Calendar Sync ----
   const [icsLoading,   setIcsLoading]   = useState(true);
   const [icsEnabled,   setIcsEnabled]   = useState(false);
@@ -69,6 +72,11 @@ export default function ProfilePage() {
     ? TABS.filter(t => t.id !== "email" && t.id !== "calendar")
     : TABS;
 
+  // Alert-emails toggle is shown to roles that actually receive internal
+  // alert emails (admins + sales agents). Brokers and manufacturers never
+  // receive these so hiding the toggle keeps the UI focused.
+  const showAlertToggle = !isManufacturer && !isBroker;
+
   // Read ?from= on the client side
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -79,14 +87,20 @@ export default function ProfilePage() {
     if (!user) { router.push("/login"); return; }
     setName(user.name || "");
     setEmail(user.email || "");
+    setAlertEmailsEnabled(user.alertEmailsEnabled ?? true);
     loadEmailSettings();
     loadIcsState();
   }, [user, router]);
 
   useEffect(() => {
     if (!user) return;
-    setHasChanges(name !== (user.name || "") || email !== (user.email || ""));
-  }, [name, email, user]);
+    const origAlerts = user.alertEmailsEnabled ?? true;
+    setHasChanges(
+      name !== (user.name || "") ||
+      email !== (user.email || "") ||
+      alertEmailsEnabled !== origAlerts
+    );
+  }, [name, email, alertEmailsEnabled, user]);
 
   useEffect(() => {
     const cur = { fromName, title, phoneNumber, mobileNumber, emailSignature, invoiceEmailBody, estimateEmailBody };
@@ -125,6 +139,7 @@ export default function ProfilePage() {
     try {
       const body = { email: email.trim().toLowerCase() };
       if (!isManufacturer) body.name = name.trim();
+      if (showAlertToggle) body.alertEmailsEnabled = alertEmailsEnabled;
       const res = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -337,6 +352,26 @@ export default function ProfilePage() {
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={INP} />
               </div>
             </div>
+            {showAlertToggle && (
+              <div style={{ marginTop: 14, padding: 14, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8 }}>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={alertEmailsEnabled}
+                    onChange={e => setAlertEmailsEnabled(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: "#dc2626", cursor: "pointer", marginTop: 2, flexShrink: 0 }}
+                  />
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#fff", marginBottom: 3 }}>
+                      Alert Email Notifications
+                    </span>
+                    <span style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
+                      Receive emails when manufacturers update item stages. In-app notifications continue regardless.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 20, marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)" }}>Member since {formatDate(user.createdAt)}</span>
               {user.lastLogin && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.28)" }}>Last login {formatDate(user.lastLogin, true)}</span>}
