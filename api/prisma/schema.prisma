@@ -437,6 +437,7 @@ model User {
   isActive               Boolean                @default(true)
   isEmployee             Boolean                @default(true)  // False for system/service accounts (cron jobs, sysop, etc.)
   showInSalesRepDropdown Boolean                @default(true)
+  alertEmailsEnabled     Boolean                @default(true)  // When false, this user is skipped by notification email recipient queries
   lastLogin              DateTime?
   icsToken               String?                @unique
   createdAt              DateTime               @default(now())
@@ -475,6 +476,7 @@ model User {
   @@index([isActive])
   @@index([isEmployee])
   @@index([showInSalesRepDropdown])
+  @@index([alertEmailsEnabled])
 }
 
 model Manufacturer {
