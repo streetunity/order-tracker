@@ -769,9 +769,34 @@ export function createItemsRouter() {
           where: { id: item.id },
           data: { currentStage: nextStage }
         });
-        
+
         console.log(`[STAGE CHANGE] User ${req.user.name} (${req.user.role}) moved item ${itemId} from ${currentStage} to ${nextStage}`);
-        
+
+        // Universal audit log entry so manufacturer-driven and admin-driven stage
+        // moves both surface on the audit-log page. The OrderItemStatusEvent above
+        // is what the timeline UI reads; this AuditLog row is what the audit search
+        // and recent-activity views read.
+        await tx.auditLog.create({
+          data: {
+            entityType: 'OrderItem',
+            entityId: item.id,
+            parentEntityId: orderId,
+            action: 'STAGE_CHANGED',
+            changes: JSON.stringify([{ field: 'currentStage', oldValue: currentStage, newValue: nextStage }]),
+            metadata: JSON.stringify({
+              oldStage: currentStage,
+              newStage: nextStage,
+              direction: isForward ? 'forward' : 'backward',
+              note: note ?? null,
+              updatedByRole: req.user.role,
+              productCode: item.productCode || null,
+              orderRef: item.order?.poNumber || null,
+            }),
+            performedByUserId: req.user.id,
+            performedByName: req.user.name,
+          }
+        });
+
         return tx.orderItemStatusEvent.create({
           data: {
             orderItemId: item.id,
