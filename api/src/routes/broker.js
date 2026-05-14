@@ -194,6 +194,33 @@ export function createBrokerRouter() {
         }
       });
 
+      // Mirror to universal audit log so broker actions show up in the central audit page.
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'OrderItem',
+          entityId: item.id,
+          parentEntityId: currentItem.order.id,
+          action: 'CUSTOMS_STATUS_CHANGED',
+          changes: JSON.stringify([{
+            field: 'customsDocumentStatus',
+            oldValue: currentItem.customsDocumentStatus || 'PENDING',
+            newValue: status
+          }]),
+          metadata: JSON.stringify({
+            oldStatus: currentItem.customsDocumentStatus || 'PENDING',
+            newStatus: status,
+            notes: notes || null,
+            entryNumber: entryNumber || null,
+            syncedToShipment: !!currentItem.shipmentId,
+            updatedByRole: req.user.role,
+            productCode: currentItem.productCode || null,
+            orderRef: currentItem.order?.poNumber || null,
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name,
+        }
+      });
+
       const superAdmins = await prisma.user.findMany({ where: { role: 'SUPER_ADMIN', isActive: true }, select: { id: true } });
 
       let priority = 'NORMAL';
@@ -231,8 +258,30 @@ export function createBrokerRouter() {
     try {
       const { id } = req.params;
       const { notes } = req.body;
+      const previous = await prisma.orderItem.findUnique({
+        where: { id },
+        select: { id: true, orderId: true, productCode: true, customsNotes: true, order: { select: { poNumber: true } } }
+      });
+      if (!previous) return res.status(404).json({ error: 'Item not found' });
       const item = await prisma.orderItem.update({ where: { id }, data: { customsNotes: notes } });
       await prisma.brokerActivityLog.create({ data: { orderItemId: item.id, userId: req.user.id, action: 'NOTE_ADDED', notes } });
+      await prisma.auditLog.create({
+        data: {
+          entityType: 'OrderItem',
+          entityId: item.id,
+          parentEntityId: previous.orderId,
+          action: 'CUSTOMS_NOTE_ADDED',
+          changes: JSON.stringify([{ field: 'customsNotes', oldValue: previous.customsNotes || null, newValue: notes || null }]),
+          metadata: JSON.stringify({
+            notes: notes || null,
+            updatedByRole: req.user.role,
+            productCode: previous.productCode || null,
+            orderRef: previous.order?.poNumber || null,
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name,
+        }
+      });
       res.json(item);
     } catch (error) {
       console.error('Error adding note:', error);
@@ -379,6 +428,30 @@ export function createBrokerRouter() {
         }
       });
 
+      // Mirror to universal audit log.
+      await prisma.auditLog.create({
+        data: {
+          entityType: isSharedShipment ? 'ShipmentDocument' : 'ItemDocument',
+          entityId: document.id,
+          parentEntityId: isSharedShipment ? item.shipmentId : itemId,
+          action: 'DOCUMENT_UPLOADED',
+          metadata: JSON.stringify({
+            fileName: file.originalname,
+            documentType,
+            documentTypeLabel: DOCUMENT_TYPE_LABELS[documentType] || documentType,
+            fileSize: s3Data.fileSize,
+            uploadedToShipment: isSharedShipment,
+            itemId,
+            shipmentId: item.shipmentId || null,
+            updatedByRole: req.user.role,
+            productCode: item.productCode || null,
+            orderRef: item.order?.poNumber || null,
+          }),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name,
+        }
+      });
+
       // Queue digest notification when a SUPER_ADMIN uploads through the broker portal
       if (req.user.role === 'SUPER_ADMIN') {
         queueBrokerDocumentNotification(prisma, {
@@ -414,7 +487,34 @@ export function createBrokerRouter() {
       if (resolved.document.uploadedBy !== req.user.name && req.user.role !== 'SUPER_ADMIN') {
         return res.status(403).json({ error: 'Not authorized to delete this document' });
       }
+
+      // Capture details before deletion for the audit log entry.
+      const docMeta = {
+        fileName: resolved.document.fileName,
+        documentType: resolved.document.documentType || null,
+        documentTypeLabel: DOCUMENT_TYPE_LABELS[resolved.document.documentType] || resolved.document.documentType || null,
+        fileSize: resolved.document.fileSize,
+        table: resolved.table,
+        itemId,
+        shipmentId: resolved.document.shipmentId || null,
+        uploadedBy: resolved.document.uploadedBy,
+        updatedByRole: req.user.role,
+      };
+
       await deleteResolvedDocument(resolved, deleteFileFromS3);
+
+      await prisma.auditLog.create({
+        data: {
+          entityType: resolved.table,
+          entityId: documentId,
+          parentEntityId: resolved.document.shipmentId || itemId,
+          action: 'DOCUMENT_DELETED',
+          metadata: JSON.stringify(docMeta),
+          performedByUserId: req.user.id,
+          performedByName: req.user.name,
+        }
+      });
+
       res.json({ message: 'Document deleted successfully' });
     } catch (error) {
       console.error('Broker delete error:', error);
