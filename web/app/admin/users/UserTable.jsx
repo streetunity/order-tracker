@@ -1,4 +1,4 @@
-export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSalesRep, onToggleEmployee, togglingUserId, togglingEmployeeId, showInactive, hideSalesRep }) {
+export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSalesRep, onToggleEmployee, onToggleAlertEmails, togglingUserId, togglingEmployeeId, togglingAlertsId, showInactive, hideSalesRep }) {
   const formatDate = (date) => {
     if (!date) return 'Never';
     return new Date(date).toLocaleString('en-US', {
@@ -39,6 +39,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
               <th>Role</th>
               {!hideSalesRep && <th>Employee</th>}
               {!hideSalesRep && <th>Sales Rep</th>}
+              {!hideSalesRep && <th>Alert Emails</th>}
               {hideSalesRep && <th>Has User Account</th>}
               <th>Status</th>
               <th>Last Login</th>
@@ -52,8 +53,10 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
               const isSelf = currentUser?.id === user.id;
               const isTogglingThis     = togglingUserId     === user.id;
               const isTogglingEmployee = togglingEmployeeId === user.id;
+              const isTogglingAlerts   = togglingAlertsId   === user.id;
               const isSalesRep  = Boolean(user.showInSalesRepDropdown);
               const isEmployee  = user.isEmployee !== false; // default true
+              const alertsOn    = user.alertEmailsEnabled !== false; // default true
 
               return (
                 <tr key={user.id} className={!user.isActive ? 'inactive' : ''}>
@@ -71,7 +74,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
                     </span>
                   </td>
 
-                  {/* Employee toggle — system users only */}
+                  {/* Employee toggle \u2014 system users only */}
                   {!hideSalesRep && (
                     <td className="sales-rep-cell">
                       <div className="sales-rep-toggle">
@@ -87,7 +90,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
                     </td>
                   )}
 
-                  {/* Sales rep toggle — system users only */}
+                  {/* Sales rep toggle \u2014 system users only */}
                   {!hideSalesRep && (
                     <td className="sales-rep-cell">
                       <div className="sales-rep-toggle">
@@ -103,9 +106,25 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
                     </td>
                   )}
 
+                  {/* Alert emails toggle \u2014 system users only */}
+                  {!hideSalesRep && (
+                    <td className="sales-rep-cell">
+                      <div className="sales-rep-toggle">
+                        <input
+                          type="checkbox"
+                          checked={alertsOn}
+                          onChange={() => onToggleAlertEmails && onToggleAlertEmails(user)}
+                          disabled={isTogglingAlerts}
+                          title={alertsOn ? 'Disable alert email notifications for this user' : 'Enable alert email notifications for this user'}
+                        />
+                        {isTogglingAlerts && <span className="saving-indicator">Saving...</span>}
+                      </div>
+                    </td>
+                  )}
+
                   {hideSalesRep && (
                     <td className="center-cell">
-                      {user.email ? <span className="has-account-badge">✓ Yes</span> : <span className="no-data">—</span>}
+                      {user.email ? <span className="has-account-badge">\u2713 Yes</span> : <span className="no-data">\u2014</span>}
                     </td>
                   )}
 

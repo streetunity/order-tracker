@@ -60,7 +60,7 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
             {!isSelfEdit && <div className="hint">You can assign: {assignableRoleNames}</div>}
           </div>
 
-          {/* System user toggles — only on System Users tab */}
+          {/* System user toggles \u2014 only on System Users tab */}
           {!hideSalesRep && (
             <>
               <div className="form-group">
@@ -85,6 +85,18 @@ export function UserModal({ show, editingUser, formData, setFormData, onSubmit, 
                   Show in Sales Rep dropdown
                 </label>
                 <div className="hint">When checked, this user will appear in the "Sales Person" field when adding/editing orders</div>
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={formData.alertEmailsEnabled}
+                    onChange={(e) => setFormData({ ...formData, alertEmailsEnabled: e.target.checked })}
+                  />
+                  Alert Email Notifications
+                </label>
+                <div className="hint">When checked, this user receives emails when manufacturers update item stages. In-app notifications fire regardless.</div>
               </div>
             </>
           )}

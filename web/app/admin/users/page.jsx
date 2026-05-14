@@ -22,7 +22,7 @@ const TABS = [
   { id: 'broker',       label: 'Broker Accounts',       addLabel: 'Add Broker Account',   defaultRole: 'BROKER' },
 ];
 
-const EMPTY_USER_FORM = { name: '', email: '', password: '', role: 'AGENT', isEmployee: true, showInSalesRepDropdown: true };
+const EMPTY_USER_FORM = { name: '', email: '', password: '', role: 'AGENT', isEmployee: true, showInSalesRepDropdown: true, alertEmailsEnabled: true };
 const EMPTY_MFG_FORM  = { name: '', contactInfo: '', notes: '', createUserAccount: false, email: '', password: '' };
 
 export default function UsersPage() {
@@ -36,6 +36,7 @@ export default function UsersPage() {
   const [assignableRoles, setAssignableRoles] = useState([]);
   const [togglingUserId, setTogglingUserId] = useState(null);
   const [togglingEmployeeId, setTogglingEmployeeId] = useState(null);
+  const [togglingAlertsId, setTogglingAlertsId] = useState(null);
   const [userFormData, setUserFormData] = useState(EMPTY_USER_FORM);
   const [userError, setUserError] = useState('');
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
@@ -158,6 +159,18 @@ export default function UsersPage() {
     finally { setTogglingEmployeeId(null); }
   }
 
+  async function toggleAlertEmails(user) {
+    try {
+      setTogglingAlertsId(user.id);
+      const token = localStorage.getItem('token');
+      const res  = await fetch(`/api/users/${user.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ alertEmailsEnabled: !(user.alertEmailsEnabled !== false) }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      await loadUsers();
+    } catch (e) { setUserError(e.message); }
+    finally { setTogglingAlertsId(null); }
+  }
+
   function deactivateUser(user) {
     if (!canDeactivate(user)) { setUserError(`You cannot deactivate users with role ${getRoleDisplayName(user.role)}`); return; }
     setPendingDeactivate(user); setShowDeactivateConfirm(true);
@@ -189,6 +202,7 @@ export default function UsersPage() {
       role: user.role,
       isEmployee: user.isEmployee !== false,
       showInSalesRepDropdown: user.showInSalesRepDropdown ?? false,
+      alertEmailsEnabled: user.alertEmailsEnabled !== false,
     });
     setEditingUser(user); setUserError(''); setShowAddModal(true);
   }
@@ -339,8 +353,8 @@ export default function UsersPage() {
           <UserTable
             users={regularUsers} currentUser={currentUser}
             onEdit={openUserEditModal} onDeactivate={deactivateUser}
-            onToggleSalesRep={toggleSalesRep} onToggleEmployee={toggleEmployee}
-            togglingUserId={togglingUserId} togglingEmployeeId={togglingEmployeeId}
+            onToggleSalesRep={toggleSalesRep} onToggleEmployee={toggleEmployee} onToggleAlertEmails={toggleAlertEmails}
+            togglingUserId={togglingUserId} togglingEmployeeId={togglingEmployeeId} togglingAlertsId={togglingAlertsId}
             showInactive={showInactive} hideSalesRep={false}
           />
         )}
