@@ -1224,6 +1224,56 @@ model EmailLog {
   @@index([sesMessageId])
 }
 
+// AlertEmailLog -- system-triggered alert/notification emails.
+// Distinct from EmailLog which tracks invoicing emails (invoices, estimates).
+// Powers the Emails tab on the central audit log page.
+//
+// One row per actual SES send. When an alert fans out to multiple recipients
+// (e.g. internal stage notification to 4 admins + 1 sales agent), that's 5 rows.
+//
+// category values currently in use:
+//   STAGE_INTERNAL  - manufacturer moved an item, fired to admins + sales agent
+//   BROKER_DIGEST   - 5-min digest of doc uploads, fired to broker users
+// (Customer-facing stage emails not yet logged here; can be added.)
+model AlertEmailLog {
+  id           String  @id @default(cuid())
+
+  category     String
+
+  fromEmail    String
+  fromName     String?
+  toEmail      String
+  toName       String?
+  replyTo      String?
+  subject      String
+
+  status       String  @default("SENT")  // SENT | FAILED
+  errorMessage String?
+  sesMessageId String?
+
+  // Optional links to entities the email is about. Not enforced as FKs to keep
+  // logging non-blocking even when entities are later deleted.
+  orderId         String?
+  orderItemId     String?
+  recipientUserId String?
+
+  // Who/what triggered the send (e.g. the manufacturer who moved an item).
+  triggeredByUserId String?
+  triggeredByName   String?
+
+  metadata String?  // JSON string with context (productCode, stage, etc.)
+
+  sentAt DateTime @default(now())
+
+  @@index([category])
+  @@index([sentAt])
+  @@index([toEmail])
+  @@index([orderId])
+  @@index([orderItemId])
+  @@index([recipientUserId])
+  @@index([category, sentAt])
+}
+
 model UserEmailSettings {
   id     String @id @default(cuid())
   userId String @unique
