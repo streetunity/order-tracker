@@ -14,6 +14,7 @@
  */
 
 import emailService from "./emailService.js";
+import { logAlertEmail } from "./alertEmailLogger.js";
 
 const STAGE_LABELS = {
   PENDING_FUNDING: "Pending Funding",
@@ -224,12 +225,67 @@ export async function sendInternalStageNotification(prisma, {
             `[INTERNAL-NOTIF] Email send failed for ${user.email}: ${result.error}`
           );
         }
+
+        // Log to AlertEmailLog so the email shows up on the audit-log page.
+        // Fire-and-forget; logging errors never break the send loop.
+        logAlertEmail({
+          category: "STAGE_INTERNAL",
+          fromEmail,
+          fromName,
+          toEmail: user.email,
+          toName: user.name,
+          subject: emailSubject,
+          status: result.success ? "SENT" : "FAILED",
+          errorMessage: result.success ? null : result.error,
+          sesMessageId: result.messageId || null,
+          orderId,
+          orderItemId: itemId,
+          recipientUserId: user.id,
+          triggeredByUserId: actor.id,
+          triggeredByName: actor.name,
+          metadata: {
+            productCode,
+            customerName,
+            orderRef,
+            oldStage,
+            newStage,
+            manufacturerName,
+            recipientRole: user.role,
+          },
+        });
       } catch (e) {
         emailFailed += 1;
         console.error(
           `[INTERNAL-NOTIF] Email send error for ${user.email}:`,
           e.message
         );
+
+        // Record the failure too so the audit tab shows what was attempted.
+        logAlertEmail({
+          category: "STAGE_INTERNAL",
+          fromEmail,
+          fromName,
+          toEmail: user.email,
+          toName: user.name,
+          subject: emailSubject,
+          status: "FAILED",
+          errorMessage: e.message,
+          orderId,
+          orderItemId: itemId,
+          recipientUserId: user.id,
+          triggeredByUserId: actor.id,
+          triggeredByName: actor.name,
+          metadata: {
+            productCode,
+            customerName,
+            orderRef,
+            oldStage,
+            newStage,
+            manufacturerName,
+            recipientRole: user.role,
+            throwSite: "sendEmail",
+          },
+        });
       }
     }
 

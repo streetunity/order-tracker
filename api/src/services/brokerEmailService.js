@@ -15,6 +15,7 @@
  */
 
 import { sendEmail } from './emailService.js';
+import { logAlertEmail } from './alertEmailLogger.js';
 import { DOCUMENT_TYPE_LABELS } from './documentService.js';
 
 const FROM_EMAIL      = process.env.FROM_EMAIL || 'orders@stealthlaser.com';
@@ -48,7 +49,7 @@ export async function queueBrokerDocumentNotification(prisma, {
     });
 
     if (!brokers.length) {
-      console.log('[BROKER EMAIL] No active brokers — skipping queue');
+      console.log('[BROKER EMAIL] No active brokers \u2014 skipping queue');
       return;
     }
 
@@ -93,7 +94,7 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
     const plural    = count === 1 ? '' : 's';
     const countVerb = count === 1 ? 'has' : 'have';
 
-    // Build the HTML document table — columns: Type | Customer | Item | File Name | Uploaded By | View
+    // Build the HTML document table \u2014 columns: Type | Customer | Item | File Name | Uploaded By | View
     const tableRows = items.map(({ item, document, uploadedBy, documentType, isShipmentDoc }) => {
       const docLabel    = DOCUMENT_TYPE_LABELS[documentType] || documentType;
       const acct        = item.order?.account;
@@ -261,6 +262,43 @@ async function sendBrokerDigestEmail(prisma, broker, items) {
     } else {
       console.error(`[BROKER EMAIL] Failed to send to ${broker.email}: ${result.error}`);
     }
+
+    // Log the digest send so it shows up on the audit-log Emails tab.
+    // One row per broker; the metadata.documents array captures what was in the batch.
+    const docSummaries = items.map(({ item, document, documentType, uploadedBy, isShipmentDoc }) => ({
+      fileName: document.fileName,
+      documentType,
+      documentTypeLabel: DOCUMENT_TYPE_LABELS[documentType] || documentType,
+      itemId: item.id,
+      productCode: item.productCode || null,
+      orderId: item.orderId || null,
+      orderRef: item.order?.poNumber || null,
+      customerName: item.order?.account?.name || null,
+      uploadedBy,
+      isShipmentDoc: !!isShipmentDoc,
+    }));
+
+    // If every document in the digest is from the same order, link the row to that order.
+    const uniqueOrderIds = Array.from(new Set(docSummaries.map(d => d.orderId).filter(Boolean)));
+    const singleOrderId = uniqueOrderIds.length === 1 ? uniqueOrderIds[0] : null;
+
+    logAlertEmail({
+      category: 'BROKER_DIGEST',
+      fromEmail: FROM_EMAIL,
+      fromName: FROM_NAME,
+      toEmail: broker.email,
+      toName: broker.name,
+      subject,
+      status: result.success ? 'SENT' : 'FAILED',
+      errorMessage: result.success ? null : result.error,
+      sesMessageId: result.messageId || null,
+      orderId: singleOrderId,
+      recipientUserId: broker.id,
+      metadata: {
+        documentCount: count,
+        documents: docSummaries,
+      },
+    });
   } catch (error) {
     console.error('[BROKER EMAIL] sendBrokerDigestEmail error:', error.message);
   }
