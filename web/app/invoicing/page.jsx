@@ -131,15 +131,15 @@ export default function InvoicingDashboard() {
               {/* Stat Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr 1fr 1fr", gap: 12 }}>
                 {[
-                  { label: "Total Pipeline",   value: fmt(stats?.totalPipeline),  sub: "Active estimate value",   color: "#ff4b4b", icon: "&#128200;", accent: "linear-gradient(180deg,rgba(220,38,38,0.18),rgba(220,38,38,0.065))" },
-                  { label: "Open Estimates",   value: stats?.totalEstimates ?? 0, sub: "Awaiting response",        color: "rgba(255,255,255,0.94)", icon: "&#128203;", accent: "linear-gradient(180deg,#202020,#151515)" },
-                  { label: "Pending Invoices", value: loading ? "\u2014" : pendingInvoices.length, sub: "Sent & awaiting payment", color: "#f59e0b", icon: "&#128179;", accent: "linear-gradient(180deg,rgba(245,158,11,0.12),rgba(245,158,11,0.045))" },
-                  { label: "Avg Deal Size",    value: fmt(stats?.avgDealSize),    sub: "Per estimate",             color: "rgba(255,255,255,0.94)", icon: "&#127919;", accent: "linear-gradient(180deg,#202020,#151515)" },
+                  { label: "Total Pipeline",   value: fmt(stats?.totalPipeline),  sub: "Active estimate value",   color: "#ff4b4b", icon: "📈", accent: "linear-gradient(180deg,rgba(220,38,38,0.18),rgba(220,38,38,0.065))" },
+                  { label: "Open Estimates",   value: stats?.totalEstimates ?? 0, sub: "Awaiting response",        color: "rgba(255,255,255,0.94)", icon: "📋", accent: "linear-gradient(180deg,#202020,#151515)" },
+                  { label: "Pending Invoices", value: loading ? "\u2014" : pendingInvoices.length, sub: "Sent & awaiting payment", color: "#f59e0b", icon: "💳", accent: "linear-gradient(180deg,rgba(245,158,11,0.12),rgba(245,158,11,0.045))" },
+                  { label: "Avg Deal Size",    value: fmt(stats?.avgDealSize),    sub: "Per estimate",             color: "rgba(255,255,255,0.94)", icon: "🎯", accent: "linear-gradient(180deg,#202020,#151515)" },
                 ].map((s) => (
                   <div key={s.label} className="dash-stat-card" style={{ background: s.accent, borderRadius: 10, padding: "18px 20px", position: "relative", overflow: "hidden" }}>
                     <div style={{ position: "absolute", top: 16, right: 18, fontSize: 22, opacity: 0.34 }} dangerouslySetInnerHTML={{ __html: s.icon }} />
                     <div style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.42)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 10 }}>{s.label}</div>
-                    <div style={{ fontSize: s.label === "Total Pipeline" ? 32 : 27, fontWeight: 800, color: s.color, letterSpacing: "-0.4px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>\u2014</span> : s.value}</div>
+                    <div style={{ fontSize: s.label === "Total Pipeline" ? 32 : 27, fontWeight: 800, color: s.color, letterSpacing: "-0.4px", lineHeight: 1 }}>{loading ? <span style={{ opacity: 0.3 }}>—</span> : s.value}</div>
                     <div style={{ fontSize: 11, color: "rgba(255,255,255,0.34)", marginTop: 8 }}>{s.sub}</div>
                   </div>
                 ))}
@@ -207,7 +207,7 @@ export default function InvoicingDashboard() {
                   <div style={{ padding: "24px 20px", color: "rgba(255,255,255,0.2)", fontSize: 13 }}>Loading&#8230;</div>
                 ) : recentEstimates.length === 0 ? (
                   <div style={{ padding: "28px 20px", textAlign: "center" }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>&#128203;</div>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No estimates yet</div>
                     <Link href="/invoicing/estimates/new" style={{ display: "inline-block", marginTop: 10, fontSize: 12, color: "#dc2626", textDecoration: "none", fontWeight: 600 }}>+ Create estimate</Link>
                   </div>
@@ -265,11 +265,11 @@ export default function InvoicingDashboard() {
           {/* Quick Nav Strip */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginTop: 16 }}>
             {[
-              { href: "/invoicing/leads",     label: "Leads",     icon: "&#128229;" },
-              { href: "/invoicing/customers", label: "Customers", icon: "&#128100;" },
-              { href: "/invoicing/estimates", label: "Estimates", icon: "&#128203;" },
-              { href: "/invoicing/invoices",  label: "Invoices",  icon: "&#128179;" },
-              { href: "/invoicing/products",  label: "Products",  icon: "&#128230;" },
+              { href: "/invoicing/leads",     label: "Leads",     icon: "📥" },
+              { href: "/invoicing/customers", label: "Customers", icon: "👤" },
+              { href: "/invoicing/estimates", label: "Estimates", icon: "📋" },
+              { href: "/invoicing/invoices",  label: "Invoices",  icon: "💳" },
+              { href: "/invoicing/products",  label: "Products",  icon: "📦" },
             ].map(({ href, label, icon }) => (
               <Link key={href} href={href} className="dash-nav-card" style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: "linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.024))", border: "1px solid rgba(255,255,255,0.11)", borderRadius: 10, textDecoration: "none", color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, boxShadow: "0 10px 24px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
                 <span style={{ fontSize: 18 }} dangerouslySetInnerHTML={{ __html: icon }} />

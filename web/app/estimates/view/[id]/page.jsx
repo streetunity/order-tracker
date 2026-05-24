@@ -182,7 +182,7 @@ export default async function PublicEstimateViewPage({ params }) {
           {/* Expired warning */}
           {isExpired && (
             <div style={{ padding: '10px 20px', background: '#fff3f3', borderBottom: '1px solid #fcc', fontSize: 13, color: '#990000', fontWeight: 500 }}>
-              \u26a0\ufe0f This estimate expired on {fmtDate(estimate.expiryDate)}. Please contact us for an updated quote.
+              ⚠️ This estimate expired on {fmtDate(estimate.expiryDate)}. Please contact us for an updated quote.
             </div>
           )}
 

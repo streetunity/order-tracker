@@ -244,7 +244,7 @@ export default async function PublicInvoiceViewPage({ params }) {
           {/* Overdue warning */}
           {isOverdue && (
             <div style={{ padding: '10px 20px', background: '#fff3f3', borderBottom: '1px solid #fcc', fontSize: 13, color: '#990000', fontWeight: 500 }}>
-              \u26a0\ufe0f This invoice was due on {fmtDate(invoice.dueDate)}. Please submit payment as soon as possible.
+              ⚠️ This invoice was due on {fmtDate(invoice.dueDate)}. Please submit payment as soon as possible.
             </div>
           )}
 
