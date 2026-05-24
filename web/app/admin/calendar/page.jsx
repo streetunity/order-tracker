@@ -91,7 +91,7 @@ function buildEventTitle(event) {
   if (event.type === 'TIME_OFF') {
     const name = event.user?.name;
     if (name) return `${name} \u2014 Out of Office`;
-    return event.title.replace(/\u2014 Time Off$/, '\u2014 Out of Office');
+    return event.title.replace(/— Time Off$/, '\u2014 Out of Office');
   }
   return event.title;
 }
@@ -373,7 +373,7 @@ function ViewModal({ event, user, isAdmin, users, saving, err, onEdit, onDelete,
         {event.type === 'INSTALL' && event.order && (
           <InfoRow label="Customer">
             {event.order.account?.name}
-            {event.order.account?.contactName && <span style={{ color: '#888', fontSize: '14px' }}> \u2014 {event.order.account.contactName}</span>}
+            {event.order.account?.contactName && <span style={{ color: '#888', fontSize: '14px' }}> — {event.order.account.contactName}</span>}
           </InfoRow>
         )}
 
@@ -604,7 +604,7 @@ export default function CalendarPage() {
     if (formType === 'INSTALL') {
       autoTitle = selectedOrder
         ? `Install \u2014 ${selectedOrder.label}`
-        : `Install${formTitle.trim() ? ` \u2014 ${formTitle.trim()}` : ''}`;
+        : `Install${formTitle.trim() ? ` — ${formTitle.trim()}` : ''}`;
     } else if (formType === 'TIME_OFF') {
       const tUser = users.find(u => u.id === formUserId);
       autoTitle = `${tUser?.name || user?.name || 'Team Member'} \u2014 Out of Office`;
