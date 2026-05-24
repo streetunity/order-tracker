@@ -23,6 +23,7 @@ export default function ShipmentManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewFilter, setViewFilter] = useState("active");
   const [statusFilter, setStatusFilter] = useState("");
+  const [archivedHintCount, setArchivedHintCount] = useState(0);
   
   // UI State
   const [expandedShipment, setExpandedShipment] = useState(null);
@@ -102,6 +103,32 @@ export default function ShipmentManagementPage() {
       if (res.ok) {
         const data = await res.json();
         setShipments(data);
+
+        // When the Active view returns 0 results for a search, check if any
+        // archived shipments would match. If so, surface a hint in the empty
+        // state so the user can switch views without guessing.
+        if (Array.isArray(data) && data.length === 0 && viewFilter === "active" && searchQuery) {
+          try {
+            const hintParams = new URLSearchParams();
+            hintParams.append("archivedOnly", "true");
+            if (statusFilter) hintParams.append("status", statusFilter);
+            hintParams.append("search", searchQuery);
+            const hintRes = await fetch(`/api/shipments?${hintParams.toString()}`, {
+              headers: getAuthHeaders()
+            });
+            if (hintRes.ok) {
+              const hintData = await hintRes.json();
+              setArchivedHintCount(Array.isArray(hintData) ? hintData.length : 0);
+            } else {
+              setArchivedHintCount(0);
+            }
+          } catch (hintErr) {
+            // Hint is a UX nicety; don't surface an error to the user.
+            setArchivedHintCount(0);
+          }
+        } else {
+          setArchivedHintCount(0);
+        }
       } else {
         setError("Failed to load shipments");
       }
@@ -529,6 +556,24 @@ export default function ShipmentManagementPage() {
           <div style={{ textAlign: "center", padding: 48, color: "rgba(255, 255, 255, 0.5)" }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🚢</div>
             <p>{isManufacturer ? "No shipments yet. Create one and link your items to get started." : "No shipments found"}</p>
+            {archivedHintCount > 0 && !isManufacturer && (
+              <p style={{ marginTop: 12, fontSize: 14 }}>
+                <button
+                  onClick={() => setViewFilter("all")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#dc2626",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    textDecoration: "underline",
+                    padding: 0
+                  }}
+                >
+                  {archivedHintCount} {archivedHintCount === 1 ? "result" : "results"} in archived shipments -- show all?
+                </button>
+              </p>
+            )}
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
