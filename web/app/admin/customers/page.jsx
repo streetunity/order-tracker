@@ -214,7 +214,7 @@ export default function CustomersPage() {
                         {customer.phone && <span>&#128222; {customer.phone}</span>}
                         {customer.machineVoltage && <span>&#9889; {customer.machineVoltage}</span>}
                         <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: customer.emailNotifications ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.05)", color: customer.emailNotifications ? "#22c55e" : "rgba(255,255,255,0.35)", border: `1px solid ${customer.emailNotifications ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.08)"}` }}>
-                          {customer.emailNotifications ? "&#10003; Emails On" : "Emails Off"}
+                          {customer.emailNotifications ? "✓ Emails On" : "Emails Off"}
                         </span>
                       </div>
                     </div>

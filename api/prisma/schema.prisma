@@ -183,7 +183,7 @@ model Account {
   machineVoltage String?
   notes          String?
 
-  emailNotifications Boolean @default(false)
+  emailNotifications Boolean @default(true)
   notifyOnStages     String?
 
   createdAt DateTime  @default(now())
