@@ -50,7 +50,7 @@ export default function ShipmentFilters({
             onClick={() => setError("")}
             style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}
           >
-            \u2715
+            ✕
           </button>
         </div>
       )}

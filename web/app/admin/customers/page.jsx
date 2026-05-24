@@ -224,7 +224,7 @@ export default function CustomersPage() {
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); handleEdit(customer); }} style={{ padding: "5px 11px", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>Edit</button>
                       <button onClick={(e) => { e.stopPropagation(); handleDelete(customer); }} style={{ padding: "5px 11px", background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>Delete</button>
-                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>{expandedCustomer === customer.id ? "&#9650;" : "&#9660;"}</span>
+                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>{expandedCustomer === customer.id ? "▲" : "▼"}</span>
                     </div>
                   </div>
 

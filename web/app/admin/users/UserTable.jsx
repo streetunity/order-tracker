@@ -124,7 +124,7 @@ export function UserTable({ users, currentUser, onEdit, onDeactivate, onToggleSa
 
                   {hideSalesRep && (
                     <td className="center-cell">
-                      {user.email ? <span className="has-account-badge">\u2713 Yes</span> : <span className="no-data">\u2014</span>}
+                      {user.email ? <span className="has-account-badge">✓ Yes</span> : <span className="no-data">—</span>}
                     </td>
                   )}
 
