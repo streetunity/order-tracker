@@ -405,7 +405,7 @@ function NewInvoiceContent() {
 
                           <td style={{ padding: "12px 4px", textAlign: "center", verticalAlign: "top" }}>
                             <button type="button" onClick={() => removeItem(index)} draggable={false}
-                              style={{ background: "transparent", border: "none", color: "rgba(220,38,38,0.7)", cursor: "pointer", fontSize: 18, padding: "2px", lineHeight: 1 }}>\u00d7</button>
+                              style={{ background: "transparent", border: "none", color: "rgba(220,38,38,0.7)", cursor: "pointer", fontSize: 18, padding: "2px", lineHeight: 1 }}>×</button>
                           </td>
                         </tr>
 
@@ -427,7 +427,7 @@ function NewInvoiceContent() {
                                 </div>
                                 <div>
                                   <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>Description</label>
-                                  <textarea value={item.description || ""} onChange={(e) => updateItem(index, "description", e.target.value)} style={{ ...inp, padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical" }} placeholder="Item description\u2026" />
+                                  <textarea value={item.description || ""} onChange={(e) => updateItem(index, "description", e.target.value)} style={{ ...inp, padding: "8px 10px", fontSize: 13, minHeight: 80, resize: "vertical" }} placeholder="Item description…" />
                                 </div>
                                 <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
                                   <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "rgba(255,255,255,0.7)", cursor: "pointer" }}>
@@ -460,8 +460,8 @@ function NewInvoiceContent() {
                 <div>
                   <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Tax</label>
                   <select value={String(taxRate)} onChange={(e) => setTaxRate(parseFloat(e.target.value))} style={{ ...inp, cursor: "pointer" }}>
-                    <option value="0">Out of State \u2014 0%</option>
-                    <option value={String(localTaxRate)}>Pinal County Sales Tax (Local) \u2014 {localTaxRate}%</option>
+                    <option value="0">Out of State — 0%</option>
+                    <option value={String(localTaxRate)}>Pinal County Sales Tax (Local) — {localTaxRate}%</option>
                   </select>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -536,12 +536,12 @@ function NewInvoiceContent() {
           <div style={sec}>
             <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 16, textTransform: "uppercase", letterSpacing: "0.7px" }}>Notes</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Customer Notes (visible to customer)</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Any notes for the customer\u2026" /></div>
-              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Internal Notes (not visible to customer)</label><textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical", background: "rgba(234,179,8,0.05)" }} placeholder="Internal notes\u2026" /></div>
+              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Customer Notes (visible to customer)</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Any notes for the customer…" /></div>
+              <div><label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Internal Notes (not visible to customer)</label><textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical", background: "rgba(234,179,8,0.05)" }} placeholder="Internal notes…" /></div>
             </div>
             <div style={{ marginTop: 16 }}>
               <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Terms & Conditions</label>
-              <textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Payment terms, warranty info, etc\u2026" />
+              <textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} style={{ ...inp, minHeight: 80, resize: "vertical" }} placeholder="Payment terms, warranty info, etc…" />
             </div>
           </div>
 
