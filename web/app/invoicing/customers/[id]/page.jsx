@@ -420,8 +420,8 @@ export default function CustomerDetailPage() {
                 </div>
                 <p style={{ color: "rgba(255,255,255,0.28)", fontSize: 11, fontFamily: "monospace", margin: "0 0 7px" }}>{customer.customerNumber}</p>
                 <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
-                  {customer.email      && <a href={`mailto:${customer.email}`} style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>\u2709</span>{customer.email}</a>}
-                  {customer.phone      && <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>\u260e</span>{customer.phone}</span>}
+                  {customer.email      && <a href={`mailto:${customer.email}`} style={{ color: "#dc2626", fontSize: 12, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>✉</span>{customer.email}</a>}
+                  {customer.phone      && <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>☎</span>{customer.phone}</span>}
                   {customer.billingCity && <span style={{ color: "rgba(255,255,255,0.38)", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>{customer.billingCity}{customer.billingState ? `, ${customer.billingState}` : ""}</span>}
                   {customer.assignedTo && <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 16, height: 16, borderRadius: "50%", background: "linear-gradient(135deg,#dc2626,#991b1b)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "white" }}>{customer.assignedTo.name[0].toUpperCase()}</span>{customer.assignedTo.name}</span>}
                 </div>
@@ -518,7 +518,7 @@ export default function CustomerDetailPage() {
                 ))}
                 {transactions.length >= 10 && (
                   <div style={{ padding: "10px 20px", borderTop: "1px solid rgba(255,255,255,0.05)", textAlign: "center" }}>
-                    <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 11 }}>Showing most recent 10 of each type \u00b7 </span>
+                    <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 11 }}>Showing most recent 10 of each type · </span>
                     <Link href={`/invoicing/invoices?customer=${params.id}`} style={{ color: "#dc2626", fontSize: 11, textDecoration: "none" }}>View all invoices</Link>
                   </div>
                 )}
