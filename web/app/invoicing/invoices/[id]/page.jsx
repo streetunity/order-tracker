@@ -385,7 +385,7 @@ export default function InvoiceDetailPage({ params }) {
       <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "#0f0f0f" }}>
         {sidebarJSX}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading invoice\u2026</div>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading invoice…</div>
         </div>
       </div>
     </>
@@ -398,7 +398,7 @@ export default function InvoiceDetailPage({ params }) {
         {sidebarJSX}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>\ud83d\udcca</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
             <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>{error || "Invoice not found"}</p>
             <Link href="/invoicing/invoices" style={{ padding: "10px 20px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", textDecoration: "none" }}>Back to Invoices</Link>
           </div>
@@ -527,7 +527,7 @@ export default function InvoiceDetailPage({ params }) {
           {error && (
             <div style={{ padding: "12px 16px", marginBottom: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444" }}>
               {error}
-              <button onClick={() => setError("")} style={{ float: "right", background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>\u00d7</button>
+              <button onClick={() => setError("")} style={{ float: "right", background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>×</button>
             </div>
           )}
 
