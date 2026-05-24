@@ -489,7 +489,7 @@ export default function UnifiedSettingsPage() {
           </div>
 
           {invLoading && (activeTab === "company" || activeTab === "invoicing") ? (
-            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, paddingTop: 40 }}>Loading\u2026</div>
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, paddingTop: 40 }}>Loading…</div>
           ) : (
             <>
               {/* ===== COMPANY ===== */}
@@ -514,7 +514,7 @@ export default function UnifiedSettingsPage() {
                   <div style={CARD}>
                     <SectionHeader label="Email Branding" desc="Logo shown in email header. Must be a publicly accessible URL. Leave blank to show company name text instead." />
                     <div><label style={LBL}>Logo URL</label><input style={INP} value={form.logoUrl} onChange={e => setForm(p => ({...p,logoUrl:e.target.value}))} placeholder="https://smt-orders.com/smt-logo.png" /></div>
-                    <p style={HINT}>Recommended: PNG or SVG, transparent background, max 260\u00d760px.</p>
+                    <p style={HINT}>Recommended: PNG or SVG, transparent background, max 260×60px.</p>
                     {form.logoUrl && <div style={{ marginTop: 14, padding: "14px 20px", background: "#000", borderRadius: 8, display: "inline-block" }}><img src={form.logoUrl} alt="Logo preview" style={{ maxHeight: 52, maxWidth: 240, display: "block" }} onError={e => e.target.style.display="none"} /></div>}
                     <SaveBar hasChanges={companyHasChanges} saving={compSaving} onSave={saveCompany} msg={compMsg} />
                   </div>
@@ -581,7 +581,7 @@ export default function UnifiedSettingsPage() {
                       {tplMsg.text && <span style={{ fontSize: 12, color: tplMsg.type === "success" ? "#10b981" : "#dc2626" }}>{tplMsg.text}</span>}
                     </div>
                   </div>
-                  {emailLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading templates\u2026</div>
+                  {emailLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading templates…</div>
                   : emailView === "templates" ? (
                     <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 16, minHeight: 500 }}>
                       <div style={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, overflow: "hidden" }}>
@@ -675,7 +675,7 @@ export default function UnifiedSettingsPage() {
               {/* ===== ORDER STAGES ===== */}
               {activeTab === "stages" && (
                 <>
-                  {stagesLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading\u2026</div> : (
+                  {stagesLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading…</div> : (
                     <>
                       <div style={CARD}>
                         <SectionHeader label="Special Shipping & Holiday Configuration" desc="Configure holiday season dates and special shipping requirements for extended lead time items." />
@@ -764,7 +764,7 @@ export default function UnifiedSettingsPage() {
               {/* ===== COMMISSIONS ===== */}
               {activeTab === "commissions" && (
                 <>
-                  {commLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading\u2026</div> : (
+                  {commLoading ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "40px 0" }}>Loading…</div> : (
                     <>
                       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                         {[["global","Global Settings"],["stages","Stage Distribution"],["rates","Individual Rates"]].map(([id,label]) => (
@@ -794,7 +794,7 @@ export default function UnifiedSettingsPage() {
 
                       {commTab === "stages" && (
                         <div style={CARD}>
-                          <SectionHeader label="Stage Distribution" desc="Set the percentage of total commission paid when an order reaches each stage. Must total 100%. Changes only apply to NEW orders \u2014 existing commissions use their original distribution." />
+                          <SectionHeader label="Stage Distribution" desc="Set the percentage of total commission paid when an order reaches each stage. Must total 100%. Changes only apply to NEW orders — existing commissions use their original distribution." />
                           <div style={{ overflowX: "auto", marginBottom: 14 }}>
                             <table style={{ width: "100%", borderCollapse: "collapse" }}>
                               <thead><tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>{["Stage","Commission %","Example ($10k @ 5%)",""].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{h}</th>)}</tr></thead>
@@ -812,7 +812,7 @@ export default function UnifiedSettingsPage() {
                       {commTab === "rates" && (
                         <div style={CARD}>
                           <SectionHeader label="Individual Rates" desc="Set custom commission rates per sales agent. Leave blank to use the global default rate." />
-                          {salesReps.length === 0 ? <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No sales reps found. Enable \u201cShow in Sales Rep Dropdown\u201d on user accounts.</div> : (
+                          {salesReps.length === 0 ? <div style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.3)", fontSize: 13 }}>No sales reps found. Enable “Show in Sales Rep Dropdown” on user accounts.</div> : (
                             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                               {salesReps.map(rep => (
                                 <div key={rep.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "#252525", borderRadius: 8 }}>
@@ -863,7 +863,7 @@ export default function UnifiedSettingsPage() {
           <div style={DIALOG} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>Send Test Email</h3>
             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 16 }}>
-              Send a test version of \u201c{selTpl?.name}\u201d{isOrderStageSelected ? ` for the ${selectedStageLabel} stage` : ""} with sample data.
+              Send a test version of “{selTpl?.name}”{isOrderStageSelected ? ` for the ${selectedStageLabel} stage` : ""} with sample data.
             </p>
             <label style={LBL}>Recipient Email</label>
             <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="you@example.com" style={{ ...INP, marginBottom: 20 }} />
@@ -878,7 +878,7 @@ export default function UnifiedSettingsPage() {
       {showETAConfirm && (
         <div style={OVERLAY} onClick={() => setShowETAConfirm(false)}>
           <div style={DIALOG} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 10 }}>\u26a0\ufe0f Recalculate All Customer ETAs?</h3>
+            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px", display: "flex", alignItems: "center", gap: 10 }}>⚠️ Recalculate All Customer ETAs?</h3>
             <p style={{ fontSize: 15, margin: "0 0 16px", color: "rgba(255,255,255,0.85)", lineHeight: 1.6 }}>This will recalculate and <strong>overwrite</strong> the estimated delivery dates for <strong>ALL existing orders</strong>.</p>
             <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, marginBottom: 16 }}>
               <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>What will happen:</p>
@@ -902,7 +902,7 @@ export default function UnifiedSettingsPage() {
       {showRecalcModal && (
         <div style={OVERLAY} onClick={() => { setShowRecalcModal(false); setRecalcReason(""); }}>
           <div style={DIALOG} onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 10 }}>\uD83D\uDD04 Recalculate All Commissions</h3>
+            <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 12px", display: "flex", alignItems: "center", gap: 10 }}>🔄 Recalculate All Commissions</h3>
             <p style={{ fontSize: 14, margin: "0 0 16px", color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>This will recalculate ALL unpaid commissions based on current rates and stage settings.</p>
             <div style={{ padding: "14px 16px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 8, marginBottom: 20 }}>
               <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>Note:</p>
