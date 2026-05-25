@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireInvoicingPermission, applyInvoicingDataFilter } from '../middleware/invoicingAuth.js';
 import { generateInvoiceNumber, generatePaymentNumber } from '../utils/numberGenerators.js';
+import { isMilestoneSchedule, calculateDueDate, scheduleTypeToLegacyTerms } from '../utils/paymentSchedule.js';
 // NOTE: PDF/email imports moved to invoicePdf.js
 
 export function createInvoicesRouter(prisma) {
@@ -52,10 +53,10 @@ export function createInvoicesRouter(prisma) {
   /**
    * Create payment schedule items for a given schedule type.
    *
-   * 50/40/10 — SMT standard for custom manufacturing:
-   *   50% Deposit       — due up front, triggers order creation (no stage trigger)
-   *   40% Progress      — fires when all items reach QC (triggerStage: 'QC')
-   *   10% Final Payment — fires when all items reach DELIVERED (triggerStage: 'DELIVERED')
+   * 50/40/10 -- SMT standard for custom manufacturing:
+   *   50% Deposit       -- due up front, triggers order creation (no stage trigger)
+   *   40% Progress      -- fires when all items reach QC (triggerStage: 'QC')
+   *   10% Final Payment -- fires when all items reach DELIVERED (triggerStage: 'DELIVERED')
    *
    * The triggerStage field is read by stages.js, which sets triggeredAt and
    * dueDate on the matching row when the order reaches that stage.
@@ -193,13 +194,8 @@ export function createInvoicesRouter(prisma) {
 
       const invoiceNumber = await generateInvoiceNumber(prisma);
 
-      let calcDueDate = dueDate;
-      if (!calcDueDate && paymentTerms) {
-        const days = paymentTerms === 'NET15' ? 15 : paymentTerms === 'NET30' ? 30 : paymentTerms === 'NET45' ? 45 : paymentTerms === 'NET60' ? 60 : 30;
-        calcDueDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-      } else if (!calcDueDate) {
-        calcDueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      }
+      const invoiceDateObj = invoiceDate ? new Date(invoiceDate) : new Date();
+      const calcDueDate = dueDate ? new Date(dueDate) : calculateDueDate(effectiveScheduleType, invoiceDateObj);
 
       const itemsToCreate = (items || []).map((item, index) => ({
         name:        item.name,
@@ -221,9 +217,9 @@ export function createInvoicesRouter(prisma) {
         data: {
           invoiceNumber,
           customerId,
-          invoiceDate:         invoiceDate ? new Date(invoiceDate) : new Date(),
-          dueDate:             new Date(calcDueDate),
-          paymentTerms:        paymentTerms || 'NET30',
+          invoiceDate:         invoiceDateObj,
+          dueDate:             calcDueDate,
+          paymentTerms:        scheduleTypeToLegacyTerms(effectiveScheduleType),
           subtotal:            totals.subtotal,
           taxRate:             taxRate || 0,
           taxAmount:           totals.taxAmount,
@@ -236,7 +232,7 @@ export function createInvoicesRouter(prisma) {
           totalCost:           totals.totalCost,
           marginAmount:        totals.marginAmount,
           marginPercent:       totals.marginPercent,
-          paymentType:         effectiveScheduleType && effectiveScheduleType !== 'NONE' ? 'SCHEDULE' : (paymentType || 'FULL'),
+          paymentType:         isMilestoneSchedule(effectiveScheduleType) ? 'SCHEDULE' : (paymentType || 'FULL'),
           paymentScheduleType: effectiveScheduleType || null,
           depositRequired,
           orderCreationTrigger: orderCreationTrigger || 'DEPOSIT',
@@ -255,7 +251,7 @@ export function createInvoicesRouter(prisma) {
       });
 
       // Create payment schedule and auto-set depositRequired from the first item
-      if (effectiveScheduleType && effectiveScheduleType !== 'NONE') {
+      if (isMilestoneSchedule(effectiveScheduleType)) {
         const scheduleItems = createPaymentSchedule(totals.total, effectiveScheduleType, invoice.id);
         if (scheduleItems.length > 0) {
           await prisma.invoicePaymentSchedule.createMany({ data: scheduleItems });
@@ -314,8 +310,7 @@ export function createInvoicesRouter(prisma) {
       }
 
       const invoiceNumber = await generateInvoiceNumber(prisma);
-      const days = paymentTerms === 'NET15' ? 15 : paymentTerms === 'NET30' ? 30 : paymentTerms === 'NET45' ? 45 : paymentTerms === 'NET60' ? 60 : 30;
-      const dueDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      const dueDate = calculateDueDate(effectiveScheduleType, new Date());
 
       const invoice = await prisma.invoice.create({
         data: {
@@ -324,7 +319,7 @@ export function createInvoicesRouter(prisma) {
           estimateId:          estimate.id,
           invoiceDate:         new Date(),
           dueDate,
-          paymentTerms:        paymentTerms || 'NET30',
+          paymentTerms:        scheduleTypeToLegacyTerms(effectiveScheduleType),
           subtotal:            estimate.subtotal,
           taxRate:             estimate.taxRate,
           taxAmount:           estimate.taxAmount,
@@ -337,7 +332,7 @@ export function createInvoicesRouter(prisma) {
           totalCost:           estimate.totalCost,
           marginAmount:        estimate.marginAmount,
           marginPercent:       estimate.marginPercent,
-          paymentType:         effectiveScheduleType && effectiveScheduleType !== 'NONE' ? 'SCHEDULE' : 'FULL',
+          paymentType:         isMilestoneSchedule(effectiveScheduleType) ? 'SCHEDULE' : 'FULL',
           paymentScheduleType: effectiveScheduleType || null,
           orderCreationTrigger: orderCreationTrigger || 'DEPOSIT',
           notes:           notes           || estimate.notes,
@@ -368,7 +363,7 @@ export function createInvoicesRouter(prisma) {
       });
 
       // Create payment schedule and auto-set depositRequired from the first item
-      if (effectiveScheduleType && effectiveScheduleType !== 'NONE') {
+      if (isMilestoneSchedule(effectiveScheduleType)) {
         const scheduleItems = createPaymentSchedule(estimate.total, effectiveScheduleType, invoice.id);
         if (scheduleItems.length > 0) {
           await prisma.invoicePaymentSchedule.createMany({ data: scheduleItems });
@@ -810,7 +805,7 @@ export function createInvoicesRouter(prisma) {
           triggerStage:  item.triggerStage || null,
           status:        'PENDING'
         }));
-      } else if (scheduleType && scheduleType !== 'NONE') {
+      } else if (isMilestoneSchedule(scheduleType)) {
         scheduleItems = createPaymentSchedule(invoice.total, scheduleType, invoice.id);
       }
 
@@ -822,7 +817,8 @@ export function createInvoicesRouter(prisma) {
         where: { id: invoice.id },
         data: {
           paymentScheduleType: scheduleType || 'NONE',
-          paymentType:         scheduleType && scheduleType !== 'NONE' ? 'SCHEDULE' : 'FULL',
+          paymentTerms:        scheduleTypeToLegacyTerms(scheduleType),
+          paymentType:         isMilestoneSchedule(scheduleType) ? 'SCHEDULE' : 'FULL',
           depositRequired:     scheduleItems.length > 0 ? scheduleItems[0].amount : null
         },
         include: {
