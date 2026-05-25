@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { requireInvoicingPermission, applyInvoicingDataFilter } from '../middleware/invoicingAuth.js';
 import { generateCustomerNumber } from '../utils/numberGenerators.js';
 import { sendEmail } from '../services/emailService.js';
+import { scheduleTypeToLegacyTerms } from '../utils/paymentSchedule.js';
 
 export function createCustomersRouter(prisma) {
   const router = express.Router();
@@ -144,6 +145,13 @@ export function createCustomersRouter(prisma) {
       if (!firstName || !lastName || !email) return res.status(400).json({ error: 'Missing required fields: firstName, lastName, email' });
       const customerNumber = await generateCustomerNumber(prisma);
       const portalToken = crypto.randomBytes(32).toString('hex');
+
+      // paymentScheduleType is the canonical answer to "how does this customer
+      // get billed?". paymentTerms is mirrored from it for legacy back-compat.
+      // Explicit paymentTerms in the body wins (legacy API callers).
+      const effectiveScheduleType = defaultPaymentScheduleType || '50_40_10';
+      const mirroredTerms = paymentTerms || scheduleTypeToLegacyTerms(effectiveScheduleType);
+
       const customer = await prisma.customer.create({
         data: {
           customerNumber, firstName, lastName, email, phone,
@@ -157,8 +165,8 @@ export function createCustomersRouter(prisma) {
           sameAsBilling: sameAsBilling ?? true, shippingSameAsBilling: sameAsBilling ?? true,
           taxExempt: taxExempt ?? false, taxExemptId,
           creditLimit: creditLimit ? parseFloat(creditLimit) : null,
-          defaultPaymentTerms: paymentTerms || 'NET30', paymentTerms: paymentTerms || 'NET30',
-          defaultPaymentScheduleType: defaultPaymentScheduleType || '50_40_10',
+          defaultPaymentTerms: mirroredTerms, paymentTerms: mirroredTerms,
+          defaultPaymentScheduleType: effectiveScheduleType,
           assignedToId: assignedToId || null, status: status || 'ACTIVE',
           notes, internalNotes, tags: tags ? JSON.stringify(tags) : null,
           portalToken, portalEnabled: true, leadId
@@ -193,6 +201,17 @@ export function createCustomersRouter(prisma) {
         assignedToId, status, notes, internalNotes, tags
       } = req.body;
 
+      // Mirror paymentTerms from scheduleType when it changes.
+      // Explicit paymentTerms in the body wins (legacy callers).
+      let mirroredTerms;
+      if (paymentTerms !== undefined) {
+        mirroredTerms = paymentTerms;
+      } else if (defaultPaymentScheduleType !== undefined) {
+        mirroredTerms = scheduleTypeToLegacyTerms(defaultPaymentScheduleType);
+      } else {
+        mirroredTerms = undefined; // leave existing value alone
+      }
+
       const updated = await prisma.customer.update({
         where: { id: req.params.id },
         data: {
@@ -207,7 +226,7 @@ export function createCustomersRouter(prisma) {
           sameAsBilling, shippingSameAsBilling: sameAsBilling,
           taxExempt, taxExemptId,
           creditLimit: creditLimit !== undefined ? (creditLimit ? parseFloat(creditLimit) : null) : undefined,
-          defaultPaymentTerms: paymentTerms, paymentTerms,
+          defaultPaymentTerms: mirroredTerms, paymentTerms: mirroredTerms,
           defaultPaymentScheduleType: defaultPaymentScheduleType !== undefined ? defaultPaymentScheduleType : undefined,
           assignedToId, status, notes, internalNotes,
           tags: tags !== undefined ? (tags ? JSON.stringify(tags) : null) : undefined
@@ -246,9 +265,16 @@ export function createCustomersRouter(prisma) {
       }
       if (updateData.creditLimit !== undefined) updateData.creditLimit = updateData.creditLimit ? parseFloat(updateData.creditLimit) : null;
       if (updateData.tags !== undefined) updateData.tags = updateData.tags ? JSON.stringify(updateData.tags) : null;
-      if (updateData.paymentTerms !== undefined) updateData.defaultPaymentTerms = updateData.paymentTerms;
       if (updateData.sameAsBilling !== undefined) updateData.shippingSameAsBilling = updateData.sameAsBilling;
       if (updateData.company !== undefined && !updateData.companyName) updateData.companyName = updateData.company;
+
+      // Mirror paymentTerms from scheduleType when scheduleType changes,
+      // unless the caller explicitly sent paymentTerms (legacy override wins).
+      if (updateData.defaultPaymentScheduleType !== undefined && updateData.paymentTerms === undefined) {
+        updateData.paymentTerms = scheduleTypeToLegacyTerms(updateData.defaultPaymentScheduleType);
+      }
+      // Keep defaultPaymentTerms aligned with paymentTerms
+      if (updateData.paymentTerms !== undefined) updateData.defaultPaymentTerms = updateData.paymentTerms;
 
       const updated = await prisma.customer.update({
         where: { id: req.params.id }, data: updateData,
