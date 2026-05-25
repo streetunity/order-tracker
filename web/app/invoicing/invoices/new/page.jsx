@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import InvoicingNav from "@/components/InvoicingNav";
+import { PAYMENT_SCHEDULE_OPTIONS, isMilestoneSchedule } from '@/lib/paymentSchedule';
 
 function GripIcon({ color }) {
   return (
@@ -36,8 +37,7 @@ function NewInvoiceContent() {
   const [selectedCustomer,     setSelectedCustomer]     = useState(null);
   const [customerSearch,       setCustomerSearch]       = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [paymentTerms,         setPaymentTerms]         = useState("NET30");
-  // Default to 50/40/10 — the standard schedule for SMT's custom manufacturing sales.
+  // Default to 50/40/10 -- the standard schedule for SMT's custom manufacturing sales.
   // Overridden by the selected customer's defaultPaymentScheduleType when one is set.
   const [paymentScheduleType,  setPaymentScheduleType]  = useState("50_40_10");
   const [items,                setItems]                = useState([]);
@@ -83,7 +83,6 @@ function NewInvoiceContent() {
           const c = await res.json();
           setCustomerId(c.id);
           setSelectedCustomer(c);
-          if (c.paymentTerms) setPaymentTerms(c.paymentTerms);
           if (c.defaultPaymentScheduleType) setPaymentScheduleType(c.defaultPaymentScheduleType);
         }
       } catch (e) { console.error(e); }
@@ -120,7 +119,6 @@ function NewInvoiceContent() {
         setNotes(est.notes || ""); setTermsConditions(est.termsConditions || "");
         if (est.customer) {
           setSelectedCustomer(est.customer);
-          if (est.customer.paymentTerms) setPaymentTerms(est.customer.paymentTerms);
           if (est.customer.defaultPaymentScheduleType) setPaymentScheduleType(est.customer.defaultPaymentScheduleType);
         }
         if (est.items) setItems(est.items.map((item, idx) => ({ id: Date.now() + idx, productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })));
@@ -172,7 +170,6 @@ function NewInvoiceContent() {
     setSelectedCustomer(c);
     setCustomerSearch("");
     setShowCustomerDropdown(false);
-    if (c.paymentTerms) setPaymentTerms(c.paymentTerms);
     if (c.defaultPaymentScheduleType) setPaymentScheduleType(c.defaultPaymentScheduleType);
   }
 
@@ -213,7 +210,7 @@ function NewInvoiceContent() {
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ customerId, paymentTerms, paymentScheduleType, items: items.map(item => ({ productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })), taxRate, discountType: discountType || null, discountValue: discountValue ? parseFloat(discountValue) : null, shippingAmount: shipping, notes, internalNotes, termsConditions, estimateId: estimateId || null })
+        body: JSON.stringify({ customerId, paymentScheduleType, items: items.map(item => ({ productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })), taxRate, discountType: discountType || null, discountValue: discountValue ? parseFloat(discountValue) : null, shippingAmount: shipping, notes, internalNotes, termsConditions, estimateId: estimateId || null })
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed to create invoice"); }
       const invoice = await res.json();
@@ -242,7 +239,7 @@ function NewInvoiceContent() {
 
         <form onSubmit={handleSubmit}>
 
-          {/* CUSTOMER + PAYMENT TERMS */}
+          {/* CUSTOMER + PAYMENT SCHEDULE */}
           <div style={sec}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, alignItems: "start" }}>
               <div>
@@ -281,27 +278,12 @@ function NewInvoiceContent() {
                 </div>
               </div>
               <div>
-                <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Payment Terms</h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Terms</label>
-                    <select value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-                      <option value="DUE_ON_RECEIPT">Due on Receipt</option>
-                      <option value="NET15">Net 15</option>
-                      <option value="NET30">Net 30</option>
-                      <option value="NET45">Net 45</option>
-                      <option value="NET60">Net 60</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 13, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>Payment Schedule</label>
-                    <select value={paymentScheduleType} onChange={(e) => setPaymentScheduleType(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-                      <option value="NONE">Full Payment (no schedule)</option>
-                      <option value="DEPOSIT_BALANCE">50% Deposit / 50% Balance</option>
-                      <option value="50_40_10">50% Deposit / 40% Progress / 10% Final</option>
-                    </select>
-                  </div>
-                </div>
+                <h2 style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.5)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.7px" }}>Payment Schedule</h2>
+                <select value={paymentScheduleType} onChange={(e) => setPaymentScheduleType(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+                  {PAYMENT_SCHEDULE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -515,8 +497,8 @@ function NewInvoiceContent() {
                 </div>
               </div>
 
-              {/* Payment schedule preview — always show for the default 50/40/10 */}
-              {paymentScheduleType !== "NONE" && total > 0 && (
+              {/* Payment schedule preview -- shown only for milestone schedules (50/50, 50/40/10) */}
+              {isMilestoneSchedule(paymentScheduleType) && total > 0 && (
                 <div style={{ marginTop: 20, padding: 16, background: "rgba(220,38,38,0.06)", borderRadius: 10, border: "1px solid rgba(220,38,38,0.2)" }}>
                   <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Payment Schedule</div>
                   {paymentScheduleType === "DEPOSIT_BALANCE" && (
