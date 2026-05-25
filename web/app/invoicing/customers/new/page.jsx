@@ -7,20 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import InvoicingNav from "@/components/InvoicingNav";
-
-const PAYMENT_TERMS_OPTIONS = [
-  { value: 'DUE_ON_RECEIPT', label: 'Due on Receipt' },
-  { value: 'NET15', label: 'Net 15' },
-  { value: 'NET30', label: 'Net 30' },
-  { value: 'NET60', label: 'Net 60' },
-  { value: 'CUSTOM', label: 'Custom' }
-];
-
-const PAYMENT_SCHEDULE_OPTIONS = [
-  { value: '50_40_10',        label: '50/40/10 (Deposit / Progress / Final)' },
-  { value: 'DEPOSIT_BALANCE', label: '50/50 (Deposit / Balance)' },
-  { value: 'NONE',            label: 'Full Payment (no schedule)' }
-];
+import { PAYMENT_SCHEDULE_OPTIONS } from "@/lib/paymentSchedule";
 
 export default function NewCustomerPage() {
   const router = useRouter();
@@ -50,7 +37,6 @@ export default function NewCustomerPage() {
     shippingZipCode: "",
     shippingCountry: "USA",
     // Payment & Settings
-    paymentTerms: "NET30",
     // Default milestone schedule for this customer's invoices.
     // 50/40/10 is SMT's standard for custom manufacturing.
     defaultPaymentScheduleType: "50_40_10",
@@ -380,33 +366,21 @@ export default function NewCustomerPage() {
             <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
               Payment & Settings
             </h2>
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Default Payment Schedule</label>
-              <select
-                value={formData.defaultPaymentScheduleType}
-                onChange={(e) => setFormData({ ...formData, defaultPaymentScheduleType: e.target.value })}
-                style={inputStyle}
-              >
-                {PAYMENT_SCHEDULE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
-                50/40/10 auto-populates milestones on this customer's invoices: 50% deposit, 40% at QC, 10% on delivery.
-              </p>
-            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div>
-                <label style={labelStyle}>Payment Terms</label>
+                <label style={labelStyle}>Default Payment Schedule</label>
                 <select
-                  value={formData.paymentTerms}
-                  onChange={(e) => setFormData({ ...formData, paymentTerms: e.target.value })}
+                  value={formData.defaultPaymentScheduleType}
+                  onChange={(e) => setFormData({ ...formData, defaultPaymentScheduleType: e.target.value })}
                   style={inputStyle}
                 >
-                  {PAYMENT_TERMS_OPTIONS.map(opt => (
+                  {PAYMENT_SCHEDULE_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+                <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
+                  50/40/10 auto-populates milestones on invoices: 50% deposit, 40% at QC, 10% on delivery. NET options bill the full amount with a single due date.
+                </p>
               </div>
               <div>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 24 }}>
@@ -420,19 +394,19 @@ export default function NewCustomerPage() {
                     Tax Exempt
                   </span>
                 </label>
+                {formData.taxExempt && (
+                  <div style={{ marginTop: 12 }}>
+                    <label style={labelStyle}>Tax Exempt Number</label>
+                    <input
+                      type="text"
+                      value={formData.taxExemptId}
+                      onChange={(e) => setFormData({ ...formData, taxExemptId: e.target.value })}
+                      style={inputStyle}
+                      placeholder="EIN or Exemption #"
+                    />
+                  </div>
+                )}
               </div>
-              {formData.taxExempt && (
-                <div>
-                  <label style={labelStyle}>Tax Exempt Number</label>
-                  <input
-                    type="text"
-                    value={formData.taxExemptId}
-                    onChange={(e) => setFormData({ ...formData, taxExemptId: e.target.value })}
-                    style={inputStyle}
-                    placeholder="EIN or Exemption #"
-                  />
-                </div>
-              )}
             </div>
           </div>
 
