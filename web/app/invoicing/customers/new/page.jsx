@@ -16,6 +16,12 @@ const PAYMENT_TERMS_OPTIONS = [
   { value: 'CUSTOM', label: 'Custom' }
 ];
 
+const PAYMENT_SCHEDULE_OPTIONS = [
+  { value: '50_40_10',        label: '50/40/10 (Deposit / Progress / Final)' },
+  { value: 'DEPOSIT_BALANCE', label: '50/50 (Deposit / Balance)' },
+  { value: 'NONE',            label: 'Full Payment (no schedule)' }
+];
+
 export default function NewCustomerPage() {
   const router = useRouter();
   const { user, loading: authLoading, getAuthHeaders } = useAuth();
@@ -45,6 +51,9 @@ export default function NewCustomerPage() {
     shippingCountry: "USA",
     // Payment & Settings
     paymentTerms: "NET30",
+    // Default milestone schedule for this customer's invoices.
+    // 50/40/10 is SMT's standard for custom manufacturing.
+    defaultPaymentScheduleType: "50_40_10",
     taxExempt: false,
     taxExemptId: "",
     // Tags & Notes
@@ -371,6 +380,21 @@ export default function NewCustomerPage() {
             <h2 style={{ fontSize: "16px", fontWeight: "600", color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
               Payment & Settings
             </h2>
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Default Payment Schedule</label>
+              <select
+                value={formData.defaultPaymentScheduleType}
+                onChange={(e) => setFormData({ ...formData, defaultPaymentScheduleType: e.target.value })}
+                style={inputStyle}
+              >
+                {PAYMENT_SCHEDULE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
+                50/40/10 auto-populates milestones on this customer's invoices: 50% deposit, 40% at QC, 10% on delivery.
+              </p>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div>
                 <label style={labelStyle}>Payment Terms</label>
