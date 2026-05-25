@@ -53,20 +53,23 @@ export function createInvoicesRouter(prisma) {
    * Create payment schedule items for a given schedule type.
    *
    * 50/40/10 — SMT standard for custom manufacturing:
-   *   50% Deposit       — due up front, triggers order creation in the system
-   *   40% Progress      — due at shipping / containerization milestone
-   *   10% Final Payment — holdback due at delivery / installation complete
+   *   50% Deposit       — due up front, triggers order creation (no stage trigger)
+   *   40% Progress      — fires when all items reach QC (triggerStage: 'QC')
+   *   10% Final Payment — fires when all items reach DELIVERED (triggerStage: 'DELIVERED')
+   *
+   * The triggerStage field is read by stages.js, which sets triggeredAt and
+   * dueDate on the matching row when the order reaches that stage.
    */
   function createPaymentSchedule(total, scheduleType, invoiceId) {
     const schedules = {
       'DEPOSIT_BALANCE': [
-        { description: 'Deposit (50%)',      percentage: 50, triggersOrder: true  },
-        { description: 'Balance (50%)',      percentage: 50, triggersOrder: false }
+        { description: 'Deposit (50%)',          percentage: 50, triggersOrder: true,  triggerStage: null        },
+        { description: 'Balance (50%)',          percentage: 50, triggersOrder: false, triggerStage: null        }
       ],
       '50_40_10': [
-        { description: 'Deposit (50%)',         percentage: 50, triggersOrder: true  },
-        { description: 'Progress Payment (40%)', percentage: 40, triggersOrder: false },
-        { description: 'Final Payment (10%)',    percentage: 10, triggersOrder: false }
+        { description: 'Deposit (50%)',          percentage: 50, triggersOrder: true,  triggerStage: null        },
+        { description: 'Progress Payment (40%)', percentage: 40, triggersOrder: false, triggerStage: 'QC'        },
+        { description: 'Final Payment (10%)',    percentage: 10, triggersOrder: false, triggerStage: 'DELIVERED' }
       ]
     };
 
@@ -80,6 +83,7 @@ export function createInvoicesRouter(prisma) {
       amount:        Math.round((total * item.percentage / 100) * 100) / 100,
       sortOrder:     index,
       triggersOrder: item.triggersOrder,
+      triggerStage:  item.triggerStage || null,
       status:        'PENDING'
     }));
   }
@@ -176,6 +180,17 @@ export function createInvoicesRouter(prisma) {
 
       if (!customerId) return res.status(400).json({ error: 'Missing required field: customerId' });
 
+      // Fall back to the customer's default schedule if the caller didn't specify one.
+      // Only fetches when needed so existing callers stay fast.
+      let effectiveScheduleType = paymentScheduleType;
+      if (effectiveScheduleType === undefined) {
+        const cust = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { defaultPaymentScheduleType: true }
+        });
+        effectiveScheduleType = cust?.defaultPaymentScheduleType || null;
+      }
+
       const invoiceNumber = await generateInvoiceNumber(prisma);
 
       let calcDueDate = dueDate;
@@ -221,8 +236,8 @@ export function createInvoicesRouter(prisma) {
           totalCost:           totals.totalCost,
           marginAmount:        totals.marginAmount,
           marginPercent:       totals.marginPercent,
-          paymentType:         paymentScheduleType && paymentScheduleType !== 'NONE' ? 'SCHEDULE' : (paymentType || 'FULL'),
-          paymentScheduleType: paymentScheduleType || null,
+          paymentType:         effectiveScheduleType && effectiveScheduleType !== 'NONE' ? 'SCHEDULE' : (paymentType || 'FULL'),
+          paymentScheduleType: effectiveScheduleType || null,
           depositRequired,
           orderCreationTrigger: orderCreationTrigger || 'DEPOSIT',
           notes,
@@ -240,8 +255,8 @@ export function createInvoicesRouter(prisma) {
       });
 
       // Create payment schedule and auto-set depositRequired from the first item
-      if (paymentScheduleType && paymentScheduleType !== 'NONE') {
-        const scheduleItems = createPaymentSchedule(totals.total, paymentScheduleType, invoice.id);
+      if (effectiveScheduleType && effectiveScheduleType !== 'NONE') {
+        const scheduleItems = createPaymentSchedule(totals.total, effectiveScheduleType, invoice.id);
         if (scheduleItems.length > 0) {
           await prisma.invoicePaymentSchedule.createMany({ data: scheduleItems });
           // depositRequired is the amount of the first (deposit) schedule item.
@@ -291,6 +306,13 @@ export function createInvoicesRouter(prisma) {
 
       const { paymentTerms, paymentScheduleType, orderCreationTrigger, notes, internalNotes, termsConditions } = req.body;
 
+      // Fall back to the customer's default schedule if not specified.
+      // The estimate include above already loaded the customer; reuse it.
+      let effectiveScheduleType = paymentScheduleType;
+      if (effectiveScheduleType === undefined) {
+        effectiveScheduleType = estimate.customer?.defaultPaymentScheduleType || null;
+      }
+
       const invoiceNumber = await generateInvoiceNumber(prisma);
       const days = paymentTerms === 'NET15' ? 15 : paymentTerms === 'NET30' ? 30 : paymentTerms === 'NET45' ? 45 : paymentTerms === 'NET60' ? 60 : 30;
       const dueDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -315,8 +337,8 @@ export function createInvoicesRouter(prisma) {
           totalCost:           estimate.totalCost,
           marginAmount:        estimate.marginAmount,
           marginPercent:       estimate.marginPercent,
-          paymentType:         paymentScheduleType && paymentScheduleType !== 'NONE' ? 'SCHEDULE' : 'FULL',
-          paymentScheduleType: paymentScheduleType || null,
+          paymentType:         effectiveScheduleType && effectiveScheduleType !== 'NONE' ? 'SCHEDULE' : 'FULL',
+          paymentScheduleType: effectiveScheduleType || null,
           orderCreationTrigger: orderCreationTrigger || 'DEPOSIT',
           notes:           notes           || estimate.notes,
           internalNotes:   internalNotes   || estimate.internalNotes,
@@ -346,8 +368,8 @@ export function createInvoicesRouter(prisma) {
       });
 
       // Create payment schedule and auto-set depositRequired from the first item
-      if (paymentScheduleType && paymentScheduleType !== 'NONE') {
-        const scheduleItems = createPaymentSchedule(estimate.total, paymentScheduleType, invoice.id);
+      if (effectiveScheduleType && effectiveScheduleType !== 'NONE') {
+        const scheduleItems = createPaymentSchedule(estimate.total, effectiveScheduleType, invoice.id);
         if (scheduleItems.length > 0) {
           await prisma.invoicePaymentSchedule.createMany({ data: scheduleItems });
           await prisma.invoice.update({
@@ -785,6 +807,7 @@ export function createInvoicesRouter(prisma) {
           dueDate:       item.dueDate ? new Date(item.dueDate) : null,
           sortOrder:     index,
           triggersOrder: item.triggersOrder || index === 0,
+          triggerStage:  item.triggerStage || null,
           status:        'PENDING'
         }));
       } else if (scheduleType && scheduleType !== 'NONE') {
