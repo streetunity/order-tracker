@@ -37,7 +37,8 @@ function NewInvoiceContent() {
   const [customerSearch,       setCustomerSearch]       = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [paymentTerms,         setPaymentTerms]         = useState("NET30");
-  // Default to 50/40/10 — the standard schedule for SMT's custom manufacturing sales
+  // Default to 50/40/10 — the standard schedule for SMT's custom manufacturing sales.
+  // Overridden by the selected customer's defaultPaymentScheduleType when one is set.
   const [paymentScheduleType,  setPaymentScheduleType]  = useState("50_40_10");
   const [items,                setItems]                = useState([]);
   const [taxRate,              setTaxRate]              = useState(0);
@@ -78,7 +79,13 @@ function NewInvoiceContent() {
     async function fetchPreset() {
       try {
         const res = await fetch(`/api/customers/${presetCustomerId}`, { headers: getAuthHeaders() });
-        if (res.ok) { const c = await res.json(); setCustomerId(c.id); setSelectedCustomer(c); if (c.paymentTerms) setPaymentTerms(c.paymentTerms); }
+        if (res.ok) {
+          const c = await res.json();
+          setCustomerId(c.id);
+          setSelectedCustomer(c);
+          if (c.paymentTerms) setPaymentTerms(c.paymentTerms);
+          if (c.defaultPaymentScheduleType) setPaymentScheduleType(c.defaultPaymentScheduleType);
+        }
       } catch (e) { console.error(e); }
     }
     fetchPreset();
@@ -111,7 +118,11 @@ function NewInvoiceContent() {
         setDiscountType(est.discountType || ""); setDiscountValue(est.discountValue?.toString() || "");
         setShippingAmount(est.shippingAmount?.toString() || "");
         setNotes(est.notes || ""); setTermsConditions(est.termsConditions || "");
-        if (est.customer) { setSelectedCustomer(est.customer); if (est.customer.paymentTerms) setPaymentTerms(est.customer.paymentTerms); }
+        if (est.customer) {
+          setSelectedCustomer(est.customer);
+          if (est.customer.paymentTerms) setPaymentTerms(est.customer.paymentTerms);
+          if (est.customer.defaultPaymentScheduleType) setPaymentScheduleType(est.customer.defaultPaymentScheduleType);
+        }
         if (est.items) setItems(est.items.map((item, idx) => ({ id: Date.now() + idx, productId: item.productId, name: item.name, description: item.description, sku: item.sku, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, taxable: item.taxable })));
       }
     } catch (e) { console.error(e); }
@@ -156,7 +167,14 @@ function NewInvoiceContent() {
            c.company?.toLowerCase().includes(q) || c.companyName?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q);
   }).slice(0, 10);
 
-  function selectCustomer(c) { setCustomerId(c.id); setSelectedCustomer(c); setCustomerSearch(""); setShowCustomerDropdown(false); if (c.paymentTerms) setPaymentTerms(c.paymentTerms); }
+  function selectCustomer(c) {
+    setCustomerId(c.id);
+    setSelectedCustomer(c);
+    setCustomerSearch("");
+    setShowCustomerDropdown(false);
+    if (c.paymentTerms) setPaymentTerms(c.paymentTerms);
+    if (c.defaultPaymentScheduleType) setPaymentScheduleType(c.defaultPaymentScheduleType);
+  }
 
   function addProduct(product) {
     setItems([...items, { id: Date.now(), productId: product.id, name: product.name, description: product.description, sku: product.sku, quantity: 1, unitPrice: product.price, unitCost: product.cost, taxable: product.taxable !== false }]);
@@ -523,7 +541,7 @@ function NewInvoiceContent() {
                         <span>Final Payment (10%)</span><span style={{ fontWeight: 600 }}>{fmt(total * 0.1)}</span>
                       </div>
                       <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                        Deposit triggers order creation. Progress payment due at shipping. Final payment due at delivery.
+                        Deposit triggers order creation. Progress payment due at QC. Final payment due at delivery.
                       </div>
                     </>
                   )}
