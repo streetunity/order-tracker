@@ -806,6 +806,11 @@ model Customer {
   defaultPaymentTerms String  @default("NET30")
   paymentTerms        String? @default("NET30")
 
+  // Default milestone schedule for this customer's invoices.
+  // 50/40/10 is SMT's standard for custom manufacturing sales:
+  //   50% deposit / 40% at QC / 10% on delivery.
+  defaultPaymentScheduleType String? @default("50_40_10")
+
   stripeCustomerId String? @unique
 
   primaryContactId String?
@@ -1668,10 +1673,19 @@ model InvoicePaymentSchedule {
   sortOrder     Int     @default(0)
   triggersOrder Boolean @default(false)
 
+  // Stage that activates this milestone (e.g. "QC" for the 40%, "DELIVERED"
+  // for the 10%). Null means the row is not stage-triggered (e.g. the 50%
+  // deposit fires on invoice creation / order auto-creation, not on a stage).
+  // When all items in the order reach this stage, dueDate and triggeredAt
+  // are set to now() so the milestone becomes billable.
+  triggerStage String?
+  triggeredAt  DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([invoiceId])
   @@index([status])
+  @@index([triggerStage])
 }
 
 model Signature {
