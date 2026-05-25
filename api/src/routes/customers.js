@@ -140,7 +140,7 @@ export function createCustomersRouter(prisma) {
   // POST /customers
   router.post('/', requireInvoicingPermission('CREATE_CUSTOMER'), async (req, res) => {
     try {
-      const { firstName, lastName, email, phone, company, companyName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, sameAsBilling, taxExempt, taxExemptId, creditLimit, paymentTerms, assignedToId, status, notes, internalNotes, tags, leadId } = req.body;
+      const { firstName, lastName, email, phone, company, companyName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, sameAsBilling, taxExempt, taxExemptId, creditLimit, paymentTerms, defaultPaymentScheduleType, assignedToId, status, notes, internalNotes, tags, leadId } = req.body;
       if (!firstName || !lastName || !email) return res.status(400).json({ error: 'Missing required fields: firstName, lastName, email' });
       const customerNumber = await generateCustomerNumber(prisma);
       const portalToken = crypto.randomBytes(32).toString('hex');
@@ -158,6 +158,7 @@ export function createCustomersRouter(prisma) {
           taxExempt: taxExempt ?? false, taxExemptId,
           creditLimit: creditLimit ? parseFloat(creditLimit) : null,
           defaultPaymentTerms: paymentTerms || 'NET30', paymentTerms: paymentTerms || 'NET30',
+          defaultPaymentScheduleType: defaultPaymentScheduleType || '50_40_10',
           assignedToId: assignedToId || null, status: status || 'ACTIVE',
           notes, internalNotes, tags: tags ? JSON.stringify(tags) : null,
           portalToken, portalEnabled: true, leadId
@@ -188,7 +189,7 @@ export function createCustomersRouter(prisma) {
         firstName, lastName, email, phone, company, companyName,
         billingAddress, billingCity, billingState, billingZipCode, billingCountry,
         shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry,
-        sameAsBilling, taxExempt, taxExemptId, creditLimit, paymentTerms,
+        sameAsBilling, taxExempt, taxExemptId, creditLimit, paymentTerms, defaultPaymentScheduleType,
         assignedToId, status, notes, internalNotes, tags
       } = req.body;
 
@@ -207,6 +208,7 @@ export function createCustomersRouter(prisma) {
           taxExempt, taxExemptId,
           creditLimit: creditLimit !== undefined ? (creditLimit ? parseFloat(creditLimit) : null) : undefined,
           defaultPaymentTerms: paymentTerms, paymentTerms,
+          defaultPaymentScheduleType: defaultPaymentScheduleType !== undefined ? defaultPaymentScheduleType : undefined,
           assignedToId, status, notes, internalNotes,
           tags: tags !== undefined ? (tags ? JSON.stringify(tags) : null) : undefined
         },
@@ -235,7 +237,7 @@ export function createCustomersRouter(prisma) {
         'billingAddress','billingCity','billingState','billingZipCode','billingCountry',
         'shippingAddress','shippingCity','shippingState','shippingZipCode','shippingCountry',
         'sameAsBilling','shippingSameAsBilling','taxExempt','taxExemptId','creditLimit',
-        'paymentTerms','defaultPaymentTerms','status','notes','internalNotes','tags',
+        'paymentTerms','defaultPaymentTerms','defaultPaymentScheduleType','status','notes','internalNotes','tags',
         'assignedToId','portalEnabled'
       ];
       const updateData = {};
