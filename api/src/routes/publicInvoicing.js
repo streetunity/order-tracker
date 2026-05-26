@@ -1,9 +1,9 @@
 /**
- * Public routes for invoicing system — no authentication required.
+ * Public routes for invoicing system -- no authentication required.
  *
  * Security model:
- *   - /pay/invoice/:id/nextnp  → accepts a Tokenizer token (never raw card data)
- *   - /nextnp-webhook          → MOUNTED IN index.js BEFORE express.json()
+ *   - /pay/invoice/:id/nextnp  -> accepts a Tokenizer token (never raw card data)
+ *   - /nextnp-webhook          -> MOUNTED IN index.js BEFORE express.json()
  *                                (see api/src/routes/nextnpWebhook.js)
  *   - All other routes are read-only or notification-only
  */
@@ -26,7 +26,7 @@ export function createPublicInvoicingRouter(prisma) {
     'base64'
   );
 
-  // ── Email tracking pixels ───────────────────────────────────────────────────
+  // -- Email tracking pixels ---------------------------------------------------
 
   router.get('/track/estimate/:id/open', async (req, res) => {
     try { await trackEmailOpen(prisma, req.params.id); } catch (_) {}
@@ -40,7 +40,7 @@ export function createPublicInvoicingRouter(prisma) {
     res.send(TRACKING_PIXEL);
   });
 
-  // ── Public estimate viewing ─────────────────────────────────────────────────
+  // -- Public estimate viewing -------------------------------------------------
 
   router.get('/view-estimate/:id', async (req, res) => {
     try {
@@ -120,7 +120,7 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── Public invoice viewing ──────────────────────────────────────────────────
+  // -- Public invoice viewing --------------------------------------------------
 
   router.get('/view-invoice/:id', async (req, res) => {
     try {
@@ -152,10 +152,14 @@ export function createPublicInvoicingRouter(prisma) {
         c?.billingAddress,
         [c?.billingCity, c?.billingState, c?.billingZipCode].filter(Boolean).join(', ')
       ].filter(Boolean).join('\n');
+      // paymentScheduleType is the canonical field; paymentTerms is kept for
+      // back-compat with older invoices that pre-date the schedule unification.
       res.json({
         id: invoice.id, invoiceNumber: invoice.invoiceNumber,
         status: invoice.status === 'SENT' ? 'VIEWED' : invoice.status,
-        invoiceDate: invoice.invoiceDate, dueDate: invoice.dueDate, paymentTerms: invoice.paymentTerms,
+        invoiceDate: invoice.invoiceDate, dueDate: invoice.dueDate,
+        paymentTerms: invoice.paymentTerms,
+        paymentScheduleType: invoice.paymentScheduleType,
         customer: { ...invoice.customer, billingAddressFull: billingLines || null },
         items: invoice.items, paymentSchedule: invoice.paymentSchedule,
         subtotal: invoice.subtotal, discountType: invoice.discountType,
@@ -184,7 +188,7 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── Payment notification (offline/manual) ──────────────────────────────────
+  // -- Payment notification (offline/manual) ----------------------------------
 
   router.post('/notify-payment/:id', async (req, res) => {
     try {
@@ -224,7 +228,7 @@ export function createPublicInvoicingRouter(prisma) {
           paymentMethod: paymentMethod || 'OTHER', referenceNumber: referenceNumber || null,
           checkNumber: paymentMethod === 'CHECK' ? referenceNumber || null : null,
           wireReference: paymentMethod === 'WIRE'  ? referenceNumber || null : null,
-          status: 'PENDING', notes: notes || 'Payment submitted online by customer — awaiting confirmation',
+          status: 'PENDING', notes: notes || 'Payment submitted online by customer -- awaiting confirmation',
         }
       });
       if (settings) {
@@ -247,7 +251,7 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── Customer portal ─────────────────────────────────────────────────────────
+  // -- Customer portal ---------------------------------------------------------
 
   router.get('/portal/:token', async (req, res) => {
     try {
@@ -295,9 +299,9 @@ export function createPublicInvoicingRouter(prisma) {
     }
   });
 
-  // ── NexNP customer-facing payment (Tokenizer, PCI SAQ-A) ───────────────────
+  // -- NexNP customer-facing payment (Tokenizer, PCI SAQ-A) -------------------
   //
-  // Accepts a short-lived Tokenizer token — NOT raw card data.
+  // Accepts a short-lived Tokenizer token -- NOT raw card data.
   // The Tokenizer iframe runs on NexNP's PCI-compliant servers.
   // Raw card/ACH data never passes through this server.
 
@@ -335,8 +339,8 @@ export function createPublicInvoicingRouter(prisma) {
 
       const isACH    = chargeResult.paymentMethod === 'ach';
       const dbStatus = isACH ? 'PROCESSING' : 'COMPLETED';
-      // Card: mark COMPLETED immediately — authorization is real-time confirmation
-      // ACH:  mark PROCESSING — settlement confirmed later via webhook
+      // Card: mark COMPLETED immediately -- authorization is real-time confirmation
+      // ACH:  mark PROCESSING -- settlement confirmed later via webhook
 
       const paymentNumber = await generatePaymentNumber(prisma);
       const payment = await prisma.payment.create({
@@ -351,7 +355,7 @@ export function createPublicInvoicingRouter(prisma) {
           referenceNumber:     chargeResult.transactionId,
           last4:               chargeResult.last4    || null,
           cardBrand:           chargeResult.cardType || null,
-          notes:               `Customer online payment via NexNP Tokenizer. TxID: ${chargeResult.transactionId}${isACH ? ' [ACH — pending settlement]' : ''}`,
+          notes:               `Customer online payment via NexNP Tokenizer. TxID: ${chargeResult.transactionId}${isACH ? ' [ACH -- pending settlement]' : ''}`,
           status:              dbStatus,
           paymentDate:         new Date(),
         }
