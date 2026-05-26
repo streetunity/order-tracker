@@ -20,7 +20,7 @@ export default function InvoicingTab({ settings }) {
         <SectionHeader label="Defaults" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
           <div><label style={LBL}>Local Tax Rate (%)</label><input style={INP} type="number" step="0.01" min="0" value={form.defaultTaxRate} onChange={e => setForm(p => ({...p,defaultTaxRate:e.target.value}))} /><p style={HINT}>Applied when Pinal County Sales Tax is selected</p></div>
-          <div><label style={LBL}>Default Payment Terms</label>
+          <div><label style={LBL}>Default Payment Schedule</label>
             <select style={{ ...INP, cursor: "pointer" }} value={form.defaultPaymentTerms} onChange={e => setForm(p => ({...p,defaultPaymentTerms:e.target.value}))}>
               <option value="DUE_ON_RECEIPT">Due on Receipt</option>
               <option value="NET15">Net 15</option>
