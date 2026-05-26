@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import InvoicingNav from "@/components/InvoicingNav";
+import { formatScheduleLabel } from "@/lib/paymentSchedule";
 import "../../modal.css";
 
 const STATUS_COLORS = {
@@ -198,13 +199,13 @@ export default function InvoiceDetailPage({ params }) {
       setSelectedScheduleItem(scheduleItem);
       setPaymentAmount(scheduleItem.amount.toFixed(2));
     } else {
-      // Generic button — auto-select next pending schedule item
+      // Generic button -- auto-select next pending schedule item
       const nextPending = invoice?.paymentSchedule?.find(item => item.status === 'PENDING');
       if (nextPending) {
         setSelectedScheduleItem(nextPending);
         setPaymentAmount(nextPending.amount.toFixed(2));
       } else {
-        // No schedule or all items paid — fall back to full balance
+        // No schedule or all items paid -- fall back to full balance
         setSelectedScheduleItem(null);
         setPaymentAmount((invoice?.balanceDue || 0).toFixed(2));
       }
@@ -385,7 +386,7 @@ export default function InvoiceDetailPage({ params }) {
       <div style={{ display: "flex", paddingTop: 60, minHeight: "100vh", background: "#0f0f0f" }}>
         {sidebarJSX}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading invoice…</div>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 14 }}>Loading invoice\u2026</div>
         </div>
       </div>
     </>
@@ -398,7 +399,7 @@ export default function InvoiceDetailPage({ params }) {
         {sidebarJSX}
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>\ud83d\udcca</div>
             <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: 20 }}>{error || "Invoice not found"}</p>
             <Link href="/invoicing/invoices" style={{ padding: "10px 20px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.9)", textDecoration: "none" }}>Back to Invoices</Link>
           </div>
@@ -410,7 +411,7 @@ export default function InvoiceDetailPage({ params }) {
   const statusColor = STATUS_COLORS[invoice.status] || STATUS_COLORS.DRAFT;
   const canPay = invoice.balanceDue > 0 && invoice.status !== 'VOID';
 
-  // Derive which schedule item is next — shown in the modal hint
+  // Derive which schedule item is next -- shown in the modal hint
   const nextPendingScheduleItem = invoice.paymentSchedule?.find(item => item.status === 'PENDING');
   const amountPaid = invoice.amountPaid || (invoice.payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0);
   const daysOverdue = isOverdue ? Math.max(0, Math.ceil((new Date() - new Date(invoice.dueDate)) / (1000 * 60 * 60 * 24))) : 0;
@@ -527,7 +528,7 @@ export default function InvoiceDetailPage({ params }) {
           {error && (
             <div style={{ padding: "12px 16px", marginBottom: 20, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444" }}>
               {error}
-              <button onClick={() => setError("")} style={{ float: "right", background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>×</button>
+              <button onClick={() => setError("")} style={{ float: "right", background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>\u00d7</button>
             </div>
           )}
 
@@ -554,10 +555,10 @@ export default function InvoiceDetailPage({ params }) {
               </div>
             </div>
             <div style={metricCardStyle}>
-              <div className="invoice-kpi-label"><span className="invoice-kpi-icon">#</span>Payment Terms</div>
+              <div className="invoice-kpi-label"><span className="invoice-kpi-icon">#</span>Payment Schedule</div>
               <div>
-                <div className="invoice-kpi-value" style={{ fontSize: 22 }}>{invoice.paymentTerms || "-"}</div>
-                <div className="invoice-kpi-sub">{invoice.status === "PAID" ? "Closed" : "Due on receipt terms shown here"}</div>
+                <div className="invoice-kpi-value" style={{ fontSize: 22 }}>{formatScheduleLabel(invoice.paymentScheduleType || invoice.paymentTerms) || "-"}</div>
+                <div className="invoice-kpi-sub">{invoice.status === "PAID" ? "Closed" : "Schedule applied to this invoice"}</div>
               </div>
             </div>
           </div>
@@ -748,7 +749,7 @@ export default function InvoiceDetailPage({ params }) {
                 <div style={{ display: "grid", gap: 12 }}>
                   <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Invoice Date</div><div style={{ color: "rgba(255,255,255,0.9)" }}>{formatDate(invoice.invoiceDate)}</div></div>
                   <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Due Date</div><div style={{ color: isOverdue ? "#ef4444" : "rgba(255,255,255,0.9)" }}>{formatDate(invoice.dueDate)}{isOverdue && " (Overdue)"}</div></div>
-                  <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Payment Terms</div><div style={{ color: "rgba(255,255,255,0.9)" }}>{invoice.paymentTerms}</div></div>
+                  <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Payment Schedule</div><div style={{ color: "rgba(255,255,255,0.9)" }}>{formatScheduleLabel(invoice.paymentScheduleType || invoice.paymentTerms)}</div></div>
                   {invoice.lastSentAt   && <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Last Sent</div><div style={{ color: "#3b82f6" }}>{formatDate(invoice.lastSentAt)}</div></div>}
                   {invoice.lastViewedAt && <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Last Viewed</div><div style={{ color: "#a855f7" }}>{formatDate(invoice.lastViewedAt)}</div></div>}
                   {invoice.viewCount > 0 && <div><div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>Views</div><div style={{ color: "rgba(255,255,255,0.9)" }}>{invoice.viewCount}</div></div>}
@@ -814,7 +815,7 @@ export default function InvoiceDetailPage({ params }) {
         </div>
       </div>
 
-      {/* ── Send Modal ── */}
+      {/* Send Modal */}
       {showSendModal && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -831,7 +832,7 @@ export default function InvoiceDetailPage({ params }) {
         </div>
       )}
 
-      {/* ── Record Payment Modal ── */}
+      {/* Record Payment Modal */}
       {showPaymentModal && (
         <div className="modal-overlay" onClick={() => { setShowPaymentModal(false); setSelectedScheduleItem(null); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -864,7 +865,7 @@ export default function InvoiceDetailPage({ params }) {
         </div>
       )}
 
-      {/* ── Confirm Modal ── */}
+      {/* Confirm Modal */}
       {showConfirmModal && (
         <div className="modal-overlay" onClick={() => setShowConfirmModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -878,7 +879,7 @@ export default function InvoiceDetailPage({ params }) {
         </div>
       )}
 
-      {/* ── Success Modal ── */}
+      {/* Success Modal */}
       {showSuccessModal && (
         <div className="modal-overlay" onClick={() => setShowSuccessModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
