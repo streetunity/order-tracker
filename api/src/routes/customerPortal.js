@@ -439,7 +439,9 @@ export function createCustomerPortalRouter(prisma) {
         }
       });
 
-      // Return customer-safe data
+      // Return customer-safe data.
+      // paymentScheduleType is the canonical field; paymentTerms is kept for
+      // back-compat with older invoices that pre-date the schedule unification.
       res.json({
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
@@ -447,6 +449,7 @@ export function createCustomerPortalRouter(prisma) {
         invoiceDate: invoice.invoiceDate,
         dueDate: invoice.dueDate,
         paymentTerms: invoice.paymentTerms,
+        paymentScheduleType: invoice.paymentScheduleType,
         items: invoice.items,
         paymentSchedule: invoice.paymentSchedule,
         payments: invoice.payments,
