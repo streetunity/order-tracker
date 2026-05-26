@@ -72,6 +72,7 @@ export default function AdminBoardPage() {
   const [salesRepFilter, setSalesRepFilter] = useState("");
   const [copiedLink, setCopiedLink] = useState(null);
   const [salesReps, setSalesReps] = useState([]);
+  const [unorderedOnly, setUnorderedOnly] = useState(false);
 
   // Item action dialog states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -156,7 +157,11 @@ export default function AdminBoardPage() {
     if (salesRepFilter) filtered = filtered.filter(order => order.sku === salesRepFilter);
     if (!stageFilter) {
       return filtered.map(order => {
-        const activeItems = (order.items || []).filter(item => !item.archivedAt);
+        const activeItems = (order.items || []).filter(item => {
+          if (item.archivedAt) return false;
+          if (unorderedOnly && item.isOrdered) return false;
+          return true;
+        });
         if (activeItems.length === 0) return null;
         return { ...order, items: activeItems };
       }).filter(Boolean);
@@ -164,12 +169,15 @@ export default function AdminBoardPage() {
     return filtered.map(order => {
       const filteredItems = (order.items || []).filter(item => {
         const itemStage = item.currentStage || order.currentStage || "MANUFACTURING";
-        return itemStage === stageFilter && !item.archivedAt;
+        if (item.archivedAt) return false;
+        if (itemStage !== stageFilter) return false;
+        if (unorderedOnly && item.isOrdered) return false;
+        return true;
       });
       if (filteredItems.length === 0) return null;
       return { ...order, items: filteredItems };
     }).filter(Boolean);
-  }, [orders, stageFilter, salesRepFilter]);
+  }, [orders, stageFilter, salesRepFilter, unorderedOnly]);
 
   const counts = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
@@ -392,6 +400,8 @@ export default function AdminBoardPage() {
           salesRepFilter={salesRepFilter}
           setSalesRepFilter={setSalesRepFilter}
           salesReps={salesReps}
+          unorderedOnly={unorderedOnly}
+          setUnorderedOnly={setUnorderedOnly}
           onApply={load}
           onClear={handleClear}
           loading={loading}
@@ -402,7 +412,7 @@ export default function AdminBoardPage() {
 
       <div className="stageBoard">
         <div className="stageCol stickyHeader stickyCol">
-          <div className="stageTitle">Customer{(stageFilter || salesRepFilter) && <span style={{ fontSize: "11px", fontWeight: "normal", display: "block", color: "#f59e0b" }}>(filtered)</span>}</div>
+          <div className="stageTitle">Customer{(stageFilter || salesRepFilter || unorderedOnly) && <span style={{ fontSize: "11px", fontWeight: "normal", display: "block", color: "#f59e0b" }}>(filtered)</span>}</div>
         </div>
         {STAGES.map((s) => (
           <div key={s} className="stageCol stickyHeader">

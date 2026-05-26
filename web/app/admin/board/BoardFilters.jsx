@@ -36,6 +36,8 @@ export default function BoardFilters({
   salesRepFilter,
   setSalesRepFilter,
   salesReps,
+  unorderedOnly,
+  setUnorderedOnly,
   onApply,
   onClear,
   loading,
@@ -86,12 +88,29 @@ export default function BoardFilters({
           <button className="btn" onClick={() => setSalesRepFilter("")} style={{ marginLeft: "4px" }}>Clear</button>
         )}
       </div>
+      <div className="tool">
+        <button
+          onClick={() => setUnorderedOnly(!unorderedOnly)}
+          title={unorderedOnly ? "Showing only un-ordered items. Click to show all items." : "Show only items that have not been ordered yet."}
+          style={{
+            padding: "6px 12px",
+            border: unorderedOnly ? "1px solid #dc2626" : "1px solid var(--border)",
+            borderRadius: 6,
+            backgroundColor: unorderedOnly ? "#dc2626" : "transparent",
+            color: unorderedOnly ? "#ffffff" : "inherit",
+            fontWeight: unorderedOnly ? "bold" : "normal",
+            cursor: "pointer"
+          }}
+        >
+          Un-Ordered Only
+        </button>
+      </div>
       {!!err && <div className="errorBox">Failed to load: {err}</div>}
       {loading && <div className="loading">Loading…</div>}
-      {!loading && (stageFilter || salesRepFilter) && !hasResults && (
+      {!loading && (stageFilter || salesRepFilter || unorderedOnly) && !hasResults && (
         <div style={{ padding: "8px 12px", backgroundColor: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "6px", color: "#92400e" }}>
           No items found with current filters.
-          <button onClick={() => { setStageFilter(""); setSalesRepFilter(""); }} style={{ marginLeft: "8px", textDecoration: "underline", background: "none", border: "none", color: "#92400e", cursor: "pointer" }}>Clear all filters</button>
+          <button onClick={() => { setStageFilter(""); setSalesRepFilter(""); setUnorderedOnly(false); }} style={{ marginLeft: "8px", textDecoration: "underline", background: "none", border: "none", color: "#92400e", cursor: "pointer" }}>Clear all filters</button>
         </div>
       )}
     </div>
