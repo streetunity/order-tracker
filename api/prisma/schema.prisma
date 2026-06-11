@@ -435,9 +435,9 @@ model User {
   name                   String
   role                   String                 @default("AGENT")
   isActive               Boolean                @default(true)
-  isEmployee             Boolean                @default(true)  // False for system/service accounts (cron jobs, sysop, etc.)
+  isEmployee             Boolean                @default(true)
   showInSalesRepDropdown Boolean                @default(true)
-  alertEmailsEnabled     Boolean                @default(true)  // When false, this user is skipped by notification email recipient queries
+  alertEmailsEnabled     Boolean                @default(true)
   lastLogin              DateTime?
   icsToken               String?                @unique
   createdAt              DateTime               @default(now())
@@ -684,7 +684,7 @@ model GlobalCustomerDocument {
 
 model CalendarEvent {
   id        String   @id @default(cuid())
-  type      String   // INSTALL | TIME_OFF | BLOCKED | OTHER
+  type      String
   title     String
   startDate DateTime
   endDate   DateTime
@@ -701,7 +701,7 @@ model CalendarEvent {
 
   notes            String?
   customerNotified Boolean @default(false)
-  assigneeIds      String? @default("[]") // JSON array of user IDs assigned to INSTALL events
+  assigneeIds      String? @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -806,9 +806,6 @@ model Customer {
   defaultPaymentTerms String  @default("NET30")
   paymentTerms        String? @default("NET30")
 
-  // Default milestone schedule for this customer's invoices.
-  // 50/40/10 is SMT's standard for custom manufacturing sales:
-  //   50% deposit / 40% at QC / 10% on delivery.
   defaultPaymentScheduleType String? @default("50_40_10")
 
   stripeCustomerId String? @unique
@@ -1229,17 +1226,6 @@ model EmailLog {
   @@index([sesMessageId])
 }
 
-// AlertEmailLog -- system-triggered alert/notification emails.
-// Distinct from EmailLog which tracks invoicing emails (invoices, estimates).
-// Powers the Emails tab on the central audit log page.
-//
-// One row per actual SES send. When an alert fans out to multiple recipients
-// (e.g. internal stage notification to 4 admins + 1 sales agent), that's 5 rows.
-//
-// category values currently in use:
-//   STAGE_INTERNAL  - manufacturer moved an item, fired to admins + sales agent
-//   BROKER_DIGEST   - 5-min digest of doc uploads, fired to broker users
-// (Customer-facing stage emails not yet logged here; can be added.)
 model AlertEmailLog {
   id           String  @id @default(cuid())
 
@@ -1252,21 +1238,18 @@ model AlertEmailLog {
   replyTo      String?
   subject      String
 
-  status       String  @default("SENT")  // SENT | FAILED
+  status       String  @default("SENT")
   errorMessage String?
   sesMessageId String?
 
-  // Optional links to entities the email is about. Not enforced as FKs to keep
-  // logging non-blocking even when entities are later deleted.
   orderId         String?
   orderItemId     String?
   recipientUserId String?
 
-  // Who/what triggered the send (e.g. the manufacturer who moved an item).
   triggeredByUserId String?
   triggeredByName   String?
 
-  metadata String?  // JSON string with context (productCode, stage, etc.)
+  metadata String?
 
   sentAt DateTime @default(now())
 
@@ -1673,11 +1656,6 @@ model InvoicePaymentSchedule {
   sortOrder     Int     @default(0)
   triggersOrder Boolean @default(false)
 
-  // Stage that activates this milestone (e.g. "QC" for the 40%, "DELIVERED"
-  // for the 10%). Null means the row is not stage-triggered (e.g. the 50%
-  // deposit fires on invoice creation / order auto-creation, not on a stage).
-  // When all items in the order reach this stage, dueDate and triggeredAt
-  // are set to now() so the milestone becomes billable.
   triggerStage String?
   triggeredAt  DateTime?
 
@@ -1831,4 +1809,25 @@ model EmailStageConfig {
   updatedAt     DateTime @updatedAt
 
   @@index([stage])
+}
+
+// ============================================
+// EXTERNAL API ACCESS
+// API keys for third-party / partner integrations hitting the read-only
+// /api/v1/external surface. Kept separate from the User/JWT system so partner
+// access never touches internal auth or roles. The raw key is shown once at
+// creation; only its SHA-256 hash is stored. Revoke by setting isActive=false.
+// ============================================
+model ApiKey {
+  id         String    @id @default(cuid())
+  label      String
+  keyHash    String    @unique
+  prefix     String
+  scopes     String    @default("read")
+  isActive   Boolean   @default(true)
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([isActive])
 }
