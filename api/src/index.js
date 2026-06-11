@@ -59,6 +59,7 @@ import createInvoicingSettingsRouter from './routes/invoicingSettings.js';
 import { createNextnpWebhookHandler } from './routes/nextnpWebhook.js';
 import { createCalendarRouter } from './routes/calendar.js';
 import { createCalendarFeedRouter } from './routes/calendarFeed.js';
+import { createExternalRouter } from './routes/external.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -159,6 +160,7 @@ const emailTemplateSettingsRouter = createEmailTemplateSettingsRouter(prisma);
 const invoicingSettingsRouter  = createInvoicingSettingsRouter(prisma);
 const calendarRouter           = createCalendarRouter(prisma);
 const calendarFeedRouter       = createCalendarFeedRouter(prisma);
+const externalRouter           = createExternalRouter();
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
@@ -168,6 +170,11 @@ app.use('/public', publicInvoicingRouter);
 app.use('/signatures', signaturesRouter);
 app.use('/portal', customerPortalRouter);
 console.log('✅ Public routes loaded');
+
+// External partner API (v1): API-key auth, read-only. Public path is
+// /api/v1/external/* (Nginx strips the /api prefix before proxying).
+app.use('/v1/external', externalRouter);
+console.log('✅ External API (v1) loaded');
 
 app.get('/pdfs/:filename', (req, res) => {
   const pdfDir  = new URL('../uploads/pdfs', import.meta.url).pathname;
