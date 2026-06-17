@@ -9,6 +9,29 @@ export function createCommissionsRouter(prisma) {
   const canManageCommissions = (role) => {
     return ['SUPER_ADMIN', 'ACCOUNTANT'].includes(role);
   };
+
+  // Attach a 0-based positional phaseIndex to each payout, derived from the
+  // creation order of its item commission's full payout set (creation order
+  // mirrors stage order). Lets the UI place legacy payouts -- whose stored
+  // stage names predate the current stage settings -- in the correct P# column
+  // instead of leaving them blank.
+  async function attachPhaseIndex(payouts) {
+    const icIds = [...new Set(payouts.map(p => p.itemCommissionId).filter(Boolean))];
+    if (icIds.length === 0) return payouts;
+    const siblings = await prisma.commissionPayout.findMany({
+      where: { itemCommissionId: { in: icIds } },
+      select: { id: true, itemCommissionId: true },
+      orderBy: [{ itemCommissionId: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const orderMap = {};
+    for (const s of siblings) (orderMap[s.itemCommissionId] ||= []).push(s.id);
+    for (const p of payouts) {
+      const arr = orderMap[p.itemCommissionId] || [p.id];
+      const idx = arr.indexOf(p.id);
+      p.phaseIndex = idx >= 0 ? idx : 0;
+    }
+    return payouts;
+  }
   
   // ==========================================
   // AGENT ENDPOINTS (All authenticated users)
@@ -498,6 +521,8 @@ export function createCommissionsRouter(prisma) {
         orderBy: { approvedAt: 'desc' }
       });
 
+      await attachPhaseIndex(payouts);
+
       res.json(payouts);
     } catch (error) {
       console.error('Error fetching approved payouts:', error);
@@ -558,6 +583,8 @@ export function createCommissionsRouter(prisma) {
         },
         orderBy: { paidAt: 'desc' }
       });
+
+      await attachPhaseIndex(payouts);
 
       res.json(payouts);
     } catch (error) {
