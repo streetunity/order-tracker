@@ -47,11 +47,12 @@ export default function PaidTab({
               const pn = matchIdx >= 0
                 ? matchIdx + 1
                 : (Number.isInteger(payout.phaseIndex) ? Math.min(payout.phaseIndex, stageSettings.length - 1) + 1 : 0);
+              const isLegacy = Number.isInteger(payout.phaseCount) && payout.phaseCount !== stageSettings.length;
               return (
                 <tr key={payout.id} style={{ borderBottom: "1px solid #333" }}>
                   <td style={{padding:4,textAlign:"center"}}><input type="checkbox" checked={selectedPayouts.has(payout.id)} onChange={() => onTogglePayoutSelection(payout.id)} /></td>
                   <td style={{padding:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><a href={`/admin/orders/${payout.itemCommission.commission.orderId}`} style={{color:"#dc2626",textDecoration:"none"}}>{payout.itemCommission.commission.order?.account?.name||"N/A"}</a></td>
-                  <td style={{padding:8,color:"#ccc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{payout.itemCommission?.productCode||"N/A"}</td>
+                  <td style={{padding:8,color:"#ccc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isLegacy && <span title={`Old ${payout.phaseCount}-phase schedule -- no further phase to pay`} style={{marginRight:6,padding:"1px 5px",fontSize:10,color:"#f59e0b",border:"1px solid rgba(245,158,11,0.5)",borderRadius:4}}>{payout.phaseCount}-phase</span>}{payout.itemCommission?.productCode||"N/A"}</td>
                   <td style={{padding:8,color:"#ccc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{payout.itemCommission.commission.salesPersonName}</td>
                   <td style={{padding:"8px 4px",color:"#999",textAlign:"center",fontSize:11}}>P{pn>0?pn:"?"}</td>
                   <td style={{padding:"8px 4px",color:"#ccc",fontWeight:"bold",textAlign:"right",fontSize:13}}>

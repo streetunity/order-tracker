@@ -46,9 +46,13 @@ export async function generateAgentPdfReport({ pdfAgent, pdfStartDate, pdfEndDat
   const totalPaid = payouts.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
 
   const tableData = payouts.map(p => {
-    const pn = stageSettings.findIndex(s => s.stage === p.stage) + 1;
+    const matchIdx = stageSettings.findIndex(s => s.stage === p.stage);
+    const pn = matchIdx >= 0
+      ? matchIdx + 1
+      : (Number.isInteger(p.phaseIndex) ? Math.min(p.phaseIndex, stageSettings.length - 1) + 1 : 0);
     const cr = p.itemCommission?.commission?.commissionRate || 0;
-    const acp = stageSettings.length > 0 ? (cr / stageSettings.length).toFixed(2) : cr.toFixed(2);
+    const pctShare = (p.percentage != null) ? p.percentage : (stageSettings.length > 0 ? 100 / stageSettings.length : 100);
+    const acp = (cr * pctShare / 100).toFixed(2);
     return [
       p.itemCommission?.commission?.order?.account?.name || "N/A",
       p.itemCommission?.productCode || "N/A",
@@ -108,9 +112,13 @@ export async function generateSelectedPdfReport({ items, stageSettings }) {
   const totalPaid = items.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
 
   const tableData = items.map(p => {
-    const pn = stageSettings.findIndex(s => s.stage === p.stage) + 1;
+    const matchIdx = stageSettings.findIndex(s => s.stage === p.stage);
+    const pn = matchIdx >= 0
+      ? matchIdx + 1
+      : (Number.isInteger(p.phaseIndex) ? Math.min(p.phaseIndex, stageSettings.length - 1) + 1 : 0);
     const cr = p.itemCommission?.commission?.commissionRate || 0;
-    const acp = stageSettings.length > 0 ? (cr / stageSettings.length).toFixed(2) : cr.toFixed(2);
+    const pctShare = (p.percentage != null) ? p.percentage : (stageSettings.length > 0 ? 100 / stageSettings.length : 100);
+    const acp = (cr * pctShare / 100).toFixed(2);
     return [
       p.itemCommission?.commission?.order?.account?.name || "N/A",
       p.itemCommission?.productCode || "N/A",

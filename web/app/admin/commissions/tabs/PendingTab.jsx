@@ -59,13 +59,17 @@ export default function PendingTab({
                       <td style={{ padding: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         <a href={`/admin/orders/${payout.itemCommission.commission.orderId}`} style={{ color: "#dc2626", textDecoration: "none" }}>{payout.itemCommission.commission.order?.account?.name || "N/A"}</a>
                       </td>
-                      <td style={{ padding: 8, color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{payout.itemCommission?.productCode || "N/A"}</td>
+                      <td style={{ padding: 8, color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{Number.isInteger(payout.phaseCount) && payout.phaseCount !== stageSettings.length && <span title={`Old ${payout.phaseCount}-phase schedule -- no further phase to pay`} style={{ marginRight: 6, padding: "1px 5px", fontSize: 10, color: "#f59e0b", border: "1px solid rgba(245,158,11,0.5)", borderRadius: 4 }}>{payout.phaseCount}-phase</span>}{payout.itemCommission?.productCode || "N/A"}</td>
                       {(() => {
                         const matchIdx = stageSettings.findIndex(ss => ss.stage === payout.stage);
                         const colIdx = matchIdx >= 0
                           ? matchIdx
                           : (Number.isInteger(payout.phaseIndex) ? Math.min(payout.phaseIndex, stageSettings.length - 1) : -1);
-                        return stageSettings.map((ss, i) => <td key={ss.stage} style={{ padding: "4px 2px", textAlign: "center", color: "#10b981", fontSize: 14 }}>{i === colIdx ? "✓" : ""}</td>);
+                        const hasCount = Number.isInteger(payout.phaseCount);
+                        return stageSettings.map((ss, i) => {
+                          const nonExistent = hasCount && i >= payout.phaseCount;
+                          return <td key={ss.stage} style={{ padding: "4px 2px", textAlign: "center", color: i === colIdx ? "#10b981" : "#555", fontSize: 14 }}>{i === colIdx ? "✓" : (nonExistent ? "·" : "")}</td>;
+                        });
                       })()}
                       <td style={{ padding: "8px 4px", color: "#ccc", fontWeight: "bold", textAlign: "right", fontSize: 13 }}>
                         {formatCurrency(payout.amount)}
