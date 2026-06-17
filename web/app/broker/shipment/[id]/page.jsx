@@ -288,6 +288,12 @@ export default function BrokerShipmentDetail() {
     );
   }
 
+  // Distinct manufacturer name(s) across all items in this shipment.
+  const manufacturerNames = Array.from(
+    new Set((shipment.items || []).map(i => i.manufacturer?.name).filter(Boolean))
+  );
+  const manufacturerLabel = manufacturerNames.length ? manufacturerNames.join(', ') : 'N/A';
+
   return (
     <div className="broker-container">
       <TopNav />
@@ -443,6 +449,10 @@ export default function BrokerShipmentDetail() {
                   <div className="info-row">
                     <span className="info-label">Container:</span>
                     <span className="info-value mono">{shipment.containerNumber || 'N/A'}</span>
+                  </div>
+                  <div className="info-row">
+                    <span className="info-label">{manufacturerNames.length > 1 ? 'Manufacturers' : 'Manufacturer'}:</span>
+                    <span className="info-value">{manufacturerLabel}</span>
                   </div>
                   <div className="info-row">
                     <span className="info-label">Bill of Lading:</span>
