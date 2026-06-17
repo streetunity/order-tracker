@@ -29,6 +29,7 @@ export function createCommissionsRouter(prisma) {
       const arr = orderMap[p.itemCommissionId] || [p.id];
       const idx = arr.indexOf(p.id);
       p.phaseIndex = idx >= 0 ? idx : 0;
+      p.phaseCount = arr.length;
     }
     return payouts;
   }
