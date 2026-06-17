@@ -60,7 +60,13 @@ export default function PendingTab({
                         <a href={`/admin/orders/${payout.itemCommission.commission.orderId}`} style={{ color: "#dc2626", textDecoration: "none" }}>{payout.itemCommission.commission.order?.account?.name || "N/A"}</a>
                       </td>
                       <td style={{ padding: 8, color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{payout.itemCommission?.productCode || "N/A"}</td>
-                      {stageSettings.map(ss => <td key={ss.stage} style={{ padding: "4px 2px", textAlign: "center", color: "#10b981", fontSize: 14 }}>{payout.stage === ss.stage ? "✓" : ""}</td>)}
+                      {(() => {
+                        const matchIdx = stageSettings.findIndex(ss => ss.stage === payout.stage);
+                        const colIdx = matchIdx >= 0
+                          ? matchIdx
+                          : (Number.isInteger(payout.phaseIndex) ? Math.min(payout.phaseIndex, stageSettings.length - 1) : -1);
+                        return stageSettings.map((ss, i) => <td key={ss.stage} style={{ padding: "4px 2px", textAlign: "center", color: "#10b981", fontSize: 14 }}>{i === colIdx ? "✓" : ""}</td>);
+                      })()}
                       <td style={{ padding: "8px 4px", color: "#ccc", fontWeight: "bold", textAlign: "right", fontSize: 13 }}>
                         {formatCurrency(payout.amount)}
                         {payout.itemCommission?.allocatedDiscount > 0 && stageSettings.length > 0 && (

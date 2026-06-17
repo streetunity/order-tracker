@@ -43,7 +43,10 @@ export default function PaidTab({
           </thead>
           <tbody>
             {filteredPaidCommissions.map(payout => {
-              const pn = stageSettings.findIndex(s => s.stage === payout.stage) + 1;
+              const matchIdx = stageSettings.findIndex(s => s.stage === payout.stage);
+              const pn = matchIdx >= 0
+                ? matchIdx + 1
+                : (Number.isInteger(payout.phaseIndex) ? Math.min(payout.phaseIndex, stageSettings.length - 1) + 1 : 0);
               return (
                 <tr key={payout.id} style={{ borderBottom: "1px solid #333" }}>
                   <td style={{padding:4,textAlign:"center"}}><input type="checkbox" checked={selectedPayouts.has(payout.id)} onChange={() => onTogglePayoutSelection(payout.id)} /></td>
