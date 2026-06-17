@@ -108,6 +108,7 @@ export function createBrokerRouter() {
       const item = await prisma.orderItem.findUnique({
         where: { id },
         include: {
+          manufacturer: { select: { name: true } },
           order: {
             include: {
               account: true,
