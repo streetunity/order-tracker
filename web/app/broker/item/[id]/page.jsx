@@ -455,6 +455,10 @@ export default function BrokerItemDetail() {
                 <span className="info-value">{item.productCode || 'N/A'}</span>
               </div>
               <div className="info-row">
+                <span className="info-label">Manufacturer:</span>
+                <span className="info-value">{item.manufacturer?.name || 'N/A'}</span>
+              </div>
+              <div className="info-row">
                 <span className="info-label">Serial Number:</span>
                 <span className="info-value mono">{item.serialNumber || 'N/A'}</span>
               </div>
