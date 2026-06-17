@@ -394,6 +394,7 @@ router.get('/:id', authGuard, requireShipmentViewer, async (req, res) => {
         items: {
           where: manufacturerItemFilter(req),
           include: {
+            manufacturer: { select: { name: true } },
             order: {
               select: {
                 id: true,
