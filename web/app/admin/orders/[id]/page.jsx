@@ -482,6 +482,16 @@ export default function EditOrderPage({ params }) {
       const logoHeight = (logoImg.height / logoImg.width) * logoWidth;
       doc.addImage(logoImg, "PNG", pageWidth - logoWidth - 14, 10, logoWidth, logoHeight);
 
+      // Sender (company) address block, right-aligned under the logo
+      const senderRightX = pageWidth - 14;
+      let senderY = 10 + logoHeight + 6;
+      doc.setFontSize(9);
+      doc.setFont(undefined, "bold");
+      doc.text("Stealth Machine Tools", senderRightX, senderY, { align: "right" }); senderY += 5;
+      doc.setFont(undefined, "normal");
+      doc.text("3266 W Galveston Dr #103", senderRightX, senderY, { align: "right" }); senderY += 5;
+      doc.text("Apache Junction, AZ 85120", senderRightX, senderY, { align: "right" });
+
       doc.setFontSize(18);
       doc.setFont(undefined, "bold");
       doc.text("Shipping Manifest", 14, 20);
