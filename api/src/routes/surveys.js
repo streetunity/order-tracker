@@ -201,7 +201,7 @@ export function createSurveysRouter(prismaClient) {
           currentStage: true,
           sku: true,
           createdAt: true,
-          account: { select: { name: true, email: true } },
+          account: { select: { name: true, email: true, contactName: true } },
           surveys: { select: { phase: true, status: true } },
         },
       });
@@ -210,6 +210,7 @@ export function createSurveysRouter(prismaClient) {
           id: o.id,
           poNumber: o.poNumber,
           accountName: o.account?.name || null,
+          contactName: o.account?.contactName || null,
           hasEmail: !!o.account?.email,
           currentStage: o.currentStage,
           salesAgent: o.sku,
