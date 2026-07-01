@@ -38,7 +38,7 @@ function Stars({ value }) {
 }
 
 export default function AdminSurveysPage() {
-  const { user, getAuthHeaders } = useAuth();
+  const { user, loading: authLoading, getAuthHeaders } = useAuth();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -49,8 +49,8 @@ export default function AdminSurveysPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
-    if (!user) router.push("/login");
-  }, [user, router]);
+    if (!authLoading && !user) router.push("/login");
+  }, [authLoading, user, router]);
 
   const buildQuery = useCallback(() => {
     const p = new URLSearchParams();
@@ -112,7 +112,7 @@ export default function AdminSurveysPage() {
     }
   }
 
-  if (!user) return null;
+  if (authLoading || !user) return null;
 
   const s = data.summary;
   const fmt = (v, d = 2) => (v == null ? "-" : Number(v).toFixed(d));
