@@ -280,10 +280,9 @@ export default function AdminSurveysPage() {
                 <tr style={{ background: "#111", color: MUTED, textAlign: "left" }}>
                   <th style={th}>Date</th>
                   <th style={th}>Customer</th>
-                  <th style={th}>Order</th>
+                  <th style={th}>Contact</th>
                   <th style={th}>Phase</th>
                   <th style={th}>Agent</th>
-                  <th style={th}>Machine</th>
                   <th style={th}>Score</th>
                   <th style={th}>Flags</th>
                   <th style={th}>Status</th>
@@ -291,18 +290,17 @@ export default function AdminSurveysPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} style={{ ...td, textAlign: "center", color: MUTED, padding: 24 }}>Loading...</td></tr>
+                  <tr><td colSpan={8} style={{ ...td, textAlign: "center", color: MUTED, padding: 24 }}>Loading...</td></tr>
                 ) : data.surveys.length === 0 ? (
-                  <tr><td colSpan={9} style={{ ...td, textAlign: "center", color: MUTED, padding: 24 }}>No surveys match these filters.</td></tr>
+                  <tr><td colSpan={8} style={{ ...td, textAlign: "center", color: MUTED, padding: 24 }}>No surveys match these filters.</td></tr>
                 ) : (
                   data.surveys.map((r) => (
                     <tr key={r.id} onClick={() => openDetail(r.id)} style={{ borderTop: `1px solid ${BORDER}`, cursor: "pointer" }}>
                       <td style={td}>{fmtDate(r.completedAt || r.createdAt)}</td>
                       <td style={td}>{r.customerName || "-"}</td>
-                      <td style={td}>{r.orderRef || "-"}</td>
+                      <td style={td}>{r.contactName || "-"}</td>
                       <td style={td}>{r.phaseLabel}</td>
                       <td style={td}>{r.salesAgent || "-"}</td>
-                      <td style={td}>{r.machineModel || "-"}</td>
                       <td style={{ ...td, color: scoreColor(r.overallScore), fontWeight: 600 }}>{r.overallScore == null ? "-" : `${r.overallScore.toFixed(1)}`}</td>
                       <td style={td}>
                         {r.flagged && <Badge color="#ef4444">Low</Badge>}
