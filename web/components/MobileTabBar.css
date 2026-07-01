@@ -1,0 +1,94 @@
+/* MobileTabBar.css
+   Bottom navigation shown only on phones. Desktop keeps TopNav alone. */
+
+.mobile-tab-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-tab-bar {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900; /* below full-screen modals (z 1000) */
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: #1f1f1f;
+    border-top: 1px solid var(--border, #404040);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Keep page content clear of the fixed bar. */
+  body {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mtb-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 44px;
+    padding: 6px 0;
+    color: var(--text-dim, #a0a0a0);
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mtb-item:hover,
+  .mtb-item:active {
+    color: var(--text, #e4e4e4);
+    text-decoration: none;
+  }
+
+  .mtb-item.active {
+    color: var(--accent, #ef4444);
+  }
+
+  .mtb-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mtb-label {
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 500;
+  }
+
+  /* Elevated center capture button. */
+  .mtb-capture {
+    flex: 0 0 auto;
+    width: 58px;
+    height: 58px;
+    margin: -18px 6px 0;
+    border-radius: 50%;
+    background: var(--accent-strong, #dc2626);
+    color: #fff;
+    border: 3px solid #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.45);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mtb-capture:active {
+    background: #b91c1c;
+    transform: translateY(1px);
+  }
+
+  .mtb-capture svg {
+    width: 28px;
+    height: 28px;
+  }
+}

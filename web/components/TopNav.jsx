@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import MobileTabBar from "@/components/MobileTabBar";
 import "./TopNav.css";
 
 export default function TopNav() {
@@ -63,6 +64,7 @@ export default function TopNav() {
   if (!user) return null;
 
   return (
+    <>
     <nav className="top-nav">
       <div className="nav-container">
         <div className="nav-left">
@@ -214,5 +216,7 @@ export default function TopNav() {
         </div>
       </div>
     </nav>
+    <MobileTabBar />
+    </>
   );
 }
