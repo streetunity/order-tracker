@@ -845,6 +845,22 @@ export function createItemsRouter() {
         // Don't fail the stage change if internal notification fails
       }
 
+      // Generate a customer satisfaction survey when the first item of the order
+      // reaches a trigger stage (MANUFACTURING / AT_SEA / COMPLETED). Fires for
+      // every actor; the service dedups per order+phase and no-ops on non-trigger
+      // stages. Fire-and-forget: never fail the stage change.
+      try {
+        const { maybeGenerateSurveyOnStage } = await import('../services/surveyService.js');
+        await maybeGenerateSurveyOnStage(prisma, {
+          orderId,
+          stage: nextStage,
+          item,
+        });
+      } catch (surveyError) {
+        console.error(`[SURVEY] Error generating survey for item ${itemId}:`, surveyError);
+        // Don't fail the stage change if survey generation fails
+      }
+
       res.json({ ok: true, event });
     } catch (e) {
       res.status(500).json({ error: e.message });
