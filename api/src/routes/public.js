@@ -21,7 +21,8 @@ export function createPublicRouter() {
           items: {
             include: { statusEvents: { orderBy: { createdAt: 'asc' } } }
           },
-          statusEvents: { orderBy: { createdAt: 'asc' } }
+          statusEvents: { orderBy: { createdAt: 'asc' } },
+          surveys: { orderBy: { createdAt: 'asc' } }
         }
       });
       
@@ -74,7 +75,13 @@ export function createPublicRouter() {
           weightUnit: it.weightUnit
         })),
         statusEvents,
-        customerDocsLink
+        customerDocsLink,
+        surveys: (order.surveys || []).map(s => ({
+          token: s.token,
+          phase: s.phase,
+          status: s.status,
+          completedAt: s.completedAt,
+        }))
       });
     } catch (e) {
       res.status(500).json({ error: e.message });
