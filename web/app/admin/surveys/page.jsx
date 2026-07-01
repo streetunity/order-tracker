@@ -19,6 +19,9 @@ const PHASE_OPTIONS = [
   { value: "COMPLETION", label: "Completion" },
 ];
 
+const SEND_PHASES = PHASE_OPTIONS.filter((o) => o.value);
+const phaseLabelOf = (v) => PHASE_OPTIONS.find((o) => o.value === v)?.label || v;
+
 function scoreColor(v) {
   if (v == null) return MUTED;
   if (v <= 3) return "#ef4444";
@@ -47,6 +50,15 @@ export default function AdminSurveysPage() {
   const [filters, setFilters] = useState({ phase: "", agent: "", flagged: false, from: "", to: "" });
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  const [showSend, setShowSend] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [sendOrderId, setSendOrderId] = useState("");
+  const [sendPhase, setSendPhase] = useState("MANUFACTURING");
+  const [orderFilter, setOrderFilter] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState(null);
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/login");
@@ -112,6 +124,57 @@ export default function AdminSurveysPage() {
     }
   }
 
+  const loadOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    try {
+      const res = await fetch("/api/surveys/orders", { headers: getAuthHeaders(), cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to load orders (Status: ${res.status})`);
+      setOrders(await res.json());
+    } catch (e) {
+      setSendMsg({ type: "error", text: e instanceof Error ? e.message : "Failed to load orders" });
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [getAuthHeaders]);
+
+  function openSend() {
+    setSendMsg(null);
+    setSendOrderId("");
+    setSendPhase("MANUFACTURING");
+    setOrderFilter("");
+    setShowSend(true);
+    loadOrders();
+  }
+
+  async function submitSend(resend) {
+    if (!sendOrderId) { setSendMsg({ type: "error", text: "Pick an order first." }); return; }
+    setSending(true);
+    setSendMsg(null);
+    try {
+      const res = await fetch("/api/surveys/generate", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: sendOrderId, phase: sendPhase, resend: !!resend }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSendMsg({ type: "error", text: body.error || `Failed (Status: ${res.status})` });
+      } else {
+        const emailNote = body.recipientEmail
+          ? `Invite emailed to ${body.recipientEmail}.`
+          : "No customer email on file, so no email was sent -- the tracking-page link still works.";
+        const verb = body.action === "resent" ? "Invite re-sent" : "Survey created";
+        setSendMsg({ type: "success", text: `${verb}. ${emailNote}` });
+        await loadOrders();
+        load();
+      }
+    } catch (e) {
+      setSendMsg({ type: "error", text: e instanceof Error ? e.message : "Failed to send" });
+    } finally {
+      setSending(false);
+    }
+  }
+
   if (authLoading || !user) return null;
 
   const s = data.summary;
@@ -123,6 +186,14 @@ export default function AdminSurveysPage() {
     color: TEXT, padding: "8px 10px", fontSize: 14,
   };
 
+  const selectedOrder = orders.find((o) => o.id === sendOrderId) || null;
+  const existingForPhase = selectedOrder?.surveys?.find((sv) => sv.phase === sendPhase) || null;
+  const filteredOrders = orders.filter((o) => {
+    const q = orderFilter.trim().toLowerCase();
+    if (!q) return true;
+    return (o.poNumber || "").toLowerCase().includes(q) || (o.accountName || "").toLowerCase().includes(q);
+  });
+
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: TEXT }}>
       <TopNav />
@@ -132,9 +203,14 @@ export default function AdminSurveysPage() {
             <h1 style={{ fontSize: 26, margin: 0 }}>Customer Surveys</h1>
             <p style={{ color: MUTED, margin: "4px 0 0" }}>Satisfaction responses across manufacturing, shipping, and completion.</p>
           </div>
-          <button onClick={exportCsv} style={{ background: RED, color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 600, cursor: "pointer" }}>
-            Export CSV
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={openSend} style={{ background: "#262626", color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 18px", fontWeight: 600, cursor: "pointer" }}>
+              Send a survey
+            </button>
+            <button onClick={exportCsv} style={{ background: RED, color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 600, cursor: "pointer" }}>
+              Export CSV
+            </button>
+          </div>
         </div>
 
         {/* Summary cards */}
@@ -228,6 +304,77 @@ export default function AdminSurveysPage() {
           </div>
         </div>
       </div>
+
+      {/* Send-a-survey modal */}
+      {showSend && (
+        <div onClick={() => !sending && setShowSend(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 24, overflowY: "auto", zIndex: 60 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, maxWidth: 520, width: "100%", padding: 24, marginTop: 40 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 20 }}>Send a survey</h2>
+              <button onClick={() => !sending && setShowSend(false)} style={{ background: "transparent", border: "none", color: MUTED, fontSize: 22, cursor: "pointer" }}>✕</button>
+            </div>
+
+            <p style={{ color: MUTED, fontSize: 13, marginTop: 0, marginBottom: 18 }}>
+              Fire a survey for an existing order. This emails the customer (when an email is on file) and makes the Feedback tab appear on their tracking page.
+            </p>
+
+            <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Order</label>
+            <input placeholder="Filter by PO or customer" value={orderFilter} onChange={(e) => setOrderFilter(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 8 }} />
+            <select value={sendOrderId} onChange={(e) => setSendOrderId(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 16 }}>
+              <option value="">{ordersLoading ? "Loading orders..." : "Select an order"}</option>
+              {filteredOrders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {(o.poNumber || o.id.slice(-8).toUpperCase())} - {o.accountName || "No account"}{o.hasEmail ? "" : " (no email)"}
+                </option>
+              ))}
+            </select>
+
+            <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Phase</label>
+            <select value={sendPhase} onChange={(e) => setSendPhase(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 16 }}>
+              {SEND_PHASES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+
+            {selectedOrder && existingForPhase && (
+              <div style={{ fontSize: 13, color: existingForPhase.status === "COMPLETED" ? "#22c55e" : "#f59e0b", marginBottom: 16 }}>
+                {existingForPhase.status === "COMPLETED"
+                  ? "The customer already completed this survey."
+                  : `A ${phaseLabelOf(sendPhase)} survey already exists for this order (status: ${existingForPhase.status}). You can re-send the invite.`}
+              </div>
+            )}
+
+            {selectedOrder && !selectedOrder.hasEmail && (
+              <div style={{ fontSize: 13, color: MUTED, marginBottom: 16 }}>
+                This customer has no email on file. The survey link will still work from their tracking page, but no email will be sent.
+              </div>
+            )}
+
+            {sendMsg && (
+              <div style={{ fontSize: 13, marginBottom: 16, padding: 10, borderRadius: 8, border: `1px solid ${sendMsg.type === "error" ? RED : "#22c55e"}`, background: sendMsg.type === "error" ? "rgba(220,38,38,0.1)" : "rgba(34,197,94,0.1)", color: sendMsg.type === "error" ? "#fca5a5" : "#86efac" }}>
+                {sendMsg.text}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => !sending && setShowSend(false)} style={{ background: "#262626", color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 16px", cursor: "pointer" }}>
+                Close
+              </button>
+              {existingForPhase && existingForPhase.status === "COMPLETED" ? (
+                <button disabled style={{ background: "#333", color: MUTED, border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 600, cursor: "not-allowed" }}>
+                  Already completed
+                </button>
+              ) : existingForPhase ? (
+                <button onClick={() => submitSend(true)} disabled={sending || !sendOrderId} style={{ background: "#f59e0b", color: "#111", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 600, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.6 : 1 }}>
+                  {sending ? "Sending..." : "Resend invite"}
+                </button>
+              ) : (
+                <button onClick={() => submitSend(false)} disabled={sending || !sendOrderId} style={{ background: RED, color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 600, cursor: sending ? "not-allowed" : "pointer", opacity: sending ? 0.6 : 1 }}>
+                  {sending ? "Sending..." : "Send survey"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail modal */}
       {detail && (
