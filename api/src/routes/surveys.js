@@ -6,6 +6,8 @@
  *
  *   GET /surveys            list + summary aggregates (filterable)
  *   GET /surveys/export.csv CSV of the filtered surveys
+ *   GET /surveys/orders     lightweight order list for the send-a-survey picker
+ *   POST /surveys/generate  fire (or re-send) a survey for an order + phase
  *   GET /surveys/:id        single survey detail with answers + question text
  *
  * Agents see only surveys attributed to them (salesAgent === their name);
@@ -15,11 +17,21 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { getSurveyDefinition, questionMap } from '../config/surveyQuestions.js';
+import { generateSurveyForPhase, sendSurveyInvite } from '../services/surveyService.js';
 
 const PHASE_LABELS = {
   MANUFACTURING: 'Manufacturing',
   CONTAINER_AT_SEA: 'Container At Sea',
   COMPLETION: 'Completion',
+};
+
+const VALID_PHASES = new Set(['MANUFACTURING', 'CONTAINER_AT_SEA', 'COMPLETION']);
+
+// Canonical stage recorded on the Survey for audit when fired manually.
+const PHASE_TO_STAGE = {
+  MANUFACTURING: 'MANUFACTURING',
+  CONTAINER_AT_SEA: 'AT_SEA',
+  COMPLETION: 'COMPLETED',
 };
 
 export function createSurveysRouter(prismaClient) {
@@ -167,6 +179,111 @@ export function createSurveysRouter(prismaClient) {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', 'attachment; filename="survey-results.csv"');
       res.send(csv);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Lightweight order list for the "send a survey" picker.
+  router.get('/orders', async (req, res) => {
+    try {
+      const where = {};
+      if (req.user?.role === 'AGENT') where.sku = req.user.name;
+      const orders = await prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 1000,
+        select: {
+          id: true,
+          poNumber: true,
+          currentStage: true,
+          sku: true,
+          createdAt: true,
+          account: { select: { name: true, email: true } },
+          surveys: { select: { phase: true, status: true } },
+        },
+      });
+      res.json(
+        orders.map((o) => ({
+          id: o.id,
+          poNumber: o.poNumber,
+          accountName: o.account?.name || null,
+          hasEmail: !!o.account?.email,
+          currentStage: o.currentStage,
+          salesAgent: o.sku,
+          surveys: o.surveys.map((s) => ({ phase: s.phase, status: s.status })),
+        }))
+      );
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Fire (or re-send) a survey for an order + phase, on demand.
+  //   body: { orderId, phase, resend? }
+  router.post('/generate', async (req, res) => {
+    try {
+      const { orderId, phase, resend } = req.body || {};
+      if (!orderId || !phase) return res.status(400).json({ error: 'orderId and phase are required' });
+      if (!VALID_PHASES.has(phase)) return res.status(400).json({ error: 'Invalid phase' });
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: {
+          id: true,
+          sku: true,
+          poNumber: true,
+          account: { select: { email: true, name: true, contactName: true } },
+          items: { select: { productCode: true }, take: 1 },
+        },
+      });
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+
+      // Agents may only fire for their own orders.
+      if (req.user?.role === 'AGENT' && order.sku !== req.user.name) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const existing = await prisma.survey.findFirst({ where: { orderId, phase } });
+
+      if (existing) {
+        if (existing.status === 'COMPLETED') {
+          return res.status(409).json({ error: 'This survey has already been completed by the customer.', status: 'completed' });
+        }
+        if (!resend) {
+          return res.status(409).json({
+            error: 'A survey for this phase already exists for this order.',
+            status: existing.status,
+            alreadyExists: true,
+            token: existing.token,
+          });
+        }
+        const result = await sendSurveyInvite(prisma, existing, { contactName: order.account?.contactName || null });
+        return res.json({
+          ok: true,
+          action: 'resent',
+          sent: !!result.sent,
+          reason: result.reason || null,
+          token: existing.token,
+          recipientEmail: existing.recipientEmail,
+        });
+      }
+
+      const gen = await generateSurveyForPhase(prisma, {
+        orderId,
+        phase,
+        triggerStage: PHASE_TO_STAGE[phase] || phase,
+        triggeringItem: order.items?.[0] || null,
+      });
+      if (!gen.created) {
+        return res.status(400).json({ error: gen.reason || 'Could not create survey' });
+      }
+      return res.json({
+        ok: true,
+        action: 'created',
+        token: gen.survey?.token,
+        recipientEmail: gen.survey?.recipientEmail || null,
+      });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
