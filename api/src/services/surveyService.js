@@ -25,6 +25,7 @@ import {
   STAGE_TO_PHASE,
   SURVEY_PHASES,
   getSurveyDefinition,
+  questionMap,
 } from "../config/surveyQuestions.js";
 import emailService from "./emailService.js";
 import { logAlertEmail } from "./alertEmailLogger.js";
@@ -283,8 +284,232 @@ export async function maybeGenerateSurveyOnStage(prisma, { orderId, stage, item 
   });
 }
 
+// ---------------------------------------------------------------------------
+// Submission side-effects: management notification + (for actionable results)
+// an immediate email with the full responses. Every completion produces an
+// in-app notification for admins + the sales agent; email is sent only when
+// the result is actionable (low rating, contact requested, or a testimonial
+// yes/maybe), which satisfies "immediate delivery for flagged" without a
+// scheduled digest. Never throws; call fire-and-forget after the submission
+// transaction commits.
+// ---------------------------------------------------------------------------
+
+function renderAnswersHtml(phase, answers) {
+  const qmap = questionMap(phase);
+  const rows = [...answers]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((a) => {
+      const q = qmap.get(a.questionKey);
+      const text = q?.text || a.questionKey;
+      let value = "";
+      if (a.rating != null) {
+        value = `${a.rating}/5`;
+      } else if (a.choice) {
+        const opt = (q?.options || []).find((o) => o.value === a.choice);
+        value = opt?.label || a.choice;
+      } else if (a.comment) {
+        value = a.comment;
+      } else {
+        value = "-";
+      }
+      const commentLine =
+        a.comment && (a.rating != null || a.choice)
+          ? `<div style="color:#6b7280; font-size:13px; margin-top:2px;">${escapeHtml(a.comment)}</div>`
+          : "";
+      return `<tr>
+        <td style="padding:8px 12px 8px 0; color:#374151; vertical-align:top;">${escapeHtml(text)}</td>
+        <td style="padding:8px 0; vertical-align:top;"><strong>${escapeHtml(value)}</strong>${commentLine}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<table style="border-collapse:collapse; width:100%; margin:12px 0;">${rows}</table>`;
+}
+
+export async function dispatchSubmissionEffects(prisma, surveyId) {
+  try {
+    const survey = await prisma.survey.findUnique({
+      where: { id: surveyId },
+      include: {
+        answers: true,
+        order: {
+          select: {
+            id: true,
+            poNumber: true,
+            sku: true,
+            account: { select: { name: true, contactName: true } },
+          },
+        },
+      },
+    });
+    if (!survey || survey.status !== "COMPLETED") return { skipped: true };
+
+    const def = getSurveyDefinition(survey.phase);
+    const phaseLabel = def?.title || survey.phase;
+
+    // Recipients: active employee admins/accountants + the listed sales agent.
+    const admins = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        isEmployee: true,
+        role: { in: ["ADMIN", "SUPER_ADMIN", "ACCOUNTANT"] },
+      },
+      select: { id: true, name: true, email: true, role: true, alertEmailsEnabled: true },
+    });
+    let agent = null;
+    if (survey.order?.sku) {
+      agent = await prisma.user.findFirst({
+        where: { name: survey.order.sku, isActive: true, isEmployee: true },
+        select: { id: true, name: true, email: true, role: true, alertEmailsEnabled: true },
+      });
+    }
+    const map = new Map();
+    for (const u of admins) map.set(u.id, u);
+    if (agent) map.set(agent.id, agent);
+    const recipients = [...map.values()];
+
+    const customerName = survey.order?.account?.name || "Customer";
+    const orderRef =
+      survey.order?.poNumber || survey.order?.id?.slice(-8).toUpperCase() || "";
+    const score = survey.overallScore != null ? survey.overallScore.toFixed(1) : "n/a";
+
+    const flags = [];
+    if (survey.flagged) flags.push("LOW RATING");
+    if (survey.contactRequested) flags.push("CONTACT REQUESTED");
+    if (survey.testimonialWillingness === "YES") flags.push("TESTIMONIAL: YES");
+    else if (survey.testimonialWillingness === "MAYBE") flags.push("TESTIMONIAL: MAYBE");
+
+    const actionable =
+      survey.flagged ||
+      survey.contactRequested ||
+      (survey.testimonialWillingness && survey.testimonialWillingness !== "NO");
+
+    const priority =
+      survey.flagged || survey.contactRequested ? "HIGH" : flags.length ? "NORMAL" : "LOW";
+
+    const baseUrl = process.env.FRONTEND_URL || "https://smt-orders.com";
+    const adminUrl = `${baseUrl}/admin/surveys`;
+
+    const title = survey.flagged
+      ? `Low survey rating (${score}/5) - ${customerName}`
+      : survey.contactRequested
+      ? `Customer requested contact - ${customerName}`
+      : `Survey completed (${score}/5) - ${customerName}`;
+    const message = `${customerName} completed the ${String(phaseLabel).toLowerCase()} survey for order ${orderRef}. Overall ${score}/5.${
+      flags.length ? " Flags: " + flags.join(", ") + "." : ""
+    }`;
+
+    // In-app notification for every recipient (running list = the digest).
+    for (const u of recipients) {
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: String(u.id),
+            type: "SURVEY_COMPLETED",
+            category: "OPERATIONAL",
+            title,
+            message,
+            relatedOrderId: survey.orderId,
+            priority,
+            metadata: JSON.stringify({
+              surveyId: survey.id,
+              phase: survey.phase,
+              overallScore: survey.overallScore,
+              flagged: survey.flagged,
+              contactRequested: survey.contactRequested,
+              testimonialWillingness: survey.testimonialWillingness,
+              salesAgent: survey.salesAgent,
+              machineModel: survey.machineModel,
+            }),
+          },
+        });
+      } catch (e) {
+        console.error(`[SURVEY] notification create failed for user ${u.id}:`, e.message);
+      }
+    }
+
+    // Immediate email only for actionable results.
+    if (actionable) {
+      const company = await emailService.getCompanySettings(prisma);
+      const fromEmail =
+        company.email || process.env.SES_FROM_EMAIL || "orders@stealthlaser.com";
+      const fromName = company.companyName || "SMT Order Tracker";
+      const subject = `[SMT Survey] ${title}`;
+      const flagBadge = flags.length
+        ? `<div style="margin:8px 0 16px;">${flags
+            .map(
+              (f) =>
+                `<span style="display:inline-block; background:rgba(220,38,38,0.12); color:#dc2626; border:1px solid #dc2626; border-radius:6px; padding:2px 8px; font-size:12px; margin-right:6px;">${escapeHtml(
+                  f
+                )}</span>`
+            )
+            .join("")}</div>`
+        : "";
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 640px; color: #333;">
+          <h2 style="color:#dc2626; margin-bottom:4px;">Customer Survey Response</h2>
+          <div style="color:#6b7280; margin-bottom:12px;">${escapeHtml(phaseLabel)}</div>
+          ${flagBadge}
+          <table style="border-collapse:collapse; margin-bottom:8px;">
+            <tr><td style="padding:4px 12px 4px 0; color:#6b7280;">Customer:</td><td style="padding:4px 0;"><strong>${escapeHtml(customerName)}</strong></td></tr>
+            <tr><td style="padding:4px 12px 4px 0; color:#6b7280;">Order:</td><td style="padding:4px 0;">${escapeHtml(orderRef)}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0; color:#6b7280;">Sales agent:</td><td style="padding:4px 0;">${escapeHtml(survey.salesAgent || "-")}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0; color:#6b7280;">Machine:</td><td style="padding:4px 0;">${escapeHtml(survey.machineModel || "-")}</td></tr>
+            <tr><td style="padding:4px 12px 4px 0; color:#6b7280;">Overall score:</td><td style="padding:4px 0;"><strong>${escapeHtml(score)}/5</strong></td></tr>
+          </table>
+          <h3 style="color:#111827; font-size:15px; margin:16px 0 0;">Responses</h3>
+          ${renderAnswersHtml(survey.phase, survey.answers)}
+          <p style="margin-top:20px;">
+            <a href="${adminUrl}" style="display:inline-block; padding:10px 20px; background:#dc2626; color:#fff; text-decoration:none; border-radius:6px; font-weight:500;">View all surveys</a>
+          </p>
+          <p style="font-size:12px; color:#9ca3af; margin-top:24px;">Automated survey notification from the SMT Order Tracker.</p>
+        </div>
+      `;
+
+      for (const u of recipients) {
+        if (!u.email || u.alertEmailsEnabled === false) continue;
+        let result;
+        try {
+          result = await emailService.sendEmail({ to: u.email, from: fromEmail, fromName, subject, html });
+        } catch (e) {
+          result = { success: false, error: e.message };
+        }
+        logAlertEmail({
+          category: "SURVEY_RESULT",
+          fromEmail,
+          fromName,
+          toEmail: u.email,
+          toName: u.name,
+          subject,
+          status: result.success ? "SENT" : "FAILED",
+          errorMessage: result.success ? null : result.error,
+          sesMessageId: result.messageId || null,
+          orderId: survey.orderId,
+          recipientUserId: u.id,
+          metadata: {
+            surveyId: survey.id,
+            phase: survey.phase,
+            overallScore: survey.overallScore,
+            flagged: survey.flagged,
+            contactRequested: survey.contactRequested,
+            testimonialWillingness: survey.testimonialWillingness,
+          },
+        });
+      }
+    }
+
+    console.log(
+      `[SURVEY] Submission effects for ${survey.id}: notified ${recipients.length}, emailed=${!!actionable}, flags=[${flags.join(", ")}]`
+    );
+    return { ok: true, notified: recipients.length, emailed: !!actionable };
+  } catch (e) {
+    console.error(`[SURVEY] dispatchSubmissionEffects error for ${surveyId}:`, e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
 export default {
   generateSurveyForPhase,
   sendSurveyInvite,
   maybeGenerateSurveyOnStage,
+  dispatchSubmissionEffects,
 };
