@@ -59,6 +59,7 @@ export default function AdminSurveysPage() {
   const [orderFilter, setOrderFilter] = useState("");
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.push("/login");
@@ -175,6 +176,23 @@ export default function AdminSurveysPage() {
     }
   }
 
+  async function deleteSurvey(id) {
+    if (!id) return;
+    if (!window.confirm("Delete this survey response permanently? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/surveys/${id}`, { method: "DELETE", headers: getAuthHeaders() });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Delete failed (Status: ${res.status})`);
+      setDetail(null);
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (authLoading || !user) return null;
 
   const s = data.summary;
@@ -229,7 +247,6 @@ export default function AdminSurveysPage() {
         {s && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
             <AggTable title="Average by Sales Agent" rows={s.avgByAgent} />
-            <AggTable title="Average by Machine Model" rows={s.avgByModel} />
             <AggTable title="Average by Phase" rows={s.avgByPhase} />
           </div>
         )}
@@ -429,6 +446,14 @@ export default function AdminSurveysPage() {
                     </div>
                   ))}
                 </div>
+
+                {["SUPER_ADMIN", "ADMIN"].includes(user.role) && (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
+                    <button onClick={() => deleteSurvey(detail.id)} disabled={deleting} style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", borderRadius: 8, padding: "8px 16px", fontWeight: 600, cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.6 : 1 }}>
+                      {deleting ? "Deleting..." : "Delete response"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
