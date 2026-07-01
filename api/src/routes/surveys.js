@@ -9,6 +9,7 @@
  *   GET /surveys/orders     lightweight order list for the send-a-survey picker
  *   POST /surveys/generate  fire (or re-send) a survey for an order + phase
  *   GET /surveys/:id        single survey detail with answers + question text
+ *   DELETE /surveys/:id     delete a survey response (admins only)
  *
  * Agents see only surveys attributed to them (salesAgent === their name);
  * admins, super-admins, and accountants see everything.
@@ -333,6 +334,22 @@ export function createSurveysRouter(prismaClient) {
         contactName: survey.order?.account?.contactName || null,
         answers,
       });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Delete a survey response (and its answers, via cascade). Admins only.
+  // Intended for removing test data that would otherwise skew aggregates.
+  router.delete('/:id', async (req, res) => {
+    try {
+      if (!['SUPER_ADMIN', 'ADMIN'].includes(req.user?.role)) {
+        return res.status(403).json({ error: 'Only admins can delete survey responses.' });
+      }
+      const survey = await prisma.survey.findUnique({ where: { id: req.params.id }, select: { id: true } });
+      if (!survey) return res.status(404).json({ error: 'Survey not found' });
+      await prisma.survey.delete({ where: { id: req.params.id } }); // SurveyAnswer rows cascade
+      res.json({ ok: true, deleted: req.params.id });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
