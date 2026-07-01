@@ -287,7 +287,8 @@ export async function maybeGenerateSurveyOnStage(prisma, { orderId, stage, item 
 // ---------------------------------------------------------------------------
 // Submission side-effects: management notification + (for actionable results)
 // an immediate email with the full responses. Every completion produces an
-// in-app notification for admins + the sales agent; email is sent only when
+// in-app notification for management (admins/accountants) only -- never the
+// sales agent; email is sent only when
 // the result is actionable (low rating, contact requested, or a testimonial
 // yes/maybe), which satisfies "immediate delivery for flagged" without a
 // scheduled digest. Never throws; call fire-and-forget after the submission
@@ -346,8 +347,10 @@ export async function dispatchSubmissionEffects(prisma, surveyId) {
     const def = getSurveyDefinition(survey.phase);
     const phaseLabel = def?.title || survey.phase;
 
-    // Recipients: active employee admins/accountants + the listed sales agent.
-    const admins = await prisma.user.findMany({
+    // Recipients: active employee management roles only. Survey results are
+    // for internal management review and are NOT sent to the order's sales
+    // agent (even when that agent is an active employee).
+    const recipients = await prisma.user.findMany({
       where: {
         isActive: true,
         isEmployee: true,
@@ -355,17 +358,6 @@ export async function dispatchSubmissionEffects(prisma, surveyId) {
       },
       select: { id: true, name: true, email: true, role: true, alertEmailsEnabled: true },
     });
-    let agent = null;
-    if (survey.order?.sku) {
-      agent = await prisma.user.findFirst({
-        where: { name: survey.order.sku, isActive: true, isEmployee: true },
-        select: { id: true, name: true, email: true, role: true, alertEmailsEnabled: true },
-      });
-    }
-    const map = new Map();
-    for (const u of admins) map.set(u.id, u);
-    if (agent) map.set(agent.id, agent);
-    const recipients = [...map.values()];
 
     const customerName = survey.order?.account?.name || "Customer";
     const orderRef =
