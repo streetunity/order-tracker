@@ -21,6 +21,7 @@ const PHASE_OPTIONS = [
 
 const SEND_PHASES = PHASE_OPTIONS.filter((o) => o.value);
 const phaseLabelOf = (v) => PHASE_OPTIONS.find((o) => o.value === v)?.label || v;
+const orderLabel = (o) => `${o.accountName || "No account"}${o.contactName ? " (" + o.contactName + ")" : ""}`;
 
 function scoreColor(v) {
   if (v == null) return MUTED;
@@ -56,7 +57,8 @@ export default function AdminSurveysPage() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [sendOrderId, setSendOrderId] = useState("");
   const [sendPhase, setSendPhase] = useState("MANUFACTURING");
-  const [orderFilter, setOrderFilter] = useState("");
+  const [orderQuery, setOrderQuery] = useState("");
+  const [orderOpen, setOrderOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -142,9 +144,16 @@ export default function AdminSurveysPage() {
     setSendMsg(null);
     setSendOrderId("");
     setSendPhase("MANUFACTURING");
-    setOrderFilter("");
+    setOrderQuery("");
+    setOrderOpen(false);
     setShowSend(true);
     loadOrders();
+  }
+
+  function selectOrder(o) {
+    setSendOrderId(o.id);
+    setOrderQuery(orderLabel(o));
+    setOrderOpen(false);
   }
 
   async function submitSend(resend) {
@@ -206,11 +215,15 @@ export default function AdminSurveysPage() {
 
   const selectedOrder = orders.find((o) => o.id === sendOrderId) || null;
   const existingForPhase = selectedOrder?.surveys?.find((sv) => sv.phase === sendPhase) || null;
-  const filteredOrders = orders.filter((o) => {
-    const q = orderFilter.trim().toLowerCase();
-    if (!q) return true;
-    return (o.poNumber || "").toLowerCase().includes(q) || (o.accountName || "").toLowerCase().includes(q);
-  });
+  const orderQ = orderQuery.trim().toLowerCase();
+  const browsingOrders = !orderQ || (selectedOrder && orderQuery === orderLabel(selectedOrder));
+  const comboOrders = browsingOrders
+    ? orders
+    : orders.filter(
+        (o) =>
+          (o.accountName || "").toLowerCase().includes(orderQ) ||
+          (o.contactName || "").toLowerCase().includes(orderQ)
+      );
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: TEXT }}>
@@ -333,16 +346,51 @@ export default function AdminSurveysPage() {
               Fire a survey for an existing order. This emails the customer (when an email is on file) and makes the Feedback tab appear on their tracking page.
             </p>
 
-            <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Order</label>
-            <input placeholder="Filter by PO or customer" value={orderFilter} onChange={(e) => setOrderFilter(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 8 }} />
-            <select value={sendOrderId} onChange={(e) => setSendOrderId(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 16 }}>
-              <option value="">{ordersLoading ? "Loading orders..." : "Select an order"}</option>
-              {filteredOrders.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {(o.poNumber || o.id.slice(-8).toUpperCase())} - {o.accountName || "No account"}{o.hasEmail ? "" : " (no email)"}
-                </option>
-              ))}
-            </select>
+            <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Customer</label>
+            <div style={{ position: "relative", marginBottom: 16 }}>
+              <input
+                value={orderQuery}
+                onChange={(e) => { setOrderQuery(e.target.value); setSendOrderId(""); setOrderOpen(true); }}
+                onFocus={() => setOrderOpen(true)}
+                onBlur={() => setOrderOpen(false)}
+                placeholder={ordersLoading ? "Loading orders..." : "Search customer or contact"}
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 30 }}
+              />
+              {(orderQuery || sendOrderId) && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); setOrderQuery(""); setSendOrderId(""); setOrderOpen(true); }}
+                  style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 16, lineHeight: 1 }}
+                  aria-label="Clear selection"
+                >
+                  ✕
+                </button>
+              )}
+              {orderOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#0f0f0f", border: `1px solid ${BORDER}`, borderRadius: 8, maxHeight: 240, overflowY: "auto", zIndex: 70, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                  {ordersLoading ? (
+                    <div style={{ padding: "10px 12px", color: MUTED, fontSize: 13 }}>Loading orders...</div>
+                  ) : comboOrders.length === 0 ? (
+                    <div style={{ padding: "10px 12px", color: MUTED, fontSize: 13 }}>No matching customers.</div>
+                  ) : (
+                    comboOrders.map((o) => (
+                      <div
+                        key={o.id}
+                        onMouseDown={(e) => { e.preventDefault(); selectOrder(o); }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#1f1f1f"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                        style={{ padding: "8px 12px", cursor: "pointer", borderTop: `1px solid #1c1c1c`, background: o.id === sendOrderId ? "#1f1f1f" : "transparent" }}
+                      >
+                        <div style={{ color: TEXT, fontSize: 14 }}>{o.accountName || "No account"}</div>
+                        <div style={{ color: MUTED, fontSize: 12 }}>
+                          {[o.contactName, o.poNumber, o.hasEmail ? null : "no email"].filter(Boolean).join("  ·  ") || "-"}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
 
             <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Phase</label>
             <select value={sendPhase} onChange={(e) => setSendPhase(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 16 }}>
