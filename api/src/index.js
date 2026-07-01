@@ -61,6 +61,7 @@ import { createCalendarRouter } from './routes/calendar.js';
 import { createCalendarFeedRouter } from './routes/calendarFeed.js';
 import { createExternalRouter } from './routes/external.js';
 import { createSurveyPublicRouter } from './routes/surveyPublic.js';
+import { createSurveysRouter } from './routes/surveys.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -163,6 +164,7 @@ const calendarRouter           = createCalendarRouter(prisma);
 const calendarFeedRouter       = createCalendarFeedRouter(prisma);
 const externalRouter           = createExternalRouter();
 const surveyPublicRouter       = createSurveyPublicRouter(prisma);
+const surveysRouter            = createSurveysRouter(prisma);
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
@@ -299,6 +301,8 @@ app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditBackfillRo
 app.use('/comprehensive-audit', authGuard, nonManufacturerGuard, auditRouter);
 
 app.use('/notifications', authGuard, notificationsRouter);
+
+app.use('/surveys', authGuard, nonManufacturerGuard, surveysRouter);
 
 app.use('/commissions/payouts', authGuard, commissionPayoutsRouter);
 app.use('/commission-settings', authGuard, commissionSettingsRouter);
