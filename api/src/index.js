@@ -60,6 +60,7 @@ import { createNextnpWebhookHandler } from './routes/nextnpWebhook.js';
 import { createCalendarRouter } from './routes/calendar.js';
 import { createCalendarFeedRouter } from './routes/calendarFeed.js';
 import { createExternalRouter } from './routes/external.js';
+import { createSurveyPublicRouter } from './routes/surveyPublic.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -161,12 +162,14 @@ const invoicingSettingsRouter  = createInvoicingSettingsRouter(prisma);
 const calendarRouter           = createCalendarRouter(prisma);
 const calendarFeedRouter       = createCalendarFeedRouter(prisma);
 const externalRouter           = createExternalRouter();
+const surveyPublicRouter       = createSurveyPublicRouter(prisma);
 
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date(), environment: process.env.NODE_ENV || 'development' }));
 
 app.use('/public', publicRouter);
 app.use('/public', publicCustomerDocumentsRouter);
 app.use('/public', publicInvoicingRouter);
+app.use('/public', surveyPublicRouter);
 app.use('/signatures', signaturesRouter);
 app.use('/portal', customerPortalRouter);
 console.log('✅ Public routes loaded');
