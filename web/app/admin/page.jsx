@@ -113,6 +113,18 @@ export default function AdminDashboard() {
               </div>
             </Link>
 
+            <Link href="/admin/surveys" className="quick-link-card">
+              <div className="quick-link-icon reports">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                </svg>
+              </div>
+              <div className="quick-link-content">
+                <h3>Surveys</h3>
+                <p>Customer satisfaction results</p>
+              </div>
+            </Link>
+
             {/* Commission link - different based on role */}
             {(isAgent || isAdmin) ? (
               <Link href="/my-commissions" className="quick-link-card">
