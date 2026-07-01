@@ -22,6 +22,12 @@ const STAGE_LABELS = {
   FOLLOW_UP:     "Systems Operational",
 };
 
+const SURVEY_PHASE_LABELS = {
+  MANUFACTURING:    "Manufacturing Check-In",
+  CONTAINER_AT_SEA: "Shipping Check-In",
+  COMPLETION:       "Final Review",
+};
+
 export default function PublicTrackingPage() {
   const params = useParams();
   const [order,         setOrder]         = useState(null);
@@ -153,6 +159,9 @@ export default function PublicTrackingPage() {
 
   const showShipping = order.etaDate || order.shippingCarrier || order.trackingNumber || order.onsiteInstallationDate;
   const hasTimeline  = (order.statusEvents?.length > 0) || order.items?.some(i => i.statusEvents?.length > 0);
+
+  const surveys = order.surveys || [];
+  const hasSurveys = surveys.length > 0;
 
   const hasAnyFiles = customerFiles && (
     customerFiles.totalCount > 0 ||
@@ -327,6 +336,9 @@ export default function PublicTrackingPage() {
         <button onClick={() => setActiveTab("files")}    style={tabStyle("files")}>Your Files</button>
         {hasTimeline && (
           <button onClick={() => setActiveTab("timeline")} style={tabStyle("timeline")}>Timeline</button>
+        )}
+        {hasSurveys && (
+          <button onClick={() => setActiveTab("feedback")} style={tabStyle("feedback")}>Feedback</button>
         )}
       </div>
 
@@ -582,6 +594,33 @@ export default function PublicTrackingPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === "feedback" && (
+        <div>
+          <p style={{ color:"#a0a0a0", fontSize:"14px", margin:"0 0 16px" }}>
+            We value your feedback at each stage of your order. These short surveys take about a minute and help us serve you better.
+          </p>
+          {surveys.map((sv) => {
+            const label = SURVEY_PHASE_LABELS[sv.phase] || sv.phase;
+            const done = sv.status === "COMPLETED";
+            return (
+              <div key={sv.token} style={{ background:"#2d2d2d", border:"1px solid #404040", borderRadius:"10px", padding:"16px 18px", marginBottom:"12px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
+                <div>
+                  <div style={{ fontWeight:600, color:"#e4e4e4", fontSize:"15px" }}>{label}</div>
+                  <div style={{ color: done ? "#6b7280" : "#dc2626", fontSize:"13px", marginTop:"3px" }}>
+                    {done ? `Submitted${sv.completedAt ? " on " + formatDateOnly(sv.completedAt) : ""}. Thank you!` : "Awaiting your response"}
+                  </div>
+                </div>
+                {done ? (
+                  <span style={{ color:"#22c55e", fontSize:"22px" }}>✓</span>
+                ) : (
+                  <a href={`/survey/${sv.token}`} style={{ background:"#dc2626", color:"#fff", textDecoration:"none", padding:"10px 18px", borderRadius:"6px", fontWeight:500, fontSize:"14px", whiteSpace:"nowrap" }}>Share feedback</a>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
