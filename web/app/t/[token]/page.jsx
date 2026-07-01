@@ -217,6 +217,7 @@ export default function PublicTrackingPage() {
         .lb-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.15); border-radius:50%; width:48px; height:48px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:20px; cursor:pointer; transition:background 0.15s; user-select:none; }
         .lb-arrow:hover { background:rgba(220,38,38,0.7); }
         @media (max-width:640px) {
+          .tracking-tabs { flex-wrap:wrap; overflow-x:visible; }
           .tracking-header { flex-direction:column; align-items:flex-start; gap:14px; }
           .tracking-logo { width:64px; height:64px; }
           .tracking-header h1 { font-size:22px !important; }
