@@ -25,6 +25,7 @@ import {
   isValidRating,
   RATING_SCALE,
 } from '../config/surveyQuestions.js';
+import { dispatchSubmissionEffects } from '../services/surveyService.js';
 
 export function createSurveyPublicRouter(prismaClient) {
   const prisma = prismaClient || new PrismaClient();
@@ -189,6 +190,12 @@ export function createSurveyPublicRouter(prismaClient) {
 
       console.log(
         `[SURVEY] Submission recorded for survey ${survey.id} (${survey.phase}); score=${overallScore}, flagged=${flagged}, contact=${contactRequested}`
+      );
+
+      // Fire-and-forget: management notification + actionable email. Must never
+      // block or fail the customer's submission response.
+      dispatchSubmissionEffects(prisma, survey.id).catch((e) =>
+        console.error('[SURVEY] dispatchSubmissionEffects threw:', e.message)
       );
 
       return res.json({ ok: true, overallScore, flagged });
