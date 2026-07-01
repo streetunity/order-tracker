@@ -227,6 +227,7 @@ model Order {
   customerDocuments CustomerDocument[]
   Invoice           Invoice[]
   calendarEvents    CalendarEvent[]
+  surveys           Survey[]
 }
 
 model OrderItem {
@@ -1830,4 +1831,66 @@ model ApiKey {
   createdAt  DateTime  @default(now())
 
   @@index([isActive])
+}
+
+// ============================================
+// CUSTOMER SATISFACTION SURVEYS
+// One Survey per order per phase. Fired when the FIRST item of an order
+// reaches a trigger stage (MANUFACTURING / AT_SEA / COMPLETED). Public link
+// rides an unguessable token (same scheme as tracking tokens). Answers are
+// keyed to a code-defined catalog (surveyQuestions.js) via questionKey.
+// String enum fields follow project convention (no Prisma enums).
+// ============================================
+
+model Survey {
+  id             String    @id @default(cuid())
+  token          String    @unique
+  orderId        String
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  phase          String    // MANUFACTURING | CONTAINER_AT_SEA | COMPLETION
+  triggerStage   String    // canonical pipeline stage that fired this survey
+
+  salesAgent     String?   // snapshot of order.sku at generation time
+  machineModel   String?   // snapshot of triggering item's productCode
+  recipientEmail String?   // snapshot of account.email at generation time
+
+  status         String    @default("PENDING") // PENDING | SENT | COMPLETED | EXPIRED
+
+  overallScore           Float?   // avg of rating questions only; set at submit
+  flagged                Boolean  @default(false) // true if any rating <= 3
+  contactRequested       Boolean  @default(false)
+  testimonialWillingness String?  // YES | MAYBE | NO (completion survey only)
+
+  sentAt      DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  answers SurveyAnswer[]
+
+  @@index([orderId])
+  @@index([phase])
+  @@index([status])
+  @@index([salesAgent])
+  @@index([machineModel])
+  @@index([flagged])
+  @@index([completedAt])
+  @@index([orderId, phase])
+}
+
+model SurveyAnswer {
+  id       String @id @default(cuid())
+  surveyId String
+  survey   Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  questionKey String  // stable key from surveyQuestions.js catalog
+  rating      Int?    // 1-5 for rating questions; null for choice-only
+  choice      String? // selected option for choice questions
+  comment     String? // optional free text
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([surveyId])
+  @@index([questionKey])
 }
