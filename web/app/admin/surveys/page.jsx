@@ -266,7 +266,7 @@ export default function AdminSurveysPage() {
 
         {/* Filters */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 16 }}>
-          <select value={filters.phase} onChange={(e) => setFilters((f) => ({ ...f, phase: e.target.value }))} style={inputStyle}>
+          <select value={filters.phase} onChange={(e) => setFilters((f) => ({ ...f, phase: e.target.value }))} style={{ ...inputStyle, cursor: "pointer" }}>
             {PHASE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
           <input placeholder="Sales agent" value={filters.agent} onChange={(e) => setFilters((f) => ({ ...f, agent: e.target.value }))} style={inputStyle} />
@@ -393,7 +393,7 @@ export default function AdminSurveysPage() {
             </div>
 
             <label style={{ display: "block", fontSize: 12, color: MUTED, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Phase</label>
-            <select value={sendPhase} onChange={(e) => setSendPhase(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 16 }}>
+            <select value={sendPhase} onChange={(e) => setSendPhase(e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 16, cursor: "pointer" }}>
               {SEND_PHASES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
 
