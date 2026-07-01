@@ -82,6 +82,7 @@ export function createSurveysRouter(prismaClient) {
       orderId: s.orderId,
       orderRef: s.order?.poNumber || (s.orderId ? s.orderId.slice(-8).toUpperCase() : ''),
       customerName: s.order?.account?.name || null,
+      contactName: s.order?.account?.contactName || null,
     };
   }
 
@@ -130,7 +131,7 @@ export function createSurveysRouter(prismaClient) {
         where,
         orderBy: { createdAt: 'desc' },
         include: {
-          order: { select: { poNumber: true, account: { select: { name: true } } } },
+          order: { select: { poNumber: true, account: { select: { name: true, contactName: true } } } },
         },
       });
       res.json({ surveys: surveys.map(serialize), summary: summarize(surveys) });
