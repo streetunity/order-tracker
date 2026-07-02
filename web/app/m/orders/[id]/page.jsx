@@ -14,6 +14,7 @@ const CATEGORIES = [
   { id: "videos", label: "Videos", accept: "video/*", capture: true, captureLabel: "Record Video" },
   { id: "manuals", label: "Manuals", accept: ".pdf,.doc,.docx" },
   { id: "documents", label: "Documents", accept: ".pdf,.doc,.docx,.xls,.xlsx" },
+  { id: "readme",    label: "Read Me",   accept: "*/*" },
 ];
 
 const S = {
