@@ -456,3 +456,12 @@
     padding: 4px;
   }
 }
+
+/* Hide the desktop top nav on phones. Its fixed-width row of links forces
+   the document wider than the viewport; MobileTabBar handles mobile nav.
+   Gated to mobile widths, so desktop is unaffected. */
+@media (max-width: 768px) {
+  .top-nav {
+    display: none;
+  }
+}
