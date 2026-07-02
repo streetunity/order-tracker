@@ -8,6 +8,14 @@ import TopNav from "@/components/TopNav";
 
 const CHUNK_SIZE = 10 * 1024 * 1024;
 
+// Mirrors the desktop customer-files categories and accept filters.
+const CATEGORIES = [
+  { id: "photos", label: "Photos", accept: "image/*", capture: true, captureLabel: "Take Photo" },
+  { id: "videos", label: "Videos", accept: "video/*", capture: true, captureLabel: "Record Video" },
+  { id: "manuals", label: "Manuals", accept: ".pdf,.doc,.docx" },
+  { id: "documents", label: "Documents", accept: ".pdf,.doc,.docx,.xls,.xlsx" },
+];
+
 const S = {
   wrap: { maxWidth: 720, margin: "0 auto", padding: "14px 14px 32px" },
   back: { display: "inline-block", fontSize: 14, color: "#dc2626", marginBottom: 8 },
@@ -20,6 +28,9 @@ const S = {
   rowLabel: { color: "#9ca3af" },
   contactBtn: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: 48, borderRadius: 8, fontSize: 15, fontWeight: 600, textDecoration: "none", border: "1px solid #404040", background: "#2a2a2a", color: "#e4e4e4", marginTop: 8 },
   item: { padding: "10px 0", borderBottom: "1px solid #2a2a2a", fontSize: 14 },
+  chips: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 6 },
+  chip: { padding: "8px 14px", minHeight: 40, borderRadius: 99, fontSize: 14, fontWeight: 600, border: "1px solid #404040", background: "#2a2a2a", color: "#9ca3af", cursor: "pointer" },
+  chipActive: { background: "rgba(220,38,38,0.15)", borderColor: "#dc2626", color: "#f87171" },
   captureBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: "100%", minHeight: 52, marginTop: 10, borderRadius: 10, fontSize: 16, fontWeight: 600, border: "1px solid #404040", background: "#2a2a2a", color: "#e4e4e4", cursor: "pointer" },
   primary: { background: "#dc2626", border: "1px solid #dc2626", color: "#fff" },
   bar: { height: 8, borderRadius: 99, background: "#1f1f1f", overflow: "hidden", marginTop: 8 },
@@ -39,15 +50,15 @@ export default function MobileOrderView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
+  const [category, setCategory] = useState("photos");
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
   const [success, setSuccess] = useState("");
   const [uploadErr, setUploadErr] = useState("");
 
-  const photoRef = useRef(null);
-  const videoRef = useRef(null);
-  const libraryRef = useRef(null);
+  const captureRef = useRef(null);
+  const pickRef = useRef(null);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -68,13 +79,13 @@ export default function MobileOrderView() {
     return () => { cancelled = true; };
   }, [user, id, getAuthHeaders]);
 
-  const uploadOne = useCallback(async (file, category) => {
+  const uploadOne = useCallback(async (file, cat) => {
     let documentId = null, uploadId = null, s3Key = null;
     try {
       const initRes = await fetch(`/api/customer-documents/${id}/initiate`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType: file.type || "application/octet-stream", category }),
+        body: JSON.stringify({ fileName: file.name, fileSize: file.size, mimeType: file.type || "application/octet-stream", category: cat }),
       });
       if (!initRes.ok) { const e = await initRes.json().catch(() => ({})); throw new Error(e.error || "Failed to initiate"); }
       const init = await initRes.json();
@@ -121,24 +132,26 @@ export default function MobileOrderView() {
     const errors = [];
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
-      const category = (file.type || "").startsWith("video/") ? "videos" : "photos";
       setProgress(0);
       setStatus(list.length > 1 ? `File ${i + 1}/${list.length}` : "Preparing");
       try { await uploadOne(file, category); }
       catch (e) { errors.push(`${file.name}: ${e.message}`); }
     }
     setUploading(false); setProgress(0); setStatus("");
-    if (photoRef.current) photoRef.current.value = "";
-    if (videoRef.current) videoRef.current.value = "";
-    if (libraryRef.current) libraryRef.current.value = "";
+    if (captureRef.current) captureRef.current.value = "";
+    if (pickRef.current) pickRef.current.value = "";
     if (errors.length) setUploadErr(errors.join(" | "));
-    else setSuccess(`${list.length} file${list.length > 1 ? "s" : ""} uploaded.`);
-  }, [uploadOne]);
+    else {
+      const catLabel = (CATEGORIES.find((c) => c.id === category) || {}).label || "files";
+      setSuccess(`${list.length} file${list.length > 1 ? "s" : ""} uploaded to ${catLabel}.`);
+    }
+  }, [uploadOne, category]);
 
   if (!user) return <><TopNav /><div style={S.wrap} /></>;
 
   const acct = order?.account;
   const items = Array.isArray(order?.items) ? order.items : [];
+  const cat = CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
 
   return (
     <>
@@ -191,13 +204,33 @@ export default function MobileOrderView() {
             </div>
 
             <div style={S.section}>
-              <div style={S.label}>Add photos / video</div>
-              <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={(e) => handleFiles(e.target.files)} style={{ display: "none" }} disabled={uploading} />
-              <input ref={videoRef} type="file" accept="video/*" capture="environment" onChange={(e) => handleFiles(e.target.files)} style={{ display: "none" }} disabled={uploading} />
-              <input ref={libraryRef} type="file" accept="image/*,video/*" multiple onChange={(e) => handleFiles(e.target.files)} style={{ display: "none" }} disabled={uploading} />
-              <button type="button" style={{ ...S.captureBtn, ...S.primary }} disabled={uploading} onClick={() => photoRef.current?.click()}>Take Photo</button>
-              <button type="button" style={S.captureBtn} disabled={uploading} onClick={() => videoRef.current?.click()}>Record Video</button>
-              <button type="button" style={S.captureBtn} disabled={uploading} onClick={() => libraryRef.current?.click()}>Choose from Library</button>
+              <div style={S.label}>Add files</div>
+              <div style={S.chips}>
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={uploading}
+                    onClick={() => { setCategory(c.id); setSuccess(""); setUploadErr(""); }}
+                    style={{ ...S.chip, ...(category === c.id ? S.chipActive : null) }}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+
+              <input ref={captureRef} type="file" accept={cat.accept} capture="environment" onChange={(e) => handleFiles(e.target.files)} style={{ display: "none" }} disabled={uploading} />
+              <input ref={pickRef} type="file" accept={cat.accept} multiple onChange={(e) => handleFiles(e.target.files)} style={{ display: "none" }} disabled={uploading} />
+
+              {cat.capture && (
+                <button type="button" style={{ ...S.captureBtn, ...S.primary }} disabled={uploading} onClick={() => captureRef.current?.click()}>
+                  {cat.captureLabel}
+                </button>
+              )}
+              <button type="button" style={S.captureBtn} disabled={uploading} onClick={() => pickRef.current?.click()}>
+                {cat.capture ? "Choose from Library" : `Choose ${cat.label}`}
+              </button>
+
               {uploading && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ fontSize: 13, color: "#9ca3af" }}>{status} - {progress}%</div>
