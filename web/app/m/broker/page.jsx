@@ -178,7 +178,7 @@ export default function MobileBrokerDashboard() {
           filteredRows.map((row) => {
             const pc = PRIORITY_COLORS[row.priority] || PRIORITY_COLORS.NORMAL;
             const sc = STATUS_COLORS[row.customsDocumentStatus] || STATUS_COLORS.PENDING;
-            const href = row.type === "shipment" ? `/broker/shipment/${row.id}?desktop=1` : `/broker/item/${row.id}?desktop=1`;
+            const href = row.type === "shipment" ? `/broker/shipment/${row.id}?desktop=1` : `/m/broker/item/${row.id}`;
             const title = row.type === "shipment" ? row.containerNumber : (row.productCode || "Item");
             const contact = row.type === "shipment"
               ? (row.contactNames.length === 1 ? row.contactNames[0] : row.contactNames.length > 1 ? `Multiple (${row.contactNames.length})` : null)
