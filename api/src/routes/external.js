@@ -2,12 +2,14 @@
 //
 // Read-only external partner API (v1).
 // Auth: API key via Authorization: Bearer <key> (see middleware/apiKeyAuth.js).
-// Exposes a single customer search that returns each matched customer's orders,
-// items, per-item status, and the public order tracking link.
+// Exposes a single search that returns each matched order-tracker Account's
+// orders, items, per-item status, and the public order tracking link.
 //
-// Data path note: items live on the order-tracker side, reached through the
-// Customer -> Account -> orders -> items link. A customer with no linked Account
-// (accountId null) returns an empty orders array; that is expected, not an error.
+// Data path note: the order tracker is built around Account -> orders -> items.
+// This is the same data shown on the board and the customer tracking pages.
+// (The invoicing-side Customer table is separate and is NOT searched here.)
+// An account with no orders returns an empty orders array; that is expected,
+// not an error.
 
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
@@ -23,10 +25,12 @@ function trackingUrl(trackingToken) {
   return trackingToken ? `${PUBLIC_BASE_URL}/t/${trackingToken}` : null;
 }
 
-// Shape a hydrated Customer record into the external DTO. No pricing, no
-// commissions, no internal notes are ever included.
-function serializeCustomer(c) {
-  const orders = (c.account?.orders ?? []).map((o) => ({
+// Shape a hydrated Account record into the external DTO. No pricing, no
+// commissions, no internal notes are ever included. The response shape is
+// unchanged from the original Customer-based version so existing partner
+// integrations keep working.
+function serializeAccount(a) {
+  const orders = (a.orders ?? []).map((o) => ({
     orderId: o.id,
     poNumber: o.poNumber ?? null,
     currentStage: o.currentStage ?? null,
@@ -41,13 +45,14 @@ function serializeCustomer(c) {
   }));
 
   return {
-    customerId: c.id,
-    customerNumber: c.customerNumber,
-    name: [c.firstName, c.lastName].filter(Boolean).join(' ').trim(),
-    companyName: c.companyName ?? c.company ?? null,
-    email: c.email,
-    phone: c.phone ?? null,
-    accountLinked: !!c.accountId,
+    customerId: a.id,
+    // Populated only when this account is also linked to an invoicing customer.
+    customerNumber: a.Customer?.customerNumber ?? null,
+    name: a.contactName || a.name,
+    companyName: a.name ?? null,
+    email: a.email ?? null,
+    phone: a.phone ?? null,
+    accountLinked: orders.length > 0,
     orders,
   };
 }
@@ -60,7 +65,8 @@ export function createExternalRouter() {
   router.use(apiKeyAuth);
 
   // GET /customers?q=<search>&limit=<n>
-  // Searches by customer name, company name, email, or phone (case-insensitive).
+  // Searches order-tracker Accounts by account name, contact name, email, or
+  // phone (case-insensitive substring match).
   router.get('/customers', async (req, res) => {
     try {
       const q = (req.query.q ?? '').toString().trim();
@@ -72,42 +78,26 @@ export function createExternalRouter() {
 
       const take = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
 
-      const tokens = q.split(/\s+/).filter(Boolean);
       const OR = [
-        { firstName: { contains: q, mode: 'insensitive' } },
-        { lastName: { contains: q, mode: 'insensitive' } },
-        { companyName: { contains: q, mode: 'insensitive' } },
-        { company: { contains: q, mode: 'insensitive' } },
+        { name: { contains: q, mode: 'insensitive' } },
+        { contactName: { contains: q, mode: 'insensitive' } },
         { email: { contains: q, mode: 'insensitive' } },
         { phone: { contains: q, mode: 'insensitive' } },
       ];
-      // Full-name queries ("Jane Smith") won't match a single first/last field,
-      // so add a combined first+last clause when the query has 2+ tokens.
-      if (tokens.length >= 2) {
-        OR.push({
-          AND: [
-            { firstName: { contains: tokens[0], mode: 'insensitive' } },
-            { lastName: { contains: tokens[tokens.length - 1], mode: 'insensitive' } },
-          ],
-        });
-      }
 
-      const customers = await prisma.customer.findMany({
-        where: { isDeleted: false, OR },
+      const accounts = await prisma.account.findMany({
+        where: { OR },
         take,
         orderBy: { createdAt: 'desc' },
         include: {
-          account: {
+          Customer: { select: { customerNumber: true } },
+          orders: {
+            where: { isArchived: false },
+            orderBy: { createdAt: 'desc' },
             include: {
-              orders: {
-                where: { isArchived: false },
-                orderBy: { createdAt: 'desc' },
-                include: {
-                  items: {
-                    where: { archivedAt: null },
-                    orderBy: { createdAt: 'asc' },
-                  },
-                },
+              items: {
+                where: { archivedAt: null },
+                orderBy: { createdAt: 'asc' },
               },
             },
           },
@@ -116,11 +106,11 @@ export function createExternalRouter() {
 
       res.json({
         query: q,
-        count: customers.length,
-        customers: customers.map(serializeCustomer),
+        count: accounts.length,
+        customers: accounts.map(serializeAccount),
       });
     } catch (e) {
-      console.error('External customers search error:', e);
+      console.error('External account search error:', e);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
