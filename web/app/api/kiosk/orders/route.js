@@ -5,12 +5,12 @@ import { API_BASE_URL } from '@/lib/api-config';
 
 export async function GET(request) {
   try {
-    // Kiosk endpoint - no authentication required for display board
-    const res = await fetch(`${API_BASE_URL}/orders`, {
+    // Kiosk display board - uses the dedicated public, read-only endpoint.
+    // (The old x-admin-key backdoor was removed from the backend for security;
+    // /public/kiosk-board returns only non-sensitive board data and needs no auth.)
+    const res = await fetch(`${API_BASE_URL}/public/kiosk-board`, {
       headers: {
-        'Content-Type': 'application/json',
-        // Use a simple admin key for the kiosk display
-        'x-admin-key': 'dev-admin-key'
+        'Content-Type': 'application/json'
       },
       cache: 'no-store'
     });

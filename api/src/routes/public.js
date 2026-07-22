@@ -10,6 +10,41 @@ export function createPublicRouter() {
   // Apply rate limiting to all public routes
   router.use(rateLimit);
 
+  // Public kiosk board (NO AUTH) - powers the /admin/kiosk display board.
+  // Replaces the removed x-admin-key backdoor. Intentionally returns ONLY the
+  // minimal, non-sensitive data the board renders: customer name, and each
+  // item's product code + current stage. No prices, financials, private notes,
+  // contact info, serials, or measurements are exposed.
+  router.get('/kiosk-board', async (req, res) => {
+    try {
+      const orders = await prisma.order.findMany({
+        where: { isArchived: false },
+        select: {
+          id: true,
+          currentStage: true,
+          accountId: true,
+          account: { select: { id: true, name: true } },
+          items: {
+            where: { archivedAt: null },
+            select: {
+              id: true,
+              productCode: true,
+              currentStage: true,
+              archivedAt: true
+            }
+          }
+        },
+        orderBy: [{ createdAt: 'desc' }]
+      });
+
+      res.json(orders);
+    } catch (e) {
+      console.error('GET /public/kiosk-board error:', e);
+      // Never break the display board - return an empty list on error.
+      res.json([]);
+    }
+  });
+
   // Public order read (no auth required) 
   router.get('/orders/:token', async (req, res) => {
     try {
