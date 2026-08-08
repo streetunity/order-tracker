@@ -18,6 +18,37 @@ function isStageAtOrPast(currentStage, targetStage) {
 
 const ACTIVE_COMMISSION_STATUSES = ['CALCULATED', 'PARTIAL_PAID'];
 
+/**
+ * Ensure the commission has a PRIMARY CommissionRep (100% share) and return it.
+ * Foundation for split/switch: every commission gets an explicit participant, and
+ * every payout is stamped with an owner. Idempotent; never renames an existing rep.
+ */
+async function ensurePrimaryCommissionRep(commission) {
+  let rep = await prisma.commissionRep.findFirst({
+    where: { commissionId: commission.id, isActive: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (rep) return rep;
+  let userId = null;
+  if (commission.salesPersonName) {
+    const u = await prisma.user.findFirst({
+      where: { name: commission.salesPersonName },
+      select: { id: true },
+    });
+    userId = u?.id ?? null;
+  }
+  return prisma.commissionRep.create({
+    data: {
+      commissionId: commission.id,
+      salesPersonName: commission.salesPersonName ?? '',
+      userId,
+      sharePercentage: 100,
+      role: 'PRIMARY',
+      isActive: true,
+    },
+  });
+}
+
 async function getPayoutStageSettings() {
   let stageSettings = await prisma.commissionStageSetting.findMany({
     where: { isActive: true },
@@ -122,6 +153,7 @@ export async function calculateCommissionForOrder(order) {
 async function createItemCommissions(commission, pricedItems, orderSubtotal, orderDiscount, rate) {
   const stageSettings = await getPayoutStageSettings();
   console.log(`[COMMISSION] Using ${stageSettings.length} payout stages:`, stageSettings.map(s => `${s.stage} (${s.percentage}%)`).join(', '));
+  const primaryRep = await ensurePrimaryCommissionRep(commission);
 
   for (const item of pricedItems) {
     const itemSubtotal       = item.itemTotal;
@@ -154,6 +186,9 @@ async function createItemCommissions(commission, pricedItems, orderSubtotal, ord
           amount: (commissionAmount * setting.percentage) / 100,
           status: payoutStatus, triggeredByItemId: item.id,
           triggeredAt: shouldTrigger ? new Date() : null,
+          salesPersonName: primaryRep.salesPersonName,
+          userId: primaryRep.userId,
+          commissionRepId: primaryRep.id,
         },
       });
 
@@ -263,6 +298,7 @@ async function addNewItemsToExistingCommission(commission, order) {
     const orderDiscount = order.discount || 0;
     const orderNetTotal = orderSubtotal - orderDiscount;
     const stageSettings = await getPayoutStageSettings();
+    const primaryRep = await ensurePrimaryCommissionRep(commission);
 
     console.log(`[COMMISSION] Adding ${newPricedItems.length} new item(s) to commission ${commission.id}`);
 
@@ -294,6 +330,9 @@ async function addNewItemsToExistingCommission(commission, order) {
             amount: (commissionAmount * setting.percentage) / 100,
             status: shouldTrigger ? 'PENDING' : 'WAITING',
             triggeredByItemId: item.id, triggeredAt: shouldTrigger ? new Date() : null,
+            salesPersonName: primaryRep.salesPersonName,
+            userId: primaryRep.userId,
+            commissionRepId: primaryRep.id,
           },
         });
         if (shouldTrigger) console.log(`[COMMISSION] Auto-triggered ${setting.stage} payout for new item ${item.productCode}`);
