@@ -1,16 +1,25 @@
 // api/scripts/rebalanceOrderSonnyBrian.mjs
 //
-// ONE-OFF, self-verifying, idempotent rebalance for a SINGLE live order.
-// Option A ("rebalance"): the QC stage was manually meant to be 40% (not 50%),
-// with the remaining 10% (FOLLOW_UP) belonging to a second rep. This reconciles
-// the recorded split to that intent WITHOUT changing the order's total:
+// ONE-OFF, self-verifying, idempotent SWITCH (+ rebalance) for a SINGLE live order.
+//
+// The account is being MOVED from Sonny Yee to Brian Maronde. This is a SWITCH,
+// not a split: Sonny keeps only what he already EARNED AND WAS PAID; the account
+// itself and everything going forward becomes Brian's. On this order there is
+// nothing unpaid to move (all payouts are PAID), plus a confirmed correction:
+// the QC stage should have been 40% (not 50%), freeing the final 10% for the new
+// rep. So the operation is:
 //
 //   Per item (driven by the ACTIVE stage settings, not hard-coded percentages):
-//     MANUFACTURING 50%  -> Sonny Yee     (PAID, unchanged)
-//     QC            50->40% -> Sonny Yee   (PAID, amount reduced to 40%)
+//     MANUFACTURING 50%  -> Sonny Yee     (PAID, unchanged — earned before switch)
+//     QC            50->40% -> Sonny Yee   (PAID, amount reduced to 40% — earned)
 //     FOLLOW_UP     10%  -> Brian Maronde (NEW payout, status = BRIAN_STATUS)
 //
-//   CommissionReps:  Sonny Yee 100% -> 90%   +   Brian Maronde 10% (SECONDARY)
+//   Rep pointer:   order.sku + commission.salesPersonName  ->  Brian Maronde
+//   CommissionReps: Sonny Yee CLOSED (isActive=false, effectiveTo=now, share 90 kept
+//                   as his earned history); Brian Maronde ACTIVE PRIMARY @ 100%
+//                   (sole rep going forward).
+//   Sonny's already-PAID payouts stay stamped to Sonny (NOT reassigned) — that is
+//   the whole point of stamped ownership; paid history is never dragged to the new rep.
 //   Order total commission is UNCHANGED (50+40+10 = 100).
 //
 // SAFETY MODEL
@@ -163,7 +172,11 @@ async function main() {
   const totalAfter = sonnyAfter + brianAfter;
   console.log(`  BEFORE:  Sonny ${money(sonnyBefore)}   Brian ${money(0)}   Total ${money(totalBefore)}`);
   console.log(`  AFTER:   Sonny ${money(sonnyAfter)}   Brian ${money(brianAfter)}   Total ${money(totalAfter)}`);
-  console.log(`  Moved from Sonny to Brian: ${money(sonnyBefore - sonnyAfter)}`);
+  console.log(`  Moved from Sonny to Brian: ${money(sonnyBefore - sonnyAfter)}  (his 10% FOLLOW_UP share)`);
+  console.log('─'.repeat(94));
+  console.log(`  REP POINTER: order.sku + commission.salesPersonName  "${EXPECT_OLD_REP}" -> "${NEW_REP}"`);
+  console.log(`  REPS: ${EXPECT_OLD_REP} CLOSED (share 90, inactive) ; ${NEW_REP} ACTIVE PRIMARY 100% (account owner going forward)`);
+  console.log(`  Sonny's PAID payouts stay stamped to Sonny (earned history, never reassigned).`);
   console.log('─'.repeat(94));
 
   // Final reconciliation guard — total must not change.
@@ -182,21 +195,29 @@ async function main() {
   // ── Commit inside a single transaction ──
   const stamp = new Date();
   await prisma.$transaction(async (tx) => {
-    // 1. Create Brian's active rep @ 10%, demote Sonny to 90%.
+    // 1. SWITCH: Brian becomes the sole active PRIMARY rep (account owner going
+    //    forward); Sonny's rep is closed but kept as history at his earned 90%.
     const brianRep = await tx.commissionRep.create({
       data: {
         commissionId: commission.id,
         salesPersonName: NEW_REP,
         userId: brianUser.id,
-        sharePercentage: 10,
-        role: 'SECONDARY',
+        sharePercentage: 100,
+        role: 'PRIMARY',
         isActive: true,
       },
     });
     await tx.commissionRep.update({
       where: { id: sonnyRep.id },
-      data: { sharePercentage: 90 },
+      data: { sharePercentage: 90, isActive: false, effectiveTo: stamp, role: 'PRIMARY' },
     });
+
+    // Move the account pointer to Brian (order header + commission display rep).
+    // Sonny's already-PAID payouts are NOT touched here — they stay stamped to
+    // Sonny (the stamped-ownership design is exactly what prevents the legacy
+    // "rename drags paid history to the new rep" bug).
+    await tx.commission.update({ where: { id: commission.id }, data: { salesPersonName: NEW_REP } });
+    await tx.order.update({ where: { id: ORDER_ID }, data: { sku: NEW_REP } });
 
     // 2. Per item: reduce Sonny's QC payout to 40%, create Brian's FOLLOW_UP 10%.
     for (const { ic, qcPayout, qcOldAmt, qcNewAmt, brianAmt } of plan) {
@@ -227,46 +248,62 @@ async function main() {
       });
     }
 
-    // 3. Audit log.
+    // 3. Audit log — this is a rep SWITCH (account moved), with a paid-share correction.
     await tx.auditLog.create({
       data: {
         entityType: 'Commission',
         entityId: commission.id,
         parentEntityId: ORDER_ID,
-        action: 'COMMISSION_REBALANCED',
+        action: 'SALES_REP_SWITCHED',
         metadata: JSON.stringify({
           orderId: ORDER_ID,
-          method: 'Option A (rebalance, total unchanged)',
+          method: 'Switch (account moved) + Option A rebalance; order total unchanged',
           from: EXPECT_OLD_REP, to: NEW_REP,
+          newRepIsAccountOwner: true,
+          paidPayoutsKeptWithOldRep: true,
           movedAmount: Number((sonnyBefore - sonnyAfter).toFixed(3)),
-          sonnyBefore: Number(sonnyBefore.toFixed(3)),
-          sonnyAfter: Number(sonnyAfter.toFixed(3)),
-          brianAfter: Number(brianAfter.toFixed(3)),
+          sonnyEarned: Number(sonnyAfter.toFixed(3)),
+          brianAssigned: Number(brianAfter.toFixed(3)),
           brianStatus: BRIAN_STATUS,
-          shares: { [EXPECT_OLD_REP]: 90, [NEW_REP]: 10 },
+          finalShares: { [EXPECT_OLD_REP]: '90 (paid history, closed)', [NEW_REP]: '100 (active, going forward)' },
         }),
-        performedByName: 'Rebalance Script (Option A)',
+        performedByName: 'Rep-Switch Script (Option A)',
       },
     });
 
-    // 4. Notify Brian (best-effort inside the txn is fine; it's a plain insert).
+    // 4. Notify both reps (plain inserts; the account changed hands).
     if (brianUser.isActive) {
       await tx.notification.create({
         data: {
           userId: brianUser.id,
           type: 'COMMISSION',
           category: 'INFO',
-          title: 'Commission share assigned to you',
-          message: `You have been assigned a 10% share (${money(brianAfter)}) on an order, status ${BRIAN_STATUS}.`,
+          title: 'Order assigned to you',
+          message: `You are now the sales rep on an order. A ${money(brianAfter)} FOLLOW_UP commission (status ${BRIAN_STATUS}) has been assigned to you; the earlier stages were paid to the previous rep.`,
           relatedOrderId: ORDER_ID,
           metadata: JSON.stringify({ orderId: ORDER_ID, from: EXPECT_OLD_REP, amount: Number(brianAfter.toFixed(3)), status: BRIAN_STATUS }),
           priority: 'NORMAL',
         },
       });
     }
+    const sonnyUser = await tx.user.findFirst({ where: { name: EXPECT_OLD_REP, isActive: true }, select: { id: true } });
+    if (sonnyUser && sonnyUser.id !== brianUser.id) {
+      await tx.notification.create({
+        data: {
+          userId: sonnyUser.id,
+          type: 'COMMISSION',
+          category: 'INFO',
+          title: 'Order reassigned',
+          message: `An order was reassigned to ${NEW_REP}. Your paid commissions are unchanged (${money(sonnyAfter)} kept); the final 10% (${money(brianAfter)}) moved to ${NEW_REP}.`,
+          relatedOrderId: ORDER_ID,
+          metadata: JSON.stringify({ orderId: ORDER_ID, to: NEW_REP, kept: Number(sonnyAfter.toFixed(3)), moved: Number(brianAfter.toFixed(3)) }),
+          priority: 'NORMAL',
+        },
+      });
+    }
   });
 
-  console.log('\n✅ APPLIED. Sonny 90% / Brian 10%. Order total unchanged.');
+  console.log(`\n✅ APPLIED. Account switched to ${NEW_REP} (now the rep). Sonny keeps ${money(sonnyAfter)} paid history; Brian assigned ${money(brianAfter)}. Order total unchanged.`);
   console.log('   Verify in the admin UI or re-run this script (it will report ALREADY APPLIED).');
 }
 
