@@ -238,7 +238,7 @@ export function createCommissionPayoutsRouter(prisma) {
 
       const grouped = {};
       payouts.forEach(payout => {
-        const name = payout.itemCommission.commission.salesPersonName;
+        const name = payout.salesPersonName;
         if (!grouped[name]) grouped[name] = { salesPerson: name, payouts: [], total: 0, count: 0 };
         grouped[name].payouts.push(payout);
         grouped[name].total += payout.amount || 0;
@@ -279,7 +279,7 @@ export function createCommissionPayoutsRouter(prisma) {
         },
       });
 
-      const salesPersonName = payout.itemCommission.commission.salesPersonName;
+      const salesPersonName = payout.salesPersonName;
       const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
 
       if (salesAgent) {
@@ -366,7 +366,7 @@ export function createCommissionPayoutsRouter(prisma) {
         },
       });
 
-      const salesPersonName = existingPayout.itemCommission.commission.salesPersonName;
+      const salesPersonName = existingPayout.salesPersonName;
       const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
 
       if (salesAgent) {
@@ -416,7 +416,7 @@ export function createCommissionPayoutsRouter(prisma) {
         },
       });
 
-      const salesPersonName = updatedPayout.itemCommission.commission.salesPersonName;
+      const salesPersonName = updatedPayout.salesPersonName;
       const salesAgent = await prisma.user.findFirst({ where: { name: salesPersonName, isActive: true } });
 
       if (salesAgent) {
@@ -490,7 +490,7 @@ export function createCommissionPayoutsRouter(prisma) {
       });
 
       const totalAmount  = payoutsToApprove.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const salesPersons = [...new Set(payoutsToApprove.map(p => p.itemCommission.commission.salesPersonName))];
+      const salesPersons = [...new Set(payoutsToApprove.map(p => p.salesPersonName))];
 
       await prisma.auditLog.create({
         data: {
@@ -503,7 +503,7 @@ export function createCommissionPayoutsRouter(prisma) {
       // Group by sales person — each agent sees ONLY their own payouts
       const byAgent = {};
       payoutsToApprove.forEach(p => {
-        const n = p.itemCommission.commission.salesPersonName;
+        const n = p.salesPersonName;
         if (!byAgent[n]) byAgent[n] = [];
         byAgent[n].push(p);
       });
@@ -554,7 +554,7 @@ export function createCommissionPayoutsRouter(prisma) {
       });
 
       const totalAmount  = payoutsToPay.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const salesPersons = [...new Set(payoutsToPay.map(p => p.itemCommission.commission.salesPersonName))];
+      const salesPersons = [...new Set(payoutsToPay.map(p => p.salesPersonName))];
 
       await prisma.auditLog.create({
         data: {
@@ -567,7 +567,7 @@ export function createCommissionPayoutsRouter(prisma) {
       // Group by sales person — each agent sees ONLY their own payouts
       const byAgent = {};
       payoutsToPay.forEach(p => {
-        const n = p.itemCommission.commission.salesPersonName;
+        const n = p.salesPersonName;
         if (!byAgent[n]) byAgent[n] = [];
         byAgent[n].push(p);
       });
@@ -618,7 +618,7 @@ export function createCommissionPayoutsRouter(prisma) {
         where: {
           status: 'PAID',
           paidAt: { gte: startDateTime, lte: endDateTime },
-          itemCommission: { commission: { salesPersonName: salesPerson } },
+          salesPersonName: salesPerson,
         },
         include: {
           itemCommission: {

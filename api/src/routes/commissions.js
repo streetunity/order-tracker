@@ -208,11 +208,7 @@ export function createCommissionsRouter(prisma) {
         
         const payouts = await prisma.commissionPayout.findMany({
           where: {
-            itemCommission: {
-              commission: {
-                salesPersonName: req.user.name
-              }
-            },
+            salesPersonName: req.user.name,
             paidAt: {
               gte: startDate,
               lt: endDate
@@ -253,11 +249,7 @@ export function createCommissionsRouter(prisma) {
             gte: new Date(startDate),
             lte: new Date(endDate + 'T23:59:59.999Z'), // Include entire end date
           },
-          itemCommission: {
-            commission: {
-              salesPersonName: req.user.name,
-            },
-          },
+          salesPersonName: req.user.name,
         },
         include: {
           itemCommission: {
