@@ -36,6 +36,7 @@ model Commission {
 
   order           Order?           @relation(fields: [orderId], references: [id])
   itemCommissions ItemCommission[]
+  reps            CommissionRep[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -113,6 +114,11 @@ model CommissionPayout {
   rejectedByName   String?
   rejectionReason  String?
 
+  // Rep attribution — stamped owner of this payout (for split/switch)
+  salesPersonName String?
+  userId          String?
+  commissionRepId String?
+
   itemCommission ItemCommission @relation(fields: [itemCommissionId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -124,6 +130,28 @@ model CommissionPayout {
   @@index([stage])
   @@index([status, createdAt])
   @@index([stage, status])
+  @@index([salesPersonName, status])
+  @@index([commissionRepId])
+}
+
+model CommissionRep {
+  id              String    @id @default(cuid())
+  commissionId    String
+  salesPersonName String
+  userId          String?
+  sharePercentage Float
+  role            String    @default("PRIMARY")
+  isActive        Boolean   @default(true)
+  effectiveFrom   DateTime  @default(now())
+  effectiveTo     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  commission Commission @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+
+  @@index([commissionId])
+  @@index([salesPersonName, isActive])
+  @@index([userId, isActive])
 }
 
 model CommissionRate {
