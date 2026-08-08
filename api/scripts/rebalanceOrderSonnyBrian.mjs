@@ -6,12 +6,12 @@
 // not a split: Sonny keeps only what he already EARNED AND WAS PAID; the account
 // itself and everything going forward becomes Brian's. On this order there is
 // nothing unpaid to move (all payouts are PAID), plus a confirmed correction:
-// the QC stage should have been 40% (not 50%), freeing the final 10% for the new
-// rep. So the operation is:
+// the 2nd paid stage (SMT) should have been 40% (not 50%), freeing the final 10%
+// for the new rep. So the operation is:
 //
-//   Per item (driven by the ACTIVE stage settings, not hard-coded percentages):
+//   Per item (the two existing PAID stages on this order are MANUFACTURING + SMT):
 //     MANUFACTURING 50%  -> Sonny Yee     (PAID, unchanged — earned before switch)
-//     QC            50->40% -> Sonny Yee   (PAID, amount reduced to 40% — earned)
+//     SMT           50->40% -> Sonny Yee   (PAID, amount reduced to 40% — earned)
 //     FOLLOW_UP     10%  -> Brian Maronde (NEW payout, status = BRIAN_STATUS)
 //
 //   Rep pointer:   order.sku + commission.salesPersonName  ->  Brian Maronde
@@ -49,7 +49,9 @@ const ORDER_ID       = 'cmjbwvsp5000yjch14ws9oy5e';
 const EXPECT_OLD_REP  = 'Sonny Yee';
 const NEW_REP         = 'Brian Maronde';
 const NEW_REP_STAGE   = 'FOLLOW_UP';   // the stage assigned to the new rep
-const OLD_REP_KEEPS   = ['MANUFACTURING', 'QC']; // stages that stay with the old rep
+const REDUCE_STAGE    = 'SMT';         // the old rep's 2nd paid stage, reduced 50->40%
+const REDUCE_TARGET_PCT = 40;          // SMT's intended percentage after the correction
+const OLD_REP_KEEPS   = ['MANUFACTURING', 'SMT']; // stages that stay with the old rep (both PAID)
 
 const APPLY        = process.env.APPLY === '1';
 const BRIAN_STATUS = (process.env.BRIAN_STATUS || 'PENDING').toUpperCase();
@@ -88,9 +90,10 @@ async function main() {
   const stagePct = new Map(activeStages.map(s => [s.stage, s.percentage]));
   console.log('Active stage settings:', activeStages.map(s => `${s.stage} ${pct(s.percentage)}`).join(' / '), '\n');
 
-  // Assert the stage config matches what we expect to redistribute against.
+  // The new rep's stage (FOLLOW_UP) must be an active, configured stage.
+  // The old rep's kept stages (MANUFACTURING + SMT) are historical/paid — they
+  // are validated directly against the live payouts below, not against settings.
   if (stagePct.get(NEW_REP_STAGE) == null) fail(`Active stage "${NEW_REP_STAGE}" not configured`);
-  for (const st of OLD_REP_KEEPS) if (stagePct.get(st) == null) fail(`Active stage "${st}" not configured`);
   const brianStagePct = stagePct.get(NEW_REP_STAGE);        // expected 10
   if (Math.abs(brianStagePct - 10) > EPS) fail(`Expected ${NEW_REP_STAGE} = 10%, got ${brianStagePct}%`);
 
@@ -138,9 +141,9 @@ async function main() {
       }
     }
 
-    const qcPayout = byStage.get('QC');
+    const qcPayout = byStage.get(REDUCE_STAGE);
     const qcOldAmt = qcPayout.amount;
-    const qcNewAmt = ic.commissionAmount * (stagePct.get('QC') / 100);   // 40%
+    const qcNewAmt = ic.commissionAmount * (REDUCE_TARGET_PCT / 100);      // 40%
     const brianAmt = ic.commissionAmount * (brianStagePct / 100);         // 10%
 
     // The full item commission must reconcile: 50 + 40 + 10 == 100% of commissionAmount.
@@ -165,7 +168,7 @@ async function main() {
     brianAfter += brianAmt;
     console.log(`  ${ic.productCode.padEnd(12)} commission ${money(ic.commissionAmount)}`);
     console.log(`      MANUFACTURING  50%  ${money(mfg).padStart(12)}  Sonny  (PAID, unchanged)`);
-    console.log(`      QC             50→40%  ${money(qcOldAmt)} → ${money(qcNewAmt)}  Sonny  (PAID, reduced by ${money(qcOldAmt - qcNewAmt)})`);
+    console.log(`      SMT            50→40%  ${money(qcOldAmt)} → ${money(qcNewAmt)}  Sonny  (PAID, reduced by ${money(qcOldAmt - qcNewAmt)})`);
     console.log(`      FOLLOW_UP      10%  ${money(brianAmt).padStart(12)}  Brian  (NEW, ${BRIAN_STATUS})`);
   }
   console.log('─'.repeat(94));
@@ -219,15 +222,15 @@ async function main() {
     await tx.commission.update({ where: { id: commission.id }, data: { salesPersonName: NEW_REP } });
     await tx.order.update({ where: { id: ORDER_ID }, data: { sku: NEW_REP } });
 
-    // 2. Per item: reduce Sonny's QC payout to 40%, create Brian's FOLLOW_UP 10%.
+    // 2. Per item: reduce Sonny's SMT payout to 40%, create Brian's FOLLOW_UP 10%.
     for (const { ic, qcPayout, qcOldAmt, qcNewAmt, brianAmt } of plan) {
       await tx.commissionPayout.update({
         where: { id: qcPayout.id },
         data: {
-          percentage: 40,
+          percentage: REDUCE_TARGET_PCT,
           amount: qcNewAmt,
           notes: ((qcPayout.notes ? qcPayout.notes + ' | ' : '') +
-            `[REBALANCE ${stamp.toISOString().slice(0,10)}] QC 50→40%, ${money(qcOldAmt)}→${money(qcNewAmt)}; 10% (${money(brianAmt)}) reassigned to ${NEW_REP} (FOLLOW_UP).`),
+            `[REBALANCE ${stamp.toISOString().slice(0,10)}] SMT 50→40%, ${money(qcOldAmt)}→${money(qcNewAmt)}; 10% (${money(brianAmt)}) reassigned to ${NEW_REP} (FOLLOW_UP).`),
         },
       });
 
@@ -307,10 +310,9 @@ async function main() {
   console.log('   Verify in the admin UI or re-run this script (it will report ALREADY APPLIED).');
 }
 
-// The two "kept" stages were both 50% at order-creation time; that is the
-// pre-rebalance state we assert against (NOT the current stage settings).
+// The two "kept" stages (MANUFACTURING + SMT) were both 50% at order-creation
+// time; that is the pre-rebalance state we assert against.
 function stagePctExpectedBefore(stage) {
-  // Both MANUFACTURING and QC were created at 50%.
   return 50;
 }
 
