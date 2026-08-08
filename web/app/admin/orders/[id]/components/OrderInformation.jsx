@@ -33,7 +33,10 @@ export default function OrderInformation({
   setOnsiteInstallationDate,
   saveOnsiteInstallationDate,
   isSavingInstallationDate,
-  hasExtendedShipping
+  hasExtendedShipping,
+  salesAgentLocked = false,
+  canSwitchRep = false,
+  onSwitchRepClick
 }) {
   return (
     <section style={{ marginTop: 16, marginBottom: 16 }}>
@@ -88,12 +91,15 @@ export default function OrderInformation({
                 className="input"
                 value={salesAgent}
                 onChange={(e) => setSalesAgent(e.target.value)}
-                onBlur={onSaveSalesAgent}
+                onBlur={salesAgentLocked ? undefined : onSaveSalesAgent}
                 style={{
                   width: "200px",
-                  padding: "8px 12px"
+                  padding: "8px 12px",
+                  opacity: salesAgentLocked ? 0.6 : 1,
+                  cursor: salesAgentLocked ? "not-allowed" : "pointer"
                 }}
-                disabled={isSavingSalesAgent}
+                disabled={isSavingSalesAgent || salesAgentLocked}
+                title={salesAgentLocked ? "This order has a commission. Use Switch Rep to reassign it safely." : undefined}
               >
                 <option value="">Select sales person...</option>
                 {salesAgents.map(agent => (
@@ -103,7 +109,31 @@ export default function OrderInformation({
               {isSavingSalesAgent && (
                 <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
               )}
+              {salesAgentLocked && canSwitchRep && (
+                <button
+                  type="button"
+                  onClick={onSwitchRepClick}
+                  className="btn"
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#2563eb",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  🔁 Switch Rep
+                </button>
+              )}
             </div>
+            {salesAgentLocked && (
+              <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "4px", maxWidth: "260px" }}>
+                Locked — this order has a commission.{canSwitchRep ? " Use Switch Rep to reassign safely." : " A Super Admin/Accountant can reassign it."}
+              </div>
+            )}
           </div>
 
           {/* ETA Date */}
