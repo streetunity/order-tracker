@@ -44,7 +44,10 @@ export function createCommissionsRouter(prisma) {
       const { status, dateFrom, dateTo, year } = req.query;
 
       const whereClause = {
-        salesPersonName: req.user.name,
+        OR: [
+          { salesPersonName: req.user.name },
+          { reps: { some: { salesPersonName: req.user.name } } }
+        ],
         status: status || undefined
       };
 
@@ -133,21 +136,12 @@ export function createCommissionsRouter(prisma) {
       const ytdEnd = new Date(`${year + 1}-01-01`);
       
       // Get all commissions for the year
-      const commissions = await prisma.commission.findMany({
+      const payouts = await prisma.commissionPayout.findMany({
         where: {
           salesPersonName: req.user.name,
-          createdAt: {
-            gte: ytdStart,
-            lt: ytdEnd
-          }
+          itemCommission: { commission: { createdAt: { gte: ytdStart, lt: ytdEnd } } }
         },
-        include: {
-          itemCommissions: {
-            include: {
-              payouts: true
-            }
-          }
-        }
+        select: { amount: true, status: true }
       });
       
       // Calculate totals
@@ -157,28 +151,23 @@ export function createCommissionsRouter(prisma) {
       let totalPaid = 0;
       let totalProjected = 0;
       
-      commissions.forEach(commission => {
-        totalCalculated += commission.totalCommissionAmount || 0;
-        
-        commission.itemCommissions.forEach(itemComm => {
-          itemComm.payouts.forEach(payout => {
-            switch (payout.status) {
-              case 'WAITING':
-                totalProjected += payout.amount || 0;
-                break;
-              case 'PENDING':
-                totalPending += payout.amount || 0;
-                break;
-              case 'APPROVED':
-                totalApproved += payout.amount || 0;
-                break;
-              case 'PAID':
-                totalPaid += payout.amount || 0;
-                break;
-            }
-          });
-        });
+      payouts.forEach(payout => {
+        switch (payout.status) {
+          case 'WAITING':
+            totalProjected += payout.amount || 0;
+            break;
+          case 'PENDING':
+            totalPending += payout.amount || 0;
+            break;
+          case 'APPROVED':
+            totalApproved += payout.amount || 0;
+            break;
+          case 'PAID':
+            totalPaid += payout.amount || 0;
+            break;
+        }
       });
+      totalCalculated = totalProjected + totalPending + totalApproved + totalPaid;
       
       res.json({
         year,
@@ -290,7 +279,7 @@ export function createCommissionsRouter(prisma) {
       
       // Non-admin users can only see their own
       if (!canManageCommissions(req.user.role)) {
-        whereClause.salesPersonName = req.user.name;
+        whereClause.reps = { some: { salesPersonName: req.user.name } };
       }
       
       const commissions = await prisma.commission.findMany({
