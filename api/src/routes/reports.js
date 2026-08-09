@@ -12,7 +12,17 @@ export function createReportsRouter(prisma) {
   function buildRoleBasedOrderWhere(user, additionalWhere = {}) {
     const where = { ...additionalWhere };
     if (user.role === 'AGENT') {
-      where.sku = user.name; // Filter by sales person matching agent's name
+      // An agent sees an order if they are the primary (sku) OR an active rep on a
+      // split commission for that order. Combined with any other filters via AND.
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { sku: user.name },
+            { commissions: { some: { reps: { some: { salesPersonName: user.name, isActive: true } } } } },
+          ],
+        },
+      ];
     }
     return where;
   }
@@ -159,24 +169,37 @@ export function createReportsRouter(prisma) {
       // Apply role-based filtering
       const whereOrder = buildRoleBasedOrderWhere(req.user, buildWhereClause(filters, 'order'));
       
-      const orders = await prisma.order.findMany({ where: whereOrder, include: { items: { where: { itemPrice: { not: null }, ...(filters.productCodes.length > 0 ? { productCode: { in: filters.productCodes } } : {}) }, select: { itemPrice: true, productCode: true } }, account: { select: { name: true } } } });
+      const orders = await prisma.order.findMany({ where: whereOrder, include: { items: { where: { itemPrice: { not: null }, ...(filters.productCodes.length > 0 ? { productCode: { in: filters.productCodes } } : {}) }, select: { itemPrice: true, productCode: true } }, account: { select: { name: true } }, commissions: { select: { reps: { where: { isActive: true }, select: { salesPersonName: true, sharePercentage: true } } } } } });
       const repTotals = new Map();
       const repMonthly = new Map();
       let grandTotal = 0;
       for (const order of orders) {
-        const repName = order.sku || 'Unassigned';
-
-        // Skip inactive reps if filter is on
-        if (activeRepNames && repName !== 'Unassigned' && !activeRepNames.has(repName)) {
-          continue;
+        // Credit each active rep their share of the order. Split orders divide the
+        // order's revenue across active reps by sharePercentage; orders with no rep
+        // records fall back to the primary (order.sku). Fractions sum to 1, so an
+        // order's full revenue is always accounted for.
+        const activeReps = (order.commissions || []).flatMap(c => c.reps || []);
+        let allocations;
+        if (activeReps.length > 0) {
+          const shareSum = activeReps.reduce((s, r) => s + (r.sharePercentage || 0), 0) || 100;
+          allocations = activeReps.map(r => ({ name: r.salesPersonName, fraction: (r.sharePercentage || 0) / shareSum }));
+        } else {
+          allocations = [{ name: order.sku || 'Unassigned', fraction: 1 }];
         }
 
-        const repId = repName.toLowerCase().replace(/\s+/g, '_');
+        // Skip inactive reps if the activeOnly filter is on (per-rep for splits).
+        if (activeRepNames) {
+          allocations = allocations.filter(a => a.name !== 'Unassigned' && activeRepNames.has(a.name));
+        }
+        if (allocations.length === 0) continue;
+
         for (const item of order.items) {
-          if (item.itemPrice) {
-            const amount = item.itemPrice;
+          if (!item.itemPrice) continue;
+          for (const alloc of allocations) {
+            const amount = item.itemPrice * alloc.fraction;
             grandTotal += amount;
-            if (!repTotals.has(repId)) repTotals.set(repId, { repId, repName, total: 0, orderCount: 0, customers: new Set() });
+            const repId = alloc.name.toLowerCase().replace(/\s+/g, '_');
+            if (!repTotals.has(repId)) repTotals.set(repId, { repId, repName: alloc.name, total: 0, orderCount: 0, customers: new Set() });
             const repData = repTotals.get(repId);
             repData.total += amount;
             repData.orderCount += 1;
@@ -306,5 +329,3 @@ export function createReportsRouter(prisma) {
 
   return router;
 }
-
-export default createReportsRouter;
