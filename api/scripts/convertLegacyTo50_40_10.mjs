@@ -7,8 +7,10 @@
 //   - NEW FOLLOW_UP 10%           -> created for the SAME rep, WAITING. Amount = commission x 0.10.
 //
 // SCOPE / SAFETY
-//   * SKIPS the owner's orders (EXCLUDE_REPS, default "Ryan Westcott") — the owner
-//     doesn't take commissions, so there's nothing to convert.
+//   * Converts ALL clean, early, unpaid items regardless of current rep — even the
+//     owner's — because an early order can be switched to a commissioned rep later,
+//     and it should already be in 50/40/10 shape when that happens. (EXCLUDE_REPS is
+//     available to skip specific names, but defaults to none.)
 //   * SKIPS any item whose board stage is at or past FOLLOW_UP (leave finished items alone).
 //   * NEVER touches PAID payouts. Items whose 2nd stage is already PAID are reported as
 //     "needs manual review" and left unchanged (editing recorded payments could overpay a
@@ -32,7 +34,7 @@ const FOLLOWUP_STAGE = 'FOLLOW_UP';
 const STAGES = ['PENDING_FUNDING','MANUFACTURING','TESTING','SHIPPING','AT_SEA','SMT','QC','DELIVERED','ONSITE','COMPLETED','FOLLOW_UP'];
 const IDX = Object.fromEntries(STAGES.map((s,i)=>[s,i]));
 const FU = IDX['FOLLOW_UP'];
-const EXCLUDE_REPS = (process.env.EXCLUDE_REPS || 'Ryan Westcott').split('|').map(s=>s.trim()).filter(Boolean);
+const EXCLUDE_REPS = (process.env.EXCLUDE_REPS || '').split('|').map(s=>s.trim()).filter(Boolean);
 function money(n){ return '$' + Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:3}); }
 
 async function main() {
@@ -139,7 +141,7 @@ async function main() {
   console.log(`CLEAN convert: ${itemsConverted} item(s) across ${ordersTouched} order(s)`);
   console.log(`Total 10% deferred to follow-up: ${money(totalDeferred)}  (per-item totals unchanged)`);
   console.log('Per rep:'); for (const [r,v] of Object.entries(byRep)) console.log(`   ${r.padEnd(18)} ${money(v)}`);
-  console.log(`\nSkipped — owner (${EXCLUDE_REPS.join(', ')}): ${skippedOwner} item(s)`);
+  console.log(`\nSkipped — owner (${EXCLUDE_REPS.join(', ') || 'none'}): ${skippedOwner} item(s)`);
   console.log(`Skipped — item already at/past FOLLOW_UP: ${skippedFollowUp} item(s)`);
   if (grandfathered.length) {
     console.log(`\n⚠ NOT changed — 2nd stage already PAID at 50% (verify per item before any manual fix): ${grandfathered.length}`);
