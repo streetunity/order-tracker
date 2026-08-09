@@ -61,8 +61,7 @@ export default function EditOrderPage({ params }) {
   const [salesAgents, setSalesAgents] = useState([]);
   const [isSavingSalesAgent, setIsSavingSalesAgent] = useState(false);
 
-  // Commission presence (for safe rep switching) + Switch Rep modal
-  const [commission, setCommission] = useState(null);
+  // Switch Rep modal
   const [showSwitchRep, setShowSwitchRep] = useState(false);
 
   const [itemEdits, setItemEdits] = useState({});
@@ -127,22 +126,6 @@ export default function EditOrderPage({ params }) {
       setItemEdits({});
       setDiscount(orderData.discount ? String(orderData.discount) : "");
       setSalesAgent(orderData.sku || "");
-
-      // Load commission (if any) so we can lock the rep dropdown and offer a
-      // safe Switch Rep action. Only Super Admins/Accountants can read it.
-      if (["SUPER_ADMIN", "ACCOUNTANT"].includes(user?.role)) {
-        try {
-          const cRes = await fetch(`/api/commissions/order/${encodeURIComponent(id)}`, {
-            cache: "no-store",
-            headers: getAuthHeaders(),
-          });
-          setCommission(cRes.ok ? await cRes.json() : null);
-        } catch {
-          setCommission(null);
-        }
-      } else {
-        setCommission(null);
-      }
 
       if (orderData.orderDate) {
         const date = new Date(orderData.orderDate);
@@ -608,9 +591,9 @@ export default function EditOrderPage({ params }) {
   const hasExtendedShipping = order?.items?.some(item => item.hasExtendedShipping === true) || false;
 
   // Safe rep-switching: lock the raw Sales Person dropdown once a commission
-  // exists, and expose the Switch Rep action to Super Admins/Accountants only.
+  // exists (all roles), and expose the Switch Rep action to Super Admins/Accountants only.
   const canSwitchRep = ["SUPER_ADMIN", "ACCOUNTANT"].includes(user?.role);
-  const hasCommission = !!commission;
+  const hasCommission = !!order?.hasCommission;
 
   // Tab style helper
   const tabStyle = (tab) => ({

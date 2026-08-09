@@ -41,8 +41,8 @@ export default function OrderInformation({
   return (
     <section style={{ marginTop: 16, marginBottom: 16 }}>
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Order Information</h3>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
-        <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap", flex: 1 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", flex: 1 }}>
           <div>
             <label style={{ display: "block", fontSize: "12px", marginBottom: "4px", color: "#6b7280" }}>
               Order Date *
@@ -116,7 +116,7 @@ export default function OrderInformation({
                   className="btn"
                   style={{
                     padding: "8px 12px",
-                    backgroundColor: "#2563eb",
+                    backgroundColor: "#dc2626",
                     color: "#fff",
                     border: "none",
                     borderRadius: "4px",

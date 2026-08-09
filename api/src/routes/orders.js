@@ -315,10 +315,11 @@ export function createOrdersRouter(prisma) {
           statusEvents: { orderBy: { createdAt: 'asc' } },
           createdBy: {
             select: { id: true, name: true, email: true }
-          }
+          },
+          _count: { select: { commissions: true } }
         }
       });
-      
+
       if (!order) return res.status(404).json({ error: 'Not found' });
       
       // For manufacturers, filter items to only show assigned ones
@@ -342,7 +343,7 @@ export function createOrdersRouter(prisma) {
         take: 10
       });
       
-      res.json({ ...order, internalNotes: order.internalNotes ?? null, auditLogs });
+      res.json({ ...order, hasCommission: (order._count?.commissions || 0) > 0, internalNotes: order.internalNotes ?? null, auditLogs });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
