@@ -43,34 +43,41 @@ export function createCommissionsRouter(prisma) {
     try {
       const { status, dateFrom, dateTo, year } = req.query;
 
-      const whereClause = {
-        OR: [
-          { salesPersonName: req.user.name },
-          { reps: { some: { salesPersonName: req.user.name } } }
-        ],
-        status: status || undefined
-      };
-
-      // Add date filters if provided
+      // Drive "my commissions" off the caller's OWN stamped payouts (not the
+      // parent commission's rep string or its creation date). This keeps the
+      // list correct after a rep switch/split: a rep sees exactly the payouts
+      // that belong to them, dated by the payout itself — so a payout assigned
+      // to a rep this year shows up under this year even on an older order, and
+      // one rep never sees another rep's payouts on a shared/handed-over order.
+      let payoutDate;
       if (dateFrom || dateTo) {
-        whereClause.createdAt = {};
-        if (dateFrom) whereClause.createdAt.gte = new Date(dateFrom);
-        if (dateTo) whereClause.createdAt.lte = new Date(dateTo);
+        payoutDate = {};
+        if (dateFrom) payoutDate.gte = new Date(dateFrom);
+        if (dateTo) payoutDate.lte = new Date(dateTo);
       } else if (year) {
-        // If year is provided, filter by that year
         const yearNum = parseInt(year);
-        whereClause.createdAt = {
+        payoutDate = {
           gte: new Date(`${yearNum}-01-01`),
           lt: new Date(`${yearNum + 1}-01-01`)
         };
       }
 
+      // The caller's own payouts, within the window and (optionally) a status.
+      const ownedPayoutWhere = {
+        salesPersonName: req.user.name,
+        ...(payoutDate ? { createdAt: payoutDate } : {}),
+        ...(status ? { status } : {})
+      };
+
       const commissions = await prisma.commission.findMany({
-        where: whereClause,
+        where: {
+          itemCommissions: { some: { payouts: { some: ownedPayoutWhere } } }
+        },
         include: {
           itemCommissions: {
             include: {
               payouts: {
+                where: ownedPayoutWhere,
                 orderBy: { stage: 'asc' }
               },
               item: {
@@ -95,7 +102,7 @@ export function createCommissionsRouter(prisma) {
         orderBy: { createdAt: 'desc' }
       });
 
-      // Add computed payout status for each commission
+      // Add computed payout status for each commission (over the caller's own payouts)
       const commissionsWithStatus = commissions.map(commission => {
         // Collect all payouts from all item commissions
         const allPayouts = commission.itemCommissions.flatMap(ic => ic.payouts || []);
@@ -135,11 +142,14 @@ export function createCommissionsRouter(prisma) {
       const ytdStart = new Date(`${year}-01-01`);
       const ytdEnd = new Date(`${year + 1}-01-01`);
       
-      // Get all commissions for the year
+      // Sum the caller's OWN payouts, dated by the payout itself (not the parent
+      // commission's creation date). This matches the /my list and keeps totals
+      // correct after a rep switch: a payout assigned to a rep this year counts
+      // toward this year even if the underlying order is older.
       const payouts = await prisma.commissionPayout.findMany({
         where: {
           salesPersonName: req.user.name,
-          itemCommission: { commission: { createdAt: { gte: ytdStart, lt: ytdEnd } } }
+          createdAt: { gte: ytdStart, lt: ytdEnd }
         },
         select: { amount: true, status: true }
       });
