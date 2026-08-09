@@ -13,6 +13,7 @@ import UnorderDialog from "./components/UnorderDialog";
 import ItemsTable from "./components/ItemsTable";
 import OrderInformation from "./components/OrderInformation";
 import InternalNotesSection from "./components/InternalNotesSection";
+import SwitchRepModal from "./components/SwitchRepModal";
 
 // Import API services
 import { orderApi, itemApi } from "./services/orderApi";
@@ -59,6 +60,10 @@ export default function EditOrderPage({ params }) {
   const [salesAgent, setSalesAgent] = useState("");
   const [salesAgents, setSalesAgents] = useState([]);
   const [isSavingSalesAgent, setIsSavingSalesAgent] = useState(false);
+
+  // Commission presence (for safe rep switching) + Switch Rep modal
+  const [commission, setCommission] = useState(null);
+  const [showSwitchRep, setShowSwitchRep] = useState(false);
 
   const [itemEdits, setItemEdits] = useState({});
   const [manufacturers, setManufacturers] = useState([]);
@@ -122,7 +127,23 @@ export default function EditOrderPage({ params }) {
       setItemEdits({});
       setDiscount(orderData.discount ? String(orderData.discount) : "");
       setSalesAgent(orderData.sku || "");
-      
+
+      // Load commission (if any) so we can lock the rep dropdown and offer a
+      // safe Switch Rep action. Only Super Admins/Accountants can read it.
+      if (["SUPER_ADMIN", "ACCOUNTANT"].includes(user?.role)) {
+        try {
+          const cRes = await fetch(`/api/commissions/order/${encodeURIComponent(id)}`, {
+            cache: "no-store",
+            headers: getAuthHeaders(),
+          });
+          setCommission(cRes.ok ? await cRes.json() : null);
+        } catch {
+          setCommission(null);
+        }
+      } else {
+        setCommission(null);
+      }
+
       if (orderData.orderDate) {
         const date = new Date(orderData.orderDate);
         const formatted = date.toISOString().split('T')[0];
@@ -586,6 +607,11 @@ export default function EditOrderPage({ params }) {
 
   const hasExtendedShipping = order?.items?.some(item => item.hasExtendedShipping === true) || false;
 
+  // Safe rep-switching: lock the raw Sales Person dropdown once a commission
+  // exists, and expose the Switch Rep action to Super Admins/Accountants only.
+  const canSwitchRep = ["SUPER_ADMIN", "ACCOUNTANT"].includes(user?.role);
+  const hasCommission = !!commission;
+
   // Tab style helper
   const tabStyle = (tab) => ({
     padding: "10px 20px",
@@ -800,6 +826,9 @@ export default function EditOrderPage({ params }) {
               saveOnsiteInstallationDate={saveOnsiteInstallationDate}
               isSavingInstallationDate={isSavingInstallationDate}
               hasExtendedShipping={hasExtendedShipping}
+              salesAgentLocked={hasCommission}
+              canSwitchRep={canSwitchRep}
+              onSwitchRepClick={() => setShowSwitchRep(true)}
             />
 
             <ItemsTable
@@ -958,6 +987,16 @@ export default function EditOrderPage({ params }) {
           onCancel={() => { setShowUnorderDialog(false); setUnorderReason(""); setUnorderingItemId(null); }}
           onUnorder={unmarkItemOrdered}
           saving={saving}
+        />
+
+        <SwitchRepModal
+          show={showSwitchRep && canSwitchRep}
+          onClose={() => setShowSwitchRep(false)}
+          orderId={order.id}
+          currentRep={salesAgent}
+          salesAgents={salesAgents}
+          getAuthHeaders={getAuthHeaders}
+          onDone={async () => { await load(); }}
         />
 
         {/* Delete Confirmation Dialog */}
