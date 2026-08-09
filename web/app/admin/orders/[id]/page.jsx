@@ -990,9 +990,9 @@ export default function EditOrderPage({ params }) {
         />
 
         <SwitchRepModal
-          show={showSwitchRep && canSwitchRep}
+          show={showSwitchRep && canSwitchRep && !!order}
           onClose={() => setShowSwitchRep(false)}
-          orderId={order.id}
+          orderId={order?.id}
           currentRep={salesAgent}
           salesAgents={salesAgents}
           getAuthHeaders={getAuthHeaders}
