@@ -7,10 +7,12 @@
 //   - NEW FOLLOW_UP 10%           -> created for the SAME rep, WAITING. Amount = commission x 0.10.
 //
 // SCOPE / SAFETY
+//   * SKIPS the owner's orders (EXCLUDE_REPS, default "Ryan Westcott") — the owner
+//     doesn't take commissions, so there's nothing to convert.
 //   * SKIPS any item whose board stage is at or past FOLLOW_UP (leave finished items alone).
 //   * NEVER touches PAID payouts. Items whose 2nd stage is already PAID are reported as
-//     "grandfathered / needs manual review" and left unchanged (editing recorded payments
-//     could overpay a rep who already received the full 50% — do those by hand after verifying).
+//     "needs manual review" and left unchanged (editing recorded payments could overpay a
+//     rep who already received the full 50% — do those by hand after verifying).
 //   * DRY RUN by default. Prints the full plan; writes nothing unless APPLY=1.
 //   * Per-commission transaction. Idempotent (items that already have a FOLLOW_UP are skipped).
 //   * Same rep throughout — NOT a rep switch.
@@ -18,6 +20,7 @@
 // RUN (from /var/www/order-tracker/api, AFTER a fresh DB backup):
 //   node scripts/convertLegacyTo50_40_10.mjs            # dry run
 //   APPLY=1 node scripts/convertLegacyTo50_40_10.mjs    # commit
+//   EXCLUDE_REPS="Ryan Westcott|Jane Doe" node ...      # customize who to skip
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 
@@ -29,10 +32,12 @@ const FOLLOWUP_STAGE = 'FOLLOW_UP';
 const STAGES = ['PENDING_FUNDING','MANUFACTURING','TESTING','SHIPPING','AT_SEA','SMT','QC','DELIVERED','ONSITE','COMPLETED','FOLLOW_UP'];
 const IDX = Object.fromEntries(STAGES.map((s,i)=>[s,i]));
 const FU = IDX['FOLLOW_UP'];
+const EXCLUDE_REPS = (process.env.EXCLUDE_REPS || 'Ryan Westcott').split('|').map(s=>s.trim()).filter(Boolean);
 function money(n){ return '$' + Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:3}); }
 
 async function main() {
   console.log(APPLY ? 'MODE: APPLY (committing)\n' : 'MODE: DRY RUN (no writes; pass APPLY=1 to commit)\n');
+  console.log('Excluding rep(s):', EXCLUDE_REPS.join(', ') || '(none)', '\n');
 
   const commissions = await prisma.commission.findMany({
     include: {
@@ -44,7 +49,7 @@ async function main() {
   });
 
   let ordersTouched = 0, itemsConverted = 0, totalDeferred = 0;
-  let skippedFollowUp = 0;
+  let skippedFollowUp = 0, skippedOwner = 0;
   const grandfathered = [];   // items whose SMT already PAID (needs manual review; NOT changed)
   const needsReview = [];     // items with APPROVED/REJECTED 2nd stage
   const byRep = {};
@@ -62,13 +67,16 @@ async function main() {
       if (!mfg || !smt) continue;
       if (Math.abs(mfg.percentage - 50) > EPS || Math.abs(smt.percentage - 50) > EPS) continue;
 
+      // Skip the owner's orders (doesn't take commissions).
+      if (EXCLUDE_REPS.includes(smt.salesPersonName)) { skippedOwner++; continue; }
+
       // Skip anything already at (or past) the follow-up stage — leave finished items alone.
       const itemStage = ic.item?.currentStage || 'MANUFACTURING';
       if ((IDX[itemStage] ?? 1) >= FU) { skippedFollowUp++; continue; }
 
       if (smt.status === 'PAID') { grandfathered.push({ order:c.order, code:ic.productCode, amt:smt.amount, stage:itemStage }); continue; }
       if (smt.status === 'APPROVED' || smt.status === 'REJECTED') { needsReview.push({ order:c.order, code:ic.productCode, status:smt.status }); continue; }
-      // CLEAN: SMT is WAITING or PENDING and item not at follow-up.
+      // CLEAN: SMT is WAITING or PENDING, not the owner, not at follow-up.
       const newSmt = ic.commissionAmount * 0.40;
       const followAmt = ic.commissionAmount * 0.10;
       plan.push({ ic, smt, newSmt, followAmt });
@@ -131,7 +139,8 @@ async function main() {
   console.log(`CLEAN convert: ${itemsConverted} item(s) across ${ordersTouched} order(s)`);
   console.log(`Total 10% deferred to follow-up: ${money(totalDeferred)}  (per-item totals unchanged)`);
   console.log('Per rep:'); for (const [r,v] of Object.entries(byRep)) console.log(`   ${r.padEnd(18)} ${money(v)}`);
-  console.log(`\nSkipped — item already at/past FOLLOW_UP: ${skippedFollowUp} item(s) (left untouched)`);
+  console.log(`\nSkipped — owner (${EXCLUDE_REPS.join(', ')}): ${skippedOwner} item(s)`);
+  console.log(`Skipped — item already at/past FOLLOW_UP: ${skippedFollowUp} item(s)`);
   if (grandfathered.length) {
     console.log(`\n⚠ NOT changed — 2nd stage already PAID at 50% (verify per item before any manual fix): ${grandfathered.length}`);
     for (const g of grandfathered) console.log(`   ${(g.order?.account?.name||'?').slice(0,26).padEnd(26)} ${g.code}  (recorded ${money(g.amt)}, item@${g.stage})`);
