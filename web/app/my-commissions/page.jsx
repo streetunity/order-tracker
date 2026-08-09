@@ -144,10 +144,13 @@ export default function MyCommissionsPage() {
     return stageIndex >= 0 ? toOrdinal(stageIndex + 1) : stageName;
   };
 
-  // Calculate applied commission percentage per stage
-  const getAppliedCommissionPercent = (commissionRate) => {
-    if (stageSettings.length === 0) return commissionRate.toFixed(2);
-    return (commissionRate / stageSettings.length).toFixed(2);
+  // Applied commission % for a single payout = order rate × that stage's weight.
+  // (e.g. 5% order rate on a 50% stage = 2.50%, on a 10% stage = 0.50%.)
+  const getAppliedCommissionPercent = (payout) => {
+    const rate = Number(payout?.commissionRate) || 0;
+    const stagePct = Number(payout?.percentage);
+    if (!Number.isFinite(stagePct)) return rate.toFixed(2);
+    return ((rate * stagePct) / 100).toFixed(2);
   };
 
   // Get status badge class
@@ -430,6 +433,7 @@ export default function MyCommissionsPage() {
                   className="filter-select"
                 >
                   <option value="all">All Status</option>
+                  <option value="WAITING">Waiting</option>
                   <option value="PENDING">Pending</option>
                   <option value="APPROVED">Approved</option>
                   <option value="PAID">Paid</option>
@@ -467,7 +471,7 @@ export default function MyCommissionsPage() {
                           <td>{payout.productCode || '-'}</td>
                           <td>{formatDate(payout.orderDate)}</td>
                           <td>{getStageNumber(payout.stage)}</td>
-                          <td>{getAppliedCommissionPercent(payout.commissionRate)}%</td>
+                          <td>{getAppliedCommissionPercent(payout)}%</td>
                           <td className="commission-amount">{formatCurrency(payout.amount)}</td>
                           <td>
                             <span className={`status-badge ${getStatusClass(payout.status)}`}>
