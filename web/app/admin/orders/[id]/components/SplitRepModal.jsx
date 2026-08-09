@@ -101,11 +101,6 @@ export default function SplitRepModal({
     padding: "8px 10px", background: "#252525", border: "1px solid #404040",
     borderRadius: "6px", marginBottom: "6px", fontSize: "14px", color: "#e4e4e4",
   };
-  // Shared control style so the "add rep" checkboxes and "primary" radios match
-  // (same red accent + size). Checkbox stays square / radio stays round to signal
-  // multi-select vs pick-one.
-  const control = { accentColor: "#dc2626", width: "16px", height: "16px", flexShrink: 0, cursor: submitting ? "not-allowed" : "pointer" };
-
   const otherAgents = salesAgents.filter((a) => a.name !== currentRep);
 
   return (
@@ -169,7 +164,6 @@ export default function SplitRepModal({
                       checked={others.includes(a.name)}
                       onChange={() => toggleOther(a.name)}
                       disabled={submitting}
-                      style={control}
                     />
                     {a.name}
                   </label>
@@ -189,7 +183,6 @@ export default function SplitRepModal({
                       checked={primary === name}
                       onChange={() => setPrimary(name)}
                       disabled={submitting}
-                      style={control}
                     />
                     {name}
                     {primary === name && (
