@@ -32,10 +32,19 @@ export function createOrdersRouter(prisma) {
       return where;
     }
 
-    // AGENTS: Only show orders where sku (sales person) matches their name
+    // AGENTS: see orders where they are the primary (sku) OR an active rep on a
+    // split commission for that order. Combined with any other filters via AND.
     if (user.role === 'AGENT') {
-      where.sku = user.name;
-      console.log(`[AGENT FILTER] User: ${user.name}, Role: ${user.role}, Filtering orders by sku: ${user.name}`);
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { sku: user.name },
+            { commissions: { some: { reps: { some: { salesPersonName: user.name, isActive: true } } } } },
+          ],
+        },
+      ];
+      console.log(`[AGENT FILTER] User: ${user.name}, Role: ${user.role}, sku or active split rep`);
     }
 
     // BROKERS: Can see all orders (read-only access, similar to ADMIN viewing)
@@ -78,20 +87,22 @@ export function createOrdersRouter(prisma) {
       return hasAccess;
     }
     
-    // Agents: Check if order's sales person matches their name
+    // Agents: allowed if they are the primary (sku) OR an active rep on a split.
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { sku: true }
+      select: { sku: true, commissions: { select: { reps: { where: { isActive: true }, select: { salesPersonName: true } } } } }
     });
-    
+
     if (!order) return false;
-    
-    const hasAccess = order.sku === user.name;
-    
+
+    const isPrimary = order.sku === user.name;
+    const isActiveRep = (order.commissions || []).some(c => (c.reps || []).some(r => r.salesPersonName === user.name));
+    const hasAccess = isPrimary || isActiveRep;
+
     if (!hasAccess) {
       console.log(`[ACCESS DENIED] Agent ${user.name} tried to access order with sku: ${order.sku}`);
     }
-    
+
     return hasAccess;
   }
 
@@ -316,7 +327,8 @@ export function createOrdersRouter(prisma) {
           createdBy: {
             select: { id: true, name: true, email: true }
           },
-          _count: { select: { commissions: true } }
+          _count: { select: { commissions: true } },
+          commissions: { select: { reps: { where: { isActive: true }, orderBy: { role: 'asc' }, select: { salesPersonName: true, sharePercentage: true, role: true } } } }
         }
       });
 
@@ -343,7 +355,9 @@ export function createOrdersRouter(prisma) {
         take: 10
       });
       
-      res.json({ ...order, hasCommission: (order._count?.commissions || 0) > 0, internalNotes: order.internalNotes ?? null, auditLogs });
+      const { commissions: _omitCommissions, ...orderRest } = order;
+      const activeCommissionReps = (order.commissions || []).flatMap(c => c.reps || []);
+      res.json({ ...orderRest, hasCommission: (order._count?.commissions || 0) > 0, commissionReps: activeCommissionReps, activeRepCount: activeCommissionReps.length, internalNotes: order.internalNotes ?? null, auditLogs });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }

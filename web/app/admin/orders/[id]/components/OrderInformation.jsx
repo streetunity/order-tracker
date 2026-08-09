@@ -37,8 +37,11 @@ export default function OrderInformation({
   salesAgentLocked = false,
   canSwitchRep = false,
   onSwitchRepClick,
-  onSplitRepClick
+  onSplitRepClick,
+  activeRepCount = 0,
+  onManageRepsClick
 }) {
+  const isSplit = activeRepCount >= 2;
   return (
     <section style={{ marginTop: 16, marginBottom: 16 }}>
       <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Order Information</h3>
@@ -110,7 +113,7 @@ export default function OrderInformation({
               {isSavingSalesAgent && (
                 <span style={{ fontSize: "12px", color: "#6b7280" }}>Saving...</span>
               )}
-              {salesAgentLocked && canSwitchRep && (
+              {salesAgentLocked && canSwitchRep && !isSplit && (
                 <button
                   type="button"
                   onClick={onSwitchRepClick}
@@ -129,7 +132,7 @@ export default function OrderInformation({
                   🔁 Switch Rep
                 </button>
               )}
-              {salesAgentLocked && canSwitchRep && onSplitRepClick && (
+              {salesAgentLocked && canSwitchRep && onSplitRepClick && !isSplit && (
                 <button
                   type="button"
                   onClick={onSplitRepClick}
@@ -146,6 +149,25 @@ export default function OrderInformation({
                   }}
                 >
                   ➕ Split
+                </button>
+              )}
+              {salesAgentLocked && canSwitchRep && isSplit && onManageRepsClick && (
+                <button
+                  type="button"
+                  onClick={onManageRepsClick}
+                  className="btn"
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#2563eb",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  👥 Manage Reps ({activeRepCount})
                 </button>
               )}
             </div>
