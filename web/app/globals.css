@@ -95,6 +95,54 @@ input[type="checkbox"]:disabled {
   cursor: not-allowed;
 }
 
+/* Radio styling - RED THEME (mirrors the checkbox above, round with a filled dot) */
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #6b7280;
+  border-radius: 50%;
+  background-color: #1a1a1a !important;
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+  margin: 0;
+  transition: all 0.2s;
+}
+
+input[type="radio"]:hover {
+  border-color: #9ca3af;
+  background-color: #1e1e1e !important;
+}
+
+input[type="radio"]:checked {
+  border-color: #ef4444;
+}
+
+input[type="radio"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  transform: translate(-50%, -50%);
+}
+
+input[type="radio"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input[type="radio"]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent) !important;
+}
+
 /* Override any browser autofill colors */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 

@@ -14,6 +14,7 @@ import ItemsTable from "./components/ItemsTable";
 import OrderInformation from "./components/OrderInformation";
 import InternalNotesSection from "./components/InternalNotesSection";
 import SwitchRepModal from "./components/SwitchRepModal";
+import SplitRepModal from "./components/SplitRepModal";
 
 // Import API services
 import { orderApi, itemApi } from "./services/orderApi";
@@ -63,6 +64,7 @@ export default function EditOrderPage({ params }) {
 
   // Switch Rep modal
   const [showSwitchRep, setShowSwitchRep] = useState(false);
+  const [showSplitRep, setShowSplitRep] = useState(false);
 
   const [itemEdits, setItemEdits] = useState({});
   const [manufacturers, setManufacturers] = useState([]);
@@ -812,6 +814,7 @@ export default function EditOrderPage({ params }) {
               salesAgentLocked={hasCommission}
               canSwitchRep={canSwitchRep}
               onSwitchRepClick={() => setShowSwitchRep(true)}
+              onSplitRepClick={() => setShowSplitRep(true)}
             />
 
             <ItemsTable
@@ -975,6 +978,16 @@ export default function EditOrderPage({ params }) {
         <SwitchRepModal
           show={showSwitchRep && canSwitchRep && !!order}
           onClose={() => setShowSwitchRep(false)}
+          orderId={order?.id}
+          currentRep={salesAgent}
+          salesAgents={salesAgents}
+          getAuthHeaders={getAuthHeaders}
+          onDone={async () => { await load(); }}
+        />
+
+        <SplitRepModal
+          show={showSplitRep && canSwitchRep && !!order}
+          onClose={() => setShowSplitRep(false)}
           orderId={order?.id}
           currentRep={salesAgent}
           salesAgents={salesAgents}

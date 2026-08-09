@@ -36,7 +36,8 @@ export default function OrderInformation({
   hasExtendedShipping,
   salesAgentLocked = false,
   canSwitchRep = false,
-  onSwitchRepClick
+  onSwitchRepClick,
+  onSplitRepClick
 }) {
   return (
     <section style={{ marginTop: 16, marginBottom: 16 }}>
@@ -126,6 +127,25 @@ export default function OrderInformation({
                   }}
                 >
                   🔁 Switch Rep
+                </button>
+              )}
+              {salesAgentLocked && canSwitchRep && onSplitRepClick && (
+                <button
+                  type="button"
+                  onClick={onSplitRepClick}
+                  className="btn"
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#dc2626",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  ➕ Split
                 </button>
               )}
             </div>

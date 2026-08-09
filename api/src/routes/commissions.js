@@ -1,6 +1,7 @@
 import express from 'express';
 import { authGuard, adminGuard } from '../middleware/auth.js';
 import { recalculateAllCommissions, calculateCommissionForOrder } from '../helpers/commission.js';
+import { mountCommissionSplitRoute } from './commissionSplitRoute.js';
 
 export function createCommissionsRouter(prisma) {
   const router = express.Router();
@@ -1174,6 +1175,8 @@ export function createCommissionsRouter(prisma) {
       res.status(500).json({ error: error.message || 'Failed to switch rep' });
     }
   });
+
+  mountCommissionSplitRoute(router, { prisma, adminGuard, canManageCommissions });
 
   return router;
 }

@@ -197,3 +197,20 @@ api/prisma/dev.db*
 *.local.*
 
 api/prisma/migrations/20250921184141_mez/
+
+# --- keep secrets / backups / build junk out of git ---
+.env
+.env.*
+web/.env.local
+*.db
+*.db.backup*
+*.local-backup
+*.pre-postgres-cutover*
+api/prisma/journal_recovery.txt
+api/prisma/recovered_data.sql
+api/prisma/recovery_attempt.sql
+web/aws/
+web/awscliv2.zip
+web/next
+web/manufacturing-tracker-web@*
+node_modules/
