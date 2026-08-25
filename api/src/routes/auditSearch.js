@@ -272,6 +272,174 @@ export function createAuditSearchRouter() {
     }
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Emails tab — every email the system sends.
+  //
+  // Emails are recorded in two tables with different lifecycles (kept separate
+  // by design): AlertEmailLog (system/notification emails — stage moves, broker
+  // digests, commission approvals, surveys, install confirmations) and EmailLog
+  // (invoicing emails — invoices and estimates, with open/bounce tracking).
+  // This endpoint returns a normalized, paginated union of both so they show up
+  // together on the audit history "Emails" tab. Read-only.
+  // ───────────────────────────────────────────────────────────────────────────
+  router.get('/emails', async (req, res) => {
+    try {
+      const { page = 1, limit = 50, startDate, endDate, search } = req.query;
+
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+      const skip = (pageNum - 1) * limitNum;
+
+      // Shared date-range filter on sentAt.
+      const dateFilter = {};
+      if (startDate) dateFilter.gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setDate(end.getDate() + 1); // include the whole end day
+        dateFilter.lt = end;
+      }
+      const hasDate = Object.keys(dateFilter).length > 0;
+
+      const term = search && search.trim() ? search.trim() : null;
+
+      // Where clause for AlertEmailLog (system/notification emails).
+      const alertWhere = { AND: [] };
+      if (hasDate) alertWhere.AND.push({ sentAt: dateFilter });
+      if (term) {
+        alertWhere.AND.push({
+          OR: [
+            { toEmail: { contains: term, mode: 'insensitive' } },
+            { fromEmail: { contains: term, mode: 'insensitive' } },
+            { toName: { contains: term, mode: 'insensitive' } },
+            { fromName: { contains: term, mode: 'insensitive' } },
+            { subject: { contains: term, mode: 'insensitive' } },
+            { category: { contains: term, mode: 'insensitive' } },
+            { status: { contains: term, mode: 'insensitive' } },
+            { triggeredByName: { contains: term, mode: 'insensitive' } },
+          ],
+        });
+      }
+
+      // Where clause for EmailLog (invoicing emails).
+      const invoiceWhere = { AND: [] };
+      if (hasDate) invoiceWhere.AND.push({ sentAt: dateFilter });
+      if (term) {
+        invoiceWhere.AND.push({
+          OR: [
+            { toEmail: { contains: term, mode: 'insensitive' } },
+            { fromEmail: { contains: term, mode: 'insensitive' } },
+            { subject: { contains: term, mode: 'insensitive' } },
+            { status: { contains: term, mode: 'insensitive' } },
+          ],
+        });
+      }
+
+      // Two-source offset pagination: count both, over-fetch (skip+limit) from
+      // each, merge, sort by sentAt desc, then slice the requested window.
+      const [alertCount, invoiceCount, alertRows, invoiceRows] = await Promise.all([
+        prisma.alertEmailLog.count({ where: alertWhere }),
+        prisma.emailLog.count({ where: invoiceWhere }),
+        prisma.alertEmailLog.findMany({
+          where: alertWhere,
+          orderBy: { sentAt: 'desc' },
+          take: skip + limitNum,
+        }),
+        prisma.emailLog.findMany({
+          where: invoiceWhere,
+          orderBy: { sentAt: 'desc' },
+          take: skip + limitNum,
+          include: {
+            sentBy: { select: { name: true, email: true } },
+            invoice: { select: { invoiceNumber: true } },
+            estimate: { select: { estimateNumber: true } },
+          },
+        }),
+      ]);
+
+      const totalCount = alertCount + invoiceCount;
+
+      // Normalize AlertEmailLog rows.
+      const normalizedAlerts = alertRows.map((r) => {
+        let metadata = {};
+        try { if (r.metadata) metadata = JSON.parse(r.metadata); } catch {}
+        return {
+          id: `alert:${r.id}`,
+          source: 'alert',
+          entityType: 'Email',
+          timestamp: r.sentAt,
+          action: r.status === 'FAILED' ? 'EMAIL_FAILED' : 'EMAIL_SENT',
+          status: r.status,
+          category: r.category || 'NOTIFICATION',
+          fromEmail: r.fromEmail,
+          fromName: r.fromName,
+          toEmail: r.toEmail,
+          toName: r.toName,
+          subject: r.subject,
+          sesMessageId: r.sesMessageId,
+          errorMessage: r.errorMessage,
+          orderId: r.orderId,
+          orderItemId: r.orderItemId,
+          relatedType: null,
+          relatedNumber: null,
+          performedByName: r.triggeredByName || 'System',
+          metadata,
+        };
+      });
+
+      // Normalize EmailLog (invoicing) rows.
+      const normalizedInvoices = invoiceRows.map((r) => {
+        const relatedType = r.invoiceId ? 'Invoice' : r.estimateId ? 'Estimate' : null;
+        const relatedNumber = r.invoice?.invoiceNumber || r.estimate?.estimateNumber || null;
+        return {
+          id: `invoice:${r.id}`,
+          source: 'invoicing',
+          entityType: 'Email',
+          timestamp: r.sentAt,
+          action: r.status === 'FAILED' ? 'EMAIL_FAILED' : 'EMAIL_SENT',
+          status: r.status,
+          category: relatedType ? relatedType.toUpperCase() : 'INVOICING',
+          fromEmail: r.fromEmail,
+          fromName: null,
+          toEmail: r.toEmail,
+          toName: null,
+          subject: r.subject,
+          sesMessageId: r.sesMessageId,
+          errorMessage: null,
+          orderId: null,
+          orderItemId: null,
+          relatedType,
+          relatedNumber,
+          performedByName: r.sentBy?.name || r.sentBy?.email || 'System',
+          metadata: {
+            openedAt: r.openedAt || null,
+            deliveredAt: r.deliveredAt || null,
+            bouncedAt: r.bouncedAt || null,
+          },
+        };
+      });
+
+      // Merge, sort by timestamp desc, and slice the requested page window.
+      const merged = [...normalizedAlerts, ...normalizedInvoices].sort(
+        (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+      );
+      const pageItems = merged.slice(skip, skip + limitNum);
+
+      res.json({
+        logs: pageItems,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          totalCount,
+          totalPages: Math.ceil(totalCount / limitNum),
+          hasMore: skip + pageItems.length < totalCount,
+        },
+      });
+    } catch (e) {
+      console.error('Audit emails fetch error:', e);
+      res.status(500).json({ error: 'Failed to fetch email log', details: e.message });
+    }
+  });
+
   return router;
 }
 
