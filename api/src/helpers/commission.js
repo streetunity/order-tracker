@@ -3,6 +3,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { STAGES, STAGE_INDEX } from '../state.js';
+import { logAlertEmail } from '../services/alertEmailLogger.js';
 
 const prisma = new PrismaClient();
 
@@ -583,8 +584,23 @@ async function sendPendingApprovalEmail(adminUser, { agentName, customerName, it
     }
 
     const fromEmail = process.env.SES_FROM_EMAIL || 'orders@stealthlaser.com';
-    await emailService.sendEmail({ to: adminUser.email, from: fromEmail, fromName: companyName, subject, html });
+    const result = await emailService.sendEmail({ to: adminUser.email, from: fromEmail, fromName: companyName, subject, html });
     console.log(`[EMAIL] Pending approval notification sent to ${adminUser.email} (agent: ${agentName})`);
+
+    // Record on the audit log's Emails tab. Fire-and-forget.
+    logAlertEmail({
+      category: 'COMMISSION_APPROVAL',
+      fromEmail,
+      fromName: companyName,
+      toEmail: adminUser.email,
+      toName: adminUser.name,
+      subject,
+      status: result?.success ? 'SENT' : 'FAILED',
+      errorMessage: result?.success ? null : result?.error,
+      sesMessageId: result?.messageId || null,
+      recipientUserId: adminUser.id,
+      metadata: { agentName, customerName, itemName },
+    });
   } catch (err) {
     console.error('[EMAIL] Failed to send pending approval email:', err.message);
   }
