@@ -5,6 +5,19 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDateString, toOrdinal } from "./formatters";
 
+// The rep who actually earned the payout, not the order's current rep.
+const payeeOf = (p) => p.salesPersonName || p.itemCommission?.commission?.salesPersonName || null;
+
+// That payout's stage weight as a percentage. Prefer the value stored on the
+// payout; fall back to an even split across that item's own payout rows so a
+// legacy 2-phase row is not divided by today's stage count.
+const stagePercentOf = (p, stageSettings) => {
+  const pct = Number(p.percentage);
+  if (Number.isFinite(pct)) return pct;
+  const n = Number.isInteger(p.phaseCount) && p.phaseCount > 0 ? p.phaseCount : stageSettings.length;
+  return n > 0 ? 100 / n : 100;
+};
+
 const addSignatureSection = (doc, startY) => {
   doc.setFontSize(11);
   doc.setFont(undefined, "normal");
@@ -51,8 +64,7 @@ export async function generateAgentPdfReport({ pdfAgent, pdfStartDate, pdfEndDat
       ? matchIdx + 1
       : (Number.isInteger(p.phaseIndex) ? Math.min(p.phaseIndex, stageSettings.length - 1) + 1 : 0);
     const cr = p.itemCommission?.commission?.commissionRate || 0;
-    const pctShare = (p.percentage != null) ? p.percentage : (stageSettings.length > 0 ? 100 / stageSettings.length : 100);
-    const acp = (cr * pctShare / 100).toFixed(2);
+    const acp = (cr * stagePercentOf(p, stageSettings) / 100).toFixed(2);
     return [
       p.itemCommission?.commission?.order?.account?.name || "N/A",
       p.itemCommission?.productCode || "N/A",
@@ -99,7 +111,7 @@ export async function generateSelectedPdfReport({ items, stageSettings }) {
   doc.setFontSize(18); doc.setFont(undefined, "bold");
   doc.text("Commission Payout Report", 14, 20);
 
-  const reps = [...new Set(items.map(p => p.itemCommission?.commission?.salesPersonName).filter(Boolean))];
+  const reps = [...new Set(items.map(payeeOf).filter(Boolean))];
   const repText = reps.length === 1 ? reps[0] : `${reps.length} Sales Reps`;
   const dates = items.map(p => new Date(p.paidAt)).sort((a, b) => a - b);
 
@@ -117,12 +129,11 @@ export async function generateSelectedPdfReport({ items, stageSettings }) {
       ? matchIdx + 1
       : (Number.isInteger(p.phaseIndex) ? Math.min(p.phaseIndex, stageSettings.length - 1) + 1 : 0);
     const cr = p.itemCommission?.commission?.commissionRate || 0;
-    const pctShare = (p.percentage != null) ? p.percentage : (stageSettings.length > 0 ? 100 / stageSettings.length : 100);
-    const acp = (cr * pctShare / 100).toFixed(2);
+    const acp = (cr * stagePercentOf(p, stageSettings) / 100).toFixed(2);
     return [
       p.itemCommission?.commission?.order?.account?.name || "N/A",
       p.itemCommission?.productCode || "N/A",
-      p.itemCommission?.commission?.salesPersonName || "N/A",
+      payeeOf(p) || "N/A",
       pn > 0 ? toOrdinal(pn) : "N/A",
       `$${parseFloat(p.amount || 0).toFixed(2)}`,
       `${acp}%`,
