@@ -66,8 +66,8 @@ export async function sendInstallEmail(prisma, { calendarEvent, isReschedule = f
   });
 
   const subject = isReschedule
-    ? `Updated: Your installation has been rescheduled — Ref #${orderRef}`
-    : `Your installation has been scheduled — Ref #${orderRef}`;
+    ? `Updated: Your installation has been rescheduled \u2014 Ref #${orderRef}`
+    : `Your installation has been scheduled \u2014 Ref #${orderRef}`;
 
   const notesBlock = calendarEvent.notes
     ? `<div style="background:#f9f9f9;border-left:4px solid #dc2626;padding:14px 18px;margin:20px 0;border-radius:0 6px 6px 0;"><p style="margin:0;font-size:14px;color:#444;line-height:1.6;">${calendarEvent.notes}</p></div>`
