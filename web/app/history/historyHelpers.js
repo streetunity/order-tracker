@@ -8,6 +8,7 @@ export const TABS = [
   { id: 'users', label: 'Users', icon: '\ud83d\udc64', color: '#a855f7' },
   { id: 'commissions', label: 'Commissions', icon: '\ud83d\udcb0', color: '#eab308' },
   { id: 'documents', label: 'Documents', icon: '\ud83d\udcc4', color: '#ef4444' },
+  { id: 'emails', label: 'Emails', icon: '\u2709\ufe0f', color: '#0ea5e9' },
 ];
 
 // Date preset options
