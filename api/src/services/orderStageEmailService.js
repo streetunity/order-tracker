@@ -19,6 +19,7 @@
  */
 
 import emailService from "./emailService.js";
+import { logAlertEmail } from "./alertEmailLogger.js";
 import { wrapInBaseTemplate, buildHeader } from "./emailTemplates.js";
 import {
   DEFAULT_TEMPLATES,
@@ -267,5 +268,23 @@ export async function sendStageNotification(prisma, {
   } else {
     console.error(`[EMAIL] Stage notification failed: ${result.error}`);
   }
+
+  // Record on the audit log's Emails tab. Fire-and-forget.
+  logAlertEmail({
+    category: 'STAGE_CUSTOMER',
+    fromEmail,
+    fromName,
+    toEmail: order.account.email,
+    toName: order.account.name,
+    replyTo: fromEmail,
+    subject: renderedSubject,
+    status: result.success ? 'SENT' : 'FAILED',
+    errorMessage: result.success ? null : result.error,
+    sesMessageId: result.messageId || null,
+    orderId: order.id,
+    orderItemId: itemId,
+    metadata: { oldStage, newStage, customerName: order.account?.name },
+  });
+
   return result;
 }

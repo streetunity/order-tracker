@@ -5,6 +5,7 @@
  */
 
 import emailService from './emailService.js';
+import { logAlertEmail } from './alertEmailLogger.js';
 
 /**
  * Send install date notification to customer
@@ -138,6 +139,22 @@ export async function sendInstallEmail(prisma, { calendarEvent, isReschedule = f
   } else {
     console.error('[CALENDAR EMAIL] Failed:', result.error);
   }
+
+  // Record on the audit log's Emails tab. Fire-and-forget.
+  logAlertEmail({
+    category: 'CALENDAR_INSTALL',
+    fromEmail,
+    fromName,
+    toEmail: order.account.email,
+    toName: order.account.name,
+    replyTo: fromEmail,
+    subject,
+    status: result.success ? 'SENT' : 'FAILED',
+    errorMessage: result.success ? null : result.error,
+    sesMessageId: result.messageId || null,
+    orderId: order.id,
+    metadata: { isReschedule, customerName: order.account.name },
+  });
 
   return result;
 }

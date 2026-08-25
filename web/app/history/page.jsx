@@ -84,7 +84,9 @@ export default function AuditHistoryViewer() {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       if (debouncedSearch) params.append('search', debouncedSearch);
-      const endpoint = debouncedSearch ? '/api/audit/search-raw' : '/api/audit/search';
+      const endpoint = activeTab === 'emails'
+        ? '/api/audit/emails'
+        : (debouncedSearch ? '/api/audit/search-raw' : '/api/audit/search');
       const res = await fetch(`${endpoint}?${params.toString()}`, { headers: getAuthHeaders(), cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
@@ -176,7 +178,46 @@ export default function AuditHistoryViewer() {
     );
   }
 
+  function renderEmailEntry(log) {
+    const failed = log.status === 'FAILED';
+    const badgeClass = failed ? 'badge-deleted' : 'badge-created';
+    const meta = log.metadata || {};
+    const details = [];
+    if (log.relatedNumber) details.push(log.relatedType ? `${log.relatedType} ${log.relatedNumber}` : log.relatedNumber);
+    if (meta.customerName) details.push(meta.customerName);
+    if (meta.orderRef) details.push(`Order ${meta.orderRef}`);
+    if (meta.newStage) details.push(`Stage: ${meta.newStage}`);
+    if (meta.agentName) details.push(`Agent: ${meta.agentName}`);
+    if (log.sesMessageId) details.push(`SES: ${log.sesMessageId}`);
+    return (
+      <div key={log.id} className="log-entry">
+        <div className="log-header">
+          <div className="log-meta">
+            <span className={`log-badge ${badgeClass}`}>{failed ? '✉️ Email Failed' : '✉️ Email Sent'}</span>
+            {log.category && <span className="log-item-info">{log.category}</span>}
+            <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>
+          </div>
+          <div className="log-user">{log.performedByName || 'System'}</div>
+        </div>
+        <div className="log-entity-info">
+          <div className="entity-info-title">{log.subject || '(no subject)'}</div>
+          <div className="entity-info-subtitle">
+            To: {log.toName ? `${log.toName} <${log.toEmail}>` : log.toEmail}
+            {log.fromEmail ? ` · From: ${log.fromName ? `${log.fromName} <${log.fromEmail}>` : log.fromEmail}` : ''}
+          </div>
+          {details.length > 0 && (
+            <div className="entity-info-details">
+              {details.map((d, idx) => <span key={idx} className="entity-detail-item">{d}</span>)}
+            </div>
+          )}
+        </div>
+        {failed && log.errorMessage && <div className="log-metadata">Error: {log.errorMessage}</div>}
+      </div>
+    );
+  }
+
   function renderLogEntry(log) {
+    if (log.entityType === 'Email') return renderEmailEntry(log);
     const showRestore = isArchiveAction(log);
     const entityInfo = getEntityInfo(log, orders, accounts);
     const itemHeaderInfo = getItemHeaderInfo(log);
