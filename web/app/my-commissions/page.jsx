@@ -247,15 +247,27 @@ export default function MyCommissionsPage() {
       const totalPaid = payouts.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
 
       // Table data
+      // Applied commission % = order rate x this payout's own stage weight.
+      // Previously divided the rate by the number of ACTIVE stages, which
+      // misreported every uneven split and every legacy 2-phase payout.
+      const sortedStages = [...stageSettings].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      const stageLabel = (payout) => {
+        const idx = sortedStages.findIndex((s) => s.stage === payout.stage);
+        return idx >= 0 ? toOrdinal(idx + 1) : (payout.stage || "N/A");
+      };
+
       const tableData = payouts.map((payout) => {
         const commissionRate = payout.itemCommission?.commission?.commissionRate || 0;
-        const appliedCommissionPercent = stageSettings.length > 0
-          ? (commissionRate / stageSettings.length).toFixed(2)
-          : commissionRate.toFixed(2);
+        const stagePct = Number(payout.percentage);
+        const effectivePct = Number.isFinite(stagePct)
+          ? stagePct
+          : (stageSettings.length > 0 ? 100 / stageSettings.length : 100);
+        const appliedCommissionPercent = ((commissionRate * effectivePct) / 100).toFixed(2);
 
         return [
           payout.itemCommission?.commission?.order?.account?.name || "N/A",
           payout.itemCommission?.productCode || "N/A",
+          stageLabel(payout),
           `$${parseFloat(payout.amount || 0).toFixed(2)}`,
           `${appliedCommissionPercent}%`,
           payout.approvedAt ? new Date(payout.approvedAt).toLocaleDateString() : "-",
@@ -266,14 +278,14 @@ export default function MyCommissionsPage() {
       // Add table
       autoTable(doc, {
         startY: 55,
-        head: [["Customer", "Item", "Amount", "Commission %", "Approved Date", "Paid Date"]],
+        head: [["Customer", "Item", "Stage", "Amount", "Commission %", "Approved Date", "Paid Date"]],
         body: tableData,
         theme: "grid",
         headStyles: { fillColor: [60, 60, 60], textColor: 255 },
         styles: { fontSize: 9, cellPadding: 3 },
         columnStyles: {
-          2: { halign: "right" },
-          3: { halign: "center" },
+          3: { halign: "right" },
+          4: { halign: "center" },
         },
       });
 
