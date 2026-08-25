@@ -7,8 +7,24 @@ export default function PaidTab({
   selectedPayouts, setSelectedPayouts, onTogglePayoutSelection,
   stageSettings, onUnpay,
 }) {
-  const uniquePaidSalesReps = [...new Set(recentlyPaid.map(p => p.itemCommission?.commission?.salesPersonName).filter(Boolean))].sort();
-  const filteredPaidCommissions = paidFilterSalesRep ? recentlyPaid.filter(p => p.itemCommission?.commission?.salesPersonName === paidFilterSalesRep) : recentlyPaid;
+  // The rep who actually earned this payout. Payouts are stamped with their
+  // owner at creation and keep that owner through a rep switch or split, so
+  // this must NOT fall back to the commission's current rep except for legacy
+  // rows that were never stamped.
+  const payeeOf = (p) => p.salesPersonName || p.itemCommission?.commission?.salesPersonName || null;
+
+  // Revenue share attributable to this payout's stage, using the weight stored
+  // on the payout. Falls back to an even split only when the payout predates
+  // stored percentages.
+  const stageShareOf = (p) => {
+    const pct = Number(p.percentage);
+    if (Number.isFinite(pct)) return pct / 100;
+    const n = Number.isInteger(p.phaseCount) && p.phaseCount > 0 ? p.phaseCount : stageSettings.length;
+    return n > 0 ? 1 / n : 1;
+  };
+
+  const uniquePaidSalesReps = [...new Set(recentlyPaid.map(payeeOf).filter(Boolean))].sort();
+  const filteredPaidCommissions = paidFilterSalesRep ? recentlyPaid.filter(p => payeeOf(p) === paidFilterSalesRep) : recentlyPaid;
 
   return (
     <div>
@@ -53,11 +69,11 @@ export default function PaidTab({
                   <td style={{padding:4,textAlign:"center"}}><input type="checkbox" checked={selectedPayouts.has(payout.id)} onChange={() => onTogglePayoutSelection(payout.id)} /></td>
                   <td style={{padding:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><a href={`/admin/orders/${payout.itemCommission.commission.orderId}`} style={{color:"#dc2626",textDecoration:"none"}}>{payout.itemCommission.commission.order?.account?.name||"N/A"}</a></td>
                   <td style={{padding:8,color:"#ccc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isLegacy && <span title={`Old ${payout.phaseCount}-phase schedule -- no further phase to pay`} style={{marginRight:6,padding:"1px 5px",fontSize:10,color:"#f59e0b",border:"1px solid rgba(245,158,11,0.5)",borderRadius:4}}>{payout.phaseCount}-phase</span>}{payout.itemCommission?.productCode||"N/A"}</td>
-                  <td style={{padding:8,color:"#ccc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{payout.itemCommission.commission.salesPersonName}</td>
+                  <td style={{padding:8,color:"#ccc",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{payeeOf(payout) || "N/A"}</td>
                   <td style={{padding:"8px 4px",color:"#999",textAlign:"center",fontSize:11}}>P{pn>0?pn:"?"}</td>
                   <td style={{padding:"8px 4px",color:"#ccc",fontWeight:"bold",textAlign:"right",fontSize:13}}>
                     {formatCurrency(payout.amount)}
-                    {payout.itemCommission?.allocatedDiscount > 0 && stageSettings.length > 0 && <span style={{color:"#dc2626",fontSize:11,marginLeft:4}}>({formatCurrency(((payout.itemCommission.itemSubtotal||0)/stageSettings.length)-(payout.itemCommission.allocatedDiscount/stageSettings.length))})</span>}
+                    {payout.itemCommission?.allocatedDiscount > 0 && <span style={{color:"#dc2626",fontSize:11,marginLeft:4}}>({formatCurrency((((payout.itemCommission.itemSubtotal||0)-(payout.itemCommission.allocatedDiscount||0))*stageShareOf(payout)))})</span>}
                   </td>
                   <td style={{padding:"8px 4px",color:"#999",fontSize:11}}>{payout.paymentMethod||"N/A"}</td>
                   <td style={{padding:"8px 4px",color:"#999",fontSize:11}}>{new Date(payout.paidAt).toLocaleDateString()}</td>
