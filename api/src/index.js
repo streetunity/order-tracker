@@ -103,7 +103,7 @@ app.post(
   express.raw({ type: '*/*' }),
   createNextnpWebhookHandler(prisma),
 );
-console.log('\u2705 NexNP webhook endpoint loaded (raw body, pre-json)');
+console.log('✅ NexNP webhook endpoint loaded (raw body, pre-json)');
 
 app.use(express.json());
 app.use(cookieParser());
@@ -189,12 +189,12 @@ app.use('/public', publicInvoicingRouter);
 app.use('/public', surveyPublicRouter);
 app.use('/signatures', signaturesRouter);
 app.use('/portal', customerPortalRouter);
-console.log('\u2705 Public routes loaded');
+console.log('✅ Public routes loaded');
 
 // External partner API (v1): API-key auth, read-only. Public path is
 // /api/v1/external/* (Nginx strips the /api prefix before proxying).
 app.use('/v1/external', externalRouter);
-console.log('\u2705 External API (v1) loaded');
+console.log('✅ External API (v1) loaded');
 
 app.get('/pdfs/:filename', (req, res) => {
   const pdfDir  = new URL('../uploads/pdfs', import.meta.url).pathname;
@@ -232,7 +232,7 @@ app.get('/users/internal', authGuard, async (req, res) => {
     // Use Prisma's safe API instead of raw SQL.
     // isEmployee is a non-nullable Boolean in schema with @default(true), so the
     // original SQL's `isEmployee IS NULL` clause was dead defensive logic from
-    // before that default was added \u2014 simplifies to plain `isEmployee: true`.
+    // before that default was added — simplifies to plain `isEmployee: true`.
     const users = await prisma.user.findMany({
       where: {
         isActive: true,
@@ -351,7 +351,7 @@ app.use('/comments', commentsRouter);
 app.use('/reminders', remindersRouter);
 app.use('/email-templates', authGuard, emailTemplateSettingsRouter);
 app.use('/zapier', zapierWebhookRouter);
-console.log('\u2705 All routes loaded');
+console.log('✅ All routes loaded');
 
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -365,7 +365,7 @@ app.use((req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`API server running at http://${HOST}:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('\u2705 All modules loaded successfully');
+  console.log('✅ All modules loaded successfully');
 });
 
 process.on('SIGTERM', () => {
