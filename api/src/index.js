@@ -103,7 +103,7 @@ app.post(
   express.raw({ type: '*/*' }),
   createNextnpWebhookHandler(prisma),
 );
-console.log('✅ NexNP webhook endpoint loaded (raw body, pre-json)');
+console.log('\u2705 NexNP webhook endpoint loaded (raw body, pre-json)');
 
 app.use(express.json());
 app.use(cookieParser());
@@ -118,6 +118,21 @@ app.use((req, res, next) => {
 global.calculateCommissionForOrder = calculateCommissionForOrder;
 global.recalculateCommissionIfPriceChanged = recalculateCommissionIfPriceChanged;
 global.checkCommissionPayoutTrigger = checkCommissionPayoutTrigger;
+
+// orders.js and stages.js look commission helpers up on this object, which was
+// never assigned -- so every call behind it silently skipped. The live effect
+// was that editing an order's discount left the commission stamped with the
+// pre-discount net total, over-crediting the rep.
+//
+// Only the discount recalc is exposed here, deliberately. stages.js reads
+// checkCommissionPayoutTrigger off this same object and calls it with two
+// arguments when the helper takes four; that order-level path has never run,
+// and populating the key would switch it on untested. Item-level stage
+// triggers (items.js) already cover that behavior via the standalone globals
+// above. Leave it absent until the arity is fixed.
+global.commissionFunctions = {
+  recalculateCommissionIfPriceChanged,
+};
 
 const reportsRouter            = createReportsRouter(prisma);
 const operationalReportsRouter = createOperationalReportsRouter(prisma);
@@ -174,12 +189,12 @@ app.use('/public', publicInvoicingRouter);
 app.use('/public', surveyPublicRouter);
 app.use('/signatures', signaturesRouter);
 app.use('/portal', customerPortalRouter);
-console.log('✅ Public routes loaded');
+console.log('\u2705 Public routes loaded');
 
 // External partner API (v1): API-key auth, read-only. Public path is
 // /api/v1/external/* (Nginx strips the /api prefix before proxying).
 app.use('/v1/external', externalRouter);
-console.log('✅ External API (v1) loaded');
+console.log('\u2705 External API (v1) loaded');
 
 app.get('/pdfs/:filename', (req, res) => {
   const pdfDir  = new URL('../uploads/pdfs', import.meta.url).pathname;
@@ -217,7 +232,7 @@ app.get('/users/internal', authGuard, async (req, res) => {
     // Use Prisma's safe API instead of raw SQL.
     // isEmployee is a non-nullable Boolean in schema with @default(true), so the
     // original SQL's `isEmployee IS NULL` clause was dead defensive logic from
-    // before that default was added — simplifies to plain `isEmployee: true`.
+    // before that default was added \u2014 simplifies to plain `isEmployee: true`.
     const users = await prisma.user.findMany({
       where: {
         isActive: true,
@@ -336,7 +351,7 @@ app.use('/comments', commentsRouter);
 app.use('/reminders', remindersRouter);
 app.use('/email-templates', authGuard, emailTemplateSettingsRouter);
 app.use('/zapier', zapierWebhookRouter);
-console.log('✅ All routes loaded');
+console.log('\u2705 All routes loaded');
 
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -350,7 +365,7 @@ app.use((req, res) => {
 app.listen(PORT, HOST, () => {
   console.log(`API server running at http://${HOST}:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('✅ All modules loaded successfully');
+  console.log('\u2705 All modules loaded successfully');
 });
 
 process.on('SIGTERM', () => {
