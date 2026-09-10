@@ -440,10 +440,10 @@ export default function MyCommissionsPage() {
                 <table className="commissions-table">
                   <thead>
                     <tr>
-                      <th>Order #</th>
                       <th>Customer</th>
                       <th>Item</th>
                       <th>Order Date</th>
+                      <th>Paid Date</th>
                       <th>Stage</th>
                       <th>Applied %</th>
                       <th>Amount</th>
@@ -458,14 +458,10 @@ export default function MyCommissionsPage() {
                     ) : (
                       commissions.map((payout) => (
                         <tr key={payout.id}>
-                          <td>
-                            <Link href={`/admin/orders/${payout.orderId}`} className="order-link">
-                              #{payout.orderNumber || '-'}
-                            </Link>
-                          </td>
                           <td>{payout.customerName || '-'}</td>
                           <td>{payout.productCode || '-'}</td>
                           <td>{formatDate(payout.orderDate)}</td>
+                          <td>{payout.paidAt ? formatDate(payout.paidAt) : '-'}</td>
                           <td>{getStageNumber(payout.stage)}</td>
                           <td>{getAppliedCommissionPercent(payout.commissionRate)}%</td>
                           <td className="commission-amount">{formatCurrency(payout.amount)}</td>
